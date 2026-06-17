@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORUM Central</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #ffffff;
+    color: #1a1a18;
+  }
+
+  /* ── PANTALLA DE LOGIN ── */
+  #login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: #f7f6f2;
+  }
+  .login-box {
+    background: #ffffff;
+    border: 0.5px solid #e2e2de;
+    border-radius: 12px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 360px;
+  }
+  .login-box h1 {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .login-box p.subtitle {
+    font-size: 13px;
+    color: #6b6a64;
+    margin-bottom: 1.5rem;
+  }
+  .login-box label {
+    display: block;
+    font-size: 12px;
+    color: #6b6a64;
+    margin-bottom: 4px;
+    margin-top: 12px;
+  }
+  .login-box input {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 14px;
+    border: 0.5px solid #e2e2de;
+    border-radius: 8px;
+    background: #fff;
+    color: #1a1a18;
+  }
+  .login-box input:focus {
+    outline: none;
+    border-color: #378ADD;
+  }
+  .login-box button {
+    width: 100%;
+    margin-top: 1.5rem;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    background: #1a1a18;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .login-box button:hover { background: #333; }
+  .login-error {
+    color: #A32D2D;
+    font-size: 13px;
+    margin-top: 10px;
+    display: none;
+  }
+
+  /* ── APP PRINCIPAL ── */
+  #app-screen { display: none; min-height: 100vh; }
+  .app-layout { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 220px;
+    background: #f7f6f2;
+    border-right: 0.5px solid #e2e2de;
+    padding: 1.25rem 0;
+    flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 0 1.25rem 1rem;
+    border-bottom: 0.5px solid #e2e2de;
+    margin-bottom: 0.5rem;
+  }
+  .sidebar-header .org-name { font-weight: 500; font-size: 15px; }
+  .sidebar-header .user-name { font-size: 12px; color: #6b6a64; margin-top: 2px; }
+
+  .nav-group-title {
+    padding: 1rem 1.25rem 0.25rem;
+    font-size: 11px;
+    color: #9a988f;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 1.25rem;
+    font-size: 13px;
+    color: #4a4944;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+  .nav-item:hover { background: #efeee9; }
+  .nav-item.active {
+    background: #e6f1fb;
+    border-left-color: #378ADD;
+    color: #0C447C;
+    font-weight: 500;
+  }
+
+  .logout-button {
+    margin: 1.5rem 1.25rem 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    border: 0.5px solid #e2e2de;
+    border-radius: 8px;
+    background: #fff;
+    color: #4a4944;
+    cursor: pointer;
+    width: calc(100% - 2.5rem);
+  }
+
+  .main-content {
+    flex: 1;
+    padding: 1.5rem 1.75rem;
+    min-width: 0;
+  }
+  .main-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+  }
+  .main-header h1 { font-size: 22px; font-weight: 500; }
+  .last-update {
+    font-size: 12px;
+    color: #6b6a64;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .last-update .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #27500A;
+    flex-shrink: 0;
+  }
+  .last-update.stale .dot { background: #854F0B; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 4px; color: #6b6a64; font-weight: 400; border-bottom: 0.5px solid #e2e2de; }
+  td { padding: 9px 4px; border-bottom: 0.5px solid #e2e2de; }
+
+  .badge {
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 8px;
+    display: inline-block;
+  }
+  .badge-success { background: #EAF3DE; color: #27500A; }
+  .badge-warning { background: #FAEEDA; color: #854F0B; }
+  .badge-danger { background: #FCEBEB; color: #A32D2D; }
+  .badge-neutral { background: #f0efe9; color: #6b6a64; }
+
+  .search-box { position: relative; }
+  .search-box input {
+    width: 220px;
+    padding: 6px 12px 6px 32px;
+    font-size: 13px;
+    border: 0.5px solid #e2e2de;
+    border-radius: 8px;
+    background: #fff;
+    color: #1a1a18;
+  }
+  .search-box::before {
+    content: "🔍";
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    opacity: 0.5;
+  }
+
+  .loading-text { color: #9a988f; font-size: 13px; padding: 2rem 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ PANTALLA DE LOGIN ============ -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>ORUM Central</h1>
+    <p class="subtitle">Accede con tu usuario y contraseña</p>
+    <form id="login-form">
+      <label for="usuario">Usuario</label>
+      <input type="text" id="usuario" autocomplete="username" required>
+
+      <label for="password">Contraseña</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+
+      <p class="login-error" id="login-error"></p>
+
+      <button type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ APP PRINCIPAL ============ -->
+<div id="app-screen">
+  <div class="app-layout">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="org-name">ORUM Central</div>
+        <div class="user-name" id="sidebar-user-name"></div>
+      </div>
+      <div id="nav-container"></div>
+      <button class="logout-button" id="logout-btn">Cerrar sesión</button>
+    </div>
+
+    <div class="main-content">
+      <div class="main-header">
+        <h1 id="content-title">Proyectos</h1>
+        <div class="last-update" id="last-update-indicator">
+          <span class="dot"></span>
+          <span id="last-update-text">Cargando...</span>
+        </div>
+      </div>
+      <div id="content-body">
+        <p class="loading-text">Cargando datos...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let usuarioActual = null;
+
+// ── LOGIN ──
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const usuario = document.getElementById('usuario').value.trim();
+  const password = document.getElementById('password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, password })
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      errorEl.textContent = data.error || 'Error al iniciar sesión';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    usuarioActual = data.usuario;
+    mostrarApp();
+  } catch (err) {
+    errorEl.textContent = 'Error de conexión con el servidor';
+    errorEl.style.display = 'block';
+  }
+});
+
+// ── LOGOUT ──
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  location.reload();
+});
+
+// ── Comprobar si ya hay sesión activa al cargar la página ──
+async function comprobarSesion() {
+  try {
+    const resp = await fetch('/api/sesion');
+    if (resp.ok) {
+      const data = await resp.json();
+      usuarioActual = data.usuario;
+      mostrarApp();
+    }
+  } catch (err) {
+    // sin sesión, se queda en login
+  }
+}
+
+function mostrarApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('sidebar-user-name').textContent = usuarioActual.nombre;
+  construirMenu();
+  cargarProyectos();
+}
+
+// ── MENÚ DINÁMICO SEGÚN ROL ──
+function construirMenu() {
+  const nav = document.getElementById('nav-container');
+  nav.innerHTML = '';
+
+  // Por ahora, todos los roles ven al menos "Proyectos" — iremos añadiendo módulos por rol
+  const grupoTitle = document.createElement('div');
+  grupoTitle.className = 'nav-group-title';
+  grupoTitle.textContent = usuarioActual.rol;
+  nav.appendChild(grupoTitle);
+
+  const itemProyectos = document.createElement('div');
+  itemProyectos.className = 'nav-item active';
+  itemProyectos.textContent = '📁 Proyectos';
+  itemProyectos.onclick = cargarProyectos;
+  nav.appendChild(itemProyectos);
+}
+
+// ── CARGAR PROYECTOS ──
+async function cargarProyectos() {
+  document.getElementById('content-title').textContent = 'Proyectos';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando proyectos...</p>';
+
+  try {
+    const resp = await fetch('/api/proyectos');
+    const data = await resp.json();
+
+    if (data.error) {
+      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
+      return;
+    }
+
+    actualizarIndicadorFecha(data.ultima_actualizacion);
+    pintarTablaProyectos(data.data);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+
+function actualizarIndicadorFecha(fecha) {
+  const textEl = document.getElementById('last-update-text');
+  const indicatorEl = document.getElementById('last-update-indicator');
+  if (!fecha) {
+    textEl.textContent = 'Sin datos';
+    indicatorEl.classList.add('stale');
+    return;
+  }
+  textEl.textContent = 'Actualizado ' + fecha;
+
+  const [fechaParte, horaParte] = fecha.split(' ');
+  const [dia, mes, anio] = fechaParte.split('/');
+  const fechaObj = new Date(anio, mes - 1, dia, ...horaParte.split(':'));
+  const diffHoras = (new Date() - fechaObj) / (1000 * 60 * 60);
+  indicatorEl.classList.toggle('stale', diffHoras > 2);
+}
+
+function pintarTablaProyectos(proyectos) {
+  const body = document.getElementById('content-body');
+
+  if (!proyectos || proyectos.length === 0) {
+    body.innerHTML = '<p class="loading-text">No hay proyectos para mostrar.</p>';
+    return;
+  }
+
+  let html = `
+    <div style="margin-bottom: 1rem;" class="search-box">
+      <input type="text" id="buscador-proyectos" placeholder="Buscar cliente o proyecto...">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Nº</th>
+          <th>Cliente</th>
+          <th>Comercial</th>
+          <th>Estado</th>
+          <th style="text-align:right;">Importe</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-proyectos-body">
+  `;
+
+  proyectos.forEach(p => {
+    html += filaProyecto(p);
+  });
+
+  html += '</tbody></table>';
+  body.innerHTML = html;
+
+  document.getElementById('buscador-proyectos').addEventListener('input', (e) => {
+    const filtro = e.target.value.toLowerCase();
+    const filtrados = proyectos.filter(p =>
+      (p.cliente || '').toLowerCase().includes(filtro) ||
+      String(p.numero || '').includes(filtro)
+    );
+    document.getElementById('tabla-proyectos-body').innerHTML = filtrados.map(filaProyecto).join('');
+  });
+}
+
+function filaProyecto(p) {
+  const badgeClass = badgeParaEstado(p.estado);
+  return `
+    <tr>
+      <td>${p.numero || ''}</td>
+      <td>${p.cliente || ''}</td>
+      <td>${p.comercial || ''}</td>
+      <td><span class="badge ${badgeClass}">${p.estado || ''}</span></td>
+      <td style="text-align:right;">${formatearEuros(p.valor)}</td>
+    </tr>
+  `;
+}
+
+function badgeParaEstado(estado) {
+  if (estado === 'Canceled') return 'badge-danger';
+  if (estado === 'Pending' || estado === 'Concept') return 'badge-warning';
+  return 'badge-success';
+}
+
+function formatearEuros(valor) {
+  const n = parseFloat(valor) || 0;
+  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+comprobarSesion();
+</script>
+</body>
+</html>
