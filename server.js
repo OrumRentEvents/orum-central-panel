@@ -190,6 +190,18 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       ) / 100;
       const difFacturaCobro = Math.round((importeFactura - importeCobradoReal) * 100) / 100;
 
+      let diasRetraso = null;
+      if (f.esta_pagada !== 'SI' && f.fecha_vencimiento) {
+        const partes = f.fecha_vencimiento.split('/');
+        if (partes.length === 3) {
+          const vencimiento = new Date(partes[2], partes[1] - 1, partes[0]);
+          const hoyLocal = new Date();
+          hoyLocal.setHours(0, 0, 0, 0);
+          const diffMs = hoyLocal - vencimiento;
+          diasRetraso = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        }
+      }
+
       return {
         factura_id: f.factura_id,
         numero_factura: f.numero,
@@ -201,6 +213,7 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
         fecha_entrega: proyecto ? proyecto.entrega_fecha : null,
         fecha_emision: f.fecha_emision,
         fecha_vencimiento: f.fecha_vencimiento,
+        dias_retraso: diasRetraso,
         importe_con_iva: importeFactura,
         importe_cobrado_real: importeCobradoReal,
         diferencia_factura_cobro: difFacturaCobro,
@@ -358,6 +371,18 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
     const pncCuadran = crucePNC.filter(p => p.cuadra).length;
     const proyectosPendientesFacturar = cruceProyectos.filter(p => !p.es_pnc && Math.abs(p.pendiente_facturar) >= 0.05).length;
 
+    // ── Facturas vencidas, ordenadas por días de retraso (más urgente primero) ──
+    const facturasVencidas = cruceFacturas
+      .filter(f => f.dias_retraso !== null && f.dias_retraso > 0)
+      .sort((a, b) => b.dias_retraso - a.dias_retraso);
+
+    // ── Auditoría: agregación navegable de las 3 alertas ──
+    const auditoria = {
+      facturas_sin_registro: cruceFacturas.filter(f => f.sin_registro_caja),
+      pnc_no_cuadran: crucePNC.filter(p => !p.cuadra),
+      proyectos_pendientes_facturar: cruceProyectos.filter(p => !p.es_pnc && Math.abs(p.pendiente_facturar) >= 0.05)
+    };
+
     res.json({
       kpis,
       desglose_comercial: desgloseComercial,
@@ -372,6 +397,8 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       facturas_sin_registro_caja: cruceFacturas.filter(f => f.sin_registro_caja).length,
       pnc_que_no_cuadran: crucePNC.filter(p => !p.cuadra).length,
       proyectos_pendientes_facturar: proyectosPendientesFacturar,
+      facturas_vencidas: facturasVencidas,
+      auditoria: auditoria,
       cruce_proyectos: cruceProyectos,
       cruce_facturas: cruceFacturas,
       cruce_pnc: crucePNC,
