@@ -323,6 +323,43 @@ function construirMenu() {
   itemProyectos.textContent = '📁 Proyectos';
   itemProyectos.onclick = cargarProyectos;
   nav.appendChild(itemProyectos);
+
+  const itemFinanciero = document.createElement('div');
+  itemFinanciero.className = 'nav-item';
+  itemFinanciero.textContent = '💶 Financiero (bruto)';
+  itemFinanciero.onclick = cargarFinancieroBruto;
+  nav.appendChild(itemFinanciero);
+}
+
+// ── CARGAR FINANCIERO (vista bruta de depuración, sin estilos) ──
+async function cargarFinancieroBruto() {
+  document.getElementById('content-title').textContent = 'Financiero — datos brutos';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
+
+  try {
+    const resp = await fetch('/api/financiero');
+    const data = await resp.json();
+
+    if (data.error) {
+      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
+      return;
+    }
+
+    let html = `
+      <p style="font-size:13px; margin-bottom: 1rem;">
+        Proyectos normales: <b>${data.total_proyectos_normales}</b> ·
+        Proyectos PNC: <b>${data.total_proyectos_pnc}</b> ·
+        Registros Caja: <b>${data.total_registros_caja}</b> ·
+        Cobros formulario PNC: <b>${data.total_nc_formulario}</b> ·
+        Confirmaciones PNC: <b>${data.total_nc_confirmaciones}</b>
+      </p>
+      <pre style="font-size:11px; background:#f7f6f2; padding:1rem; border-radius:8px; max-height: 600px; overflow:auto; white-space: pre-wrap;">${JSON.stringify(data, null, 2)}</pre>
+    `;
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
 }
 
 // ── CARGAR PROYECTOS ──
