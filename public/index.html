@@ -337,9 +337,9 @@ function construirMenu() {
   const subitems = [
     { id: 'fin-resumen', label: 'Resumen', activo: true, onClick: () => cargarFinancieroResumen() },
     { id: 'fin-control-pagos', label: 'Control de pagos', activo: true, onClick: () => cargarFinanciero() },
-    { id: 'fin-vencidas', label: 'Vencidas y morosidad', activo: false },
+    { id: 'fin-vencidas', label: 'Vencidas y morosidad', activo: true, onClick: () => cargarFinancieroVencidas() },
     { id: 'fin-historico', label: 'Histórico mensual', activo: false },
-    { id: 'fin-auditoria', label: 'Auditoría / Alertas', activo: false },
+    { id: 'fin-auditoria', label: 'Auditoría / Alertas', activo: true, onClick: () => cargarFinancieroAuditoria() },
   ];
 
   subitems.forEach(item => {
@@ -498,6 +498,228 @@ function irAControlPagosConFiltro(tipo) {
   });
 }
 
+// ── CARGAR FINANCIERO (Vencidas y morosidad) ──
+async function cargarFinancieroVencidas() {
+  document.getElementById('content-title').textContent = 'Financiero · Vencidas y morosidad';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
+
+  try {
+    if (!financieroDataGlobal) {
+      const resp = await fetch('/api/financiero');
+      financieroDataGlobal = await resp.json();
+    }
+    const data = financieroDataGlobal;
+
+    if (data.error) {
+      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
+      return;
+    }
+
+    actualizarIndicadorFecha(data.ultima_actualizacion);
+    pintarVencidas(data);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+
+function pintarVencidas(data) {
+  const body = document.getElementById('content-body');
+  const vencidas = data.facturas_vencidas;
+  const totalVencido = vencidas.reduce((sum, f) => sum + (parseFloat(f.pendiente_cobro) || 0), 0);
+
+  let html = `
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:1.5rem;">
+      <div style="background:#FCEBEB; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#A32D2D; margin:0 0 6px;">Total vencido pendiente</p>
+        <p style="font-size:22px; font-weight:500; color:#501313; margin:0;">${euros(totalVencido)}</p>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Nº de facturas vencidas</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${vencidas.length}</p>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Mayor retraso</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${vencidas.length > 0 ? vencidas[0].dias_retraso + ' días' : '—'}</p>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
+      <div class="search-box" style="margin-left:auto;">
+        <input type="text" id="buscador-vencidas" placeholder="Buscar cliente o nº factura..." oninput="aplicarFiltroVencidas()">
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nº Factura</th>
+          <th>Fecha vencimiento</th>
+          <th style="text-align:right;">Días de retraso</th>
+          <th>Cliente</th>
+          <th>Comercial</th>
+          <th style="text-align:right;">Pendiente</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-vencidas-body">
+      </tbody>
+    </table>
+  `;
+
+  body.innerHTML = html;
+  window.vencidasDataActual = vencidas;
+  renderTablaVencidas(vencidas);
+}
+
+function aplicarFiltroVencidas() {
+  const busqueda = document.getElementById('buscador-vencidas').value.toLowerCase();
+  let filtradas = window.vencidasDataActual;
+  if (busqueda) {
+    filtradas = filtradas.filter(f =>
+      (f.cliente || '').toLowerCase().includes(busqueda) ||
+      String(f.numero_factura || '').includes(busqueda)
+    );
+  }
+  renderTablaVencidas(filtradas);
+}
+
+function renderTablaVencidas(lista) {
+  const tbody = document.getElementById('tabla-vencidas-body');
+  if (lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay facturas vencidas con este filtro.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = lista.map(f => {
+    const colorDias = f.dias_retraso > 30 ? '#A32D2D' : '#854F0B';
+    return `
+      <tr>
+        <td>${f.numero_factura}</td>
+        <td>${f.fecha_vencimiento || '—'}</td>
+        <td style="text-align:right; color:${colorDias}; font-weight:500;">${f.dias_retraso} días</td>
+        <td>${f.cliente || ''}</td>
+        <td>${f.comercial || ''}</td>
+        <td style="text-align:right; font-weight:500;">${euros(f.pendiente_cobro)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ── CARGAR FINANCIERO (Auditoría / Alertas) ──
+async function cargarFinancieroAuditoria() {
+  document.getElementById('content-title').textContent = 'Financiero · Auditoría / Alertas';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
+
+  try {
+    if (!financieroDataGlobal) {
+      const resp = await fetch('/api/financiero');
+      financieroDataGlobal = await resp.json();
+    }
+    const data = financieroDataGlobal;
+
+    if (data.error) {
+      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
+      return;
+    }
+
+    actualizarIndicadorFecha(data.ultima_actualizacion);
+    pintarAuditoria(data);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+
+function pintarAuditoria(data) {
+  const body = document.getElementById('content-body');
+  const a = data.auditoria;
+
+  let html = `
+    <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
+      <div id="tab-aud-sin-registro" onclick="cambiarPestanaAuditoria('sin-registro')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
+      <div id="tab-aud-pnc" onclick="cambiarPestanaAuditoria('pnc')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
+      <div id="tab-aud-pend-facturar" onclick="cambiarPestanaAuditoria('pend-facturar')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
+    </div>
+    <div id="auditoria-tabla"></div>
+  `;
+
+  body.innerHTML = html;
+  window.auditoriaDataGlobal = a;
+  cambiarPestanaAuditoria('sin-registro');
+}
+
+function cambiarPestanaAuditoria(pestana) {
+  window.pestanaAuditoriaActiva = pestana;
+  const a = window.auditoriaDataGlobal;
+
+  document.getElementById('tab-aud-sin-registro').textContent = `Sin registro en Caja (${a.facturas_sin_registro.length})`;
+  document.getElementById('tab-aud-sin-registro').style.cssText += estiloTab(pestana === 'sin-registro');
+  document.getElementById('tab-aud-pnc').textContent = `PNC no cuadran (${a.pnc_no_cuadran.length})`;
+  document.getElementById('tab-aud-pnc').style.cssText += estiloTab(pestana === 'pnc');
+  document.getElementById('tab-aud-pend-facturar').textContent = `Pendientes de facturar (${a.proyectos_pendientes_facturar.length})`;
+  document.getElementById('tab-aud-pend-facturar').style.cssText += estiloTab(pestana === 'pend-facturar');
+
+  const cont = document.getElementById('auditoria-tabla');
+
+  if (pestana === 'sin-registro') {
+    cont.innerHTML = `
+      <table>
+        <thead><tr><th>Nº Factura</th><th>Fecha</th><th>Cliente</th><th>Comercial</th><th style="text-align:right;">Importe</th></tr></thead>
+        <tbody>
+          ${a.facturas_sin_registro.length === 0 ? '<tr><td colspan="5" style="padding:1.5rem 4px; color:#9a988f;">No hay facturas sin registro.</td></tr>' :
+            a.facturas_sin_registro.map(f => `
+              <tr>
+                <td>${f.numero_factura}</td>
+                <td>${f.fecha_entrega || '—'}</td>
+                <td>${f.cliente || ''}</td>
+                <td>${f.comercial || ''}</td>
+                <td style="text-align:right;">${euros(f.importe_con_iva)}</td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (pestana === 'pnc') {
+    cont.innerHTML = `
+      <table>
+        <thead><tr><th>Nº Proyecto</th><th>Cliente</th><th>Comercial</th><th style="text-align:right;">Esperado</th><th style="text-align:right;">Cobrado</th><th style="text-align:right;">Diferencia</th></tr></thead>
+        <tbody>
+          ${a.pnc_no_cuadran.length === 0 ? '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay PNC sin cuadrar.</td></tr>' :
+            a.pnc_no_cuadran.map(p => `
+              <tr>
+                <td>${p.numero}</td>
+                <td>${p.cliente || ''}</td>
+                <td>${p.comercial || ''}</td>
+                <td style="text-align:right;">${euros(p.valor_esperado)}</td>
+                <td style="text-align:right;">${euros(p.total_cobrado_formulario)}</td>
+                <td style="text-align:right; color:#A32D2D; font-weight:500;">${euros(p.diferencia)}</td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (pestana === 'pend-facturar') {
+    cont.innerHTML = `
+      <table>
+        <thead><tr><th>Nº Proyecto</th><th>Cliente</th><th>Comercial</th><th style="text-align:right;">Valor</th><th style="text-align:right;">Facturado</th><th style="text-align:right;">Pendiente facturar</th></tr></thead>
+        <tbody>
+          ${a.proyectos_pendientes_facturar.length === 0 ? '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay pendientes de facturar.</td></tr>' :
+            a.proyectos_pendientes_facturar.map(p => `
+              <tr>
+                <td>${p.numero}</td>
+                <td>${p.cliente || ''}</td>
+                <td>${p.comercial || ''}</td>
+                <td style="text-align:right;">${euros(p.valor_proyecto)}</td>
+                <td style="text-align:right;">${euros(p.total_facturado)}</td>
+                <td style="text-align:right; color:#854F0B; font-weight:500;">${euros(p.pendiente_facturar)}</td>
+              </tr>
+            `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+}
+
 // ── CARGAR FINANCIERO (Control de pagos) ──
 async function cargarFinanciero() {
   document.getElementById('content-title').textContent = 'Financiero · Control de pagos';
@@ -525,7 +747,7 @@ async function cargarFinanciero() {
 
 function euros(valor) {
   const n = parseFloat(valor) || 0;
-  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
 
 const ETIQUETAS_FORMA_PAGO = {
@@ -1193,7 +1415,7 @@ function badgeParaEstado(estado) {
 
 function formatearEuros(valor) {
   const n = parseFloat(valor) || 0;
-  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
 
 comprobarSesion();
