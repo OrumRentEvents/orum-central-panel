@@ -326,14 +326,17 @@ function construirMenu() {
 
   const itemFinanciero = document.createElement('div');
   itemFinanciero.className = 'nav-item';
-  itemFinanciero.textContent = '💶 Financiero (bruto)';
-  itemFinanciero.onclick = cargarFinancieroBruto;
+  itemFinanciero.textContent = '💶 Financiero';
+  itemFinanciero.onclick = cargarFinanciero;
   nav.appendChild(itemFinanciero);
 }
 
-// ── CARGAR FINANCIERO (vista bruta de depuración, sin estilos) ──
-async function cargarFinancieroBruto() {
-  document.getElementById('content-title').textContent = 'Financiero — datos brutos';
+let financieroDataGlobal = null;
+let pestanaFinancieroActiva = 'facturas';
+
+// ── CARGAR FINANCIERO ──
+async function cargarFinanciero() {
+  document.getElementById('content-title').textContent = 'Financiero';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
 
@@ -346,23 +349,323 @@ async function cargarFinancieroBruto() {
       return;
     }
 
-    let html = `
-      <p style="font-size:13px; margin-bottom: 1rem;">
-        Proyectos: <b>${data.total_proyectos}</b> ·
-        Facturas: <b>${data.total_facturas}</b> ·
-        Proyectos PNC: <b>${data.total_proyectos_pnc}</b> ·
-        Registros Caja: <b>${data.total_registros_caja}</b> ·
-        Cobros formulario PNC: <b>${data.total_nc_formulario}</b> ·
-        Confirmaciones PNC: <b>${data.total_nc_confirmaciones}</b><br>
-        <span style="color:#A32D2D;">Facturas pagadas sin registro en Caja: <b>${data.facturas_sin_registro_caja}</b></span> ·
-        <span style="color:#854F0B;">PNC que no cuadran (cobrado ≠ esperado): <b>${data.pnc_que_no_cuadran}</b></span>
-      </p>
-      <pre style="font-size:11px; background:#f7f6f2; padding:1rem; border-radius:8px; max-height: 600px; overflow:auto; white-space: pre-wrap;">${JSON.stringify(data, null, 2)}</pre>
-    `;
-    body.innerHTML = html;
+    financieroDataGlobal = data;
+    actualizarIndicadorFecha(data.ultima_actualizacion);
+    pintarFinanciero();
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
+}
+
+function euros(valor) {
+  const n = parseFloat(valor) || 0;
+  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+const ETIQUETAS_FORMA_PAGO = {
+  'transferencia': 'Transferencia',
+  'efectivo-marbella': 'Efectivo Marbella',
+  'efectivo-monda': 'Efectivo Monda',
+  'tpv-marbella': 'TPV Marbella',
+  'tpv-monda': 'TPV Monda'
+};
+
+function pintarFinanciero() {
+  const data = financieroDataGlobal;
+  const body = document.getElementById('content-body');
+  const k = data.kpis;
+
+  let html = `
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1rem;">
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Total facturado</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${euros(k.total_facturado)}</p>
+      </div>
+      <div style="background:#EAF3DE; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#27500A; margin:0 0 6px;">Cobrado</p>
+        <p style="font-size:22px; font-weight:500; color:#173404; margin:0;">${euros(k.total_cobrado)}</p>
+      </div>
+      <div style="background:#FAEEDA; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#854F0B; margin:0 0 6px;">Pendiente de cobro</p>
+        <p style="font-size:22px; font-weight:500; color:#412402; margin:0;">${euros(k.total_pendiente)}</p>
+      </div>
+      <div style="background:#FCEBEB; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#A32D2D; margin:0 0 6px;">Vencidas</p>
+        <p style="font-size:22px; font-weight:500; color:#501313; margin:0;">${euros(k.total_vencidas)}</p>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin-bottom:1.5rem;">
+      <div style="background:#FCEBEB; border:0.5px solid #F3C9C9; border-radius:8px; padding:0.85rem 1rem; display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="filtrarSoloSinRegistro()">
+        <span style="font-size:18px;">⚠️</span>
+        <div>
+          <p style="font-size:13px; color:#A32D2D; margin:0; font-weight:500;">${data.facturas_sin_registro_caja} facturas pagadas sin registro en Caja</p>
+          <p style="font-size:11px; color:#854F0B; margin:2px 0 0;">Haz clic para filtrar</p>
+        </div>
+      </div>
+      <div style="background:#FAEEDA; border:0.5px solid #F0DCB0; border-radius:8px; padding:0.85rem 1rem; display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="cambiarPestanaFinanciero('pnc'); filtrarSoloNoCuadranPNC();">
+        <span style="font-size:18px;">⚖️</span>
+        <div>
+          <p style="font-size:13px; color:#854F0B; margin:0; font-weight:500;">${data.pnc_que_no_cuadran} proyectos PNC no cuadran</p>
+          <p style="font-size:11px; color:#854F0B; margin:2px 0 0;">Haz clic para revisar</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
+      <div id="tab-facturas" onclick="cambiarPestanaFinanciero('facturas')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
+      <div id="tab-pnc" onclick="cambiarPestanaFinanciero('pnc')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
+    </div>
+
+    <div id="financiero-filtros"></div>
+    <div id="financiero-tabla"></div>
+  `;
+
+  body.innerHTML = html;
+  cambiarPestanaFinanciero(pestanaFinancieroActiva);
+}
+
+function estiloTab(activa) {
+  return activa
+    ? 'font-weight:500; color:#0C447C; border-bottom:2px solid #378ADD;'
+    : 'color:#6b6a64; border-bottom:2px solid transparent;';
+}
+
+function cambiarPestanaFinanciero(pestana) {
+  pestanaFinancieroActiva = pestana;
+  document.getElementById('tab-facturas').textContent = 'Facturas';
+  document.getElementById('tab-facturas').style.cssText += estiloTab(pestana === 'facturas');
+  document.getElementById('tab-pnc').textContent = 'PNC (No confirmados)';
+  document.getElementById('tab-pnc').style.cssText += estiloTab(pestana === 'pnc');
+
+  if (pestana === 'facturas') pintarFiltrosYTablaFacturas();
+  else pintarFiltrosYTablaPNC();
+}
+
+function filtrarSoloSinRegistro() {
+  cambiarPestanaFinanciero('facturas');
+  setTimeout(() => {
+    const sel = document.getElementById('filtro-forma-pago');
+    if (sel) { sel.value = 'sin-registro'; aplicarFiltrosFacturas(); }
+  }, 0);
+}
+
+function filtrarSoloNoCuadranPNC() {
+  setTimeout(() => {
+    const btn = document.getElementById('btn-pnc-no-cuadran');
+    if (btn) btn.click();
+  }, 0);
+}
+
+// ── PESTAÑA FACTURAS ──
+function pintarFiltrosYTablaFacturas() {
+  const data = financieroDataGlobal;
+  const comerciales = [...new Set(data.cruce_facturas.map(f => f.comercial).filter(Boolean))].sort();
+
+  document.getElementById('financiero-filtros').innerHTML = `
+    <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
+      <select id="filtro-forma-pago" onchange="aplicarFiltrosFacturas()" style="width:auto; font-size:13px;">
+        <option value="">Forma de pago: Todas</option>
+        <option value="transferencia">Transferencia</option>
+        <option value="efectivo-marbella">Efectivo Marbella</option>
+        <option value="efectivo-monda">Efectivo Monda</option>
+        <option value="tpv-marbella">TPV Marbella</option>
+        <option value="tpv-monda">TPV Monda</option>
+        <option value="sin-registro">Sin registro</option>
+      </select>
+      <select id="filtro-comercial" onchange="aplicarFiltrosFacturas()" style="width:auto; font-size:13px;">
+        <option value="">Comercial: Todos</option>
+        ${comerciales.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <select id="filtro-estado" onchange="aplicarFiltrosFacturas()" style="width:auto; font-size:13px;">
+        <option value="">Estado: Todas</option>
+        <option value="pagada">Pagadas</option>
+        <option value="pendiente">Pendientes</option>
+      </select>
+      <div class="search-box" style="margin-left:auto;">
+        <input type="text" id="buscador-facturas" placeholder="Buscar cliente o nº factura..." oninput="aplicarFiltrosFacturas()">
+      </div>
+    </div>
+  `;
+
+  renderTablaFacturas(data.cruce_facturas);
+}
+
+function aplicarFiltrosFacturas() {
+  const data = financieroDataGlobal;
+  const formaPago = document.getElementById('filtro-forma-pago').value;
+  const comercial = document.getElementById('filtro-comercial').value;
+  const estado = document.getElementById('filtro-estado').value;
+  const busqueda = document.getElementById('buscador-facturas').value.toLowerCase();
+
+  let filtradas = data.cruce_facturas;
+
+  if (formaPago === 'sin-registro') filtradas = filtradas.filter(f => f.sin_registro_caja);
+  else if (formaPago) filtradas = filtradas.filter(f => f.forma_pago_real === formaPago);
+
+  if (comercial) filtradas = filtradas.filter(f => f.comercial === comercial);
+  if (estado === 'pagada') filtradas = filtradas.filter(f => f.esta_pagada === 'SI');
+  if (estado === 'pendiente') filtradas = filtradas.filter(f => f.esta_pagada !== 'SI');
+
+  if (busqueda) {
+    filtradas = filtradas.filter(f =>
+      (f.cliente || '').toLowerCase().includes(busqueda) ||
+      String(f.numero_factura || '').includes(busqueda)
+    );
+  }
+
+  renderTablaFacturas(filtradas);
+}
+
+function renderTablaFacturas(lista) {
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Nº Factura</th>
+          <th>Cliente</th>
+          <th>Comercial</th>
+          <th style="text-align:right;">Importe</th>
+          <th>Estado</th>
+          <th>Forma de pago</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  if (lista.length === 0) {
+    html += '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+  }
+
+  lista.forEach(f => {
+    const badgeEstado = f.esta_pagada === 'SI'
+      ? '<span class="badge badge-success">Pagada</span>'
+      : '<span class="badge badge-warning">Pendiente</span>';
+    const formaPagoHtml = f.sin_registro_caja
+      ? '<span class="badge badge-danger">Sin registro</span>'
+      : (f.es_rectificativa_a_cero
+          ? '<span class="badge badge-neutral">Rectificativa</span>'
+          : (f.forma_pago ? ETIQUETAS_FORMA_PAGO[f.forma_pago] || f.forma_pago : '<span style="color:#9a988f;">—</span>'));
+
+    html += `
+      <tr>
+        <td>${f.numero_factura}</td>
+        <td>${f.cliente || ''}</td>
+        <td>${f.comercial || ''}</td>
+        <td style="text-align:right;">${euros(f.importe_con_iva)}</td>
+        <td>${badgeEstado}</td>
+        <td>${formaPagoHtml}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('financiero-tabla').innerHTML = html;
+}
+
+// ── PESTAÑA PNC ──
+function pintarFiltrosYTablaPNC() {
+  const data = financieroDataGlobal;
+  const comerciales = [...new Set(data.cruce_pnc.map(p => p.comercial).filter(Boolean))].sort();
+
+  document.getElementById('financiero-filtros').innerHTML = `
+    <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
+      <button id="btn-pnc-todos" onclick="filtrarPNC('todos')" class="pnc-filtro-btn">Todos</button>
+      <button id="btn-pnc-no-cuadran" onclick="filtrarPNC('no-cuadran')" class="pnc-filtro-btn">No cuadran</button>
+      <select id="filtro-pnc-comercial" onchange="aplicarFiltrosPNC()" style="width:auto; font-size:13px;">
+        <option value="">Comercial: Todos</option>
+        ${comerciales.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <div class="search-box" style="margin-left:auto;">
+        <input type="text" id="buscador-pnc" placeholder="Buscar cliente o nº proyecto..." oninput="aplicarFiltrosPNC()">
+      </div>
+    </div>
+  `;
+
+  window.filtroPNCActivo = 'todos';
+  renderTablaPNC(data.cruce_pnc);
+  actualizarEstiloBotonesPNC();
+}
+
+function filtrarPNC(modo) {
+  window.filtroPNCActivo = modo;
+  actualizarEstiloBotonesPNC();
+  aplicarFiltrosPNC();
+}
+
+function actualizarEstiloBotonesPNC() {
+  const activo = window.filtroPNCActivo;
+  document.getElementById('btn-pnc-todos').style.cssText =
+    'font-size:13px; padding:6px 14px; border-radius:8px; ' + (activo === 'todos'
+      ? 'background:#e6f1fb; color:#0C447C; border:0.5px solid #B5D4F4;'
+      : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;');
+  document.getElementById('btn-pnc-no-cuadran').style.cssText =
+    'font-size:13px; padding:6px 14px; border-radius:8px; ' + (activo === 'no-cuadran'
+      ? 'background:#e6f1fb; color:#0C447C; border:0.5px solid #B5D4F4;'
+      : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;');
+}
+
+function aplicarFiltrosPNC() {
+  const data = financieroDataGlobal;
+  const comercial = document.getElementById('filtro-pnc-comercial').value;
+  const busqueda = document.getElementById('buscador-pnc').value.toLowerCase();
+
+  let filtrados = data.cruce_pnc;
+
+  if (window.filtroPNCActivo === 'no-cuadran') filtrados = filtrados.filter(p => !p.cuadra);
+  if (comercial) filtrados = filtrados.filter(p => p.comercial === comercial);
+  if (busqueda) {
+    filtrados = filtrados.filter(p =>
+      (p.cliente || '').toLowerCase().includes(busqueda) ||
+      String(p.numero || '').includes(busqueda)
+    );
+  }
+
+  renderTablaPNC(filtrados);
+}
+
+function renderTablaPNC(lista) {
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Nº Proyecto</th>
+          <th>Cliente</th>
+          <th>Comercial</th>
+          <th style="text-align:right;">Esperado</th>
+          <th style="text-align:right;">Cobrado</th>
+          <th style="text-align:right;">Diferencia</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  if (lista.length === 0) {
+    html += '<tr><td colspan="7" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+  }
+
+  lista.forEach(p => {
+    const badge = p.cuadra
+      ? '<span class="badge badge-success">Cuadra</span>'
+      : '<span class="badge badge-danger">No cuadra</span>';
+    const colorDif = p.cuadra ? '#27500A' : '#A32D2D';
+
+    html += `
+      <tr>
+        <td>${p.numero}</td>
+        <td>${p.cliente || ''}</td>
+        <td>${p.comercial || ''}</td>
+        <td style="text-align:right;">${euros(p.valor_esperado)}</td>
+        <td style="text-align:right;">${euros(p.total_cobrado_formulario)}</td>
+        <td style="text-align:right; color:${colorDif}; font-weight:500;">${euros(p.diferencia)}</td>
+        <td>${badge}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('financiero-tabla').innerHTML = html;
 }
 
 // ── CARGAR PROYECTOS ──
