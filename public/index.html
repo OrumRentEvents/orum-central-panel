@@ -320,36 +320,202 @@ function construirMenu() {
 
   const itemProyectos = document.createElement('div');
   itemProyectos.className = 'nav-item active';
+  itemProyectos.id = 'menu-item-proyectos';
   itemProyectos.textContent = '📁 Proyectos';
-  itemProyectos.onclick = cargarProyectos;
+  itemProyectos.onclick = () => { marcarMenuActivo('menu-item-proyectos'); cargarProyectos(); };
   nav.appendChild(itemProyectos);
 
   const itemFinanciero = document.createElement('div');
   itemFinanciero.className = 'nav-item';
+  itemFinanciero.style.fontWeight = '500';
   itemFinanciero.textContent = '💶 Financiero';
-  itemFinanciero.onclick = cargarFinanciero;
   nav.appendChild(itemFinanciero);
+
+  const submenu = document.createElement('div');
+  submenu.style.paddingLeft = '1.25rem';
+
+  const subitems = [
+    { id: 'fin-resumen', label: 'Resumen', activo: true, onClick: () => cargarFinancieroResumen() },
+    { id: 'fin-control-pagos', label: 'Control de pagos', activo: true, onClick: () => cargarFinanciero() },
+    { id: 'fin-vencidas', label: 'Vencidas y morosidad', activo: false },
+    { id: 'fin-historico', label: 'Histórico mensual', activo: false },
+    { id: 'fin-auditoria', label: 'Auditoría / Alertas', activo: false },
+  ];
+
+  subitems.forEach(item => {
+    const el = document.createElement('div');
+    el.id = 'menu-item-' + item.id;
+    el.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:' + (item.activo ? 'pointer' : 'default') + '; color:' + (item.activo ? '#4a4944' : '#b8b6ad') + ';';
+    el.textContent = item.label;
+    if (item.activo) {
+      el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
+    }
+    submenu.appendChild(el);
+  });
+
+  nav.appendChild(submenu);
+}function marcarMenuActivo(idActivo) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('[id^="menu-item-fin-"]').forEach(el => {
+    el.style.background = 'transparent';
+    el.style.borderLeft = '2px solid transparent';
+    el.style.color = '#4a4944';
+    el.style.fontWeight = 'normal';
+  });
+  const el = document.getElementById(idActivo);
+  if (!el) return;
+  if (el.id.startsWith('menu-item-fin-')) {
+    el.style.background = '#e6f1fb';
+    el.style.borderLeft = '2px solid #378ADD';
+    el.style.color = '#0C447C';
+    el.style.fontWeight = '500';
+  } else {
+    el.classList.add('active');
+  }
 }
 
 let financieroDataGlobal = null;
 let pestanaFinancieroActiva = 'proyectos';
 
-// ── CARGAR FINANCIERO ──
-async function cargarFinanciero() {
-  document.getElementById('content-title').textContent = 'Financiero';
+// ── CARGAR FINANCIERO (Resumen) ──
+async function cargarFinancieroResumen() {
+  document.getElementById('content-title').textContent = 'Financiero · Resumen';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
 
   try {
-    const resp = await fetch('/api/financiero');
-    const data = await resp.json();
+    if (!financieroDataGlobal) {
+      const resp = await fetch('/api/financiero');
+      financieroDataGlobal = await resp.json();
+    }
+    const data = financieroDataGlobal;
 
     if (data.error) {
       body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
       return;
     }
 
-    financieroDataGlobal = data;
+    actualizarIndicadorFecha(data.ultima_actualizacion);
+    pintarResumenFinanciero(data);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+
+function pintarResumenFinanciero(data) {
+  const body = document.getElementById('content-body');
+  const k = data.kpis;
+
+  const filasFormaPago = k.desglose_forma_pago
+    .sort((a, b) => b.total - a.total)
+    .map(d => `<div style="display:flex; justify-content:space-between;"><span style="color:#4a4944;">${ETIQUETAS_FORMA_PAGO[d.forma_pago] || d.forma_pago}</span><b>${euros(d.total)}</b></div>`)
+    .join('');
+
+  const filasComercial = data.desglose_comercial
+    .map(d => `<div style="display:flex; justify-content:space-between;"><span style="color:#4a4944;">${d.comercial}</span><b>${euros(d.total)}</b></div>`)
+    .join('');
+
+  let html = `
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1rem;">
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Total facturado</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${euros(k.total_facturado)}</p>
+      </div>
+      <div style="background:#EAF3DE; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#27500A; margin:0 0 6px;">Cobrado</p>
+        <p style="font-size:22px; font-weight:500; color:#173404; margin:0;">${euros(k.total_cobrado)}</p>
+      </div>
+      <div style="background:#FAEEDA; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#854F0B; margin:0 0 6px;">Pendiente de cobro</p>
+        <p style="font-size:22px; font-weight:500; color:#412402; margin:0;">${euros(k.total_pendiente)}</p>
+      </div>
+      <div style="background:#FCEBEB; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#A32D2D; margin:0 0 6px;">Vencidas</p>
+        <p style="font-size:22px; font-weight:500; color:#501313; margin:0;">${euros(k.total_vencidas)}</p>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem;">
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 8px;">Por forma de pago</p>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">${filasFormaPago}</div>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 8px;">Por comercial</p>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">${filasComercial}</div>
+      </div>
+      <div style="background:#FAEEDA; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#854F0B; margin:0 0 8px; font-weight:500;">Alertas activas</p>
+        <div style="display:flex; flex-direction:column; gap:6px; font-size:12px;">
+          <div style="display:flex; justify-content:space-between; cursor:pointer;" onclick="irAControlPagosConFiltro('sin-registro')"><span style="color:#854F0B;">Facturas sin registro</span><b style="color:#A32D2D;">${data.facturas_sin_registro_caja}</b></div>
+          <div style="display:flex; justify-content:space-between; cursor:pointer;" onclick="irAControlPagosConFiltro('pnc-no-cuadran')"><span style="color:#854F0B;">PNC que no cuadran</span><b style="color:#A32D2D;">${data.pnc_que_no_cuadran}</b></div>
+          <div style="display:flex; justify-content:space-between; cursor:pointer;" onclick="irAControlPagosConFiltro('pend-facturar')"><span style="color:#854F0B;">Pendientes de facturar</span><b style="color:#A32D2D;">${data.proyectos_pendientes_facturar}</b></div>
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size: 13px; font-weight: 500; color: #1a1a18; margin: 0 0 10px;">Top 20 clientes con pendiente de cobro</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Comercial</th>
+          <th>Proyectos</th>
+          <th style="text-align:right;">Pendiente</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  if (data.top_clientes_pendientes.length === 0) {
+    html += '<tr><td colspan="4" style="padding:1.5rem 4px; color:#9a988f;">No hay pendientes de cobro.</td></tr>';
+  }
+
+  data.top_clientes_pendientes.forEach(c => {
+    html += `
+      <tr>
+        <td>${c.cliente}</td>
+        <td>${c.comercial || ''}</td>
+        <td>${c.proyectos.join(', ')}</td>
+        <td style="text-align:right; font-weight:500; color:#A32D2D;">${euros(c.pendiente)}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+function irAControlPagosConFiltro(tipo) {
+  marcarMenuActivo('menu-item-fin-control-pagos');
+  cargarFinanciero().then(() => {
+    if (tipo === 'sin-registro') filtrarSoloSinRegistro();
+    else if (tipo === 'pnc-no-cuadran') filtrarSoloNoCuadranPNC();
+    else if (tipo === 'pend-facturar') {
+      cambiarPestanaFinanciero('proyectos');
+      setTimeout(() => { const btn = document.getElementById('btn-proy-pend-facturar'); if (btn) btn.click(); }, 0);
+    }
+  });
+}
+
+// ── CARGAR FINANCIERO (Control de pagos) ──
+async function cargarFinanciero() {
+  document.getElementById('content-title').textContent = 'Financiero · Control de pagos';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
+
+  try {
+    if (!financieroDataGlobal) {
+      const resp = await fetch('/api/financiero');
+      financieroDataGlobal = await resp.json();
+    }
+    const data = financieroDataGlobal;
+
+    if (data.error) {
+      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
+      return;
+    }
+
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarFinanciero();
   } catch (err) {
