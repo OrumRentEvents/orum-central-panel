@@ -461,10 +461,62 @@ function filtrarSoloNoCuadranPNC() {
   }, 0);
 }
 
+// ── COMPONENTE REUTILIZABLE: filtro multi-selección de estados de proyecto ──
+window.estadosSeleccionados = {}; // { idDropdown: Set de estados marcados }
+
+function htmlFiltroEstados(idDropdown, todosLosEstados, onChangeFn) {
+  if (!window.estadosSeleccionados[idDropdown]) {
+    window.estadosSeleccionados[idDropdown] = new Set(); // vacío = todos
+  }
+  const checkboxes = todosLosEstados.map(estado => `
+    <label style="display:flex; align-items:center; gap:6px; padding:4px 8px; font-size:13px; cursor:pointer; white-space:nowrap;">
+      <input type="checkbox" value="${estado}"
+        ${window.estadosSeleccionados[idDropdown].has(estado) ? 'checked' : ''}
+        onchange="toggleEstadoFiltro('${idDropdown}', '${estado}', '${onChangeFn}')">
+      ${estado}
+    </label>
+  `).join('');
+
+  return `
+    <div style="position:relative; display:inline-block;">
+      <button onclick="toggleDropdownEstados('${idDropdown}')" style="font-size:13px; padding:6px 14px; border-radius:8px; border:0.5px solid #e2e2de; background:#fff; color:#4a4944; cursor:pointer;">
+        Estado${window.estadosSeleccionados[idDropdown].size > 0 ? ' (' + window.estadosSeleccionados[idDropdown].size + ')' : ': Todos'} ▾
+      </button>
+      <div id="dropdown-${idDropdown}" style="display:none; position:absolute; top:36px; left:0; background:#fff; border:0.5px solid #e2e2de; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); padding:6px; z-index:10; min-width:180px;">
+        ${checkboxes}
+      </div>
+    </div>
+  `;
+}
+
+function toggleDropdownEstados(idDropdown) {
+  // Cerrar otros dropdowns abiertos
+  document.querySelectorAll('[id^="dropdown-"]').forEach(el => {
+    if (el.id !== 'dropdown-' + idDropdown) el.style.display = 'none';
+  });
+  const el = document.getElementById('dropdown-' + idDropdown);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleEstadoFiltro(idDropdown, estado, onChangeFn) {
+  const set = window.estadosSeleccionados[idDropdown];
+  if (set.has(estado)) set.delete(estado);
+  else set.add(estado);
+  window[onChangeFn]();
+}
+
+// Cierra los dropdowns si se hace clic fuera de ellos
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[id^="dropdown-"]') && !e.target.closest('button[onclick^="toggleDropdownEstados"]')) {
+    document.querySelectorAll('[id^="dropdown-"]').forEach(el => el.style.display = 'none');
+  }
+});
+
 // ── PESTAÑA FACTURAS ──
 function pintarFiltrosYTablaFacturas() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_facturas.map(f => f.comercial).filter(Boolean))].sort();
+  const estados = [...new Set(data.cruce_facturas.map(f => f.estado_proyecto).filter(Boolean))].sort();
 
   document.getElementById('financiero-filtros').innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
@@ -482,10 +534,11 @@ function pintarFiltrosYTablaFacturas() {
         ${comerciales.map(c => `<option value="${c}">${c}</option>`).join('')}
       </select>
       <select id="filtro-estado" onchange="aplicarFiltrosFacturas()" style="width:auto; font-size:13px;">
-        <option value="">Estado: Todas</option>
+        <option value="">Pagada/Pendiente: Todas</option>
         <option value="pagada">Pagadas</option>
         <option value="pendiente">Pendientes</option>
       </select>
+      ${htmlFiltroEstados('facturas', estados, 'aplicarFiltrosFacturas')}
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-facturas" placeholder="Buscar cliente o nº factura..." oninput="aplicarFiltrosFacturas()">
       </div>
@@ -516,6 +569,11 @@ function aplicarFiltrosFacturas() {
       (f.cliente || '').toLowerCase().includes(busqueda) ||
       String(f.numero_factura || '').includes(busqueda)
     );
+  }
+
+  const estadosFiltro = window.estadosSeleccionados['facturas'];
+  if (estadosFiltro && estadosFiltro.size > 0) {
+    filtradas = filtradas.filter(f => estadosFiltro.has(f.estado_proyecto));
   }
 
   renderTablaFacturas(filtradas);
@@ -627,6 +685,7 @@ let ordenProyectosFin = { campo: 'numero', asc: false };
 function pintarFiltrosYTablaProyectos() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_proyectos.map(p => p.comercial).filter(Boolean))].sort();
+  const estados = [...new Set(data.cruce_proyectos.map(p => p.estado).filter(Boolean))].sort();
 
   document.getElementById('financiero-filtros').innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
@@ -637,6 +696,7 @@ function pintarFiltrosYTablaProyectos() {
         <option value="">Comercial: Todos</option>
         ${comerciales.map(c => `<option value="${c}">${c}</option>`).join('')}
       </select>
+      ${htmlFiltroEstados('proyectos', estados, 'aplicarFiltrosProyectosFin')}
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-proy-fin" placeholder="Buscar cliente o nº proyecto..." oninput="aplicarFiltrosProyectosFin()">
       </div>
@@ -679,6 +739,11 @@ function aplicarFiltrosProyectosFin() {
       (p.cliente || '').toLowerCase().includes(busqueda) ||
       String(p.numero || '').includes(busqueda)
     );
+  }
+
+  const estadosFiltro = window.estadosSeleccionados['proyectos'];
+  if (estadosFiltro && estadosFiltro.size > 0) {
+    filtrados = filtrados.filter(p => estadosFiltro.has(p.estado));
   }
 
   renderTablaProyectosFin(filtrados);
@@ -749,6 +814,7 @@ function flechaOrdenProyectosFin(campo) {
 function pintarFiltrosYTablaPNC() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_pnc.map(p => p.comercial).filter(Boolean))].sort();
+  const estados = [...new Set(data.cruce_pnc.map(p => p.estado).filter(Boolean))].sort();
 
   document.getElementById('financiero-filtros').innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
@@ -758,6 +824,7 @@ function pintarFiltrosYTablaPNC() {
         <option value="">Comercial: Todos</option>
         ${comerciales.map(c => `<option value="${c}">${c}</option>`).join('')}
       </select>
+      ${htmlFiltroEstados('pnc', estados, 'aplicarFiltrosPNC')}
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-pnc" placeholder="Buscar cliente o nº proyecto..." oninput="aplicarFiltrosPNC()">
       </div>
@@ -801,6 +868,11 @@ function aplicarFiltrosPNC() {
       (p.cliente || '').toLowerCase().includes(busqueda) ||
       String(p.numero || '').includes(busqueda)
     );
+  }
+
+  const estadosFiltro = window.estadosSeleccionados['pnc'];
+  if (estadosFiltro && estadosFiltro.size > 0) {
+    filtrados = filtrados.filter(p => estadosFiltro.has(p.estado));
   }
 
   renderTablaPNC(filtrados);
