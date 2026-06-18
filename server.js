@@ -178,9 +178,12 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
     });
 
     // Cruce de facturas con su forma de pago real, y enriquecidas con datos del proyecto
+    const FORMAS_PAGO_REALES = ['transferencia', 'efectivo-marbella', 'efectivo-monda', 'tpv-marbella', 'tpv-monda'];
     const cruceFacturas = facturas.map(f => {
       const proyecto = proyectoPorId[String(f.proyecto_id)] || null;
       const pagosCaja = registrosPorNumeroFactura[String(f.numero)] || [];
+      const primerPago = pagosCaja[0] || null;
+      const esRectificativaACero = primerPago && primerPago.metodo_pago === 'factura0';
       return {
         factura_id: f.factura_id,
         numero_factura: f.numero,
@@ -192,21 +195,32 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
         esta_pagada: f.esta_pagada,
         pendiente_cobro: f.pendiente_cobro,
         pagos_caja: pagosCaja,
-        forma_pago: pagosCaja.length > 0 ? pagosCaja[0].metodo_pago : null,
+        forma_pago: primerPago ? primerPago.metodo_pago : null,
+        es_rectificativa_a_cero: esRectificativaACero,
+        forma_pago_real: primerPago && FORMAS_PAGO_REALES.includes(primerPago.metodo_pago) ? primerPago.metodo_pago : null,
         sin_registro_caja: pagosCaja.length === 0 && f.esta_pagada === 'SI'
       };
     });
 
-    // Separar proyectos PNC (abrebotellas) y cruzar con cobros del formulario
+    // Separar proyectos PNC (abrebotellas) y cruzar con cobros del formulario, sumando todas las líneas
     const proyectosPNC = proyectos.filter(p => p.es_abrebotellas === 'SI' || p.es_abrebotellas === true);
-    const crucePNC = proyectosPNC.map(p => ({
-      numero: p.numero,
-      cliente: p.cliente,
-      comercial: p.comercial,
-      estado: p.estado,
-      valor: p.valor,
-      cobros_formulario: ncPorNumeroProyecto[String(p.numero)] || []
-    }));
+    const crucePNC = proyectosPNC.map(p => {
+      const cobros = ncPorNumeroProyecto[String(p.numero)] || [];
+      const totalCobrado = cobros.reduce((sum, c) => sum + (parseFloat(c['Importe']) || 0), 0);
+      const valorEsperado = parseFloat(p.valor) || 0;
+      const diferencia = Math.round((valorEsperado - totalCobrado) * 100) / 100;
+      return {
+        numero: p.numero,
+        cliente: p.cliente,
+        comercial: p.comercial,
+        estado: p.estado,
+        valor_esperado: valorEsperado,
+        total_cobrado_formulario: Math.round(totalCobrado * 100) / 100,
+        diferencia: diferencia,
+        cuadra: Math.abs(diferencia) < 0.05,
+        cobros_formulario: cobros
+      };
+    });
 
     res.json({
       total_proyectos: proyectos.length,
@@ -216,6 +230,7 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       total_nc_formulario: ncFormulario.length,
       total_nc_confirmaciones: ncConfirmaciones.length,
       facturas_sin_registro_caja: cruceFacturas.filter(f => f.sin_registro_caja).length,
+      pnc_que_no_cuadran: crucePNC.filter(p => !p.cuadra).length,
       cruce_facturas: cruceFacturas,
       cruce_pnc: crucePNC,
       nc_confirmaciones: ncConfirmaciones
