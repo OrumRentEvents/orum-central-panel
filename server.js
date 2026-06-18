@@ -222,10 +222,52 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       };
     });
 
+    // ── KPIs agregados ──
+    const hoy = new Date();
+    let totalFacturado = 0, totalCobrado = 0, totalPendiente = 0, totalVencidas = 0;
+    const desglosePorFormaPago = {};
+
+    facturas.forEach(f => {
+      const importe = parseFloat(f.importe_con_iva) || 0;
+      totalFacturado += importe;
+      if (f.esta_pagada === 'SI') {
+        totalCobrado += importe;
+      } else {
+        totalPendiente += parseFloat(f.pendiente_cobro) || 0;
+        const vencimiento = f.fecha_vencimiento ? new Date(f.fecha_vencimiento.split('/').reverse().join('-')) : null;
+        if (vencimiento && vencimiento < hoy) {
+          totalVencidas += parseFloat(f.pendiente_cobro) || 0;
+        }
+      }
+    });
+
+    cruceFacturas.forEach(cf => {
+      if (cf.forma_pago_real) {
+        const pago = cf.pagos_caja[0];
+        const importe = Math.abs(parseFloat(pago.importe) || 0);
+        desglosePorFormaPago[cf.forma_pago_real] = (desglosePorFormaPago[cf.forma_pago_real] || 0) + importe;
+      }
+    });
+
+    const kpis = {
+      total_facturado: Math.round(totalFacturado * 100) / 100,
+      total_cobrado: Math.round(totalCobrado * 100) / 100,
+      total_pendiente: Math.round(totalPendiente * 100) / 100,
+      total_vencidas: Math.round(totalVencidas * 100) / 100,
+      desglose_forma_pago: Object.keys(desglosePorFormaPago).map(k => ({
+        forma_pago: k,
+        total: Math.round(desglosePorFormaPago[k] * 100) / 100
+      }))
+    };
+
+    const pncCuadran = crucePNC.filter(p => p.cuadra).length;
+
     res.json({
+      kpis,
       total_proyectos: proyectos.length,
       total_facturas: facturas.length,
       total_proyectos_pnc: proyectosPNC.length,
+      pnc_cuadran: pncCuadran,
       total_registros_caja: registros.length,
       total_nc_formulario: ncFormulario.length,
       total_nc_confirmaciones: ncConfirmaciones.length,
