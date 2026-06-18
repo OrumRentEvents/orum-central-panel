@@ -184,6 +184,12 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       const pagosCaja = registrosPorNumeroFactura[String(f.numero)] || [];
       const primerPago = pagosCaja[0] || null;
       const esRectificativaACero = primerPago && primerPago.metodo_pago === 'factura0';
+      const importeFactura = Math.round((parseFloat(f.importe_con_iva) || 0) * 100) / 100;
+      const importeCobradoReal = Math.round(
+        pagosCaja.reduce((sum, p) => sum + (parseFloat(p.importe) || 0), 0) * 100
+      ) / 100;
+      const difFacturaCobro = Math.round((importeFactura - importeCobradoReal) * 100) / 100;
+
       return {
         factura_id: f.factura_id,
         numero_factura: f.numero,
@@ -191,10 +197,14 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
         proyecto_numero: proyecto ? proyecto.numero : null,
         cliente: f.cliente,
         comercial: proyecto ? proyecto.comercial : null,
+        estado_proyecto: proyecto ? proyecto.estado : null,
         fecha_entrega: proyecto ? proyecto.entrega_fecha : null,
         fecha_emision: f.fecha_emision,
         fecha_vencimiento: f.fecha_vencimiento,
-        importe_con_iva: f.importe_con_iva,
+        importe_con_iva: importeFactura,
+        importe_cobrado_real: importeCobradoReal,
+        diferencia_factura_cobro: difFacturaCobro,
+        cuadra_con_cobro: Math.abs(difFacturaCobro) < 0.05,
         esta_pagada: f.esta_pagada,
         pendiente_cobro: f.pendiente_cobro,
         pagos_caja: pagosCaja,
@@ -224,6 +234,61 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
         cuadra: Math.abs(diferencia) < 0.05,
         cobros_formulario: cobros
       };
+    });
+
+    // ── Vista agregada por PROYECTO: valor total, facturado, cobrado, pendiente de facturar/cobrar ──
+    // Indexar facturas (ya cruzadas) por proyecto_id
+    const facturasPorProyectoId = {};
+    cruceFacturas.forEach(cf => {
+      const pid = String(cf.proyecto_id);
+      if (!facturasPorProyectoId[pid]) facturasPorProyectoId[pid] = [];
+      facturasPorProyectoId[pid].push(cf);
+    });
+
+    const cruceProyectos = proyectos.map(p => {
+      const esPNC = p.es_abrebotellas === 'SI' || p.es_abrebotellas === true;
+      const valorProyecto = Math.round((parseFloat(p.valor) || 0) * 100) / 100;
+
+      if (esPNC) {
+        const cobros = ncPorNumeroProyecto[String(p.numero)] || [];
+        const totalCobrado = Math.round(cobros.reduce((sum, c) => sum + (parseFloat(c['Importe']) || 0), 0) * 100) / 100;
+        return {
+          id: p.id,
+          numero: p.numero,
+          cliente: p.cliente,
+          comercial: p.comercial,
+          estado: p.estado,
+          fecha_entrega: p.entrega_fecha,
+          es_pnc: true,
+          valor_proyecto: valorProyecto,
+          total_facturado: 0,
+          total_cobrado: totalCobrado,
+          pendiente_facturar: 0,
+          pendiente_cobrar: Math.round((valorProyecto - totalCobrado) * 100) / 100
+        };
+      } else {
+        const facturasDelProyecto = facturasPorProyectoId[String(p.id)] || [];
+        const totalFacturado = Math.round(
+          facturasDelProyecto.reduce((sum, f) => sum + (parseFloat(f.importe_con_iva) || 0), 0) * 100
+        ) / 100;
+        const totalCobrado = Math.round(
+          facturasDelProyecto.reduce((sum, f) => sum + (parseFloat(f.importe_cobrado_real) || 0), 0) * 100
+        ) / 100;
+        return {
+          id: p.id,
+          numero: p.numero,
+          cliente: p.cliente,
+          comercial: p.comercial,
+          estado: p.estado,
+          fecha_entrega: p.entrega_fecha,
+          es_pnc: false,
+          valor_proyecto: valorProyecto,
+          total_facturado: totalFacturado,
+          total_cobrado: totalCobrado,
+          pendiente_facturar: Math.round((valorProyecto - totalFacturado) * 100) / 100,
+          pendiente_cobrar: Math.round((totalFacturado - totalCobrado) * 100) / 100
+        };
+      }
     });
 
     // ── KPIs agregados ──
@@ -277,6 +342,7 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       total_nc_confirmaciones: ncConfirmaciones.length,
       facturas_sin_registro_caja: cruceFacturas.filter(f => f.sin_registro_caja).length,
       pnc_que_no_cuadran: crucePNC.filter(p => !p.cuadra).length,
+      cruce_proyectos: cruceProyectos,
       cruce_facturas: cruceFacturas,
       cruce_pnc: crucePNC,
       nc_confirmaciones: ncConfirmaciones
