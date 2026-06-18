@@ -332,7 +332,7 @@ function construirMenu() {
 }
 
 let financieroDataGlobal = null;
-let pestanaFinancieroActiva = 'facturas';
+let pestanaFinancieroActiva = 'proyectos';
 
 // ── CARGAR FINANCIERO ──
 async function cargarFinanciero() {
@@ -413,6 +413,7 @@ function pintarFinanciero() {
     </div>
 
     <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
+      <div id="tab-proyectos-fin" onclick="cambiarPestanaFinanciero('proyectos')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-facturas" onclick="cambiarPestanaFinanciero('facturas')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-pnc" onclick="cambiarPestanaFinanciero('pnc')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
     </div>
@@ -433,12 +434,15 @@ function estiloTab(activa) {
 
 function cambiarPestanaFinanciero(pestana) {
   pestanaFinancieroActiva = pestana;
+  document.getElementById('tab-proyectos-fin').textContent = 'Proyectos';
+  document.getElementById('tab-proyectos-fin').style.cssText += estiloTab(pestana === 'proyectos');
   document.getElementById('tab-facturas').textContent = 'Facturas';
   document.getElementById('tab-facturas').style.cssText += estiloTab(pestana === 'facturas');
   document.getElementById('tab-pnc').textContent = 'PNC (No confirmados)';
   document.getElementById('tab-pnc').style.cssText += estiloTab(pestana === 'pnc');
 
-  if (pestana === 'facturas') pintarFiltrosYTablaFacturas();
+  if (pestana === 'proyectos') pintarFiltrosYTablaProyectos();
+  else if (pestana === 'facturas') pintarFiltrosYTablaFacturas();
   else pintarFiltrosYTablaPNC();
 }
 
@@ -569,16 +573,19 @@ function renderTablaFacturas(lista) {
           <th style="cursor:pointer;" onclick="cambiarOrden('facturas','fecha_entrega')">Fecha proyecto${flechaOrden('facturas','fecha_entrega')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrden('facturas','cliente')">Cliente${flechaOrden('facturas','cliente')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrden('facturas','comercial')">Comercial${flechaOrden('facturas','comercial')}</th>
+          <th>Estado proyecto</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrden('facturas','importe_con_iva')">Importe${flechaOrden('facturas','importe_con_iva')}</th>
-          <th>Estado</th>
+          <th style="text-align:right;">Cobrado</th>
+          <th>Estado factura</th>
           <th>Forma de pago</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
   `;
 
   if (ordenada.length === 0) {
-    html += '<tr><td colspan="7" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+    html += '<tr><td colspan="10" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
 
   ordenada.forEach(f => {
@@ -590,6 +597,9 @@ function renderTablaFacturas(lista) {
       : (f.es_rectificativa_a_cero
           ? '<span class="badge badge-neutral">Rectificativa</span>'
           : (f.forma_pago ? ETIQUETAS_FORMA_PAGO[f.forma_pago] || f.forma_pago : '<span style="color:#9a988f;">—</span>'));
+    const badgeCuadra = f.cuadra_con_cobro
+      ? '<span class="badge badge-success">Cuadra</span>'
+      : '<span class="badge badge-danger">No cuadra</span>';
 
     html += `
       <tr>
@@ -597,15 +607,142 @@ function renderTablaFacturas(lista) {
         <td>${f.fecha_entrega || '<span style="color:#9a988f;">—</span>'}</td>
         <td>${f.cliente || ''}</td>
         <td>${f.comercial || ''}</td>
+        <td><span class="badge badge-neutral">${f.estado_proyecto || '—'}</span></td>
         <td style="text-align:right;">${euros(f.importe_con_iva)}</td>
+        <td style="text-align:right;">${euros(f.importe_cobrado_real)}</td>
         <td>${badgeEstado}</td>
         <td>${formaPagoHtml}</td>
+        <td>${badgeCuadra}</td>
       </tr>
     `;
   });
 
   html += '</tbody></table>';
   document.getElementById('financiero-tabla').innerHTML = html;
+}
+
+// ── PESTAÑA PROYECTOS (vista agregada) ──
+let ordenProyectosFin = { campo: 'numero', asc: false };
+
+function pintarFiltrosYTablaProyectos() {
+  const data = financieroDataGlobal;
+  const comerciales = [...new Set(data.cruce_proyectos.map(p => p.comercial).filter(Boolean))].sort();
+
+  document.getElementById('financiero-filtros').innerHTML = `
+    <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
+      <button id="btn-proy-todos" onclick="filtrarProyectosFin('todos')" class="pnc-filtro-btn">Todos</button>
+      <button id="btn-proy-pend-facturar" onclick="filtrarProyectosFin('pend-facturar')" class="pnc-filtro-btn">Pendiente facturar</button>
+      <button id="btn-proy-pend-cobrar" onclick="filtrarProyectosFin('pend-cobrar')" class="pnc-filtro-btn">Pendiente cobrar</button>
+      <select id="filtro-proy-comercial" onchange="aplicarFiltrosProyectosFin()" style="width:auto; font-size:13px;">
+        <option value="">Comercial: Todos</option>
+        ${comerciales.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <div class="search-box" style="margin-left:auto;">
+        <input type="text" id="buscador-proy-fin" placeholder="Buscar cliente o nº proyecto..." oninput="aplicarFiltrosProyectosFin()">
+      </div>
+    </div>
+  `;
+
+  window.filtroProyectosFinActivo = 'todos';
+  renderTablaProyectosFin(data.cruce_proyectos);
+  actualizarEstiloBotonesProyectosFin();
+}
+
+function filtrarProyectosFin(modo) {
+  window.filtroProyectosFinActivo = modo;
+  actualizarEstiloBotonesProyectosFin();
+  aplicarFiltrosProyectosFin();
+}
+
+function actualizarEstiloBotonesProyectosFin() {
+  const activo = window.filtroProyectosFinActivo;
+  const estilo = (esActivo) => 'font-size:13px; padding:6px 14px; border-radius:8px; ' + (esActivo
+    ? 'background:#e6f1fb; color:#0C447C; border:0.5px solid #B5D4F4;'
+    : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;');
+  document.getElementById('btn-proy-todos').style.cssText = estilo(activo === 'todos');
+  document.getElementById('btn-proy-pend-facturar').style.cssText = estilo(activo === 'pend-facturar');
+  document.getElementById('btn-proy-pend-cobrar').style.cssText = estilo(activo === 'pend-cobrar');
+}
+
+function aplicarFiltrosProyectosFin() {
+  const data = financieroDataGlobal;
+  const comercial = document.getElementById('filtro-proy-comercial').value;
+  const busqueda = document.getElementById('buscador-proy-fin').value.toLowerCase();
+
+  let filtrados = data.cruce_proyectos;
+
+  if (window.filtroProyectosFinActivo === 'pend-facturar') filtrados = filtrados.filter(p => Math.abs(p.pendiente_facturar) >= 0.05);
+  if (window.filtroProyectosFinActivo === 'pend-cobrar') filtrados = filtrados.filter(p => Math.abs(p.pendiente_cobrar) >= 0.05);
+  if (comercial) filtrados = filtrados.filter(p => p.comercial === comercial);
+  if (busqueda) {
+    filtrados = filtrados.filter(p =>
+      (p.cliente || '').toLowerCase().includes(busqueda) ||
+      String(p.numero || '').includes(busqueda)
+    );
+  }
+
+  renderTablaProyectosFin(filtrados);
+}
+
+function renderTablaProyectosFin(lista) {
+  const ordenada = ordenarLista(lista, ordenProyectosFin);
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('numero')">Nº${flechaOrdenProyectosFin('numero')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('fecha_entrega')">Fecha${flechaOrdenProyectosFin('fecha_entrega')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('cliente')">Cliente${flechaOrdenProyectosFin('cliente')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('comercial')">Comercial${flechaOrdenProyectosFin('comercial')}</th>
+          <th>Estado</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('valor_proyecto')">Valor${flechaOrdenProyectosFin('valor_proyecto')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('total_facturado')">Facturado${flechaOrdenProyectosFin('total_facturado')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('total_cobrado')">Cobrado${flechaOrdenProyectosFin('total_cobrado')}</th>
+          <th style="text-align:right;">Pend. facturar</th>
+          <th style="text-align:right;">Pend. cobrar</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  if (ordenada.length === 0) {
+    html += '<tr><td colspan="10" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+  }
+
+  ordenada.forEach(p => {
+    const colorPendFacturar = Math.abs(p.pendiente_facturar) >= 0.05 ? '#854F0B' : '#9a988f';
+    const colorPendCobrar = Math.abs(p.pendiente_cobrar) >= 0.05 ? '#A32D2D' : '#9a988f';
+    const badgePNC = p.es_pnc ? ' <span class="badge badge-neutral" style="font-size:11px;">PNC</span>' : '';
+
+    html += `
+      <tr>
+        <td>${p.numero}${badgePNC}</td>
+        <td>${p.fecha_entrega || '<span style="color:#9a988f;">—</span>'}</td>
+        <td>${p.cliente || ''}</td>
+        <td>${p.comercial || ''}</td>
+        <td><span class="badge badge-neutral">${p.estado || '—'}</span></td>
+        <td style="text-align:right;">${euros(p.valor_proyecto)}</td>
+        <td style="text-align:right;">${euros(p.total_facturado)}</td>
+        <td style="text-align:right;">${euros(p.total_cobrado)}</td>
+        <td style="text-align:right; color:${colorPendFacturar};">${euros(p.pendiente_facturar)}</td>
+        <td style="text-align:right; color:${colorPendCobrar}; font-weight:500;">${euros(p.pendiente_cobrar)}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('financiero-tabla').innerHTML = html;
+}
+
+function cambiarOrdenProyectosFin(campo) {
+  if (ordenProyectosFin.campo === campo) ordenProyectosFin.asc = !ordenProyectosFin.asc;
+  else { ordenProyectosFin.campo = campo; ordenProyectosFin.asc = true; }
+  aplicarFiltrosProyectosFin();
+}
+
+function flechaOrdenProyectosFin(campo) {
+  if (ordenProyectosFin.campo !== campo) return '';
+  return ordenProyectosFin.asc ? ' ▲' : ' ▼';
 }
 
 // ── PESTAÑA PNC ──
