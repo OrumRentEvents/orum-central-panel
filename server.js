@@ -13,6 +13,10 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Railway usa un proxy inverso — sin esto, Express no detecta bien que la conexión es HTTPS
+// y las cookies de sesión con `secure: true` nunca se guardan en el navegador.
+app.set('trust proxy', 1);
+
 // ── Configuración de conexión a Apps Script (ORUM CENTRAL) ──
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'PEGA_AQUI_LA_URL_DEL_DOGET';
 const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN || 'ORUMx2026CentralData9Q';
@@ -131,6 +135,76 @@ app.get('/api/proyectos', requiereLogin, async (req, res) => {
   } catch (err) {
     console.error('Error obteniendo proyectos:', err);
     res.status(500).json({ error: 'Error al obtener proyectos desde ORUM CENTRAL' });
+  }
+});
+
+// ── FINANCIERO: cruce de proyectos (Rentman) con forma de pago real (Caja) ──
+app.get('/api/financiero', requiereLogin, async (req, res) => {
+  try {
+    const [proyectosResp, cajaResp] = await Promise.all([
+      llamarOrumCentral('proyectos'),
+      llamarOrumCentral('caja')
+    ]);
+
+    const proyectos = proyectosResp.data || [];
+    const registros = cajaResp.registros || [];
+    const ncConfirmaciones = cajaResp.nc_confirmaciones || [];
+    const ncFormulario = cajaResp.nc_formulario || [];
+
+    // Indexar registros de Caja por número de proyecto para cruce rápido
+    const registrosPorNumero = {};
+    registros.forEach(r => {
+      const num = String(r.numero);
+      if (!registrosPorNumero[num]) registrosPorNumero[num] = [];
+      registrosPorNumero[num].push(r);
+    });
+
+    // Indexar cobros PNC (formulario) por número de proyecto
+    const ncPorNumero = {};
+    ncFormulario.forEach(r => {
+      const num = String(r['Nº Proyecto']);
+      if (!ncPorNumero[num]) ncPorNumero[num] = [];
+      ncPorNumero[num].push(r);
+    });
+
+    // Separar proyectos normales vs PNC (abrebotellas)
+    const proyectosNormales = proyectos.filter(p => p.es_abrebotellas !== 'SI' && p.es_abrebotellas !== true);
+    const proyectosPNC = proyectos.filter(p => p.es_abrebotellas === 'SI' || p.es_abrebotellas === true);
+
+    // Cruce de proyectos normales con su forma de pago real (Caja)
+    const cruceNormales = proyectosNormales.map(p => ({
+      numero: p.numero,
+      cliente: p.cliente,
+      comercial: p.comercial,
+      estado: p.estado,
+      valor: p.valor,
+      already_invoiced: p.already_invoiced,
+      pagos_caja: registrosPorNumero[String(p.numero)] || []
+    }));
+
+    // Cruce de proyectos PNC con su cobro del formulario
+    const crucePNC = proyectosPNC.map(p => ({
+      numero: p.numero,
+      cliente: p.cliente,
+      comercial: p.comercial,
+      estado: p.estado,
+      valor: p.valor,
+      cobros_formulario: ncPorNumero[String(p.numero)] || []
+    }));
+
+    res.json({
+      total_proyectos_normales: proyectosNormales.length,
+      total_proyectos_pnc: proyectosPNC.length,
+      total_registros_caja: registros.length,
+      total_nc_formulario: ncFormulario.length,
+      total_nc_confirmaciones: ncConfirmaciones.length,
+      cruce_normales: cruceNormales,
+      cruce_pnc: crucePNC,
+      nc_confirmaciones: ncConfirmaciones
+    });
+  } catch (err) {
+    console.error('Error en /api/financiero:', err);
+    res.status(500).json({ error: 'Error al cruzar datos financieros: ' + err.message });
   }
 });
 
