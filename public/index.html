@@ -353,8 +353,9 @@ async function cargarFinancieroBruto() {
         Proyectos PNC: <b>${data.total_proyectos_pnc}</b> ·
         Registros Caja: <b>${data.total_registros_caja}</b> ·
         Cobros formulario PNC: <b>${data.total_nc_formulario}</b> ·
-        Confirmaciones PNC: <b>${data.total_nc_confirmaciones}</b> ·
-        <span style="color:#A32D2D;">Facturas pagadas sin registro en Caja: <b>${data.facturas_sin_registro_caja}</b></span>
+        Confirmaciones PNC: <b>${data.total_nc_confirmaciones}</b><br>
+        <span style="color:#A32D2D;">Facturas pagadas sin registro en Caja: <b>${data.facturas_sin_registro_caja}</b></span> ·
+        <span style="color:#854F0B;">PNC que no cuadran (cobrado ≠ esperado): <b>${data.pnc_que_no_cuadran}</b></span>
       </p>
       <pre style="font-size:11px; background:#f7f6f2; padding:1rem; border-radius:8px; max-height: 600px; overflow:auto; white-space: pre-wrap;">${JSON.stringify(data, null, 2)}</pre>
     `;
