@@ -328,7 +328,9 @@ function construirMenu() {
   const itemFinanciero = document.createElement('div');
   itemFinanciero.className = 'nav-item';
   itemFinanciero.style.fontWeight = '500';
+  itemFinanciero.style.cursor = 'pointer';
   itemFinanciero.textContent = '💶 Financiero';
+  itemFinanciero.onclick = () => { marcarMenuActivo('menu-item-fin-resumen'); cargarFinancieroResumen(); };
   nav.appendChild(itemFinanciero);
 
   const submenu = document.createElement('div');
@@ -630,6 +632,12 @@ async function cargarFinancieroAuditoria() {
   }
 }
 
+let ordenAuditoria = {
+  'sin-registro': { campo: 'numero_factura', asc: false },
+  'pnc': { campo: 'numero', asc: false },
+  'pend-facturar': { campo: 'numero', asc: false }
+};
+
 function pintarAuditoria(data) {
   const body = document.getElementById('content-body');
   const a = data.auditoria;
@@ -639,6 +647,11 @@ function pintarAuditoria(data) {
       <div id="tab-aud-sin-registro" onclick="cambiarPestanaAuditoria('sin-registro')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-aud-pnc" onclick="cambiarPestanaAuditoria('pnc')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-aud-pend-facturar" onclick="cambiarPestanaAuditoria('pend-facturar')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
+    </div>
+    <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
+      <div class="search-box" style="margin-left:auto;">
+        <input type="text" id="buscador-auditoria" placeholder="Buscar cliente o número..." oninput="aplicarFiltroAuditoria()">
+      </div>
     </div>
     <div id="auditoria-tabla"></div>
   `;
@@ -659,15 +672,63 @@ function cambiarPestanaAuditoria(pestana) {
   document.getElementById('tab-aud-pend-facturar').textContent = `Pendientes de facturar (${a.proyectos_pendientes_facturar.length})`;
   document.getElementById('tab-aud-pend-facturar').style.cssText += estiloTab(pestana === 'pend-facturar');
 
+  document.getElementById('buscador-auditoria').value = '';
+  aplicarFiltroAuditoria();
+}
+
+function aplicarFiltroAuditoria() {
+  const pestana = window.pestanaAuditoriaActiva;
+  const a = window.auditoriaDataGlobal;
+  const busqueda = document.getElementById('buscador-auditoria').value.toLowerCase();
+
+  let lista;
+  if (pestana === 'sin-registro') lista = a.facturas_sin_registro;
+  else if (pestana === 'pnc') lista = a.pnc_no_cuadran;
+  else lista = a.proyectos_pendientes_facturar;
+
+  if (busqueda) {
+    lista = lista.filter(item => {
+      const cliente = (item.cliente || '').toLowerCase();
+      const numero = String(item.numero_factura || item.numero || '');
+      return cliente.includes(busqueda) || numero.includes(busqueda);
+    });
+  }
+
+  renderTablaAuditoria(pestana, lista);
+}
+
+function cambiarOrdenAuditoria(campo) {
+  const orden = ordenAuditoria[window.pestanaAuditoriaActiva];
+  if (orden.campo === campo) orden.asc = !orden.asc;
+  else { orden.campo = campo; orden.asc = true; }
+  aplicarFiltroAuditoria();
+}
+
+function flechaOrdenAuditoria(campo) {
+  const orden = ordenAuditoria[window.pestanaAuditoriaActiva];
+  if (orden.campo !== campo) return '';
+  return orden.asc ? ' ▲' : ' ▼';
+}
+
+function renderTablaAuditoria(pestana, listaOriginal) {
   const cont = document.getElementById('auditoria-tabla');
+  const lista = ordenarLista(listaOriginal, ordenAuditoria[pestana]);
 
   if (pestana === 'sin-registro') {
     cont.innerHTML = `
       <table>
-        <thead><tr><th>Nº Factura</th><th>Fecha</th><th>Cliente</th><th>Comercial</th><th style="text-align:right;">Importe</th></tr></thead>
+        <thead>
+          <tr>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('numero_factura')">Nº Factura${flechaOrdenAuditoria('numero_factura')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('fecha_entrega')">Fecha${flechaOrdenAuditoria('fecha_entrega')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('cliente')">Cliente${flechaOrdenAuditoria('cliente')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('comercial')">Comercial${flechaOrdenAuditoria('comercial')}</th>
+            <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenAuditoria('importe_con_iva')">Importe${flechaOrdenAuditoria('importe_con_iva')}</th>
+          </tr>
+        </thead>
         <tbody>
-          ${a.facturas_sin_registro.length === 0 ? '<tr><td colspan="5" style="padding:1.5rem 4px; color:#9a988f;">No hay facturas sin registro.</td></tr>' :
-            a.facturas_sin_registro.map(f => `
+          ${lista.length === 0 ? '<tr><td colspan="5" style="padding:1.5rem 4px; color:#9a988f;">No hay facturas sin registro.</td></tr>' :
+            lista.map(f => `
               <tr>
                 <td>${f.numero_factura}</td>
                 <td>${f.fecha_entrega || '—'}</td>
@@ -682,12 +743,21 @@ function cambiarPestanaAuditoria(pestana) {
   } else if (pestana === 'pnc') {
     cont.innerHTML = `
       <table>
-        <thead><tr><th>Nº Proyecto</th><th>Cliente</th><th>Comercial</th><th style="text-align:right;">Esperado</th><th style="text-align:right;">Cobrado</th><th style="text-align:right;">Diferencia</th></tr></thead>
+        <thead>
+          <tr>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('numero')">Nº Proyecto${flechaOrdenAuditoria('numero')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('cliente')">Cliente${flechaOrdenAuditoria('cliente')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('comercial')">Comercial${flechaOrdenAuditoria('comercial')}</th>
+            <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenAuditoria('valor_esperado')">Esperado${flechaOrdenAuditoria('valor_esperado')}</th>
+            <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenAuditoria('total_cobrado_formulario')">Cobrado${flechaOrdenAuditoria('total_cobrado_formulario')}</th>
+            <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenAuditoria('diferencia')">Diferencia${flechaOrdenAuditoria('diferencia')}</th>
+          </tr>
+        </thead>
         <tbody>
-          ${a.pnc_no_cuadran.length === 0 ? '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay PNC sin cuadrar.</td></tr>' :
-            a.pnc_no_cuadran.map(p => `
+          ${lista.length === 0 ? '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay PNC sin cuadrar.</td></tr>' :
+            lista.map(p => `
               <tr>
-                <td>${p.numero}</td>
+                <td>${p.numero} <span class="badge badge-neutral" style="font-size:11px;">PNC</span></td>
                 <td>${p.cliente || ''}</td>
                 <td>${p.comercial || ''}</td>
                 <td style="text-align:right;">${euros(p.valor_esperado)}</td>
@@ -701,12 +771,21 @@ function cambiarPestanaAuditoria(pestana) {
   } else if (pestana === 'pend-facturar') {
     cont.innerHTML = `
       <table>
-        <thead><tr><th>Nº Proyecto</th><th>Cliente</th><th>Comercial</th><th style="text-align:right;">Valor</th><th style="text-align:right;">Facturado</th><th style="text-align:right;">Pendiente facturar</th></tr></thead>
+        <thead>
+          <tr>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('numero')">Nº Proyecto${flechaOrdenAuditoria('numero')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('cliente')">Cliente${flechaOrdenAuditoria('cliente')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenAuditoria('comercial')">Comercial${flechaOrdenAuditoria('comercial')}</th>
+            <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenAuditoria('valor_proyecto')">Valor${flechaOrdenAuditoria('valor_proyecto')}</th>
+            <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenAuditoria('total_facturado')">Facturado${flechaOrdenAuditoria('total_facturado')}</th>
+            <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenAuditoria('pendiente_facturar')">Pendiente facturar${flechaOrdenAuditoria('pendiente_facturar')}</th>
+          </tr>
+        </thead>
         <tbody>
-          ${a.proyectos_pendientes_facturar.length === 0 ? '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay pendientes de facturar.</td></tr>' :
-            a.proyectos_pendientes_facturar.map(p => `
+          ${lista.length === 0 ? '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay pendientes de facturar.</td></tr>' :
+            lista.map(p => `
               <tr>
-                <td>${p.numero}</td>
+                <td>${p.numero}${p.es_pnc ? ' <span class="badge badge-neutral" style="font-size:11px;">PNC</span>' : ''}</td>
                 <td>${p.cliente || ''}</td>
                 <td>${p.comercial || ''}</td>
                 <td style="text-align:right;">${euros(p.valor_proyecto)}</td>
