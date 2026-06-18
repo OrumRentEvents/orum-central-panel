@@ -329,10 +329,39 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       }))
     };
 
+    // ── Desglose por comercial (facturado total) ──
+    const facturadoPorComercial = {};
+    cruceFacturas.forEach(cf => {
+      if (!cf.comercial) return;
+      facturadoPorComercial[cf.comercial] = (facturadoPorComercial[cf.comercial] || 0) + (parseFloat(cf.importe_con_iva) || 0);
+    });
+    const desgloseComercial = Object.keys(facturadoPorComercial)
+      .map(c => ({ comercial: c, total: Math.round(facturadoPorComercial[c] * 100) / 100 }))
+      .sort((a, b) => b.total - a.total);
+
+    // ── Top clientes por pendiente de cobro total (facturas pendientes + PNC pendientes) ──
+    const pendientePorCliente = {};
+    cruceProyectos.forEach(p => {
+      if (p.pendiente_cobrar <= 0.05) return;
+      const clave = p.cliente || 'Sin cliente';
+      if (!pendientePorCliente[clave]) {
+        pendientePorCliente[clave] = { cliente: clave, comercial: p.comercial, pendiente: 0, proyectos: [] };
+      }
+      pendientePorCliente[clave].pendiente += p.pendiente_cobrar;
+      pendientePorCliente[clave].proyectos.push(p.numero);
+    });
+    const topClientesPendientes = Object.values(pendientePorCliente)
+      .map(c => ({ ...c, pendiente: Math.round(c.pendiente * 100) / 100 }))
+      .sort((a, b) => b.pendiente - a.pendiente)
+      .slice(0, 20);
+
     const pncCuadran = crucePNC.filter(p => p.cuadra).length;
+    const proyectosPendientesFacturar = cruceProyectos.filter(p => !p.es_pnc && Math.abs(p.pendiente_facturar) >= 0.05).length;
 
     res.json({
       kpis,
+      desglose_comercial: desgloseComercial,
+      top_clientes_pendientes: topClientesPendientes,
       total_proyectos: proyectos.length,
       total_facturas: facturas.length,
       total_proyectos_pnc: proyectosPNC.length,
@@ -342,6 +371,7 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
       total_nc_confirmaciones: ncConfirmaciones.length,
       facturas_sin_registro_caja: cruceFacturas.filter(f => f.sin_registro_caja).length,
       pnc_que_no_cuadran: crucePNC.filter(p => !p.cuadra).length,
+      proyectos_pendientes_facturar: proyectosPendientesFacturar,
       cruce_proyectos: cruceProyectos,
       cruce_facturas: cruceFacturas,
       cruce_pnc: crucePNC,
