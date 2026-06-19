@@ -1227,7 +1227,8 @@ function renderTablaProyectosFin(lista) {
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('cliente')">Cliente${flechaOrdenProyectosFin('cliente')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('comercial')">Comercial${flechaOrdenProyectosFin('comercial')}</th>
           <th>Estado</th>
-          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('valor_proyecto')">Valor${flechaOrdenProyectosFin('valor_proyecto')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('valor_proyecto_sin_iva')">Valor s/IVA${flechaOrdenProyectosFin('valor_proyecto_sin_iva')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('valor_proyecto')">Valor c/IVA${flechaOrdenProyectosFin('valor_proyecto')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('total_facturado')">Facturado${flechaOrdenProyectosFin('total_facturado')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('total_cobrado')">Cobrado${flechaOrdenProyectosFin('total_cobrado')}</th>
           <th style="text-align:right;">Pend. facturar</th>
@@ -1238,13 +1239,15 @@ function renderTablaProyectosFin(lista) {
   `;
 
   if (ordenada.length === 0) {
-    html += '<tr><td colspan="10" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+    html += '<tr><td colspan="11" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
 
   ordenada.forEach(p => {
     const colorPendFacturar = Math.abs(p.pendiente_facturar) >= 0.05 ? '#854F0B' : '#9a988f';
     const colorPendCobrar = Math.abs(p.pendiente_cobrar) >= 0.05 ? '#A32D2D' : '#9a988f';
     const badgePNC = p.es_pnc ? ' <span class="badge badge-neutral" style="font-size:11px;">PNC</span>' : '';
+    const celdaSinIva = p.es_pnc ? '<span style="color:#9a988f;">—</span>' : euros(p.valor_proyecto_sin_iva);
+    const celdaPendFacturar = p.es_pnc ? '<span style="color:#9a988f;">—</span>' : euros(p.pendiente_facturar);
 
     html += `
       <tr>
@@ -1253,10 +1256,11 @@ function renderTablaProyectosFin(lista) {
         <td>${p.cliente || ''}</td>
         <td>${p.comercial || ''}</td>
         <td><span class="badge badge-neutral">${p.estado || '—'}</span></td>
+        <td style="text-align:right; color:#6b6a64;">${celdaSinIva}</td>
         <td style="text-align:right;">${euros(p.valor_proyecto)}</td>
         <td style="text-align:right;">${euros(p.total_facturado)}</td>
         <td style="text-align:right;">${euros(p.total_cobrado)}</td>
-        <td style="text-align:right; color:${colorPendFacturar};">${euros(p.pendiente_facturar)}</td>
+        <td style="text-align:right; color:${colorPendFacturar};">${celdaPendFacturar}</td>
         <td style="text-align:right; color:${colorPendCobrar}; font-weight:500;">${euros(p.pendiente_cobrar)}</td>
       </tr>
     `;
