@@ -356,9 +356,37 @@ function construirMenu() {
   });
 
   nav.appendChild(submenu);
+
+  const itemLogistica = document.createElement('div');
+  itemLogistica.className = 'nav-item';
+  itemLogistica.style.fontWeight = '500';
+  itemLogistica.style.cursor = 'pointer';
+  itemLogistica.textContent = '🧺 Logística';
+  itemLogistica.onclick = () => { marcarMenuActivo('menu-item-prep-lavanderia'); cargarPreparacion('lavanderia'); };
+  nav.appendChild(itemLogistica);
+
+  const submenuPrep = document.createElement('div');
+  submenuPrep.style.paddingLeft = '1.25rem';
+
+  const subitemsPrep = [
+    { id: 'prep-lavanderia', label: 'Lavandería', vista: 'lavanderia' },
+    { id: 'prep-office', label: 'Office', vista: 'office' },
+    { id: 'prep-almacen', label: 'Almacén', vista: 'almacen' },
+  ];
+
+  subitemsPrep.forEach(item => {
+    const el = document.createElement('div');
+    el.id = 'menu-item-' + item.id;
+    el.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:#4a4944;';
+    el.textContent = item.label;
+    el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); cargarPreparacion(item.vista); };
+    submenuPrep.appendChild(el);
+  });
+
+  nav.appendChild(submenuPrep);
 }function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('[id^="menu-item-fin-"]').forEach(el => {
+  document.querySelectorAll('[id^="menu-item-fin-"], [id^="menu-item-prep-"]').forEach(el => {
     el.style.background = 'transparent';
     el.style.borderLeft = '2px solid transparent';
     el.style.color = '#4a4944';
@@ -366,7 +394,7 @@ function construirMenu() {
   });
   const el = document.getElementById(idActivo);
   if (!el) return;
-  if (el.id.startsWith('menu-item-fin-')) {
+  if (el.id.startsWith('menu-item-fin-') || el.id.startsWith('menu-item-prep-')) {
     el.style.background = '#e6f1fb';
     el.style.borderLeft = '2px solid #378ADD';
     el.style.color = '#0C447C';
@@ -797,6 +825,202 @@ function renderTablaAuditoria(pestana, listaOriginal) {
       </table>
     `;
   }
+}
+
+// ================================================================
+// PREPARACIÓN — Lavandería / Office / Almacén
+// ================================================================
+
+const TITULOS_PREP = { lavanderia: 'Lavandería', office: 'Office', almacen: 'Almacén' };
+let preparacionDataGlobal = {}; // cache por vista, para no recargar al cambiar de pestaña
+let preparacionVistaActiva = null;
+let preparacionPestanaActiva = 'proyecto'; // 'proyecto' | 'material'
+
+async function cargarPreparacion(vista) {
+  preparacionVistaActiva = vista;
+  preparacionPestanaActiva = 'proyecto';
+  document.getElementById('content-title').textContent = 'Logística · ' + TITULOS_PREP[vista];
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+
+  try {
+    const resp = await fetch('/api/preparacion?vista=' + vista);
+    const data = await resp.json();
+
+    if (data.error) {
+      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
+      return;
+    }
+
+    preparacionDataGlobal[vista] = data;
+    actualizarIndicadorFecha(data.ultima_actualizacion);
+    pintarPreparacion(vista);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+
+function pintarPreparacion(vista) {
+  const data = preparacionDataGlobal[vista];
+  const body = document.getElementById('content-body');
+
+  const barrasResumen = data.resumen_periodos.map(r => {
+    const pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
+    return `
+      <div style="background:#f7f6f2; border-radius:8px; padding:0.85rem 1rem; flex:1; min-width:160px;">
+        <p style="font-size:12px; color:#6b6a64; margin:0 0 4px;">${r.periodo}</p>
+        <p style="font-size:15px; font-weight:500; margin:0 0 6px;">${r.listos} / ${r.total} listos</p>
+        <div style="background:#e2e2de; border-radius:4px; height:6px; overflow:hidden;">
+          <div style="background:#27500A; height:100%; width:${pct}%;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  let html = `
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:1.25rem;">${barrasResumen}</div>
+
+    <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
+      <div id="tab-prep-proyecto" onclick="cambiarPestanaPreparacion('proyecto')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Por proyecto</div>
+      <div id="tab-prep-material" onclick="cambiarPestanaPreparacion('material')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Por material</div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
+      <div class="search-box" style="margin-left:auto;">
+        <input type="text" id="buscador-prep" placeholder="Buscar cliente o nº proyecto..." oninput="aplicarFiltroPreparacion()">
+      </div>
+    </div>
+
+    <div id="prep-contenido"></div>
+  `;
+
+  body.innerHTML = html;
+  cambiarPestanaPreparacion(preparacionPestanaActiva);
+}
+
+function cambiarPestanaPreparacion(pestana) {
+  preparacionPestanaActiva = pestana;
+  document.getElementById('tab-prep-proyecto').style.cssText += estiloTab(pestana === 'proyecto');
+  document.getElementById('tab-prep-material').style.cssText += estiloTab(pestana === 'material');
+  document.getElementById('buscador-prep').value = '';
+
+  if (pestana === 'proyecto') renderPreparacionPorProyecto();
+  else renderPreparacionPorMaterial();
+}
+
+function aplicarFiltroPreparacion() {
+  if (preparacionPestanaActiva === 'proyecto') renderPreparacionPorProyecto();
+  else renderPreparacionPorMaterial();
+}
+
+function copiarAlPortapapeles(texto) {
+  navigator.clipboard.writeText(String(texto)).catch(() => {});
+}
+
+function renderPreparacionPorProyecto() {
+  const data = preparacionDataGlobal[preparacionVistaActiva];
+  const busqueda = (document.getElementById('buscador-prep').value || '').toLowerCase();
+  const cont = document.getElementById('prep-contenido');
+
+  const coincide = (item) => {
+    if (!busqueda) return true;
+    return (item.cliente || '').toLowerCase().includes(busqueda) || String(item.numero || '').includes(busqueda);
+  };
+
+  let html = '';
+  data.orden_periodos.forEach(periodo => {
+    const grupo = data.por_proyecto[periodo];
+    if (!grupo) return;
+    const confirmados = grupo.confirmado.filter(coincide);
+    const preparados = grupo.preparado.filter(coincide);
+    if (confirmados.length === 0 && preparados.length === 0 && busqueda) return;
+
+    html += `
+      <div style="margin-bottom:1.5rem;">
+        <p style="font-size:14px; font-weight:500; color:#1a1a18; margin:0 0 8px;">${periodo}</p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div>
+            <p style="font-size:12px; color:#854F0B; margin:0 0 6px; font-weight:500;">Pendiente de preparar (${confirmados.length})</p>
+            ${renderTarjetasProyectosPrep(confirmados, 'warning')}
+          </div>
+          <div>
+            <p style="font-size:12px; color:#27500A; margin:0 0 6px; font-weight:500;">Preparado (${preparados.length})</p>
+            ${renderTarjetasProyectosPrep(preparados, 'success')}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  cont.innerHTML = html || '<p style="color:#9a988f; font-size:13px;">Sin resultados.</p>';
+}
+
+function renderTarjetasProyectosPrep(lista, tipoColor) {
+  if (lista.length === 0) return '<p style="font-size:12px; color:#9a988f; margin:0;">Ninguno</p>';
+  const badgeClase = tipoColor === 'success' ? 'badge-success' : 'badge-warning';
+  return lista.map(p => `
+    <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:500; cursor:pointer;" onclick="copiarAlPortapapeles('${p.numero}')" title="Copiar nº proyecto">#${p.numero}</span>
+        <span class="badge ${badgeClase}" style="font-size:10px;">${p.estado || ''}</span>
+      </div>
+      <div style="color:#4a4944; margin-top:3px;">${p.cliente || ''}</div>
+      <div style="color:#9a988f; margin-top:2px;">${p.fecha_entrega || ''} ${p.entrega_hora || ''} · ${p.localizacion || ''}</div>
+    </div>
+  `).join('');
+}
+
+function renderPreparacionPorMaterial() {
+  const data = preparacionDataGlobal[preparacionVistaActiva];
+  const busqueda = (document.getElementById('buscador-prep').value || '').toLowerCase();
+  const cont = document.getElementById('prep-contenido');
+
+  let html = '';
+  data.por_material.forEach(familiaObj => {
+    const articulosFiltrados = familiaObj.articulos.filter(a => {
+      if (!busqueda) return true;
+      if (a.articulo.toLowerCase().includes(busqueda)) return true;
+      return a.detalle.some(d => (d.cliente || '').toLowerCase().includes(busqueda) || String(d.proyecto_numero || '').includes(busqueda));
+    });
+    if (articulosFiltrados.length === 0) return;
+
+    const idFamilia = 'fam-' + familiaObj.familia.replace(/[^a-zA-Z0-9]/g, '');
+
+    html += `
+      <div style="margin-bottom:8px; border:0.5px solid #e2e2de; border-radius:8px; overflow:hidden;">
+        <div onclick="toggleFamiliaPrep('${idFamilia}')" style="background:#f7f6f2; padding:0.7rem 1rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:500; font-size:13px;">${familiaObj.familia}</span>
+          <span style="font-size:12px; color:#6b6a64;">${articulosFiltrados.length} artículos ▾</span>
+        </div>
+        <div id="${idFamilia}" style="display:none; padding:0.5rem 1rem;">
+          ${articulosFiltrados.map(a => `
+            <div style="margin-bottom:10px;">
+              <p style="font-size:13px; font-weight:500; margin:0 0 4px;">${a.articulo} <span style="color:#6b6a64; font-weight:400;">— ${a.total} uds total</span></p>
+              <table style="width:100%; font-size:12px;">
+                <tbody>
+                  ${a.detalle.filter(d => !busqueda || (d.cliente||'').toLowerCase().includes(busqueda) || String(d.proyecto_numero||'').includes(busqueda)).map(d => `
+                    <tr>
+                      <td style="padding:3px 6px; color:#4a4944;">#${d.proyecto_numero}</td>
+                      <td style="padding:3px 6px; color:#4a4944;">${d.cliente || ''}</td>
+                      <td style="padding:3px 6px; color:#9a988f;">${d.periodo}</td>
+                      <td style="padding:3px 6px; text-align:right; font-weight:500;">${d.cantidad} uds</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  cont.innerHTML = html || '<p style="color:#9a988f; font-size:13px;">Sin resultados.</p>';
+}
+
+function toggleFamiliaPrep(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 // ── CARGAR FINANCIERO (Control de pagos) ──
