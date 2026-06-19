@@ -250,6 +250,7 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
     });
 
     // ── Vista agregada por PROYECTO: valor total, facturado, cobrado, pendiente de facturar/cobrar ──
+    const IVA = 1.21;
     // Indexar facturas (ya cruzadas) por proyecto_id
     const facturasPorProyectoId = {};
     cruceFacturas.forEach(cf => {
@@ -260,9 +261,10 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
 
     const cruceProyectos = proyectos.map(p => {
       const esPNC = p.es_abrebotellas === 'SI' || p.es_abrebotellas === true;
-      const valorProyecto = Math.round((parseFloat(p.valor) || 0) * 100) / 100;
+      const valorSinIva = Math.round((parseFloat(p.valor) || 0) * 100) / 100;
 
       if (esPNC) {
+        // PNC: el valor de Rentman ya es el importe final a cobrar, sin IVA aplicado (clientes especiales)
         const cobros = ncPorNumeroProyecto[String(p.numero)] || [];
         const totalCobrado = Math.round(cobros.reduce((sum, c) => sum + (parseFloat(c['Importe']) || 0), 0) * 100) / 100;
         return {
@@ -273,13 +275,16 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
           estado: p.estado,
           fecha_entrega: p.entrega_fecha,
           es_pnc: true,
-          valor_proyecto: valorProyecto,
+          valor_proyecto_sin_iva: valorSinIva,
+          valor_proyecto: valorSinIva,
           total_facturado: 0,
           total_cobrado: totalCobrado,
           pendiente_facturar: 0,
-          pendiente_cobrar: Math.round((valorProyecto - totalCobrado) * 100) / 100
+          pendiente_cobrar: Math.round((valorSinIva - totalCobrado) * 100) / 100
         };
       } else {
+        // Proyectos normales: el valor de Rentman es SIN IVA, hay que aplicar 21% para comparar con facturas
+        const valorConIva = Math.round(valorSinIva * IVA * 100) / 100;
         const facturasDelProyecto = facturasPorProyectoId[String(p.id)] || [];
         const totalFacturado = Math.round(
           facturasDelProyecto.reduce((sum, f) => sum + (parseFloat(f.importe_con_iva) || 0), 0) * 100
@@ -295,10 +300,11 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
           estado: p.estado,
           fecha_entrega: p.entrega_fecha,
           es_pnc: false,
-          valor_proyecto: valorProyecto,
+          valor_proyecto_sin_iva: valorSinIva,
+          valor_proyecto: valorConIva,
           total_facturado: totalFacturado,
           total_cobrado: totalCobrado,
-          pendiente_facturar: Math.round((valorProyecto - totalFacturado) * 100) / 100,
+          pendiente_facturar: Math.round((valorConIva - totalFacturado) * 100) / 100,
           pendiente_cobrar: Math.round((totalFacturado - totalCobrado) * 100) / 100
         };
       }
