@@ -1233,13 +1233,14 @@ function renderTablaProyectosFin(lista) {
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('total_cobrado')">Cobrado${flechaOrdenProyectosFin('total_cobrado')}</th>
           <th style="text-align:right;">Pend. facturar</th>
           <th style="text-align:right;">Pend. cobrar</th>
+          <th>Forma de pago</th>
         </tr>
       </thead>
       <tbody>
   `;
 
   if (ordenada.length === 0) {
-    html += '<tr><td colspan="11" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+    html += '<tr><td colspan="12" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
 
   ordenada.forEach(p => {
@@ -1248,6 +1249,11 @@ function renderTablaProyectosFin(lista) {
     const badgePNC = p.es_pnc ? ' <span class="badge badge-neutral" style="font-size:11px;">PNC</span>' : '';
     const celdaSinIva = p.es_pnc ? '<span style="color:#9a988f;">—</span>' : euros(p.valor_proyecto_sin_iva);
     const celdaPendFacturar = p.es_pnc ? '<span style="color:#9a988f;">—</span>' : euros(p.pendiente_facturar);
+    const formasPago = (p.formas_pago || []).map(fp => {
+      if (fp === 'Sin registro') return '<span class="badge badge-danger" style="font-size:11px;">Sin registro</span>';
+      if (fp === 'Rectificativa') return '<span class="badge badge-neutral" style="font-size:11px;">Rectificativa</span>';
+      return ETIQUETAS_FORMA_PAGO[fp] || fp;
+    }).join(', ') || '<span style="color:#9a988f;">—</span>';
 
     html += `
       <tr>
@@ -1262,6 +1268,7 @@ function renderTablaProyectosFin(lista) {
         <td style="text-align:right;">${euros(p.total_cobrado)}</td>
         <td style="text-align:right; color:${colorPendFacturar};">${celdaPendFacturar}</td>
         <td style="text-align:right; color:${colorPendCobrar}; font-weight:500;">${euros(p.pendiente_cobrar)}</td>
+        <td>${formasPago}</td>
       </tr>
     `;
   });
