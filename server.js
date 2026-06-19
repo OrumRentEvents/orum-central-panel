@@ -267,6 +267,7 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
         // PNC: el valor de Rentman ya es el importe final a cobrar, sin IVA aplicado (clientes especiales)
         const cobros = ncPorNumeroProyecto[String(p.numero)] || [];
         const totalCobrado = Math.round(cobros.reduce((sum, c) => sum + (parseFloat(c['Importe']) || 0), 0) * 100) / 100;
+        const formasPagoPNC = [...new Set(cobros.map(c => c['Método']).filter(Boolean))];
         return {
           id: p.id,
           numero: p.numero,
@@ -280,7 +281,8 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
           total_facturado: 0,
           total_cobrado: totalCobrado,
           pendiente_facturar: 0,
-          pendiente_cobrar: Math.round((valorSinIva - totalCobrado) * 100) / 100
+          pendiente_cobrar: Math.round((valorSinIva - totalCobrado) * 100) / 100,
+          formas_pago: formasPagoPNC
         };
       } else {
         // Proyectos normales: el valor de Rentman es SIN IVA, hay que aplicar 21% para comparar con facturas
@@ -292,6 +294,11 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
         const totalCobrado = Math.round(
           facturasDelProyecto.reduce((sum, f) => sum + (parseFloat(f.importe_cobrado_real) || 0), 0) * 100
         ) / 100;
+        const formasPagoNormales = [...new Set(
+          facturasDelProyecto
+            .map(f => f.sin_registro_caja ? 'Sin registro' : (f.es_rectificativa_a_cero ? 'Rectificativa' : f.forma_pago))
+            .filter(Boolean)
+        )];
         return {
           id: p.id,
           numero: p.numero,
@@ -305,7 +312,8 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
           total_facturado: totalFacturado,
           total_cobrado: totalCobrado,
           pendiente_facturar: Math.round((valorConIva - totalFacturado) * 100) / 100,
-          pendiente_cobrar: Math.round((totalFacturado - totalCobrado) * 100) / 100
+          pendiente_cobrar: Math.round((totalFacturado - totalCobrado) * 100) / 100,
+          formas_pago: formasPagoNormales
         };
       }
     });
