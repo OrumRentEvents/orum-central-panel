@@ -624,7 +624,7 @@ app.get('/api/preparacion', requiereLogin, async (req, res) => {
       return { periodo: per, listos: preparado, total, pendientes: confirmado };
     });
 
-    res.json({
+    const respuesta = {
       vista,
       modo,
       orden_periodos: ordenPeriodos,
@@ -632,7 +632,96 @@ app.get('/api/preparacion', requiereLogin, async (req, res) => {
       por_proyecto: porProyecto,
       por_material: porMaterialArray,
       ultima_actualizacion: proyectosResp.ultima_actualizacion
-    });
+    };
+
+    // ── Solo en Almacén: pestañas adicionales "Servicios" y "Logística" ──
+    if (vista === 'almacen') {
+      // -- Servicios (montaje, desplazamiento, etc.) próximos 14 días --
+      const serviciosResp = await llamarOrumCentral('servicios');
+      const servicios = (serviciosResp.data || []);
+      const hoyMs = inicioDelDia(new Date()).getTime();
+      const limite14diasMs = hoyMs + 14 * 86400000;
+
+      const serviciosVentana = servicios.filter(s => {
+        const fecha = parsearFechaDDMMYYYY(s.fecha_entrega);
+        if (!fecha) return false;
+        const fechaMs = inicioDelDia(fecha).getTime();
+        return fechaMs >= hoyMs && fechaMs <= limite14diasMs;
+      }).map(s => {
+        const proyecto = proyectoPorId[String(s.proyecto_id)];
+        return {
+          proyecto_numero: s.numero,
+          cliente: proyecto ? proyecto.cliente : '',
+          servicio: s.servicio,
+          cantidad: s.cantidad,
+          fecha_entrega: s.fecha_entrega
+        };
+      });
+
+      // Agrupado por cliente
+      const porCliente = {};
+      serviciosVentana.forEach(s => {
+        const clave = s.cliente || 'Sin cliente';
+        if (!porCliente[clave]) porCliente[clave] = [];
+        porCliente[clave].push(s);
+      });
+      const serviciosPorCliente = Object.keys(porCliente).sort().map(cliente => ({
+        cliente,
+        items: porCliente[cliente].sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
+      }));
+
+      // Agrupado por tipo de servicio
+      const porTipo = {};
+      serviciosVentana.forEach(s => {
+        const clave = s.servicio || 'Sin especificar';
+        if (!porTipo[clave]) porTipo[clave] = [];
+        porTipo[clave].push(s);
+      });
+      const serviciosPorTipo = Object.keys(porTipo).sort().map(tipo => ({
+        tipo,
+        items: porTipo[tipo].sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
+      }));
+
+      respuesta.servicios = {
+        por_cliente: serviciosPorCliente,
+        por_tipo: serviciosPorTipo
+      };
+
+      // -- Logística: proyectos asignados a Lavandería vs Office (próximos 14 días, confirmados) --
+      const equipmentLavanderia = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_LAVANDERIA));
+      const equipmentOffice = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_OFFICE));
+
+      const idsLavanderia = new Set(equipmentLavanderia.map(e => String(e.proyecto_id)));
+      const idsOffice = new Set(equipmentOffice.map(e => String(e.proyecto_id)));
+
+      const proyectosEnVentana = proyectosConfirmados.filter(p => {
+        const fecha = parsearFechaDDMMYYYY(p.entrega_fecha);
+        if (!fecha) return false;
+        const fechaMs = inicioDelDia(fecha).getTime();
+        return fechaMs >= hoyMs && fechaMs <= limite14diasMs;
+      });
+
+      const mapearProyectoLogistica = p => ({
+        id: p.id,
+        numero: p.numero,
+        cliente: p.cliente,
+        fecha_entrega: p.entrega_fecha,
+        estado: p.estado
+      });
+
+      respuesta.logistica = {
+        lavanderia: proyectosEnVentana
+          .filter(p => idsLavanderia.has(String(p.id)))
+          .map(mapearProyectoLogistica)
+          .sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || '')),
+        office: proyectosEnVentana
+          .filter(p => idsOffice.has(String(p.id)))
+          .map(mapearProyectoLogistica)
+          .sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
+      };
+    }
+
+    res.json(respuesta);
   } catch (err) {
     console.error('Error en /api/preparacion:', err);
     res.status(500).json({ error: 'Error al construir vista de preparación: ' + err.message });
