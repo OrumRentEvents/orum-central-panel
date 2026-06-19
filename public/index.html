@@ -877,15 +877,21 @@ function pintarPreparacion(vista) {
     `;
   }).join('');
 
+  const tabsExtra = vista === 'almacen' ? `
+      <div id="tab-prep-servicios" onclick="cambiarPestanaPreparacion('servicios')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Servicios</div>
+      <div id="tab-prep-logistica" onclick="cambiarPestanaPreparacion('logistica')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Logística</div>
+  ` : '';
+
   let html = `
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:1.25rem;">${barrasResumen}</div>
 
     <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
       <div id="tab-prep-proyecto" onclick="cambiarPestanaPreparacion('proyecto')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Por proyecto</div>
       <div id="tab-prep-material" onclick="cambiarPestanaPreparacion('material')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Por material</div>
+      ${tabsExtra}
     </div>
 
-    <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
+    <div id="prep-filtros" style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-prep" placeholder="Buscar cliente o nº proyecto..." oninput="aplicarFiltroPreparacion()">
       </div>
@@ -902,15 +908,25 @@ function cambiarPestanaPreparacion(pestana) {
   preparacionPestanaActiva = pestana;
   document.getElementById('tab-prep-proyecto').style.cssText += estiloTab(pestana === 'proyecto');
   document.getElementById('tab-prep-material').style.cssText += estiloTab(pestana === 'material');
-  document.getElementById('buscador-prep').value = '';
+  const tabServicios = document.getElementById('tab-prep-servicios');
+  const tabLogistica = document.getElementById('tab-prep-logistica');
+  if (tabServicios) tabServicios.style.cssText += estiloTab(pestana === 'servicios');
+  if (tabLogistica) tabLogistica.style.cssText += estiloTab(pestana === 'logistica');
+
+  // El buscador solo tiene sentido en Por proyecto / Por material
+  const filtros = document.getElementById('prep-filtros');
+  filtros.style.display = (pestana === 'servicios' || pestana === 'logistica') ? 'none' : 'flex';
+  if (document.getElementById('buscador-prep')) document.getElementById('buscador-prep').value = '';
 
   if (pestana === 'proyecto') renderPreparacionPorProyecto();
-  else renderPreparacionPorMaterial();
+  else if (pestana === 'material') renderPreparacionPorMaterial();
+  else if (pestana === 'servicios') renderPreparacionServicios();
+  else if (pestana === 'logistica') renderPreparacionLogistica();
 }
 
 function aplicarFiltroPreparacion() {
   if (preparacionPestanaActiva === 'proyecto') renderPreparacionPorProyecto();
-  else renderPreparacionPorMaterial();
+  else if (preparacionPestanaActiva === 'material') renderPreparacionPorMaterial();
 }
 
 function copiarAlPortapapeles(texto, elemento) {
@@ -1039,6 +1055,14 @@ function cerrarDetalleProyectoPrep() {
   if (modal) modal.remove();
 }
 
+function colorPeriodo(periodo) {
+  if (periodo === 'HOY') return { bg: '#FCEBEB', color: '#A32D2D' };
+  if (periodo === 'MAÑANA') return { bg: '#FAEEDA', color: '#854F0B' };
+  if (periodo === 'PASADO MAÑANA') return { bg: '#FCF6E3', color: '#7A6A1E' };
+  if (periodo === 'ESTA SEMANA') return { bg: '#FAEEDA', color: '#854F0B' };
+  return { bg: '#f7f6f2', color: '#6b6a64' }; // PRÓXIMA SEMANA / PRÓXIMOS 5 DÍAS
+}
+
 function renderPreparacionPorMaterial() {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const busqueda = (document.getElementById('buscador-prep').value || '').toLowerCase();
@@ -1063,18 +1087,31 @@ function renderPreparacionPorMaterial() {
         </div>
         <div id="${idFamilia}" style="display:none; padding:0.5rem 1rem;">
           ${articulosFiltrados.map(a => `
-            <div style="margin-bottom:10px;">
-              <p style="font-size:13px; font-weight:500; margin:0 0 4px;">${a.articulo} <span style="color:#6b6a64; font-weight:400;">— ${a.total} uds total</span></p>
-              <table style="width:100%; font-size:12px;">
+            <div style="margin-bottom:14px;">
+              <p style="font-size:13px; font-weight:500; margin:0 0 6px;">${a.articulo} <span style="color:#6b6a64; font-weight:400;">— ${a.total} uds total</span></p>
+              <table style="width:100%; font-size:12px; border-collapse:collapse; table-layout:fixed;">
+                <colgroup>
+                  <col style="width:70px;"><col><col style="width:130px;"><col style="width:80px;">
+                </colgroup>
+                <thead>
+                  <tr style="border-bottom:0.5px solid #e2e2de;">
+                    <th style="text-align:left; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Proyecto</th>
+                    <th style="text-align:left; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Cliente</th>
+                    <th style="text-align:left; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Periodo</th>
+                    <th style="text-align:right; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Cantidad</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  ${a.detalle.filter(d => !busqueda || (d.cliente||'').toLowerCase().includes(busqueda) || String(d.proyecto_numero||'').includes(busqueda)).map(d => `
-                    <tr>
-                      <td style="padding:3px 6px; color:#4a4944;">#${d.proyecto_numero}</td>
-                      <td style="padding:3px 6px; color:#4a4944;">${d.cliente || ''}</td>
-                      <td style="padding:3px 6px; color:#9a988f;">${d.periodo}</td>
-                      <td style="padding:3px 6px; text-align:right; font-weight:500;">${d.cantidad} uds</td>
+                  ${a.detalle.filter(d => !busqueda || (d.cliente||'').toLowerCase().includes(busqueda) || String(d.proyecto_numero||'').includes(busqueda)).map(d => {
+                    const cp = colorPeriodo(d.periodo);
+                    return `
+                    <tr style="border-bottom:0.5px solid #f0efea;">
+                      <td style="padding:5px 6px; color:#4a4944; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">#${d.proyecto_numero}</td>
+                      <td style="padding:5px 6px; color:#4a4944; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${d.cliente || ''}">${d.cliente || ''}</td>
+                      <td style="padding:5px 6px;"><span style="background:${cp.bg}; color:${cp.color}; font-size:10px; padding:2px 7px; border-radius:6px; white-space:nowrap;">${d.periodo}</span></td>
+                      <td style="padding:5px 6px; text-align:right; font-weight:500; white-space:nowrap;">${d.cantidad} uds</td>
                     </tr>
-                  `).join('')}
+                  `;}).join('')}
                 </tbody>
               </table>
             </div>
@@ -1090,6 +1127,95 @@ function renderPreparacionPorMaterial() {
 function toggleFamiliaPrep(id) {
   const el = document.getElementById(id);
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Pestaña Servicios (solo Almacén) — dos columnas: por cliente / por tipo ──
+function renderPreparacionServicios() {
+  const data = preparacionDataGlobal[preparacionVistaActiva];
+  const cont = document.getElementById('prep-contenido');
+  const servicios = data.servicios;
+
+  if (!servicios || (servicios.por_cliente.length === 0 && servicios.por_tipo.length === 0)) {
+    cont.innerHTML = '<p style="color:#9a988f; font-size:13px;">No hay servicios adicionales en los próximos 14 días.</p>';
+    return;
+  }
+
+  const renderItems = (items) => items.map(s => `
+    <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px;">
+      <div style="display:flex; justify-content:space-between;">
+        <span style="font-weight:500;">#${s.proyecto_numero}</span>
+        <span style="color:#9a988f;">${s.fecha_entrega || ''}</span>
+      </div>
+      <div style="color:#4a4944; margin-top:2px;">${s.cliente || ''}</div>
+      <div style="color:#6b6a64; margin-top:2px;">${s.servicio} <span style="color:#9a988f;">× ${s.cantidad}</span></div>
+    </div>
+  `).join('');
+
+  const colCliente = servicios.por_cliente.map(grupo => `
+    <div style="margin-bottom:10px;">
+      <p style="font-size:13px; font-weight:500; margin:0 0 6px;">${grupo.cliente}</p>
+      ${renderItems(grupo.items)}
+    </div>
+  `).join('');
+
+  const colTipo = servicios.por_tipo.map(grupo => `
+    <div style="margin-bottom:10px;">
+      <p style="font-size:13px; font-weight:500; margin:0 0 6px;">${grupo.tipo}</p>
+      ${renderItems(grupo.items)}
+    </div>
+  `).join('');
+
+  cont.innerHTML = `
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+      <div>
+        <p style="font-size:12px; color:#6b6a64; font-weight:500; margin:0 0 10px; text-transform:uppercase; letter-spacing:0.03em;">Por cliente</p>
+        ${colCliente || '<p style="color:#9a988f; font-size:13px;">Sin datos</p>'}
+      </div>
+      <div>
+        <p style="font-size:12px; color:#6b6a64; font-weight:500; margin:0 0 10px; text-transform:uppercase; letter-spacing:0.03em;">Por tipo de servicio</p>
+        ${colTipo || '<p style="color:#9a988f; font-size:13px;">Sin datos</p>'}
+      </div>
+    </div>
+  `;
+}
+
+// ── Pestaña Logística (solo Almacén) — proyectos asignados a Lavandería vs Office ──
+function renderPreparacionLogistica() {
+  const data = preparacionDataGlobal[preparacionVistaActiva];
+  const cont = document.getElementById('prep-contenido');
+  const logistica = data.logistica;
+
+  if (!logistica) {
+    cont.innerHTML = '<p style="color:#9a988f; font-size:13px;">Sin datos.</p>';
+    return;
+  }
+
+  const renderProyectos = (lista) => {
+    if (lista.length === 0) return '<p style="color:#9a988f; font-size:13px;">Ninguno en los próximos 14 días.</p>';
+    return lista.map(p => `
+      <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px; cursor:pointer;" onclick="abrirDetalleProyectoPrep(${p.id}, '${String(p.numero).replace(/'/g, "\\'")}')">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:500;">#${p.numero}</span>
+          <span class="badge badge-neutral" style="font-size:10px;">${p.estado || ''}</span>
+        </div>
+        <div style="color:#4a4944; margin-top:3px;">${p.cliente || ''}</div>
+        <div style="color:#9a988f; margin-top:2px;">${p.fecha_entrega || ''}</div>
+      </div>
+    `).join('');
+  };
+
+  cont.innerHTML = `
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+      <div>
+        <p style="font-size:12px; color:#6b6a64; font-weight:500; margin:0 0 10px; text-transform:uppercase; letter-spacing:0.03em;">Lavandería (${logistica.lavanderia.length})</p>
+        ${renderProyectos(logistica.lavanderia)}
+      </div>
+      <div>
+        <p style="font-size:12px; color:#6b6a64; font-weight:500; margin:0 0 10px; text-transform:uppercase; letter-spacing:0.03em;">Office (${logistica.office.length})</p>
+        ${renderProyectos(logistica.office)}
+      </div>
+    </div>
+  `;
 }
 
 // ── CARGAR FINANCIERO (Control de pagos) ──
