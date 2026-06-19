@@ -425,12 +425,221 @@ app.get('/api/financiero', requiereLogin, async (req, res) => {
 });
 
 // ================================================================
-// PÁGINA PRINCIPAL
+// PREPARACIÓN — Lavandería / Office / Almacén
+// Lee PROYECTOS + EQUIPMENT de Sheets (sin tocar Rentman).
+// Replica exactamente la lógica ya validada en el dashboard antiguo.
 // ================================================================
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Estados (por NOMBRE, tal y como se guarda en la hoja PROYECTOS) que se excluyen
+// de las pantallas de preparación: presupuestos, consultas y cancelados.
+const ESTADOS_EXCLUIR_NOMBRE = ['pending', 'concept', 'inquiry', 'cancelado', 'canceled'].map(normalizarTexto);
+// Estados que cuentan como "preparado/listo" dentro del flujo de preparación
+const ESTADOS_LISTO_NOMBRE = ['returned', 'cargado', 'marbella', 'on location', 'controlado', 'preparado'].map(normalizarTexto);
+
+// Normaliza texto para comparar familias sin depender de tildes/mayúsculas exactas
+function normalizarTexto(str) {
+  return (str || '')
+    .toString()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita tildes
+    .toLowerCase()
+    .trim();
+}
+
+const FAMILIAS_LAVANDERIA = ['manteleria'].map(normalizarTexto);
+const FAMILIAS_OFFICE = ['cuberteria', 'cristaleria', 'buffet', 'vajilla', 'catering'].map(normalizarTexto);
+
+function familiaPerteneceA(familia, listaNormalizada) {
+  const f = normalizarTexto(familia);
+  return listaNormalizada.some(x => f.indexOf(x) !== -1 || x.indexOf(f) !== -1);
+}
+
+function parsearFechaDDMMYYYY(str) {
+  if (!str) return null;
+  const partes = String(str).split('/');
+  if (partes.length !== 3) return null;
+  return new Date(partes[2], partes[1] - 1, partes[0]);
+}
+
+function inicioDelDia(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+// Lunes de la semana de una fecha dada (semana real lun-dom)
+function lunesDeLaSemana(d) {
+  const x = inicioDelDia(d);
+  const dia = x.getDay() || 7; // domingo=0 → 7
+  x.setDate(x.getDate() - dia + 1);
+  return x;
+}
+
+// Clasifica una fecha de entrega en uno de los periodos según el modo de vista
+function clasificarPeriodo(fechaEntrega, modo) {
+  if (!fechaEntrega) return null;
+  const hoy = inicioDelDia(new Date());
+  const fecha = inicioDelDia(fechaEntrega);
+  const diffDias = Math.round((fecha - hoy) / 86400000);
+
+  if (modo === 'semanas') {
+    // HOY / MAÑANA / ESTA SEMANA / PRÓXIMA SEMANA (lun-dom reales)
+    if (diffDias === 0) return 'HOY';
+    if (diffDias === 1) return 'MAÑANA';
+    const lunesEstaSemana = lunesDeLaSemana(hoy);
+    const lunesProxima = new Date(lunesEstaSemana); lunesProxima.setDate(lunesProxima.getDate() + 7);
+    const lunesSiguiente = new Date(lunesProxima); lunesSiguiente.setDate(lunesSiguiente.getDate() + 7);
+    if (fecha >= lunesEstaSemana && fecha < lunesProxima) return 'ESTA SEMANA';
+    if (fecha >= lunesProxima && fecha < lunesSiguiente) return 'PRÓXIMA SEMANA';
+    return null; // fuera de rango, no se muestra
+  } else {
+    // Almacén — HOY / MAÑANA / PASADO MAÑANA / PRÓXIMOS 5 DÍAS
+    if (diffDias === 0) return 'HOY';
+    if (diffDias === 1) return 'MAÑANA';
+    if (diffDias === 2) return 'PASADO MAÑANA';
+    if (diffDias >= 3 && diffDias <= 7) return 'PRÓXIMOS 5 DÍAS';
+    return null;
+  }
+}
+
+const ORDEN_PERIODOS_SEMANAS = ['HOY', 'MAÑANA', 'ESTA SEMANA', 'PRÓXIMA SEMANA'];
+const ORDEN_PERIODOS_DIAS = ['HOY', 'MAÑANA', 'PASADO MAÑANA', 'PRÓXIMOS 5 DÍAS'];
+
+app.get('/api/preparacion', requiereLogin, async (req, res) => {
+  try {
+    const vista = req.query.vista || 'almacen'; // 'lavanderia' | 'office' | 'almacen'
+    const modo = vista === 'almacen' ? 'dias' : 'semanas';
+    const ordenPeriodos = modo === 'dias' ? ORDEN_PERIODOS_DIAS : ORDEN_PERIODOS_SEMANAS;
+
+    const [proyectosResp, equipmentResp] = await Promise.all([
+      llamarOrumCentral('proyectos'),
+      llamarOrumCentral('equipment')
+    ]);
+
+    const proyectos = (proyectosResp.data || [])
+      .filter(p => p.cancelado !== 'SI');
+
+    // NOTA: PROYECTOS guarda el NOMBRE del estado (resuelto), no el ID numérico.
+    // Filtramos por nombre de estado "no presupuesto/consulta" en vez de por ID,
+    // ya que el ID de Rentman no se persiste en la hoja actual.
+    const proyectosConfirmados = proyectos.filter(p => {
+      const estadoNorm = normalizarTexto(p.estado);
+      return !ESTADOS_EXCLUIR_NOMBRE.includes(estadoNorm);
+    });
+
+    const proyectoPorId = {};
+    proyectosConfirmados.forEach(p => { proyectoPorId[String(p.id)] = p; });
+
+    const equipment = (equipmentResp.data || []);
+
+    // Filtrar equipment a las familias de la vista (lavandería/office); almacén ve todo
+    let equipmentFiltrado = equipment;
+    if (vista === 'lavanderia') {
+      equipmentFiltrado = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_LAVANDERIA));
+    } else if (vista === 'office') {
+      equipmentFiltrado = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_OFFICE));
+    }
+
+    // Solo equipment de proyectos confirmados y vivos
+    equipmentFiltrado = equipmentFiltrado.filter(e => proyectoPorId[String(e.proyecto_id)]);
+
+    // ── Construir lista de proyectos relevantes para esta vista (los que tienen equipment filtrado) ──
+    const idsProyectosConEquipo = new Set(equipmentFiltrado.map(e => String(e.proyecto_id)));
+    const proyectosVista = vista === 'almacen'
+      ? proyectosConfirmados
+      : proyectosConfirmados.filter(p => idsProyectosConEquipo.has(String(p.id)));
+
+    const hoy = inicioDelDia(new Date());
+
+    // ── Vista "Por proyecto" — agrupado por periodo, dos columnas Confirmado/Preparado ──
+    const porProyecto = {};
+    ordenPeriodos.forEach(per => { porProyecto[per] = { confirmado: [], preparado: [] }; });
+
+    proyectosVista.forEach(p => {
+      const fechaEntrega = parsearFechaDDMMYYYY(p.entrega_fecha);
+      const periodo = clasificarPeriodo(fechaEntrega, modo);
+      if (!periodo) return;
+
+      const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado));
+
+      const item = {
+        id: p.id,
+        numero: p.numero,
+        cliente: p.cliente,
+        comercial: p.comercial,
+        estado: p.estado,
+        fecha_entrega: p.entrega_fecha,
+        entrega_hora: p.entrega_hora,
+        localizacion: p.localizacion,
+        es_nuevo_hoy: false // se calcula con 'updated' si se necesita más adelante
+      };
+
+      if (estaListo) porProyecto[periodo].preparado.push(item);
+      else porProyecto[periodo].confirmado.push(item);
+    });
+
+    // ── Vista "Por material" — agrupado por familia → artículo → detalle por proyecto/periodo ──
+    const porMaterial = {}; // familia -> articulo -> { total, detalle: [...] }
+
+    equipmentFiltrado.forEach(e => {
+      const proyecto = proyectoPorId[String(e.proyecto_id)];
+      if (!proyecto) return;
+      const fechaEntrega = parsearFechaDDMMYYYY(proyecto.entrega_fecha);
+      const periodo = clasificarPeriodo(fechaEntrega, modo);
+      if (!periodo) return;
+
+      const familia = e.familia || 'Sin familia';
+      const articulo = e.articulo || 'Sin artículo';
+
+      if (!porMaterial[familia]) porMaterial[familia] = {};
+      if (!porMaterial[familia][articulo]) porMaterial[familia][articulo] = { total: 0, detalle: [] };
+
+      const cantidad = parseFloat(e.cantidad) || 0;
+      porMaterial[familia][articulo].total += cantidad;
+      porMaterial[familia][articulo].detalle.push({
+        proyecto_numero: proyecto.numero,
+        cliente: proyecto.cliente,
+        fecha_entrega: proyecto.entrega_fecha,
+        periodo,
+        cantidad
+      });
+    });
+
+    // Convertir a array ordenado, familias y artículos alfabéticamente
+    const porMaterialArray = Object.keys(porMaterial).sort().map(familia => ({
+      familia,
+      articulos: Object.keys(porMaterial[familia]).sort().map(articulo => ({
+        articulo,
+        total: Math.round(porMaterial[familia][articulo].total * 100) / 100,
+        detalle: porMaterial[familia][articulo].detalle.sort((a, b) =>
+          ordenPeriodos.indexOf(a.periodo) - ordenPeriodos.indexOf(b.periodo)
+        )
+      }))
+    }));
+
+    // ── Resumen de progreso por periodo (X/total listos) ──
+    const resumenPeriodos = ordenPeriodos.map(per => {
+      const confirmado = porProyecto[per].confirmado.length;
+      const preparado = porProyecto[per].preparado.length;
+      const total = confirmado + preparado;
+      return { periodo: per, listos: preparado, total, pendientes: confirmado };
+    });
+
+    res.json({
+      vista,
+      modo,
+      orden_periodos: ordenPeriodos,
+      resumen_periodos: resumenPeriodos,
+      por_proyecto: porProyecto,
+      por_material: porMaterialArray,
+      ultima_actualizacion: proyectosResp.ultima_actualizacion
+    });
+  } catch (err) {
+    console.error('Error en /api/preparacion:', err);
+    res.status(500).json({ error: 'Error al construir vista de preparación: ' + err.message });
+  }
 });
+
+
 
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
