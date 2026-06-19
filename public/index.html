@@ -913,8 +913,18 @@ function aplicarFiltroPreparacion() {
   else renderPreparacionPorMaterial();
 }
 
-function copiarAlPortapapeles(texto) {
-  navigator.clipboard.writeText(String(texto)).catch(() => {});
+function copiarAlPortapapeles(texto, elemento) {
+  navigator.clipboard.writeText(String(texto)).then(() => {
+    if (elemento) {
+      const original = elemento.textContent;
+      elemento.textContent = '✓ Copiado';
+      elemento.style.color = '#27500A';
+      setTimeout(() => {
+        elemento.textContent = original;
+        elemento.style.color = '';
+      }, 1000);
+    }
+  }).catch(() => {});
 }
 
 function renderPreparacionPorProyecto() {
@@ -959,15 +969,74 @@ function renderTarjetasProyectosPrep(lista, tipoColor) {
   if (lista.length === 0) return '<p style="font-size:12px; color:#9a988f; margin:0;">Ninguno</p>';
   const badgeClase = tipoColor === 'success' ? 'badge-success' : 'badge-warning';
   return lista.map(p => `
-    <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px;">
+    <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px; cursor:pointer;" onclick="abrirDetalleProyectoPrep(${p.id}, '${String(p.numero).replace(/'/g, "\\'")}')">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:500; cursor:pointer;" onclick="copiarAlPortapapeles('${p.numero}')" title="Copiar nº proyecto">#${p.numero}</span>
+        <span style="font-weight:500;" onclick="event.stopPropagation(); copiarAlPortapapeles('${p.numero}', this)" title="Copiar nº proyecto">#${p.numero}</span>
         <span class="badge ${badgeClase}" style="font-size:10px;">${p.estado || ''}</span>
       </div>
       <div style="color:#4a4944; margin-top:3px;">${p.cliente || ''}</div>
       <div style="color:#9a988f; margin-top:2px;">${p.fecha_entrega || ''} ${p.entrega_hora || ''} · ${p.localizacion || ''}</div>
     </div>
   `).join('');
+}
+
+// ── Modal de detalle: material de un proyecto concreto ──
+function abrirDetalleProyectoPrep(proyectoId, numero) {
+  const data = preparacionDataGlobal[preparacionVistaActiva];
+  const lineas = [];
+
+  data.por_material.forEach(familiaObj => {
+    familiaObj.articulos.forEach(a => {
+      a.detalle.forEach(d => {
+        if (String(d.proyecto_numero) === String(numero)) {
+          lineas.push({ familia: familiaObj.familia, articulo: a.articulo, cantidad: d.cantidad });
+        }
+      });
+    });
+  });
+
+  let filas = lineas.map(l => `
+    <tr>
+      <td style="padding:6px 8px; color:#6b6a64; font-size:12px;">${l.familia}</td>
+      <td style="padding:6px 8px; font-size:13px;">${l.articulo}</td>
+      <td style="padding:6px 8px; text-align:right; font-weight:500; font-size:13px;">${l.cantidad} uds</td>
+    </tr>
+  `).join('');
+
+  if (lineas.length === 0) {
+    filas = '<tr><td colspan="3" style="padding:1rem; color:#9a988f; font-size:13px;">Sin material de esta categoría para este proyecto.</td></tr>';
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-detalle-prep';
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:1000; display:flex; align-items:center; justify-content:center;';
+  overlay.onclick = (e) => { if (e.target === overlay) cerrarDetalleProyectoPrep(); };
+
+  overlay.innerHTML = `
+    <div style="background:#fff; border-radius:12px; padding:1.5rem; width:480px; max-width:90vw; max-height:80vh; overflow:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <p style="font-size:16px; font-weight:500; margin:0;">Proyecto #${numero}</p>
+        <span style="cursor:pointer; font-size:18px; color:#9a988f;" onclick="cerrarDetalleProyectoPrep()">✕</span>
+      </div>
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:0.5px solid #e2e2de;">
+            <th style="text-align:left; padding:4px 8px; font-size:11px; color:#9a988f; font-weight:400;">Familia</th>
+            <th style="text-align:left; padding:4px 8px; font-size:11px; color:#9a988f; font-weight:400;">Artículo</th>
+            <th style="text-align:right; padding:4px 8px; font-size:11px; color:#9a988f; font-weight:400;">Cantidad</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+}
+
+function cerrarDetalleProyectoPrep() {
+  const modal = document.getElementById('modal-detalle-prep');
+  if (modal) modal.remove();
 }
 
 function renderPreparacionPorMaterial() {
