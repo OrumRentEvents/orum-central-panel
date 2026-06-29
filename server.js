@@ -504,16 +504,10 @@ function clasificarPeriodo(fechaEntrega, modo) {
 const ORDEN_PERIODOS_SEMANAS = ['HOY', 'MAÑANA', 'ESTA SEMANA', 'PRÓXIMA SEMANA'];
 const ORDEN_PERIODOS_DIAS = ['HOY', 'MAÑANA', 'PASADO MAÑANA', 'PRÓXIMOS 5 DÍAS'];
 
-// ── Tokens de acceso por perfil (sin login) ──
-const TOKENS_PREPARACION = {
-  'ORUMx2026Lav': 'lavanderia',
-  'ORUMx2026Off': 'office',
-  'ORUMx2026Alm': 'almacen'
-};
-
-// ── Lógica compartida de preparación ──
-async function construirVistaPreparacion(vista) {
-  const modo = vista === 'almacen' ? 'dias' : 'semanas';
+app.get('/api/preparacion', requiereLogin, async (req, res) => {
+  try {
+    const vista = req.query.vista || 'almacen'; // 'lavanderia' | 'office' | 'almacen'
+    const modo = vista === 'almacen' ? 'dias' : 'semanas';
     const ordenPeriodos = modo === 'dias' ? ORDEN_PERIODOS_DIAS : ORDEN_PERIODOS_SEMANAS;
 
     const [proyectosResp, equipmentResp] = await Promise.all([
@@ -630,6 +624,14 @@ async function construirVistaPreparacion(vista) {
       return { periodo: per, listos: preparado, total, pendientes: confirmado };
     });
 
+    // ── Equipment detalle por proyecto (para modal) ──
+    const equipmentDetalle = equipmentFiltrado.map(e => ({
+      proyecto_id: e.proyecto_id,
+      familia: e.familia || 'Sin familia',
+      articulo: e.articulo || '',
+      cantidad: parseFloat(e.cantidad) || 0
+    }));
+
     const respuesta = {
       vista,
       modo,
@@ -637,6 +639,7 @@ async function construirVistaPreparacion(vista) {
       resumen_periodos: resumenPeriodos,
       por_proyecto: porProyecto,
       por_material: porMaterialArray,
+      equipment_detalle: equipmentDetalle,
       ultima_actualizacion: proyectosResp.ultima_actualizacion
     };
 
@@ -727,14 +730,6 @@ async function construirVistaPreparacion(vista) {
       };
     }
 
-    return respuesta;
-}
-
-// ── Endpoint para Dirección (requiere sesión) ──
-app.get('/api/preparacion', requiereLogin, async (req, res) => {
-  try {
-    const vista = req.query.vista || 'almacen';
-    const respuesta = await construirVistaPreparacion(vista);
     res.json(respuesta);
   } catch (err) {
     console.error('Error en /api/preparacion:', err);
@@ -742,26 +737,7 @@ app.get('/api/preparacion', requiereLogin, async (req, res) => {
   }
 });
 
-// ── Endpoint público para Lavandería / Office / Almacén (token en URL) ──
-app.get('/api/preparacion-publica', async (req, res) => {
-  const token = req.query.token || '';
-  const perfil = TOKENS_PREPARACION[token];
-  if (!perfil) {
-    return res.status(401).json({ error: 'Acceso no autorizado' });
-  }
-  try {
-    const respuesta = await construirVistaPreparacion(perfil);
-    res.json(respuesta);
-  } catch (err) {
-    console.error('Error en /api/preparacion-publica:', err);
-    res.status(500).json({ error: 'Error al construir vista de preparación: ' + err.message });
-  }
-});
 
-// ── Sirve preparacion.html para acceso por token ──
-app.get('/preparacion', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'preparacion.html'));
-});
 
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
