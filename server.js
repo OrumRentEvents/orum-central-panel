@@ -52,6 +52,16 @@ async function llamarOrumCentral(action, extraParams = {}) {
   return resp.json();
 }
 
+async function llamarOrumCentralPost(body) {
+  const resp = await fetch(APPS_SCRIPT_URL.replace('/exec', '/exec'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, token: 'ORUMx2026RutasWrite' })
+  });
+  if (!resp.ok) throw new Error('Apps Script POST error ' + resp.status);
+  return resp.json();
+}
+
 // ── Middleware: requiere sesión activa ──
 function requiereLogin(req, res, next) {
   if (!req.session.usuario) {
@@ -909,6 +919,46 @@ app.get('/api/preparacion-publica', async (req, res) => {
 // ── Sirve preparacion.html para acceso por token ──
 app.get('/preparacion', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'preparacion.html'));
+});
+
+
+// ================================================================
+// RUTAS — endpoints
+// ================================================================
+
+const APPS_SCRIPT_URL_RUTAS = process.env.APPS_SCRIPT_URL || '';
+
+app.get('/api/rutas', requiereLogin, async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const params = new URLSearchParams({ token: APPS_SCRIPT_TOKEN, action: 'rutas' });
+    if (desde) params.append('desde', desde);
+    if (hasta) params.append('hasta', hasta);
+    const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error('Error en /api/rutas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/rutas/manual', requiereLogin, async (req, res) => {
+  try {
+    const body = { ...req.body, token: 'ORUMx2026RutasWrite', usuario: req.session.usuario.nombre || req.session.usuario.usuario };
+    const url = APPS_SCRIPT_URL;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error('Error en /api/rutas/manual:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => {
