@@ -457,9 +457,19 @@ function renderPorMaterial(data) {
       html += '<div class="articulo-row"><div class="articulo-top"><span class="articulo-nombre">' + a.articulo + '</span><span class="articulo-total">' + a.total + '</span></div>';
       if (a.detalle && a.detalle.length) {
         html += '<div class="articulo-proyectos">';
-        a.detalle.forEach(d => {
-          html += '<div class="articulo-proy-item"><span style="color:#1a1a18;">#' + d.proyecto_numero + ' ' + (d.cliente || '') + '</span><span style="font-weight:500;margin-left:8px;">×' + d.cantidad + '</span></div>';
-        });
+        .slice()
+          .sort((x, y) => {
+            const fx = x.fecha_entrega ? x.fecha_entrega.split('/').reverse().join('-') : '';
+            const fy = y.fecha_entrega ? y.fecha_entrega.split('/').reverse().join('-') : '';
+            return fx.localeCompare(fy);
+          })
+          .forEach(d => {
+            html += '<div class="articulo-proy-item">';
+            html += '<span style="color:#1a1a18;">#' + d.proyecto_numero + ' ' + (d.cliente || '') + '</span>';
+            html += '<span style="color:#9a988f;font-size:11px;margin:0 8px;">' + (d.fecha_entrega || '') + '</span>';
+            html += '<span style="font-weight:500;">×' + d.cantidad + '</span>';
+            html += '</div>';
+          });
         html += '</div>';
       }
       html += '</div>';
