@@ -13,79 +13,26 @@ body {
   min-height: 100vh;
 }
 
-/* ── PIN SCREEN ── */
+/* ── PIN ── */
 #pin-screen {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 2rem;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 2rem;
 }
 .pin-box {
-  background: #fff;
-  border: 0.5px solid #e2e2de;
-  border-radius: 16px;
-  padding: 2rem 1.5rem;
-  width: 100%;
-  max-width: 320px;
-  text-align: center;
+  background: #fff; border: 0.5px solid #e2e2de; border-radius: 16px;
+  padding: 2rem 1.5rem; width: 100%; max-width: 320px; text-align: center;
 }
-.pin-logo {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  color: #1a1a18;
-  margin-bottom: 6px;
-}
-.pin-subtitle {
-  font-size: 12px;
-  color: #9a988f;
-  margin-bottom: 1.5rem;
-}
-.pin-dots {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 1.5rem;
-}
-.pin-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid #ccc;
-  background: #fff;
-  transition: background 0.1s, border-color 0.1s;
-}
-.pin-dot.filled {
-  background: #1a1a18;
-  border-color: #1a1a18;
-}
-.pin-dot.error {
-  background: #A32D2D;
-  border-color: #A32D2D;
-}
-.pin-error {
-  font-size: 12px;
-  color: #A32D2D;
-  height: 16px;
-  margin-bottom: 1rem;
-}
-.pin-keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
+.pin-logo { font-size: 13px; font-weight: 600; letter-spacing: 2px; color: #1a1a18; margin-bottom: 6px; }
+.pin-subtitle { font-size: 12px; color: #9a988f; margin-bottom: 1.5rem; }
+.pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
+.pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #ccc; background: #fff; transition: all 0.1s; }
+.pin-dot.filled { background: #1a1a18; border-color: #1a1a18; }
+.pin-dot.error { background: #A32D2D; border-color: #A32D2D; }
+.pin-error { font-size: 12px; color: #A32D2D; height: 16px; margin-bottom: 1rem; }
+.pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .pin-key {
-  background: #f7f6f2;
-  border: 0.5px solid #e2e2de;
-  border-radius: 10px;
-  padding: 16px 8px;
-  font-size: 20px;
-  font-weight: 400;
-  color: #1a1a18;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.1s;
+  background: #f7f6f2; border: 0.5px solid #e2e2de; border-radius: 10px;
+  padding: 16px 8px; font-size: 20px; color: #1a1a18; cursor: pointer; user-select: none;
 }
 .pin-key:active { background: #e2e2de; }
 .pin-key.delete { font-size: 16px; color: #6b6a64; }
@@ -93,52 +40,45 @@ body {
 
 /* ── CABECERA ── */
 .app-header {
-  background: #1a1a18;
-  color: #fff;
-  padding: 14px 16px 10px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  background: #1a1a18; color: #fff;
+  padding: 14px 16px 10px; position: sticky; top: 0; z-index: 100;
 }
-.app-header-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.app-header h1 { font-size: 15px; font-weight: 500; letter-spacing: 0.3px; }
+.app-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.app-header h1 { font-size: 15px; font-weight: 500; }
 .ultima-actualizacion { font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
 .tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab-btn {
-  flex-shrink: 0;
-  padding: 6px 14px;
-  font-size: 13px;
-  background: transparent;
-  color: rgba(255,255,255,0.6);
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  white-space: nowrap;
+  flex-shrink: 0; padding: 6px 14px; font-size: 13px;
+  background: transparent; color: rgba(255,255,255,0.6); border: none; border-radius: 6px; cursor: pointer;
 }
 .tab-btn.active { background: rgba(255,255,255,0.15); color: #fff; font-weight: 500; }
 .btn-recargar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: 0.5px solid rgba(255,255,255,0.3);
-  color: rgba(255,255,255,0.8);
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 6px;
-  cursor: pointer;
+  background: transparent; border: 0.5px solid rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.8); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer;
 }
-.btn-recargar:active { opacity: 0.7; }
+
+/* ── BUSCADOR ── */
+.buscador-wrap { padding: 12px 16px 4px; max-width: 680px; margin: 0 auto; }
+.buscador-wrap input {
+  width: 100%; padding: 9px 12px; font-size: 14px;
+  border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18;
+}
+.buscador-wrap input:focus { outline: none; border-color: #1a1a18; }
 
 /* ── CUERPO ── */
-#app-body { padding: 16px; max-width: 680px; margin: 0 auto; }
+#app-body { padding: 12px 16px 16px; max-width: 680px; margin: 0 auto; }
 .loading { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
+
+/* ── SUBTABS ── */
+.subtabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
+.subtabs::-webkit-scrollbar { display: none; }
+.subtab-btn {
+  flex-shrink: 0; padding: 6px 14px; border-radius: 6px; font-size: 13px;
+  white-space: nowrap; cursor: pointer; border: 0.5px solid #e2e2de;
+  background: #fff; color: #1a1a18;
+}
+.subtab-btn.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
 
 /* ── PERIODOS ── */
 .periodo-header {
@@ -154,11 +94,18 @@ body {
 /* ── TARJETAS ── */
 .proyecto-card {
   background: #fff; border: 0.5px solid #e2e2de;
-  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
 }
+.proyecto-card:active { background: #f7f6f2; }
 .proyecto-card.listo { border-color: #9FE1CB; background: #f4fcf9; }
 .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.card-numero-wrap { display: flex; align-items: center; gap: 6px; }
 .card-numero { font-size: 11px; color: #6b6a64; font-weight: 500; }
+.copy-btn {
+  font-size: 10px; color: #9a988f; background: #f0f0ec;
+  border: none; border-radius: 4px; padding: 1px 5px; cursor: pointer;
+}
+.copy-btn:active { background: #1D9E75; color: #fff; }
 .card-cliente { font-size: 15px; font-weight: 500; color: #1a1a18; flex: 1; }
 .badge-estado { font-size: 11px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
 .badge-listo { background: #E1F5EE; color: #0F6E56; }
@@ -178,13 +125,16 @@ body {
 .familia-body { display: none; margin-bottom: 8px; }
 .familia-body.open { display: block; }
 .articulo-row {
-  display: flex; align-items: center; justify-content: space-between;
   padding: 8px 14px; background: #fff; border: 0.5px solid #e2e2de;
   border-top: none; font-size: 13px;
 }
 .articulo-row:last-child { border-radius: 0 0 8px 8px; }
+.articulo-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .articulo-nombre { color: #1a1a18; flex: 1; }
-.articulo-total { font-weight: 500; font-size: 15px; color: #1a1a18; margin: 0 12px; }
+.articulo-total { font-weight: 500; font-size: 15px; color: #1a1a18; margin-left: 12px; }
+.articulo-proyectos { font-size: 11px; color: #6b6a64; padding-left: 0; }
+.articulo-proy-item { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 0.5px solid #f0f0ec; }
+.articulo-proy-item:last-child { border-bottom: none; }
 
 /* ── SERVICIOS ── */
 .servicio-grupo { background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
@@ -198,11 +148,52 @@ body {
 /* ── LOGÍSTICA ── */
 .logistica-seccion { margin-bottom: 16px; }
 .logistica-titulo { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin-bottom: 8px; }
+
+/* ── MODAL ── */
+#modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 200;
+  align-items: flex-end; justify-content: center;
+}
+#modal-overlay.open { display: flex; }
+#modal-box {
+  background: #fff; border-radius: 16px 16px 0 0;
+  width: 100%; max-width: 680px; max-height: 80vh;
+  overflow-y: auto; padding: 0 0 2rem;
+}
+.modal-header {
+  position: sticky; top: 0; background: #fff;
+  padding: 16px 16px 12px; border-bottom: 0.5px solid #e2e2de;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.modal-titulo { font-size: 15px; font-weight: 500; flex: 1; }
+.modal-numero { font-size: 11px; color: #6b6a64; margin-bottom: 2px; }
+.modal-close {
+  background: #f0f0ec; border: none; border-radius: 50%;
+  width: 28px; height: 28px; font-size: 16px; cursor: pointer; flex-shrink: 0;
+}
+.modal-body { padding: 12px 16px; }
+.modal-seccion { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin: 12px 0 6px; }
+.modal-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0; border-bottom: 0.5px solid #f0f0ec; font-size: 13px;
+}
+.modal-item:last-child { border-bottom: none; }
+.modal-articulo { color: #1a1a18; flex: 1; }
+.modal-cantidad { font-weight: 500; color: #1a1a18; margin-left: 12px; }
+.modal-familia { font-size: 11px; color: #9a988f; }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px;
+  border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300;
+}
+#toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 
-<!-- PIN SCREEN -->
 <div id="pin-screen">
   <div class="pin-box">
     <div class="pin-logo">ORUM</div>
@@ -231,7 +222,6 @@ body {
   </div>
 </div>
 
-<!-- APP -->
 <div id="app" style="display:none;">
   <div class="app-header">
     <div class="app-header-top">
@@ -241,10 +231,26 @@ body {
     <div class="ultima-actualizacion" id="ultima-act">Cargando...</div>
     <div class="tabs" id="tabs-container"></div>
   </div>
-  <div id="app-body">
-    <div class="loading">Cargando datos...</div>
+  <div class="buscador-wrap" id="buscador-wrap" style="display:none;">
+    <input type="text" id="buscador" placeholder="Buscar cliente o nº proyecto..." oninput="filtrarProyectos()">
+  </div>
+  <div id="app-body"><div class="loading">Cargando datos...</div></div>
+</div>
+
+<div id="modal-overlay" onclick="cerrarModal(event)">
+  <div id="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-numero" id="modal-numero"></div>
+        <div class="modal-titulo" id="modal-titulo"></div>
+      </div>
+      <button class="modal-close" onclick="cerrarModalBtn()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
   </div>
 </div>
+
+<div id="toast">Copiado</div>
 
 <script>
 const PINES = {
@@ -264,20 +270,21 @@ let perfilActivo = null;
 let tabActiva = null;
 let subtabActiva = 'Por proyecto';
 let datosCache = {};
+let equipmentCache = {};
+let filtroTexto = '';
 
+// ── PIN ──
 function pinKey(n) {
   if (pinActual.length >= 4) return;
   pinActual += n;
   actualizarDots();
   if (pinActual.length === 4) validarPin();
 }
-
 function pinBorrar() {
   pinActual = pinActual.slice(0, -1);
   document.getElementById('pin-error').textContent = '';
   actualizarDots(false);
 }
-
 function actualizarDots(error) {
   for (let i = 0; i < 4; i++) {
     const d = document.getElementById('d' + i);
@@ -286,17 +293,12 @@ function actualizarDots(error) {
     else if (i < pinActual.length) d.classList.add('filled');
   }
 }
-
 function validarPin() {
   const perfil = PINES[pinActual];
   if (!perfil) {
     document.getElementById('pin-error').textContent = 'PIN incorrecto';
     actualizarDots(true);
-    setTimeout(() => {
-      pinActual = '';
-      actualizarDots(false);
-      document.getElementById('pin-error').textContent = '';
-    }, 800);
+    setTimeout(() => { pinActual = ''; actualizarDots(false); document.getElementById('pin-error').textContent = ''; }, 800);
     return;
   }
   perfilActivo = perfil;
@@ -308,6 +310,7 @@ function validarPin() {
   cargarDatos(tabActiva);
 }
 
+// ── TABS ──
 function construirTabs() {
   const cont = document.getElementById('tabs-container');
   cont.innerHTML = '';
@@ -319,54 +322,79 @@ function construirTabs() {
     cont.appendChild(btn);
   });
 }
-
 function cambiarTab(tab) {
   tabActiva = tab;
   subtabActiva = 'Por proyecto';
+  filtroTexto = '';
+  const buscador = document.getElementById('buscador');
+  if (buscador) buscador.value = '';
   construirTabs();
   if (datosCache[tab]) renderizar(datosCache[tab], tab);
   else cargarDatos(tab);
 }
 
+// ── CARGA ──
 async function cargarDatos(tab) {
   document.getElementById('app-body').innerHTML = '<div class="loading">Cargando...</div>';
+  document.getElementById('buscador-wrap').style.display = 'none';
   try {
-    const resp = await fetch('/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab);
+    const resp = await fetch('/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab + '&t=' + Date.now());
     const data = await resp.json();
     if (data.error) { document.getElementById('app-body').innerHTML = '<div class="loading">Error: ' + data.error + '</div>'; return; }
     datosCache[tab] = data;
+    // Indexar equipment por proyecto_id para el modal
+    equipmentCache = {};
+    (data.equipment_detalle || []).forEach(e => {
+      const pid = String(e.proyecto_id);
+      if (!equipmentCache[pid]) equipmentCache[pid] = [];
+      equipmentCache[pid].push(e);
+    });
     renderizar(data, tab);
-    document.getElementById('ultima-act').textContent = data.ultima_actualizacion ? 'Actualizado ' + data.ultima_actualizacion : '';
+    document.getElementById('ultima-act').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   } catch (err) {
     document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexión</div>';
   }
 }
-
 function recargar() { datosCache = {}; cargarDatos(tabActiva); }
 
+// ── RENDER ──
 function renderizar(data, tab) {
-  const body = document.getElementById('app-body');
   const subtabs = TAB_SUBTABS[tab];
-  let html = '<div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;">';
+  let html = '<div class="subtabs">';
   subtabs.forEach(st => {
-    const activa = st === subtabActiva ? 'background:#1a1a18;color:#fff;' : 'background:#fff;color:#1a1a18;border:0.5px solid #e2e2de;';
-    html += '<button onclick="cambiarSubtab(\'' + st + '\')" style="' + activa + 'padding:6px 14px;border-radius:6px;font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;">' + st + '</button>';
+    html += '<button class="subtab-btn' + (st === subtabActiva ? ' active' : '') + '" onclick="cambiarSubtab(\'' + st + '\')">' + st + '</button>';
   });
   html += '</div>';
+
+  const esPorProyecto = subtabActiva === 'Por proyecto';
+  document.getElementById('buscador-wrap').style.display = esPorProyecto ? 'block' : 'none';
+
   if (subtabActiva === 'Por proyecto') html += renderPorProyecto(data);
   else if (subtabActiva === 'Por material') html += renderPorMaterial(data);
   else if (subtabActiva === 'Servicios') html += renderServicios(data);
   else if (subtabActiva === 'Logística') html += renderLogistica(data);
-  body.innerHTML = html;
+
+  document.getElementById('app-body').innerHTML = html;
+}
+function cambiarSubtab(st) {
+  subtabActiva = st;
+  filtroTexto = '';
+  const buscador = document.getElementById('buscador');
+  if (buscador) buscador.value = '';
+  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva);
 }
 
-function cambiarSubtab(st) { subtabActiva = st; if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva); }
+// ── BUSCADOR ──
+function filtrarProyectos() {
+  filtroTexto = (document.getElementById('buscador').value || '').toLowerCase();
+  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva);
+}
 
+// ── BADGES ──
 function esListo(estado) {
   const e = (estado || '').toLowerCase();
   return ['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x));
 }
-
 function estadoBadge(estado) {
   const e = (estado || '').toLowerCase();
   if (['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x)))
@@ -376,30 +404,48 @@ function estadoBadge(estado) {
   return '<span class="badge-estado badge-confirmado">' + estado + '</span>';
 }
 
+// ── POR PROYECTO ──
 function renderPorProyecto(data) {
-  let html = '';
   const resumen = {};
   (data.resumen_periodos || []).forEach(r => { resumen[r.periodo] = r; });
+  let html = '';
   (data.orden_periodos || []).forEach(periodo => {
     const r = resumen[periodo] || { listos: 0, total: 0 };
-    if (r.total === 0) return;
-    const pct = Math.round((r.listos / r.total) * 100);
-    html += '<div class="periodo-header">' + periodo + '</div>';
-    html += '<div class="periodo-progress"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div><span class="progress-text">' + r.listos + '/' + r.total + '</span></div>';
     const pp = data.por_proyecto[periodo] || { confirmado: [], preparado: [] };
-    pp.confirmado.concat(pp.preparado)
-      .sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
-      .forEach(p => {
-        const listo = esListo(p.estado);
-        html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '"><div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>' + estadoBadge(p.estado) + '</div><div class="card-meta">';
-        if (p.fecha_entrega) html += '<span>📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
-        if (p.localizacion) html += '<span>📍 ' + p.localizacion + '</span>';
-        html += '</div></div>';
-      });
+    let todos = pp.confirmado.concat(pp.preparado);
+    if (filtroTexto) {
+      todos = todos.filter(p =>
+        (p.cliente || '').toLowerCase().includes(filtroTexto) ||
+        String(p.numero || '').includes(filtroTexto)
+      );
+    }
+    if (r.total === 0 && !filtroTexto) return;
+    if (filtroTexto && !todos.length) return;
+    const pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
+    html += '<div class="periodo-header">' + periodo + '</div>';
+    if (!filtroTexto) {
+      html += '<div class="periodo-progress"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div><span class="progress-text">' + r.listos + '/' + r.total + '</span></div>';
+    }
+    todos.sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''));
+    todos.forEach(p => {
+      const listo = esListo(p.estado);
+      const num = String(p.numero || '');
+      html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '" onclick="abrirModal(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')">';
+      html += '<div class="card-top"><div style="flex:1">';
+      html += '<div class="card-numero-wrap"><span class="card-numero">#' + num + '</span>';
+      html += '<button class="copy-btn" onclick="copiarNumero(event,\'' + num + '\')">copiar</button></div>';
+      html += '<div class="card-cliente">' + (p.cliente || '—') + '</div>';
+      html += '</div>' + estadoBadge(p.estado) + '</div>';
+      html += '<div class="card-meta">';
+      if (p.fecha_entrega) html += '<span>📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
+      if (p.localizacion) html += '<span>📍 ' + p.localizacion + '</span>';
+      html += '</div></div>';
+    });
   });
-  return html || '<div class="loading">No hay proyectos en este periodo</div>';
+  return html || '<div class="loading">No hay proyectos que coincidan</div>';
 }
 
+// ── POR MATERIAL ──
 function renderPorMaterial(data) {
   const familias = data.por_material || [];
   if (!familias.length) return '<div class="loading">Sin artículos en este periodo</div>';
@@ -408,18 +454,26 @@ function renderPorMaterial(data) {
     html += '<div class="familia-header" onclick="toggleFamilia(' + fi + ')"><span class="familia-nombre">' + f.familia + '</span><span class="familia-chevron" id="chev-' + fi + '">▼</span></div>';
     html += '<div class="familia-body" id="fam-' + fi + '">';
     f.articulos.forEach(a => {
-      html += '<div class="articulo-row"><span class="articulo-nombre">' + a.articulo + '</span><span class="articulo-total">' + a.total + '</span></div>';
+      html += '<div class="articulo-row"><div class="articulo-top"><span class="articulo-nombre">' + a.articulo + '</span><span class="articulo-total">' + a.total + '</span></div>';
+      if (a.detalle && a.detalle.length) {
+        html += '<div class="articulo-proyectos">';
+        a.detalle.forEach(d => {
+          html += '<div class="articulo-proy-item"><span style="color:#1a1a18;">#' + d.proyecto_numero + ' ' + (d.cliente || '') + '</span><span style="font-weight:500;margin-left:8px;">×' + d.cantidad + '</span></div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
     });
     html += '</div>';
   });
   return html;
 }
-
 function toggleFamilia(fi) {
   document.getElementById('fam-' + fi).classList.toggle('open');
   document.getElementById('chev-' + fi).classList.toggle('open');
 }
 
+// ── SERVICIOS ──
 function renderServicios(data) {
   if (!data.servicios) return '<div class="loading">Sin datos de servicios</div>';
   const grupos = data.servicios.por_tipo || [];
@@ -435,6 +489,7 @@ function renderServicios(data) {
   return html;
 }
 
+// ── LOGÍSTICA ──
 function renderLogistica(data) {
   if (!data.logistica) return '<div class="loading">Sin datos de logística</div>';
   let html = '';
@@ -445,7 +500,8 @@ function renderLogistica(data) {
       html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los próximos 14 días</div>';
     } else {
       items.forEach(p => {
-        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '"><div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>' + estadoBadge(p.estado) + '</div>';
+        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '" onclick="abrirModal(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')">';
+        html += '<div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>' + estadoBadge(p.estado) + '</div>';
         if (p.fecha_entrega) html += '<div class="card-meta"><span>📅 ' + p.fecha_entrega + '</span></div>';
         html += '</div>';
       });
@@ -453,6 +509,62 @@ function renderLogistica(data) {
     html += '</div>';
   });
   return html;
+}
+
+// ── MODAL ──
+function abrirModal(p) {
+  document.getElementById('modal-numero').textContent = '#' + p.numero;
+  document.getElementById('modal-titulo').textContent = p.cliente || '—';
+  const body = document.getElementById('modal-body');
+
+  let html = '';
+  if (p.fecha_entrega) html += '<div style="font-size:13px;color:#6b6a64;margin-bottom:8px;">📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + (p.localizacion ? '&nbsp;&nbsp;📍 ' + p.localizacion : '') + '</div>';
+  html += estadoBadge(p.estado);
+
+  // Equipment del proyecto — viene del cache indexado por el servidor
+  const items = equipmentCache[String(p.id)] || [];
+  if (items.length) {
+    html += '<div class="modal-seccion">Material</div>';
+    // Agrupar por familia
+    const familias = {};
+    items.forEach(e => {
+      const fam = e.familia || 'Sin familia';
+      if (!familias[fam]) familias[fam] = [];
+      familias[fam].push(e);
+    });
+    Object.keys(familias).sort().forEach(fam => {
+      html += '<div style="font-size:11px;color:#9a988f;margin:8px 0 4px;font-weight:600;">' + fam + '</div>';
+      familias[fam].forEach(e => {
+        html += '<div class="modal-item"><span class="modal-articulo">' + (e.articulo || e.nombre || '') + '</span><span class="modal-cantidad">×' + (e.cantidad || 0) + '</span></div>';
+      });
+    });
+  } else {
+    html += '<div class="modal-seccion">Material</div><div style="font-size:13px;color:#9a988f;padding:8px 0;">Sin artículos cargados para este proyecto</div>';
+  }
+
+  body.innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function cerrarModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) cerrarModalBtn();
+}
+function cerrarModalBtn() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── COPIAR ──
+function copiarNumero(e, num) {
+  e.stopPropagation();
+  navigator.clipboard.writeText(num).catch(() => {});
+  mostrarToast('Nº ' + num + ' copiado');
+}
+function mostrarToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1500);
 }
 </script>
 </body>
