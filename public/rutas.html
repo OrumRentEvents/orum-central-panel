@@ -425,23 +425,39 @@ function bindEvents(){
       var destIdx=parseInt(fila.getAttribute('data-idx'));
       var destVeh=fila.getAttribute('data-gkey');
       if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
-      // Si cambia de grupo, actualizar vehiculo/vuelta
+
+      // Si cambia de grupo, actualizar vehiculo/vuelta del origen
       if(dragSrcVeh!==destVeh&&destVeh!=='__sin__'){
         var partes=destVeh.split('_v');
-        var newVeh=partes[0];
-        var newVuelta=parseInt(partes[1])||1;
-        paradas[dragSrcIdx].vehiculo=newVeh;
-        paradas[dragSrcIdx].vuelta=newVuelta;
+        paradas[dragSrcIdx].vehiculo=partes[0];
+        paradas[dragSrcIdx].vuelta=parseInt(partes[1])||1;
       }
-      // Recalcular orden
-      var p=paradas[dragSrcIdx];
-      var q=paradas[destIdx];
-      var tmp=p.orden; p.orden=q.orden; q.orden=tmp;
-      // Guardar ambas asignaciones
-      Promise.all([
-        apiPost({action:'set_asignacion',clave:p.clave,proyecto_id:p.proyecto_id,tipo:p.tipo,fecha:p.fecha,vehiculo:p.vehiculo,conductor:p.conductor||'',notas:p.notas||'',vuelta:p.vuelta||1,orden:p.orden||0}),
-        apiPost({action:'set_asignacion',clave:q.clave,proyecto_id:q.proyecto_id,tipo:q.tipo,fecha:q.fecha,vehiculo:q.vehiculo,conductor:q.conductor||'',notas:q.notas||'',vuelta:q.vuelta||1,orden:q.orden||0})
-      ]).then(function(){render();}).catch(function(){toast('Error al mover');render();});
+
+      // Reconstruir grupo destino con nuevo orden
+      var SIN='__sin__';
+      var grupos={};
+      paradas.forEach(function(p,i){
+        var v=p.vehiculo||SIN;
+        var vuelta=parseInt(p.vuelta)||1;
+        var gk=v===SIN?SIN:(v+'_v'+vuelta);
+        if(!grupos[gk])grupos[gk]=[];
+        grupos[gk].push(i);
+      });
+      var newVeh=paradas[dragSrcIdx].vehiculo||SIN;
+      var newVuelta=parseInt(paradas[dragSrcIdx].vuelta)||1;
+      var newGk=newVeh===SIN?SIN:(newVeh+'_v'+newVuelta);
+      var grpArr=(grupos[newGk]||[]).filter(function(i){return i!==dragSrcIdx;});
+      var posDestino=grpArr.indexOf(destIdx);
+      if(posDestino===-1)posDestino=grpArr.length;
+      grpArr.splice(posDestino,0,dragSrcIdx);
+
+      // Orden secuencial y guardar todo el grupo
+      var saves=[];
+      grpArr.forEach(function(i,pos){
+        paradas[i].orden=pos;
+        saves.push(apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||'',notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos}));
+      });
+      Promise.all(saves).then(function(){render();toast('Orden guardado');}).catch(function(){toast('Error al mover');render();});
     });
   });
 
