@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ORUM — Preparación</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f7f6f2;
+  color: #1a1a18;
+  min-height: 100vh;
+}
+
+/* ── ACCESO DENEGADO ── */
+#acceso-denegado {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  text-align: center;
+  padding: 2rem;
+}
+#acceso-denegado h2 { font-size: 18px; font-weight: 500; margin-bottom: 8px; color: #A32D2D; }
+#acceso-denegado p { font-size: 14px; color: #6b6a64; }
+
+/* ── CABECERA ── */
+.app-header {
+  background: #1a1a18;
+  color: #fff;
+  padding: 14px 16px 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.app-header h1 {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+.app-header .perfil-badge {
+  font-size: 11px;
+  background: rgba(255,255,255,0.15);
+  padding: 3px 8px;
+  border-radius: 20px;
+  color: #fff;
+}
+.ultima-actualizacion {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 10px;
+}
+
+/* ── PESTAÑAS ── */
+.tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 13px;
+  background: transparent;
+  color: rgba(255,255,255,0.6);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tab-btn.active {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* ── CUERPO PRINCIPAL ── */
+#app-body {
+  padding: 16px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* ── LOADING ── */
+.loading {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b6a64;
+  font-size: 14px;
+}
+
+/* ── PERIODO HEADER ── */
+.periodo-header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #6b6a64;
+  margin: 20px 0 8px;
+}
+.periodo-header:first-child { margin-top: 0; }
+
+/* ── PROGRESS BAR ── */
+.periodo-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.progress-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: #e2e2de;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: #1D9E75;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+.progress-text {
+  font-size: 11px;
+  color: #6b6a64;
+  white-space: nowrap;
+}
+
+/* ── TARJETA PROYECTO ── */
+.proyecto-card {
+  background: #fff;
+  border: 0.5px solid #e2e2de;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.proyecto-card.listo {
+  border-color: #9FE1CB;
+  background: #f4fcf9;
+}
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.card-numero {
+  font-size: 11px;
+  color: #6b6a64;
+  font-weight: 500;
+}
+.card-cliente {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1a1a18;
+  flex: 1;
+}
+.badge-estado {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badge-listo { background: #E1F5EE; color: #0F6E56; }
+.badge-confirmado { background: #E6F1FB; color: #185FA5; }
+.badge-warning { background: #FAEEDA; color: #854F0B; }
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b6a64;
+}
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ── MATERIAL ── */
+.familia-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #fff;
+  border: 0.5px solid #e2e2de;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.familia-nombre {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a18;
+}
+.familia-chevron {
+  font-size: 12px;
+  color: #6b6a64;
+  transition: transform 0.2s;
+}
+.familia-chevron.open { transform: rotate(180deg); }
+.familia-body { display: none; margin-bottom: 8px; }
+.familia-body.open { display: block; }
+.articulo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: #fff;
+  border: 0.5px solid #e2e2de;
+  border-top: none;
+  font-size: 13px;
+}
+.articulo-row:last-child { border-radius: 0 0 8px 8px; }
+.articulo-nombre { color: #1a1a18; flex: 1; }
+.articulo-total {
+  font-weight: 500;
+  font-size: 15px;
+  color: #1a1a18;
+  margin: 0 12px;
+}
+.articulo-detalle {
+  font-size: 11px;
+  color: #6b6a64;
+}
+
+/* ── SERVICIOS (Almacén) ── */
+.servicio-grupo {
+  background: #fff;
+  border: 0.5px solid #e2e2de;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.servicio-grupo-header {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 0.5px solid #e2e2de;
+  background: #f7f6f2;
+}
+.servicio-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  font-size: 13px;
+  border-bottom: 0.5px solid #f0f0ec;
+}
+.servicio-item:last-child { border-bottom: none; }
+.servicio-cliente { color: #1a1a18; flex: 1; }
+.servicio-dato { color: #6b6a64; font-size: 12px; }
+.servicio-cantidad {
+  font-weight: 500;
+  font-size: 14px;
+  margin-left: 10px;
+}
+
+/* ── LOGÍSTICA (Almacén) ── */
+.logistica-seccion {
+  margin-bottom: 16px;
+}
+.logistica-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #6b6a64;
+  margin-bottom: 8px;
+}
+
+/* ── RECARGAR ── */
+.btn-recargar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0.5px solid rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-recargar:active { opacity: 0.7; }
+</style>
+</head>
+<body>
+
+<div id="acceso-denegado">
+  <div>
+    <h2>Acceso no autorizado</h2>
+    <p>El enlace no es válido o ha caducado.<br>Contacta con administración.</p>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <div class="app-header">
+    <div class="app-header-top">
+      <h1>ORUM — Preparación</h1>
+      <button class="btn-recargar" onclick="recargar()">↻ Recargar</button>
+    </div>
+    <div class="ultima-actualizacion" id="ultima-act">Cargando...</div>
+    <div class="tabs" id="tabs-container"></div>
+  </div>
+  <div id="app-body">
+    <div class="loading">Cargando datos...</div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const TOKEN = params.get('token') || '';
+const PERFIL_NOMBRES = {
+  'ORUMx2026Lav': 'Lavandería',
+  'ORUMx2026Off': 'Office',
+  'ORUMx2026Alm': 'Almacén'
+};
+const PERFIL_TABS = {
+  'ORUMx2026Lav': ['lavanderia'],
+  'ORUMx2026Off': ['office'],
+  'ORUMx2026Alm': ['almacen', 'lavanderia', 'office']
+};
+const TAB_NOMBRES = {
+  'lavanderia': 'Lavandería',
+  'office': 'Office',
+  'almacen': 'Almacén'
+};
+const TAB_SUBTABS = {
+  'lavanderia': ['Por proyecto', 'Por material'],
+  'office':     ['Por proyecto', 'Por material'],
+  'almacen':    ['Por proyecto', 'Por material', 'Servicios', 'Logística']
+};
+
+const perfilNombre = PERFIL_NOMBRES[TOKEN];
+const tabs = PERFIL_TABS[TOKEN];
+
+if (!perfilNombre) {
+  document.getElementById('acceso-denegado').style.display = 'flex';
+} else {
+  document.getElementById('app').style.display = 'block';
+  document.querySelector('.app-header h1').textContent = 'ORUM — ' + perfilNombre;
+}
+
+let datosCache = {};
+let tabActiva = tabs ? tabs[0] : null;
+let subtabActiva = 'Por proyecto';
+
+function construirTabs() {
+  const cont = document.getElementById('tabs-container');
+  cont.innerHTML = '';
+  tabs.forEach(tab => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (tab === tabActiva ? ' active' : '');
+    btn.textContent = TAB_NOMBRES[tab];
+    btn.onclick = () => cambiarTab(tab);
+    cont.appendChild(btn);
+  });
+}
+
+function cambiarTab(tab) {
+  tabActiva = tab;
+  subtabActiva = 'Por proyecto';
+  construirTabs();
+  if (datosCache[tab]) {
+    renderizar(datosCache[tab], tab);
+  } else {
+    cargarDatos(tab);
+  }
+}
+
+async function cargarDatos(tab) {
+  document.getElementById('app-body').innerHTML = '<div class="loading">Cargando...</div>';
+  try {
+    const resp = await fetch('/api/preparacion-publica?token=' + TOKEN + '&vista=' + tab);
+    if (resp.status === 401) {
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('acceso-denegado').style.display = 'flex';
+      return;
+    }
+    const data = await resp.json();
+    datosCache[tab] = data;
+    renderizar(data, tab);
+    document.getElementById('ultima-act').textContent =
+      data.ultima_actualizacion ? 'Actualizado ' + data.ultima_actualizacion : '';
+  } catch (err) {
+    document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexión</div>';
+  }
+}
+
+function recargar() {
+  datosCache = {};
+  cargarDatos(tabActiva);
+}
+
+function renderizar(data, tab) {
+  const body = document.getElementById('app-body');
+  const subtabs = TAB_SUBTABS[tab];
+
+  let html = '<div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;">';
+  subtabs.forEach(st => {
+    const activa = st === subtabActiva ? 'background:#1a1a18;color:#fff;' : 'background:#fff;color:#1a1a18;border:0.5px solid #e2e2de;';
+    html += '<button onclick="cambiarSubtab(\'' + st + '\')" style="' + activa + 'padding:6px 14px;border-radius:6px;font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;">' + st + '</button>';
+  });
+  html += '</div>';
+
+  if (subtabActiva === 'Por proyecto') {
+    html += renderPorProyecto(data);
+  } else if (subtabActiva === 'Por material') {
+    html += renderPorMaterial(data);
+  } else if (subtabActiva === 'Servicios') {
+    html += renderServicios(data);
+  } else if (subtabActiva === 'Logística') {
+    html += renderLogistica(data);
+  }
+
+  body.innerHTML = html;
+}
+
+function cambiarSubtab(st) {
+  subtabActiva = st;
+  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva);
+}
+
+function estadoBadge(estado) {
+  const e = (estado || '').toLowerCase();
+  if (['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x))) {
+    return '<span class="badge-estado badge-listo">' + estado + '</span>';
+  }
+  if (['pending','concept','inquiry'].some(x => e.includes(x))) {
+    return '<span class="badge-estado badge-warning">' + estado + '</span>';
+  }
+  return '<span class="badge-estado badge-confirmado">' + estado + '</span>';
+}
+
+function esListo(estado) {
+  const e = (estado || '').toLowerCase();
+  return ['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x));
+}
+
+function renderPorProyecto(data) {
+  let html = '';
+  const ordenPeriodos = data.orden_periodos || [];
+  const resumen = {};
+  (data.resumen_periodos || []).forEach(r => { resumen[r.periodo] = r; });
+
+  ordenPeriodos.forEach(periodo => {
+    const r = resumen[periodo] || { listos: 0, total: 0 };
+    if (r.total === 0) return;
+    const pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
+    html += '<div class="periodo-header">' + periodo + '</div>';
+    html += '<div class="periodo-progress">';
+    html += '<div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div>';
+    html += '<span class="progress-text">' + r.listos + '/' + r.total + '</span>';
+    html += '</div>';
+
+    const proyPeriodo = data.por_proyecto[periodo] || { confirmado: [], preparado: [] };
+    const todos = proyPeriodo.confirmado.concat(proyPeriodo.preparado);
+    todos.sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''));
+
+    todos.forEach(p => {
+      const listo = esListo(p.estado);
+      html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '">';
+      html += '<div class="card-top">';
+      html += '<div>';
+      html += '<div class="card-numero">#' + p.numero + '</div>';
+      html += '<div class="card-cliente">' + (p.cliente || '—') + '</div>';
+      html += '</div>';
+      html += estadoBadge(p.estado);
+      html += '</div>';
+      html += '<div class="card-meta">';
+      if (p.fecha_entrega) html += '<span class="meta-item">📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
+      if (p.localizacion) html += '<span class="meta-item">📍 ' + p.localizacion + '</span>';
+      html += '</div></div>';
+    });
+  });
+
+  if (!html) html = '<div class="loading">No hay proyectos en este periodo</div>';
+  return html;
+}
+
+function renderPorMaterial(data) {
+  let html = '';
+  const familias = data.por_material || [];
+  if (!familias.length) return '<div class="loading">Sin artículos en este periodo</div>';
+
+  familias.forEach((f, fi) => {
+    html += '<div class="familia-header" onclick="toggleFamilia(' + fi + ')">';
+    html += '<span class="familia-nombre">' + f.familia + '</span>';
+    html += '<span class="familia-chevron" id="chev-' + fi + '">▼</span>';
+    html += '</div>';
+    html += '<div class="familia-body" id="fam-' + fi + '">';
+    f.articulos.forEach(a => {
+      html += '<div class="articulo-row">';
+      html += '<span class="articulo-nombre">' + a.articulo + '</span>';
+      html += '<span class="articulo-total">' + a.total + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
+function toggleFamilia(fi) {
+  const body = document.getElementById('fam-' + fi);
+  const chev = document.getElementById('chev-' + fi);
+  if (!body) return;
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
+}
+
+function renderServicios(data) {
+  if (!data.servicios) return '<div class="loading">Sin datos de servicios</div>';
+  const grupos = data.servicios.por_tipo || [];
+  if (!grupos.length) return '<div class="loading">Sin servicios en los próximos 14 días</div>';
+  let html = '';
+  grupos.forEach(g => {
+    html += '<div class="servicio-grupo">';
+    html += '<div class="servicio-grupo-header">' + g.tipo + '</div>';
+    g.items.forEach(s => {
+      html += '<div class="servicio-item">';
+      html += '<span class="servicio-cliente">' + (s.cliente || '#' + s.proyecto_numero) + '</span>';
+      html += '<span class="servicio-dato">' + (s.fecha_entrega || '') + '</span>';
+      html += '<span class="servicio-cantidad">×' + s.cantidad + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
+function renderLogistica(data) {
+  if (!data.logistica) return '<div class="loading">Sin datos de logística</div>';
+  let html = '';
+
+  ['lavanderia', 'office'].forEach(seccion => {
+    const items = data.logistica[seccion] || [];
+    html += '<div class="logistica-seccion">';
+    html += '<div class="logistica-titulo">' + (seccion === 'lavanderia' ? 'Lavandería' : 'Office') + ' — ' + items.length + ' proyectos</div>';
+    if (!items.length) {
+      html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los próximos 14 días</div>';
+    } else {
+      items.forEach(p => {
+        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '">';
+        html += '<div class="card-top">';
+        html += '<div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>';
+        html += estadoBadge(p.estado);
+        html += '</div>';
+        if (p.fecha_entrega) {
+          html += '<div class="card-meta"><span class="meta-item">📅 ' + p.fecha_entrega + '</span></div>';
+        }
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+  });
+  return html;
+}
+
+if (tabs && tabs.length) {
+  construirTabs();
+  cargarDatos(tabActiva);
+}
+</script>
+</body>
+</html>
