@@ -5,123 +5,125 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ORUM Rutas</title>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0efeb; color: #1a1a18; min-height: 100vh; }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#eeeee9;color:#1a1a18;min-height:100vh;}
 
 /* PIN */
-#pin-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
-.pin-box { background: #fff; border: 0.5px solid #e2e2de; border-radius: 16px; padding: 2rem 1.5rem; width: 100%; max-width: 320px; text-align: center; }
-.pin-logo { font-size: 13px; font-weight: 600; letter-spacing: 2px; color: #1a1a18; margin-bottom: 4px; }
-.pin-subtitle { font-size: 12px; color: #9a988f; margin-bottom: 1.5rem; }
-.pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
-.pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #ccc; background: #fff; }
-.pin-dot.filled { background: #1a1a18; border-color: #1a1a18; }
-.pin-dot.error { background: #A32D2D; border-color: #A32D2D; }
-.pin-error { font-size: 12px; color: #A32D2D; height: 16px; margin-bottom: 1rem; }
-.pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.pin-key { background: #f7f6f2; border: 0.5px solid #e2e2de; border-radius: 10px; padding: 16px 8px; font-size: 20px; color: #1a1a18; cursor: pointer; }
-.pin-key:active { background: #e2e2de; }
-.pin-key.empty { background: transparent; border-color: transparent; }
+#pin-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;}
+.pin-box{background:#fff;border:0.5px solid #e2e2de;border-radius:16px;padding:2rem 1.5rem;width:100%;max-width:300px;text-align:center;}
+.pin-logo{font-size:13px;font-weight:600;letter-spacing:2px;margin-bottom:4px;}
+.pin-sub{font-size:12px;color:#9a988f;margin-bottom:1.5rem;}
+.pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:1.5rem;}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid #ccc;background:#fff;}
+.pin-dot.filled{background:#1a1a18;border-color:#1a1a18;}
+.pin-dot.error{background:#A32D2D;border-color:#A32D2D;}
+.pin-err{font-size:12px;color:#A32D2D;height:16px;margin-bottom:1rem;}
+.pin-kp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.pin-k{background:#f7f6f2;border:0.5px solid #e2e2de;border-radius:10px;padding:16px 8px;font-size:20px;color:#1a1a18;cursor:pointer;}
+.pin-k:active{background:#e2e2de;}
+.pin-k.empty{background:transparent;border-color:transparent;}
 
-/* CABECERA */
-.app-header { background: #1a1a18; color: #fff; padding: 10px 16px; position: sticky; top: 0; z-index: 100; }
-.header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.header-top h1 { font-size: 14px; font-weight: 500; }
-.btn-sm { background: rgba(255,255,255,0.1); border: 0.5px solid rgba(255,255,255,0.2); color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
-.btn-sm.active { background: rgba(255,255,255,0.25); }
-.header-nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.header-nav input[type=date] { background: rgba(255,255,255,0.1); border: 0.5px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 3px 8px; font-size: 12px; }
-.header-nav input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
-.header-stats { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+/* HEADER */
+.hdr{background:#1a1a18;color:#fff;padding:10px 14px;position:sticky;top:0;z-index:100;}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.hdr-top h1{font-size:14px;font-weight:500;}
+.btn-s{background:rgba(255,255,255,.12);border:.5px solid rgba(255,255,255,.25);color:#fff;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+.btn-s.on{background:rgba(255,255,255,.28);}
+.hdr-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.hdr-nav input[type=date]{background:rgba(255,255,255,.12);border:.5px solid rgba(255,255,255,.25);color:#fff;border-radius:6px;padding:3px 8px;font-size:12px;}
+.hdr-nav input::-webkit-calendar-picker-indicator{filter:invert(1);}
+.hdr-stats{font-size:11px;color:rgba(255,255,255,.45);margin-top:4px;}
 
-/* CUERPO */
-#app-body { padding: 10px 12px 80px; max-width: 1200px; margin: 0 auto; }
-.loading { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
+/* BODY */
+#body{padding:10px 12px 80px;max-width:1280px;margin:0 auto;}
+.load{text-align:center;padding:3rem;color:#6b6a64;font-size:14px;}
 
-/* GRUPO VEHICULO */
-.grupo-vehiculo { margin-bottom: 12px; }
-.grupo-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 12px; background: #1a1a18; color: #fff;
-  border-radius: 8px 8px 0 0; font-size: 12px; font-weight: 600;
-  letter-spacing: 0.5px; text-transform: uppercase;
-}
-.grupo-header.sin-asignar { background: #6b6a64; }
-.grupo-count { background: rgba(255,255,255,0.2); border-radius: 10px; padding: 1px 7px; font-size: 11px; }
+/* DIA SEPARADOR (vista semana) */
+.dia-sep{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#6b6a64;padding:14px 4px 6px;margin-top:4px;}
+.dia-sep:first-child{padding-top:4px;}
 
-/* TABLA FILAS */
-.tabla-rutas { width: 100%; border-collapse: collapse; background: #fff; border-radius: 0 0 8px 8px; overflow: hidden; border: 0.5px solid #e2e2de; }
-.tabla-rutas thead th {
-  padding: 7px 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
-  text-transform: uppercase; color: #6b6a64; background: #f7f6f2;
-  border-bottom: 0.5px solid #e2e2de; white-space: nowrap; text-align: left;
-}
-.fila-parada { border-bottom: 0.5px solid #f0f0ec; cursor: pointer; transition: background 0.1s; }
-.fila-parada:last-child { border-bottom: none; }
-.fila-parada:hover { background: #fafaf8; }
-.fila-parada.expandida { background: #fafaf8; }
-.fila-parada td { padding: 8px 10px; font-size: 13px; vertical-align: middle; }
-.fila-parada .td-orden { width: 32px; text-align: center; }
-.btn-orden { background: none; border: none; color: #ccc; font-size: 14px; cursor: pointer; padding: 2px 4px; display: block; line-height: 1; }
-.btn-orden:hover { color: #1a1a18; }
-.td-tipo { width: 80px; }
-.badge-tipo { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.3px; white-space: nowrap; }
-.badge-entrega { background: #E1F5EE; color: #0F6E56; }
-.badge-recogida { background: #FAEEDA; color: #854F0B; }
-.badge-otro { background: #E6F1FB; color: #185FA5; }
-.badge-manual { background: #EEEDFE; color: #3C3489; }
-.td-fecha { width: 85px; white-space: nowrap; color: #6b6a64; font-size: 12px; }
-.td-cliente { min-width: 160px; font-weight: 500; }
-.td-num { font-size: 11px; color: #9a988f; }
-.td-loc { color: #6b6a64; font-size: 12px; }
-.btn-maps { font-size: 10px; background: #E6F1FB; color: #185FA5; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; text-decoration: none; white-space: nowrap; margin-left: 4px; }
-.td-estado { width: 90px; }
-.badge-estado { font-size: 10px; padding: 2px 6px; border-radius: 10px; white-space: nowrap; }
-.estado-listo { background: #E1F5EE; color: #0F6E56; }
-.estado-conf { background: #E6F1FB; color: #185FA5; }
-.td-vehiculo { width: 120px; font-size: 12px; color: #1a1a18; }
-.td-conductor { width: 100px; font-size: 12px; color: #1a1a18; }
-.td-expand { width: 24px; text-align: center; color: #ccc; font-size: 11px; }
+/* GRUPO */
+.grupo{margin-bottom:10px;}
+.grupo-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#1a1a18;color:#fff;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;}
+.grupo-hdr.sin{background:#7a7a72;}
+.grupo-hdr-left{display:flex;align-items:center;gap:8px;}
+.grupo-cnt{background:rgba(255,255,255,.2);border-radius:10px;padding:1px 7px;font-size:11px;}
+.grupo-conductor{font-size:11px;font-weight:400;color:rgba(255,255,255,.7);}
 
-/* FILA EXPANDIDA */
-.fila-detalle { display: none; background: #f7f6f2; }
-.fila-detalle.open { display: table-row; }
-.fila-detalle td { padding: 10px 12px; border-bottom: 0.5px solid #e2e2de; }
-.detalle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
-.detalle-campo label { font-size: 10px; color: #6b6a64; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; display: block; margin-bottom: 3px; }
-.detalle-campo select, .detalle-campo input[type=text], .detalle-campo textarea {
-  width: 100%; padding: 7px 9px; font-size: 13px; border: 0.5px solid #e2e2de;
-  border-radius: 7px; background: #fff; color: #1a1a18; font-family: inherit;
-}
-.detalle-campo textarea { resize: vertical; min-height: 50px; }
-.detalle-campo select:focus, .detalle-campo input:focus, .detalle-campo textarea:focus { outline: none; border-color: #1a1a18; }
-.detalle-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-.btn-guardar { padding: 7px 16px; font-size: 13px; background: #1a1a18; color: #fff; border: none; border-radius: 7px; cursor: pointer; }
-.btn-guardar:active { opacity: 0.8; }
-.btn-guardar.ok { background: #1D9E75; }
-.btn-del { padding: 7px 12px; font-size: 13px; background: #fff; color: #A32D2D; border: 0.5px solid #F09595; border-radius: 7px; cursor: pointer; }
-.saved-msg { font-size: 12px; color: #1D9E75; }
+/* TABLA */
+.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;}
+.tbl thead th{padding:6px 10px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#7a7a72;background:#f5f5f0;border-bottom:.5px solid #e2e2de;text-align:left;white-space:nowrap;}
+.fila{border-bottom:.5px solid #f0f0ea;transition:background .1s;}
+.fila:last-child{border-bottom:none;}
+.fila:hover{background:#fafaf6;}
+.fila.exp{background:#fafaf6;}
+.fila.drag-over{background:#E1F5EE;outline:2px dashed #1D9E75;}
+.fila[draggable=true]{cursor:grab;}
+.fila[draggable=true]:active{cursor:grabbing;}
+.fila td{padding:7px 10px;font-size:13px;vertical-align:middle;}
+.td-drag{width:20px;text-align:center;color:#ccc;font-size:14px;cursor:grab;}
+.td-tipo{width:75px;}
+.badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;}
+.b-entrega{background:#E1F5EE;color:#0F6E56;}
+.b-recogida{background:#FAEEDA;color:#854F0B;}
+.b-otro{background:#E6F1FB;color:#185FA5;}
+.b-manual{background:#EEEDFE;color:#3C3489;}
+.b-compra{background:#FFF3E0;color:#8B4513;}
+.b-taller{background:#FCE4EC;color:#880E4F;}
+.td-fecha{width:90px;white-space:nowrap;color:#6b6a64;font-size:12px;}
+.td-cli{min-width:150px;}
+.cli-nom{font-weight:500;font-size:13px;}
+.cli-num{font-size:11px;color:#9a988f;}
+.td-loc{color:#6b6a64;font-size:12px;max-width:200px;}
+.a-maps{font-size:10px;background:#E6F1FB;color:#185FA5;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;text-decoration:none;white-space:nowrap;margin-left:4px;}
+.td-est{width:85px;}
+.be{font-size:10px;padding:2px 6px;border-radius:10px;white-space:nowrap;}
+.be-ok{background:#E1F5EE;color:#0F6E56;}
+.be-cf{background:#E6F1FB;color:#185FA5;}
+.td-veh{width:130px;}
+.td-veh select{width:100%;padding:4px 6px;font-size:12px;border:.5px solid #e2e2de;border-radius:6px;background:#fff;color:#1a1a18;cursor:pointer;}
+.td-veh select:focus{outline:none;border-color:#1a1a18;}
+.td-notas{color:#6b6a64;font-size:12px;font-style:italic;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.td-exp{width:20px;text-align:center;color:#ccc;font-size:11px;}
+
+/* DETALLE EXPAND */
+.fila-det{display:none;background:#f5f5f0;}
+.fila-det.open{display:table-row;}
+.fila-det td{padding:10px 12px;border-bottom:.5px solid #e2e2de;}
+.det-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;}
+.det-campo label{font-size:10px;color:#6b6a64;font-weight:600;letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:3px;}
+.det-campo input,.det-campo select,.det-campo textarea{width:100%;padding:7px 9px;font-size:13px;border:.5px solid #e2e2de;border-radius:7px;background:#fff;color:#1a1a18;font-family:inherit;}
+.det-campo textarea{resize:vertical;min-height:44px;}
+.det-campo input:focus,.det-campo select:focus,.det-campo textarea:focus{outline:none;border-color:#1a1a18;}
+.det-acts{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;}
+.btn-g{padding:6px 14px;font-size:13px;background:#1a1a18;color:#fff;border:none;border-radius:7px;cursor:pointer;}
+.btn-g.ok{background:#1D9E75;}
+.btn-g.del{background:#fff;color:#A32D2D;border:.5px solid #F09595;}
+.msg-ok{font-size:12px;color:#1D9E75;}
+
+/* VUELTAS */
+.vuelta-sel{padding:4px 7px;font-size:12px;border:.5px solid #e2e2de;border-radius:6px;background:#fff;}
 
 /* FAB */
-#fab { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; background: #1a1a18; color: #fff; font-size: 26px; border: none; cursor: pointer; z-index: 50; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+#fab{position:fixed;bottom:20px;right:20px;width:50px;height:50px;border-radius:50%;background:#1a1a18;color:#fff;font-size:26px;border:none;cursor:pointer;z-index:50;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);}
 
 /* MODAL */
-#modal-manual { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: flex-end; justify-content: center; }
-#modal-manual.open { display: flex; }
-.modal-box { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 680px; padding: 0 0 2rem; max-height: 90vh; overflow-y: auto; }
-.modal-header { padding: 14px 16px; border-bottom: 0.5px solid #e2e2de; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #fff; }
-.modal-header h2 { font-size: 15px; font-weight: 500; }
-.modal-close { background: #f0f0ec; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 16px; cursor: pointer; }
-.modal-form { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
-.modal-form label { font-size: 11px; color: #6b6a64; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 3px; }
-.modal-form input, .modal-form select, .modal-form textarea { width: 100%; padding: 9px 12px; font-size: 14px; border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18; font-family: inherit; }
-.modal-form textarea { resize: vertical; min-height: 50px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.btn-guardar-modal { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; background: #1a1a18; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin-top: 4px; }
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;}
+#modal.open{display:flex;}
+.modal-box{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:680px;padding:0 0 2rem;max-height:92vh;overflow-y:auto;}
+.modal-hdr{padding:14px 16px;border-bottom:.5px solid #e2e2de;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;}
+.modal-hdr h2{font-size:15px;font-weight:500;}
+.modal-cls{background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;}
+.modal-form{padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.modal-form label{font-size:11px;color:#6b6a64;font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:3px;}
+.modal-form input,.modal-form select,.modal-form textarea{width:100%;padding:9px 12px;font-size:14px;border:.5px solid #e2e2de;border-radius:8px;background:#fff;color:#1a1a18;font-family:inherit;}
+.modal-form textarea{resize:vertical;min-height:50px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn-gm{width:100%;padding:12px;font-size:14px;font-weight:500;background:#1a1a18;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:4px;}
 
 /* TOAST */
-#toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300; white-space: nowrap; }
-#toast.show { opacity: 1; }
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a18;color:#fff;font-size:13px;padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300;white-space:nowrap;}
+#toast.show{opacity:1;}
 </style>
 </head>
 <body>
@@ -129,61 +131,40 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="pin-screen">
   <div class="pin-box">
     <div class="pin-logo">ORUM</div>
-    <div class="pin-subtitle">Rutas - acceso logistica</div>
-    <div class="pin-dots">
-      <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
-      <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
-    </div>
-    <div class="pin-error" id="pin-error"></div>
-    <div class="pin-keypad" id="keypad"></div>
+    <div class="pin-sub">Rutas — Logistica</div>
+    <div class="pin-dots"><div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div><div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div></div>
+    <div class="pin-err" id="pin-err"></div>
+    <div class="pin-kp" id="kp"></div>
   </div>
 </div>
 
 <div id="app" style="display:none;">
-  <div class="app-header">
-    <div class="header-top">
-      <h1>ORUM Rutas</h1>
-      <button class="btn-sm" id="btn-recargar">Recargar</button>
+  <div class="hdr">
+    <div class="hdr-top"><h1>ORUM Rutas</h1><button class="btn-s" id="btn-rec">Recargar</button></div>
+    <div class="hdr-nav">
+      <button class="btn-s on" id="btn-hoy">Hoy</button>
+      <button class="btn-s" id="btn-sem">Esta semana</button>
+      <input type="date" id="fpicker">
     </div>
-    <div class="header-nav">
-      <button class="btn-sm active" id="btn-hoy">Hoy</button>
-      <button class="btn-sm" id="btn-semana">Esta semana</button>
-      <input type="date" id="fecha-picker">
-    </div>
-    <div class="header-stats" id="header-stats"></div>
+    <div class="hdr-stats" id="hstats"></div>
   </div>
-  <div id="app-body"><div class="loading">Cargando...</div></div>
+  <div id="body"><div class="load">Cargando...</div></div>
 </div>
 
 <button id="fab">+</button>
 
-<div id="modal-manual">
+<div id="modal">
   <div class="modal-box">
-    <div class="modal-header">
-      <h2>Anadir parada manual</h2>
-      <button class="modal-close" id="modal-close-btn">X</button>
-    </div>
+    <div class="modal-hdr"><h2>Anadir parada manual</h2><button class="modal-cls" id="mcls">X</button></div>
     <div class="modal-form">
-      <div>
-        <label>Tipo</label>
-        <select id="m-tipo">
-          <option value="ENTREGA">Entrega</option>
-          <option value="RECOGIDA">Recogida</option>
-          <option value="COMPRA">Compra</option>
-          <option value="TALLER">Taller</option>
-          <option value="OTRO">Otro</option>
-        </select>
-      </div>
+      <div><label>Tipo</label><select id="m-tipo"><option value="ENTREGA">Entrega</option><option value="RECOGIDA">Recogida</option><option value="COMPRA">Compra</option><option value="TALLER">Taller</option><option value="OTRO">Otro</option></select></div>
       <div><label>Descripcion</label><input type="text" id="m-desc" placeholder="Ej: Recoger manteles sucios Marbella"></div>
       <div><label>Direccion</label><input type="text" id="m-dir" placeholder="Calle, ciudad..."></div>
-      <div class="form-row">
-        <div><label>Fecha</label><input type="date" id="m-fecha"></div>
-        <div><label>Hora</label><input type="time" id="m-hora"></div>
-      </div>
-      <div><label>Vehiculo</label><select id="m-vehiculo"><option value="">Sin asignar</option></select></div>
-      <div><label>Conductor</label><input type="text" id="m-conductor" placeholder="Nombre del conductor"></div>
-      <div><label>Notas</label><textarea id="m-notas" placeholder="Notas adicionales..."></textarea></div>
-      <button class="btn-guardar-modal" id="btn-guardar-modal">Guardar parada</button>
+      <div class="form-row"><div><label>Fecha</label><input type="date" id="m-fecha"></div><div><label>Hora</label><input type="time" id="m-hora"></div></div>
+      <div><label>Vehiculo</label><select id="m-veh"><option value="">Sin asignar</option></select></div>
+      <div><label>Conductor</label><input type="text" id="m-cond" placeholder="Nombre conductor"></div>
+      <div><label>Notas</label><textarea id="m-notas" placeholder="Notas..."></textarea></div>
+      <button class="btn-gm" id="btn-gm">Guardar parada</button>
     </div>
   </div>
 </div>
@@ -191,336 +172,368 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="toast">OK</div>
 
 <script>
-var PIN_VALIDO = '2000';
-var VEHICULOS = ['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
-var pinActual = '';
-var modoFecha = 'hoy';
-var paradasGlobal = [];
-var ordenManual = {}; // clave: vehiculo -> array ordenado de indices
+var PIN='2000';
+var VEHS=['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
+var pin='', modo='hoy', paradas=[];
+var dragSrcIdx=null, dragSrcVeh=null;
 
 // ── PIN ──
-function initKeypad() {
-  var kp = document.getElementById('keypad');
-  ['1','2','3','4','5','6','7','8','9','','0','del'].forEach(function(k) {
-    var btn = document.createElement('button');
-    if (k === '') { btn.className = 'pin-key empty'; }
-    else if (k === 'del') {
-      btn.className = 'pin-key'; btn.textContent = '<<';
-      btn.addEventListener('click', pinBorrar);
-    } else {
-      btn.className = 'pin-key'; btn.textContent = k;
-      (function(n) { btn.addEventListener('click', function() { pinKey(n); }); })(k);
-    }
-    kp.appendChild(btn);
+function initKP(){
+  var kp=document.getElementById('kp');
+  ['1','2','3','4','5','6','7','8','9','','0','del'].forEach(function(k){
+    var b=document.createElement('button');
+    if(k===''){b.className='pin-k empty';}
+    else if(k==='del'){b.className='pin-k';b.textContent='<<';b.addEventListener('click',pinDel);}
+    else{b.className='pin-k';b.textContent=k;(function(n){b.addEventListener('click',function(){pinKey(n);});})(k);}
+    kp.appendChild(b);
   });
 }
-function pinKey(n) {
-  if (pinActual.length >= 4) return;
-  pinActual += n; actualizarDots(false);
-  if (pinActual.length === 4) validarPin();
-}
-function pinBorrar() { pinActual = pinActual.slice(0,-1); document.getElementById('pin-error').textContent=''; actualizarDots(false); }
-function actualizarDots(error) {
-  for(var i=0;i<4;i++){var d=document.getElementById('d'+i);d.className='pin-dot';if(error)d.classList.add('error');else if(i<pinActual.length)d.classList.add('filled');}
-}
-function validarPin() {
-  if (pinActual !== PIN_VALIDO) {
-    document.getElementById('pin-error').textContent='PIN incorrecto'; actualizarDots(true);
-    setTimeout(function(){pinActual='';actualizarDots(false);document.getElementById('pin-error').textContent='';},800); return;
-  }
+function pinKey(n){if(pin.length>=4)return;pin+=n;dots(false);if(pin.length===4)pinCheck();}
+function pinDel(){pin=pin.slice(0,-1);document.getElementById('pin-err').textContent='';dots(false);}
+function dots(err){for(var i=0;i<4;i++){var d=document.getElementById('d'+i);d.className='pin-dot';if(err)d.classList.add('error');else if(i<pin.length)d.classList.add('filled');}}
+function pinCheck(){
+  if(pin!==PIN){document.getElementById('pin-err').textContent='PIN incorrecto';dots(true);setTimeout(function(){pin='';dots(false);document.getElementById('pin-err').textContent='';},800);return;}
   document.getElementById('pin-screen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('fab').style.display='flex';
-  initVehiculosModal();
-  setFechaHoy(); cargarDatos();
+  initVehs(); setHoy(); load();
 }
 
 // ── FECHAS ──
-function getHoy(){ var d=new Date(); return d.toISOString().split('T')[0]; }
-function getSemana(){
-  var d=new Date(); var dia=d.getDay()||7;
-  var lunes=new Date(d); lunes.setDate(d.getDate()-dia+1);
-  var domingo=new Date(lunes); domingo.setDate(lunes.getDate()+6);
-  return {desde:lunes.toISOString().split('T')[0], hasta:domingo.toISOString().split('T')[0]};
-}
-function setFechaHoy(){ document.getElementById('fecha-picker').value=getHoy(); modoFecha='hoy'; }
-function getRango(){
-  if(modoFecha==='semana') return getSemana();
-  var d=document.getElementById('fecha-picker').value||getHoy();
-  return {desde:d,hasta:d};
-}
+function hoy(){return new Date().toISOString().split('T')[0];}
+function semana(){var d=new Date();var dia=d.getDay()||7;var l=new Date(d);l.setDate(d.getDate()-dia+1);var dm=new Date(l);dm.setDate(l.getDate()+6);return{desde:l.toISOString().split('T')[0],hasta:dm.toISOString().split('T')[0]};}
+function setHoy(){document.getElementById('fpicker').value=hoy();modo='hoy';}
+function rango(){if(modo==='semana')return semana();var d=document.getElementById('fpicker').value||hoy();return{desde:d,hasta:d};}
 
 // ── CARGA ──
-function cargarDatos(){
-  document.getElementById('app-body').innerHTML='<div class="loading">Cargando paradas...</div>';
-  document.getElementById('header-stats').textContent='';
-  var r=getRango();
+function load(){
+  document.getElementById('body').innerHTML='<div class="load">Cargando paradas...</div>';
+  document.getElementById('hstats').textContent='';
+  var r=rango();
   fetch('/api/rutas?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now())
     .then(function(res){return res.json();})
     .then(function(data){
-      if(data.error){document.getElementById('app-body').innerHTML='<div class="loading">Error: '+data.error+'</div>';return;}
-      paradasGlobal=data.paradas||[];
-      if(data.vehiculos) VEHICULOS=data.vehiculos;
-      ordenManual={};
-      renderizar();
+      if(data.error){document.getElementById('body').innerHTML='<div class="load">Error: '+data.error+'</div>';return;}
+      paradas=data.paradas||[];
+      if(data.vehiculos)VEHS=data.vehiculos;
+      render();
     })
-    .catch(function(){document.getElementById('app-body').innerHTML='<div class="loading">Error de conexion</div>';});
+    .catch(function(){document.getElementById('body').innerHTML='<div class="load">Error de conexion</div>';});
 }
 
-// ── RENDERIZAR ──
-function renderizar(){
-  var total=paradasGlobal.length;
-  var conVeh=paradasGlobal.filter(function(p){return p.vehiculo;}).length;
-  document.getElementById('header-stats').textContent=total+' paradas - '+conVeh+' con vehiculo asignado';
+// ── RENDER ──
+function render(){
+  var conVeh=paradas.filter(function(p){return p.vehiculo;}).length;
+  document.getElementById('hstats').textContent=paradas.length+' paradas - '+conVeh+' asignadas';
 
-  // Agrupar por vehiculo
+  var SIN='__sin__';
+  // Agrupar por vehiculo+vuelta
   var grupos={};
-  var SIN='__sin_asignar__';
-  paradasGlobal.forEach(function(p,idx){
-    var veh=p.vehiculo||SIN;
-    if(!grupos[veh]) grupos[veh]=[];
-    grupos[veh].push(idx);
+  paradas.forEach(function(p,i){
+    var v=p.vehiculo||SIN;
+    var vuelta=parseInt(p.vuelta)||1;
+    var gkey=v==='__sin__'?'__sin__':(v+'_v'+vuelta);
+    if(!grupos[gkey])grupos[gkey]={veh:v,vuelta:vuelta,gkey:gkey,items:[]};
+    grupos[gkey].items.push(i);
   });
 
-  // Aplicar orden manual
-  Object.keys(ordenManual).forEach(function(veh){
-    if(grupos[veh]) grupos[veh]=ordenManual[veh];
+  // Ordenar items dentro de cada grupo por campo orden
+  Object.keys(grupos).forEach(function(gk){
+    grupos[gk].items.sort(function(a,b){
+      var oa=paradas[a].orden||0, ob=paradas[b].orden||0;
+      if(oa!==ob)return oa-ob;
+      return (paradas[a].fecha||'').localeCompare(paradas[b].fecha||'');
+    });
   });
 
+  // Si vista semana, agrupar también por día
+  var esSemana=(modo==='semana');
   var html='';
 
-  // Primero grupos con vehiculo asignado
-  var vehiculosUsados=Object.keys(grupos).filter(function(v){return v!==SIN;}).sort();
-  vehiculosUsados.forEach(function(veh){
-    html+=renderGrupo(veh, grupos[veh], false);
-  });
-  // Sin asignar al final
-  if(grupos[SIN] && grupos[SIN].length){
-    html+=renderGrupo('Sin vehiculo asignado', grupos[SIN], true);
+  if(esSemana){
+    // Obtener días únicos
+    var dias={};
+    paradas.forEach(function(p){if(p.fecha)dias[p.fecha]=1;});
+    var diasArr=Object.keys(dias).sort();
+
+    diasArr.forEach(function(fecha){
+      html+='<div class="dia-sep">'+formatDiaLargo(fecha)+'</div>';
+      // Grupos que tienen paradas de este día
+      var gruposDia={};
+      Object.keys(grupos).forEach(function(gk){
+        var itemsDia=grupos[gk].items.filter(function(i){return paradas[i].fecha===fecha;});
+        if(itemsDia.length>0){
+          if(!gruposDia[gk])gruposDia[gk]={veh:grupos[gk].veh,vuelta:grupos[gk].vuelta,gkey:gk,items:[]};
+          gruposDia[gk].items=gruposDia[gk].items.concat(itemsDia);
+        }
+      });
+      // Primero asignados, luego sin asignar
+      var gSin=gruposDia['__sin__'];
+      Object.keys(gruposDia).filter(function(gk){return gk!=='__sin__';}).sort().forEach(function(gk){
+        html+=renderGrupo(gruposDia[gk]);
+      });
+      if(gSin)html+=renderGrupo(gSin);
+    });
+  } else {
+    var gSin=grupos['__sin__'];
+    Object.keys(grupos).filter(function(gk){return gk!=='__sin__';}).sort().forEach(function(gk){
+      html+=renderGrupo(grupos[gk]);
+    });
+    if(gSin)html+=renderGrupo(gSin);
   }
 
-  if(!html) html='<div class="loading">No hay paradas en este periodo</div>';
-  document.getElementById('app-body').innerHTML=html;
-
-  // Eventos expand
-  document.querySelectorAll('.fila-parada').forEach(function(fila){
-    fila.addEventListener('click', function(e){
-      if(e.target.closest('.btn-orden')||e.target.closest('.btn-guardar')||e.target.closest('.btn-del')||e.target.closest('select')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.btn-maps')) return;
-      var key=fila.getAttribute('data-key');
-      var det=document.getElementById('det-'+key);
-      if(det){ det.classList.toggle('open'); fila.classList.toggle('expandida'); }
-    });
-  });
-  // Eventos guardar
-  document.querySelectorAll('.btn-guardar').forEach(function(btn){
-    btn.addEventListener('click', function(){ guardarFila(btn.getAttribute('data-key')); });
-  });
-  // Eventos eliminar
-  document.querySelectorAll('.btn-del').forEach(function(btn){
-    btn.addEventListener('click', function(){ eliminarManual(btn.getAttribute('data-id')); });
-  });
-  // Eventos orden
-  document.querySelectorAll('.btn-orden').forEach(function(btn){
-    btn.addEventListener('click', function(e){
-      e.stopPropagation();
-      moverFila(btn.getAttribute('data-veh'), parseInt(btn.getAttribute('data-idx')), btn.getAttribute('data-dir'));
-    });
-  });
+  if(!html)html='<div class="load">No hay paradas en este periodo</div>';
+  document.getElementById('body').innerHTML=html;
+  bindEvents();
 }
 
-function renderGrupo(veh, indices, esSinAsignar){
-  var SIN='__sin_asignar__';
-  var vehKey=esSinAsignar?SIN:veh;
-  var html='<div class="grupo-vehiculo">';
-  html+='<div class="grupo-header'+(esSinAsignar?' sin-asignar':'')+'">'+veh+'<span class="grupo-count">'+indices.length+'</span></div>';
-  html+='<table class="tabla-rutas"><thead><tr>';
-  html+='<th style="width:32px"></th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo</th><th>Conductor</th><th style="width:20px"></th>';
-  html+='</tr></thead><tbody>';
-  indices.forEach(function(idx, pos){
-    html+=renderFila(idx, pos, indices.length, vehKey);
-  });
+function renderGrupo(g){
+  var SIN='__sin__';
+  var esSin=g.veh===SIN;
+  var titulo=esSin?'Sin vehiculo asignado':(g.veh+(g.vuelta>1?' — '+g.vuelta+'ª vuelta':''));
+  // Conductor del grupo: primer conductor no vacío
+  var conductorGrupo='';
+  var conductores=[];
+  g.items.forEach(function(i){if(paradas[i].conductor&&conductores.indexOf(paradas[i].conductor)===-1)conductores.push(paradas[i].conductor);});
+  conductorGrupo=conductores.join(' / ');
+
+  var html='<div class="grupo" data-gkey="'+g.gkey+'">';
+  html+='<div class="grupo-hdr'+(esSin?' sin':'')+'"><div class="grupo-hdr-left"><span>'+titulo+'</span><span class="grupo-cnt">'+g.items.length+'</span></div>';
+  if(conductorGrupo)html+='<span class="grupo-conductor">'+conductorGrupo+'</span>';
+  html+='</div>';
+  html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo</th><th>Notas</th><th></th></tr></thead><tbody>';
+  g.items.forEach(function(idx){html+=renderFila(idx,g.gkey);});
   html+='</tbody></table></div>';
   return html;
 }
 
-function renderFila(idx, pos, total, vehKey){
-  var p=paradasGlobal[idx];
+function renderFila(idx,gkey){
+  var p=paradas[idx];
   var key='p'+idx;
   var tipo=(p.tipo||'OTRO').toLowerCase();
-  var badgeClass=p.es_manual?'badge-manual':'badge-'+tipo;
-  var badgeTexto=p.es_manual?'MANUAL':p.tipo;
-  var esListo=['returned','cargado','marbella','on location','controlado','preparado'].some(function(x){return(p.estado||'').toLowerCase().indexOf(x)!==-1;});
-  var estadoHtml=p.estado?('<span class="badge-estado '+(esListo?'estado-listo':'estado-conf')+'">'+p.estado+'</span>'):'';
-  var mapsHtml=p.google_maps_url?('<a href="'+p.google_maps_url+'" target="_blank" class="btn-maps">Maps</a>'):'';
-  var fechaLabel=p.fecha?formatFechaCorta(p.fecha):'';
-  var horaLabel=p.hora&&p.hora!='30/12/1899'?(' '+p.hora):'';
+  var bc=p.es_manual?'b-manual':('b-'+tipo);
+  var bt=p.es_manual?'MANUAL':p.tipo;
+  var esOk=['returned','cargado','marbella','on location','controlado','preparado'].some(function(x){return(p.estado||'').toLowerCase().indexOf(x)!==-1;});
+  var estH=p.estado?('<span class="be '+(esOk?'be-ok':'be-cf')+'">'+p.estado+'</span>'):'';
+  var mapsH=p.google_maps_url?('<a href="'+p.google_maps_url+'" target="_blank" class="a-maps">Maps</a>'):'';
+  var fechaH=p.fecha?formatFechaCorta(p.fecha)+(p.hora&&p.hora.length===5?' '+p.hora:''):'';
 
-  // Opciones vehiculo
-  var vehOpts='<option value="">Sin vehiculo</option>';
-  VEHICULOS.forEach(function(v){ vehOpts+='<option value="'+v+'"'+(p.vehiculo===v?' selected':'')+'>'+v+'</option>'; });
+  // Desplegable vehiculo inline
+  var vehOpts='<option value="">—</option>';
+  VEHS.forEach(function(v){vehOpts+='<option value="'+v+'"'+(p.vehiculo===v?' selected':'')+'>'+v+'</option>';});
+  // Opciones de vuelta
+  var vuelOpts='';
+  for(var vv=1;vv<=4;vv++)vuelOpts+='<option value="'+vv+'"'+((parseInt(p.vuelta)||1)===vv?' selected':'')+'>'+vv+'ª</option>';
 
-  var pDataB64=btoa(unescape(encodeURIComponent(JSON.stringify({idx:idx,id_manual:p.id_manual,es_manual:p.es_manual}))));
+  var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||''}));
 
-  var html='<tr class="fila-parada" data-key="'+key+'" data-idx="'+idx+'">';
-  // Orden
-  html+='<td class="td-orden"><button class="btn-orden" data-veh="'+vehKey+'" data-idx="'+pos+'" data-dir="up">'+(pos>0?'↑':'')+'</button><button class="btn-orden" data-veh="'+vehKey+'" data-idx="'+pos+'" data-dir="down">'+(pos<total-1?'↓':'')+'</button></td>';
-  html+='<td class="td-tipo"><span class="badge-tipo '+badgeClass+'">'+badgeTexto+'</span></td>';
-  html+='<td class="td-fecha">'+fechaLabel+horaLabel+'</td>';
-  html+='<td><div style="font-weight:500;font-size:13px;">'+(p.cliente||'-')+'</div>'+(p.numero?'<div class="td-num">#'+p.numero+'</div>':'')+'</td>';
-  html+='<td class="td-loc">'+(p.localizacion||'-')+mapsHtml+'</td>';
-  html+='<td class="td-estado">'+estadoHtml+'</td>';
-  html+='<td class="td-vehiculo">'+(p.vehiculo||'<span style="color:#ccc">-</span>')+'</td>';
-  html+='<td class="td-conductor">'+(p.conductor||'<span style="color:#ccc">-</span>')+'</td>';
-  html+='<td class="td-expand">▾</td>';
+  var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'" draggable="true">';
+  html+='<td class="td-drag">⠿</td>';
+  html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
+  html+='<td class="td-fecha">'+fechaH+'</td>';
+  html+='<td class="td-cli"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+(p.numero?'<div class="cli-num">#'+p.numero+'</div>':'')+'</td>';
+  html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
+  html+='<td class="td-est">'+estH+'</td>';
+  html+='<td class="td-veh"><select class="sel-veh" data-idx="'+idx+'" data-gkey="'+gkey+'">'+vehOpts+'</select></td>';
+  html+='<td class="td-notas">'+(p.notas||'')+'</td>';
+  html+='<td class="td-exp">▾</td>';
   html+='</tr>';
 
-  // Fila detalle expandible
-  html+='<tr class="fila-detalle" id="det-'+key+'"><td colspan="9">';
-  html+='<div class="detalle-grid">';
-  html+='<div class="detalle-campo"><label>Vehiculo</label><select id="veh-'+key+'">'+vehOpts+'</select></div>';
-  html+='<div class="detalle-campo"><label>Conductor</label><input type="text" id="cond-'+key+'" value="'+(p.conductor||'')+'" placeholder="Nombre conductor"></div>';
-  html+='<div class="detalle-campo"><label>Notas</label><textarea id="notas-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
-  html+='</div>';
-  html+='<div class="detalle-actions">';
-  html+='<button class="btn-guardar" data-key="'+key+'" data-p="'+pDataB64+'">Guardar</button>';
-  if(p.es_manual) html+='<button class="btn-del" data-id="'+p.id_manual+'">Eliminar</button>';
-  html+='<span class="saved-msg" id="msg-'+key+'"></span>';
+  // Fila detalle
+  html+='<tr class="fila-det" id="det-'+key+'"><td colspan="9">';
+  var vehOpts2='<option value="">Sin vehiculo</option>';
+  VEHS.forEach(function(v){vehOpts2+='<option value="'+v+'"'+(p.vehiculo===v?' selected':'')+'>'+v+'</option>';});
+  html+='<div class="det-grid">';
+  html+='<div class="det-campo"><label>Vehiculo</label><select id="dv-'+key+'">'+vehOpts2+'</select></div>';
+  html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">'+vuelOpts+'</select></div>';
+  html+='<div class="det-campo"><label>Conductor</label><input type="text" id="dc-'+key+'" value="'+(p.conductor||'')+'" placeholder="Nombre conductor"></div>';
+  html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
+  html+='</div><div class="det-acts">';
+  html+='<button class="btn-g btn-save" data-key="'+key+'" data-p="'+pEnc+'">Guardar</button>';
+  if(p.es_manual)html+='<button class="btn-g del btn-del" data-id="'+p.id_manual+'">Eliminar</button>';
+  html+='<span class="msg-ok" id="msg-'+key+'"></span>';
   html+='</div></td></tr>';
-
   return html;
 }
 
 function formatFechaCorta(iso){
-  if(!iso) return '';
+  if(!iso)return'';
   var dias=['dom','lun','mar','mie','jue','vie','sab'];
   var d=new Date(iso+'T12:00:00');
   return dias[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
 }
-
-function moverFila(vehKey, pos, dir){
-  var SIN='__sin_asignar__';
-  // Reconstruir el array de indices del grupo
-  var grupos={};
-  paradasGlobal.forEach(function(p,idx){
-    var v=p.vehiculo||SIN;
-    if(!grupos[v]) grupos[v]=[];
-    grupos[v].push(idx);
-  });
-  Object.keys(ordenManual).forEach(function(v){ if(grupos[v]) grupos[v]=ordenManual[v]; });
-
-  var arr=grupos[vehKey];
-  if(!arr) return;
-  var newPos=dir==='up'?pos-1:pos+1;
-  if(newPos<0||newPos>=arr.length) return;
-  var tmp=arr[pos]; arr[pos]=arr[newPos]; arr[newPos]=tmp;
-  ordenManual[vehKey]=arr;
-  renderizar();
-}
-
-function guardarFila(key){
-  var btn=document.querySelector('.btn-guardar[data-key="'+key+'"]');
-  var pB64=btn.getAttribute('data-p');
-  var pData; try { pData=JSON.parse(decodeURIComponent(escape(atob(pB64)))); } catch(e){return;}
-
-  var vehiculo=document.getElementById('veh-'+key).value;
-  var conductor=document.getElementById('cond-'+key).value;
-  var notas=document.getElementById('notas-'+key).value;
-  var idx=pData.idx;
-
-  btn.textContent='...'; btn.disabled=true;
-
-  var body={
-    action: pData.es_manual?'update_manual':'update_manual',
-    vehiculo:vehiculo, conductor:conductor, notas:notas,
-    clientToken:'ORUMx2026RutasPublic'
-  };
-  if(pData.es_manual){ body.id=pData.id_manual; }
-  else { body.id='proj_'+idx+'_'+paradasGlobal[idx].tipo+'_'+paradasGlobal[idx].fecha; }
-
-  fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-    .then(function(){
-      // Actualizar cache local
-      paradasGlobal[idx].vehiculo=vehiculo;
-      paradasGlobal[idx].conductor=conductor;
-      paradasGlobal[idx].notas=notas;
-      btn.textContent='Guardado'; btn.classList.add('ok');
-      var msg=document.getElementById('msg-'+key);
-      if(msg) msg.textContent='Guardado';
-      mostrarToast('Guardado');
-      setTimeout(function(){ btn.textContent='Guardar'; btn.classList.remove('ok'); btn.disabled=false; if(msg)msg.textContent=''; renderizar(); },1500);
-    })
-    .catch(function(){ btn.textContent='Error'; btn.disabled=false; });
-}
-
-function eliminarManual(id){
-  if(!confirm('Eliminar esta parada?')) return;
-  fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'del_manual',id:id,clientToken:'ORUMx2026RutasPublic'})})
-    .then(function(){ mostrarToast('Parada eliminada'); cargarDatos(); });
-}
-
-// ── MODAL MANUAL ──
-function initVehiculosModal(){
-  var sel=document.getElementById('m-vehiculo');
-  sel.innerHTML='<option value="">Sin asignar</option>';
-  VEHICULOS.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
-}
-function abrirModal(){
-  document.getElementById('m-fecha').value=document.getElementById('fecha-picker').value||getHoy();
-  document.getElementById('m-hora').value='09:00';
-  document.getElementById('m-desc').value='';
-  document.getElementById('m-dir').value='';
-  document.getElementById('m-conductor').value='';
-  document.getElementById('m-vehiculo').value='';
-  document.getElementById('m-notas').value='';
-  document.getElementById('modal-manual').classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function cerrarModal(){ document.getElementById('modal-manual').classList.remove('open'); document.body.style.overflow=''; }
-function guardarManual(){
-  var body={
-    action:'add_manual',
-    tipo:document.getElementById('m-tipo').value,
-    descripcion:document.getElementById('m-desc').value,
-    direccion:document.getElementById('m-dir').value,
-    fecha:document.getElementById('m-fecha').value,
-    hora:document.getElementById('m-hora').value,
-    vehiculo:document.getElementById('m-vehiculo').value,
-    conductor:document.getElementById('m-conductor').value,
-    notas:document.getElementById('m-notas').value,
-    clientToken:'ORUMx2026RutasPublic'
-  };
-  if(!body.descripcion){alert('La descripcion es obligatoria');return;}
-  if(!body.fecha){alert('La fecha es obligatoria');return;}
-  var btn=document.getElementById('btn-guardar-modal');
-  btn.textContent='Guardando...'; btn.disabled=true;
-  fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-    .then(function(r){return r.json();})
-    .then(function(){cerrarModal();mostrarToast('Parada anadida');cargarDatos();btn.textContent='Guardar parada';btn.disabled=false;})
-    .catch(function(){btn.textContent='Error';btn.disabled=false;});
-}
-
-function mostrarToast(msg){
-  var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show');},2000);
+function formatDiaLargo(iso){
+  if(!iso)return'';
+  var dias=['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+  var meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var d=new Date(iso+'T12:00:00');
+  return dias[d.getDay()]+' '+d.getDate()+' de '+meses[d.getMonth()];
 }
 
 // ── EVENTOS ──
+function bindEvents(){
+  // Expand fila
+  document.querySelectorAll('.fila').forEach(function(fila){
+    fila.addEventListener('click',function(e){
+      if(e.target.closest('.sel-veh')||e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea'))return;
+      var idx=fila.getAttribute('data-idx');
+      var det=document.getElementById('det-p'+idx);
+      if(det){det.classList.toggle('open');fila.classList.toggle('exp');}
+    });
+  });
+
+  // Auto-save vehiculo al cambiar desplegable inline
+  document.querySelectorAll('.sel-veh').forEach(function(sel){
+    sel.addEventListener('change',function(e){
+      e.stopPropagation();
+      var idx=parseInt(sel.getAttribute('data-idx'));
+      var veh=sel.value;
+      paradas[idx].vehiculo=veh;
+      var clave=paradas[idx].clave;
+      var vuelta=parseInt(paradas[idx].vuelta)||1;
+      apiPost({action:'set_asignacion',clave:clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:veh,conductor:paradas[idx].conductor||'',notas:paradas[idx].notas||'',vuelta:vuelta,orden:paradas[idx].orden||0})
+        .then(function(){toast('Vehiculo asignado');render();})
+        .catch(function(){toast('Error al guardar');});
+    });
+  });
+
+  // Guardar detalle
+  document.querySelectorAll('.btn-save').forEach(function(btn){
+    btn.addEventListener('click',function(){guardarDetalle(btn);});
+  });
+
+  // Eliminar manual
+  document.querySelectorAll('.btn-del').forEach(function(btn){
+    btn.addEventListener('click',function(){eliminarManual(btn.getAttribute('data-id'));});
+  });
+
+  // Drag & drop
+  document.querySelectorAll('.fila[draggable=true]').forEach(function(fila){
+    fila.addEventListener('dragstart',function(e){
+      dragSrcIdx=parseInt(fila.getAttribute('data-idx'));
+      dragSrcVeh=fila.getAttribute('data-gkey');
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',dragSrcIdx);
+    });
+    fila.addEventListener('dragover',function(e){
+      e.preventDefault(); e.dataTransfer.dropEffect='move';
+      fila.classList.add('drag-over');
+    });
+    fila.addEventListener('dragleave',function(){fila.classList.remove('drag-over');});
+    fila.addEventListener('drop',function(e){
+      e.preventDefault(); fila.classList.remove('drag-over');
+      var destIdx=parseInt(fila.getAttribute('data-idx'));
+      var destVeh=fila.getAttribute('data-gkey');
+      if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
+      // Si cambia de grupo, actualizar vehiculo/vuelta
+      if(dragSrcVeh!==destVeh&&destVeh!=='__sin__'){
+        var partes=destVeh.split('_v');
+        var newVeh=partes[0];
+        var newVuelta=parseInt(partes[1])||1;
+        paradas[dragSrcIdx].vehiculo=newVeh;
+        paradas[dragSrcIdx].vuelta=newVuelta;
+      }
+      // Recalcular orden
+      var p=paradas[dragSrcIdx];
+      var q=paradas[destIdx];
+      var tmp=p.orden; p.orden=q.orden; q.orden=tmp;
+      // Guardar ambas asignaciones
+      Promise.all([
+        apiPost({action:'set_asignacion',clave:p.clave,proyecto_id:p.proyecto_id,tipo:p.tipo,fecha:p.fecha,vehiculo:p.vehiculo,conductor:p.conductor||'',notas:p.notas||'',vuelta:p.vuelta||1,orden:p.orden||0}),
+        apiPost({action:'set_asignacion',clave:q.clave,proyecto_id:q.proyecto_id,tipo:q.tipo,fecha:q.fecha,vehiculo:q.vehiculo,conductor:q.conductor||'',notas:q.notas||'',vuelta:q.vuelta||1,orden:q.orden||0})
+      ]).then(function(){render();}).catch(function(){toast('Error al mover');render();});
+    });
+  });
+
+  // Soltar en grupo header (mover al grupo)
+  document.querySelectorAll('.grupo').forEach(function(g){
+    g.addEventListener('dragover',function(e){e.preventDefault();});
+    g.addEventListener('drop',function(e){
+      e.preventDefault();
+      if(dragSrcIdx===null)return;
+      var gkey=g.getAttribute('data-gkey');
+      if(gkey==='__sin__'||gkey===dragSrcVeh)return;
+      var partes=gkey.split('_v');
+      var newVeh=partes[0]; var newVuelta=parseInt(partes[1])||1;
+      paradas[dragSrcIdx].vehiculo=newVeh;
+      paradas[dragSrcIdx].vuelta=newVuelta;
+      var p=paradas[dragSrcIdx];
+      apiPost({action:'set_asignacion',clave:p.clave,proyecto_id:p.proyecto_id,tipo:p.tipo,fecha:p.fecha,vehiculo:newVeh,conductor:p.conductor||'',notas:p.notas||'',vuelta:newVuelta,orden:p.orden||0})
+        .then(function(){render();toast('Movido a '+newVeh);});
+    });
+  });
+}
+
+function guardarDetalle(btn){
+  var key=btn.getAttribute('data-key');
+  var pRaw=btn.getAttribute('data-p');
+  var pData; try{pData=JSON.parse(decodeURIComponent(pRaw));}catch(e){return;}
+  var idx=pData.idx;
+  var vehiculo=document.getElementById('dv-'+key).value;
+  var conductor=document.getElementById('dc-'+key).value;
+  var notas=document.getElementById('dn-'+key).value;
+  var vuelta=parseInt(document.getElementById('vuel-'+key).value)||1;
+
+  btn.textContent='...'; btn.disabled=true;
+
+  var body={action:'set_asignacion',clave:pData.clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:vehiculo,conductor:conductor,notas:notas,vuelta:vuelta,orden:paradas[idx].orden||0};
+  if(pData.es_manual){body.action='update_manual';body.id=pData.id_manual;}
+
+  apiPost(body).then(function(){
+    paradas[idx].vehiculo=vehiculo;paradas[idx].conductor=conductor;paradas[idx].notas=notas;paradas[idx].vuelta=vuelta;
+    btn.textContent='Guardado';btn.classList.add('ok');
+    var msg=document.getElementById('msg-'+key);if(msg)msg.textContent='Guardado';
+    toast('Guardado');
+    setTimeout(function(){btn.textContent='Guardar';btn.classList.remove('ok');btn.disabled=false;if(msg)msg.textContent='';render();},1200);
+  }).catch(function(){btn.textContent='Error';btn.disabled=false;});
+}
+
+function eliminarManual(id){
+  if(!confirm('Eliminar esta parada?'))return;
+  apiPost({action:'del_manual',id:id}).then(function(){toast('Parada eliminada');load();});
+}
+
+// ── API ──
+function apiPost(body){
+  return fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},body,{clientToken:'ORUMx2026RutasPublic'}))}).then(function(r){return r.json();});
+}
+
+// ── MODAL MANUAL ──
+function initVehs(){
+  var sel=document.getElementById('m-veh');
+  sel.innerHTML='<option value="">Sin asignar</option>';
+  VEHS.forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+}
+function abrirModal(){
+  document.getElementById('m-fecha').value=document.getElementById('fpicker').value||hoy();
+  document.getElementById('m-hora').value='09:00';
+  ['m-desc','m-dir','m-cond','m-notas'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('m-veh').value='';
+  document.getElementById('modal').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function cerrarModal(){document.getElementById('modal').classList.remove('open');document.body.style.overflow='';}
+function guardarManual(){
+  var body={action:'add_manual',tipo:document.getElementById('m-tipo').value,descripcion:document.getElementById('m-desc').value,direccion:document.getElementById('m-dir').value,fecha:document.getElementById('m-fecha').value,hora:document.getElementById('m-hora').value,vehiculo:document.getElementById('m-veh').value,conductor:document.getElementById('m-cond').value,notas:document.getElementById('m-notas').value};
+  if(!body.descripcion){alert('La descripcion es obligatoria');return;}
+  if(!body.fecha){alert('La fecha es obligatoria');return;}
+  var btn=document.getElementById('btn-gm');btn.textContent='Guardando...';btn.disabled=true;
+  apiPost(body).then(function(){cerrarModal();toast('Parada anadida');load();btn.textContent='Guardar parada';btn.disabled=false;}).catch(function(){btn.textContent='Error';btn.disabled=false;});
+}
+
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2000);}
+
+// ── INIT ──
 document.addEventListener('DOMContentLoaded',function(){
-  initKeypad();
-  document.getElementById('btn-recargar').addEventListener('click',cargarDatos);
+  initKP();
+  document.getElementById('btn-rec').addEventListener('click',load);
   document.getElementById('fab').addEventListener('click',abrirModal);
-  document.getElementById('modal-close-btn').addEventListener('click',cerrarModal);
-  document.getElementById('btn-guardar-modal').addEventListener('click',guardarManual);
-  document.getElementById('btn-hoy').addEventListener('click',function(){
-    modoFecha='hoy'; this.classList.add('active'); document.getElementById('btn-semana').classList.remove('active'); cargarDatos();
-  });
-  document.getElementById('btn-semana').addEventListener('click',function(){
-    modoFecha='semana'; this.classList.add('active'); document.getElementById('btn-hoy').classList.remove('active'); cargarDatos();
-  });
-  document.getElementById('fecha-picker').addEventListener('change',function(){
-    modoFecha='hoy'; document.getElementById('btn-hoy').classList.add('active'); document.getElementById('btn-semana').classList.remove('active'); cargarDatos();
-  });
-  document.getElementById('modal-manual').addEventListener('click',function(e){ if(e.target===this) cerrarModal(); });
+  document.getElementById('mcls').addEventListener('click',cerrarModal);
+  document.getElementById('btn-gm').addEventListener('click',guardarManual);
+  document.getElementById('btn-hoy').addEventListener('click',function(){modo='hoy';this.classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
+  document.getElementById('btn-sem').addEventListener('click',function(){modo='semana';this.classList.add('on');document.getElementById('btn-hoy').classList.remove('on');load();});
+  document.getElementById('fpicker').addEventListener('change',function(){modo='hoy';document.getElementById('btn-hoy').classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
+  document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)cerrarModal();});
 });
 </script>
 </body>
