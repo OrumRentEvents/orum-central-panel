@@ -739,6 +739,175 @@ app.get('/api/preparacion', requiereLogin, async (req, res) => {
 
 
 
+
+// ── Tokens de acceso por perfil (sin login) ──
+const TOKENS_PREPARACION = {
+  'ORUMx2026Lav': 'lavanderia',
+  'ORUMx2026Off': 'office',
+  'ORUMx2026Alm': 'almacen'
+};
+
+// ── Endpoint público para Lavandería / Office / Almacén (token en URL) ──
+app.get('/api/preparacion-publica', async (req, res) => {
+  const token = req.query.token || '';
+  const perfil = TOKENS_PREPARACION[token];
+  if (!perfil) {
+    return res.status(401).json({ error: 'Acceso no autorizado' });
+  }
+  try {
+    const vista = perfil;
+    const modo = vista === 'almacen' ? 'dias' : 'semanas';
+    const ordenPeriodos = modo === 'dias' ? ORDEN_PERIODOS_DIAS : ORDEN_PERIODOS_SEMANAS;
+
+    const [proyectosResp, equipmentResp] = await Promise.all([
+      llamarOrumCentral('proyectos'),
+      llamarOrumCentral('equipment')
+    ]);
+
+    const proyectos = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI');
+    const proyectosConfirmados = proyectos.filter(p => {
+      const estadoNorm = normalizarTexto(p.estado);
+      return !ESTADOS_EXCLUIR_NOMBRE.includes(estadoNorm);
+    });
+    const proyectoPorId = {};
+    proyectosConfirmados.forEach(p => { proyectoPorId[String(p.id)] = p; });
+
+    const equipment = equipmentResp.data || [];
+    let equipmentFiltrado = equipment;
+    if (vista === 'lavanderia') {
+      equipmentFiltrado = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_LAVANDERIA));
+    } else if (vista === 'office') {
+      equipmentFiltrado = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_OFFICE));
+    }
+    equipmentFiltrado = equipmentFiltrado.filter(e => proyectoPorId[String(e.proyecto_id)]);
+
+    const idsProyectosConEquipo = new Set(equipmentFiltrado.map(e => String(e.proyecto_id)));
+    const proyectosVista = vista === 'almacen'
+      ? proyectosConfirmados
+      : proyectosConfirmados.filter(p => idsProyectosConEquipo.has(String(p.id)));
+
+    const porProyecto = {};
+    ordenPeriodos.forEach(per => { porProyecto[per] = { confirmado: [], preparado: [] }; });
+    proyectosVista.forEach(p => {
+      const fechaEntrega = parsearFechaDDMMYYYY(p.entrega_fecha);
+      const periodo = clasificarPeriodo(fechaEntrega, modo);
+      if (!periodo) return;
+      const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado));
+      const item = {
+        id: p.id, numero: p.numero, cliente: p.cliente, comercial: p.comercial,
+        estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora,
+        localizacion: p.localizacion
+      };
+      if (estaListo) porProyecto[periodo].preparado.push(item);
+      else porProyecto[periodo].confirmado.push(item);
+    });
+
+    const porMaterial = {};
+    equipmentFiltrado.forEach(e => {
+      const proyecto = proyectoPorId[String(e.proyecto_id)];
+      if (!proyecto) return;
+      const fechaEntrega = parsearFechaDDMMYYYY(proyecto.entrega_fecha);
+      const periodo = clasificarPeriodo(fechaEntrega, modo);
+      if (!periodo) return;
+      const familia = e.familia || 'Sin familia';
+      const articulo = e.articulo || 'Sin articulo';
+      if (!porMaterial[familia]) porMaterial[familia] = {};
+      if (!porMaterial[familia][articulo]) porMaterial[familia][articulo] = { total: 0, detalle: [] };
+      const cantidad = parseFloat(e.cantidad) || 0;
+      porMaterial[familia][articulo].total += cantidad;
+      porMaterial[familia][articulo].detalle.push({
+        proyecto_numero: proyecto.numero, cliente: proyecto.cliente,
+        fecha_entrega: proyecto.entrega_fecha, periodo, cantidad
+      });
+    });
+
+    const porMaterialArray = Object.keys(porMaterial).sort().map(familia => ({
+      familia,
+      articulos: Object.keys(porMaterial[familia]).sort().map(articulo => ({
+        articulo,
+        total: Math.round(porMaterial[familia][articulo].total * 100) / 100,
+        detalle: porMaterial[familia][articulo].detalle.sort((a, b) =>
+          ordenPeriodos.indexOf(a.periodo) - ordenPeriodos.indexOf(b.periodo))
+      }))
+    }));
+
+    const resumenPeriodos = ordenPeriodos.map(per => {
+      const confirmado = porProyecto[per].confirmado.length;
+      const preparado = porProyecto[per].preparado.length;
+      const total = confirmado + preparado;
+      return { periodo: per, listos: preparado, total, pendientes: confirmado };
+    });
+
+    const equipmentDetalle = equipmentFiltrado.map(e => ({
+      proyecto_id: e.proyecto_id,
+      familia: e.familia || 'Sin familia',
+      articulo: e.articulo || '',
+      cantidad: parseFloat(e.cantidad) || 0
+    }));
+
+    const respuesta = {
+      vista, modo, orden_periodos: ordenPeriodos,
+      resumen_periodos: resumenPeriodos,
+      por_proyecto: porProyecto,
+      por_material: porMaterialArray,
+      equipment_detalle: equipmentDetalle,
+      ultima_actualizacion: proyectosResp.ultima_actualizacion
+    };
+
+    if (vista === 'almacen') {
+      const serviciosResp = await llamarOrumCentral('servicios');
+      const servicios = serviciosResp.data || [];
+      const hoyMs = inicioDelDia(new Date()).getTime();
+      const limite14diasMs = hoyMs + 14 * 86400000;
+      const serviciosVentana = servicios.filter(s => {
+        const fecha = parsearFechaDDMMYYYY(s.fecha_entrega);
+        if (!fecha) return false;
+        return inicioDelDia(fecha).getTime() >= hoyMs && inicioDelDia(fecha).getTime() <= limite14diasMs;
+      }).map(s => ({
+        proyecto_numero: s.numero,
+        cliente: (proyectoPorId[String(s.proyecto_id)] || {}).cliente || '',
+        servicio: s.servicio, cantidad: s.cantidad, fecha_entrega: s.fecha_entrega
+      }));
+      const porTipo = {};
+      serviciosVentana.forEach(s => {
+        const clave = s.servicio || 'Sin especificar';
+        if (!porTipo[clave]) porTipo[clave] = [];
+        porTipo[clave].push(s);
+      });
+      respuesta.servicios = {
+        por_tipo: Object.keys(porTipo).sort().map(tipo => ({
+          tipo, items: porTipo[tipo].sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
+        }))
+      };
+      const equipmentLavanderia = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_LAVANDERIA));
+      const equipmentOffice = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_OFFICE));
+      const idsLavanderia = new Set(equipmentLavanderia.map(e => String(e.proyecto_id)));
+      const idsOffice = new Set(equipmentOffice.map(e => String(e.proyecto_id)));
+      const proyectosEnVentana = proyectosConfirmados.filter(p => {
+        const fecha = parsearFechaDDMMYYYY(p.entrega_fecha);
+        if (!fecha) return false;
+        const fechaMs = inicioDelDia(fecha).getTime();
+        return fechaMs >= hoyMs && fechaMs <= limite14diasMs;
+      });
+      const mapear = p => ({ id: p.id, numero: p.numero, cliente: p.cliente, fecha_entrega: p.entrega_fecha, estado: p.estado });
+      respuesta.logistica = {
+        lavanderia: proyectosEnVentana.filter(p => idsLavanderia.has(String(p.id))).map(mapear).sort((a,b) => (a.fecha_entrega||'').localeCompare(b.fecha_entrega||'')),
+        office: proyectosEnVentana.filter(p => idsOffice.has(String(p.id))).map(mapear).sort((a,b) => (a.fecha_entrega||'').localeCompare(b.fecha_entrega||''))
+      };
+    }
+
+    res.json(respuesta);
+  } catch (err) {
+    console.error('Error en /api/preparacion-publica:', err);
+    res.status(500).json({ error: 'Error al construir vista: ' + err.message });
+  }
+});
+
+// ── Sirve preparacion.html para acceso por token ──
+app.get('/preparacion', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'preparacion.html'));
+});
+
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
 });
