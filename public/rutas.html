@@ -49,6 +49,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .grupo-hdr-left{display:flex;align-items:center;gap:8px;}
 .grupo-cnt{background:rgba(255,255,255,.2);border-radius:10px;padding:1px 7px;font-size:11px;}
 .grupo-conductor{font-size:11px;font-weight:400;color:rgba(255,255,255,.7);}
+.btn-wa{background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.3);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;margin-left:8px;}
 
 /* TABLA */
 .tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;}
@@ -306,6 +307,7 @@ function renderGrupo(g){
   var html='<div class="grupo" data-gkey="'+g.gkey+'">';
   html+='<div class="grupo-hdr'+(esSin?' sin':'')+'"><div class="grupo-hdr-left"><span>'+titulo+'</span><span class="grupo-cnt">'+g.items.length+'</span></div>';
   if(conductorGrupo)html+='<span class="grupo-conductor">'+conductorGrupo+'</span>';
+  if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">📤 WhatsApp</button>';
   html+='</div>';
   html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo</th><th>Notas</th><th></th></tr></thead><tbody>';
   g.items.forEach(function(idx,pos){html+=renderFila(idx,g.gkey,pos,g.items.length);});
@@ -557,6 +559,43 @@ function guardarManual(){
   if(!body.fecha){alert('La fecha es obligatoria');return;}
   var btn=document.getElementById('btn-gm');btn.textContent='Guardando...';btn.disabled=true;
   apiPost(body).then(function(){cerrarModal();toast('Parada anadida');load();btn.textContent='Guardar parada';btn.disabled=false;}).catch(function(){btn.textContent='Error';btn.disabled=false;});
+}
+
+function enviarWhatsApp(gkey){
+  var SIN='__sin__';
+  // Obtener paradas del grupo ordenadas
+  var grupos=getGrupos();
+  var grpArr=(grupos[gkey]||[]).slice();
+  grpArr.sort(function(a,b){return (paradas[a].orden||0)-(paradas[b].orden||0);});
+
+  if(!grpArr.length){toast('Sin paradas en este grupo');return;}
+
+  // Nombre del vehiculo y fecha
+  var partes=gkey.split('_v');
+  var nombreVeh=partes[0];
+  var vuelta=parseInt(partes[1])||1;
+  var fechas={};
+  grpArr.forEach(function(i){if(paradas[i].fecha)fechas[paradas[i].fecha]=1;});
+  var fechasArr=Object.keys(fechas).sort();
+  var fechaLabel=fechasArr.map(function(f){return formatDiaLargo(f);}).join(', ');
+
+  var titulo='RUTA '+nombreVeh+(vuelta>1?' ('+vuelta+'a vuelta)':'');
+  var texto=titulo+' - '+fechaLabel+'\n\n';
+
+  var emojis=['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20'];
+  grpArr.forEach(function(i,pos){
+    var p=paradas[i];
+    var num=emojis[pos]||String(pos+1);
+    texto+=num+'. '+p.tipo+(p.hora&&p.hora.length===5?' - '+p.hora:'')+'\n';
+    if(p.numero) texto+='   #'+p.numero+'\n';
+    texto+='   '+( p.cliente||'')+'\n';
+    if(p.localizacion) texto+='   '+p.localizacion+'\n';
+    if(p.notas) texto+='   Notas: '+p.notas+'\n';
+    texto+='\n';
+  });
+
+  var url='https://wa.me/?text='+encodeURIComponent(texto);
+  window.open(url,'_blank');
 }
 
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2000);}
