@@ -755,7 +755,10 @@ app.get('/api/preparacion-publica', async (req, res) => {
     return res.status(401).json({ error: 'Acceso no autorizado' });
   }
   try {
-    const vista = perfil;
+    // Respetar la vista pedida, validando que el perfil la tiene permitida
+    const vistasPermitidas = { lavanderia: ['lavanderia'], office: ['office'], almacen: ['almacen', 'lavanderia', 'office'] };
+    const vistaParam = req.query.vista || perfil;
+    const vista = (vistasPermitidas[perfil] || []).includes(vistaParam) ? vistaParam : perfil;
     const modo = vista === 'almacen' ? 'dias' : 'semanas';
     const ordenPeriodos = modo === 'dias' ? ORDEN_PERIODOS_DIAS : ORDEN_PERIODOS_SEMANAS;
 
