@@ -467,10 +467,13 @@ function guardarDetalle(btn){
   var pRaw=btn.getAttribute('data-p');
   var pData; try{pData=JSON.parse(decodeURIComponent(pRaw));}catch(e){return;}
   var idx=pData.idx;
-  var vehiculo=document.getElementById('dv-'+key).value;
-  var conductor=document.getElementById('dc-'+key).value;
+  var elVeh=document.getElementById('dv-'+key);
+  var elCond=document.getElementById('dc-'+key);
+  var elVuel=document.getElementById('vuel-'+key);
+  var vehiculo=elVeh?elVeh.value:(paradas[idx].vehiculo||'');
+  var conductor=elCond?elCond.value:(paradas[idx].conductor||'');
   var notas=document.getElementById('dn-'+key).value;
-  var vuelta=parseInt(document.getElementById('vuel-'+key).value)||1;
+  var vuelta=elVuel?(parseInt(elVuel.value)||1):(parseInt(paradas[idx].vuelta)||1);
 
   btn.textContent='...'; btn.disabled=true;
 
