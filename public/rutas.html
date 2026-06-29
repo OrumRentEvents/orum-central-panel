@@ -333,10 +333,9 @@ function renderFila(idx,gkey,pos,total){
 
   var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||''}));
 
-  var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'" >';
-  var esUltimo=(pos===total-1);
-  var flechasHtml=ROL==='logistica'?('<button class="btn-orden" data-idx="'+idx+'" data-dir="up" data-gkey="'+gkey+'" '+(pos===0?'disabled':'')+'>↑</button><button class="btn-orden" data-idx="'+idx+'" data-dir="down" data-gkey="'+gkey+'" '+(esUltimo?'disabled':'')+'>↓</button>'):'&nbsp;';
-  html+='<td class="td-drag">'+flechasHtml+'</td>';
+  var dragAttr=ROL==='logistica'?' draggable="true"':'';
+  var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
+  html+='<td class="td-drag">'+(ROL==='logistica'?'⠿':'')+'</td>';
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
   html+='<td class="td-cli"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+(p.numero?'<div class="cli-num">#'+p.numero+'</div>':'')+'</td>';
@@ -418,48 +417,86 @@ function bindEvents(){
     btn.addEventListener('click',function(){eliminarManual(btn.getAttribute('data-id'));});
   });
 
-  // Flechas de orden
-  document.querySelectorAll('.btn-orden').forEach(function(btn){
-    btn.addEventListener('click',function(e){
-      e.stopPropagation();
-      var idx=parseInt(btn.getAttribute('data-idx'));
-      var dir=btn.getAttribute('data-dir');
-      var gkey=btn.getAttribute('data-gkey');
-      moverConFlechas(idx, dir, gkey);
+  // Drag & drop con UI optimista
+  var dragSrcIdx=null, dragSrcVeh=null;
+  document.querySelectorAll('.fila[draggable=true]').forEach(function(fila){
+    fila.addEventListener('dragstart',function(e){
+      dragSrcIdx=parseInt(fila.getAttribute('data-idx'));
+      dragSrcVeh=fila.getAttribute('data-gkey');
+      e.dataTransfer.effectAllowed='move';
+      setTimeout(function(){fila.style.opacity='0.4';},0);
+    });
+    fila.addEventListener('dragend',function(){
+      fila.style.opacity='';
+      document.querySelectorAll('.fila').forEach(function(f){f.classList.remove('drag-over');});
+    });
+    fila.addEventListener('dragover',function(e){e.preventDefault();fila.classList.add('drag-over');});
+    fila.addEventListener('dragleave',function(){fila.classList.remove('drag-over');});
+    fila.addEventListener('drop',function(e){
+      e.preventDefault(); fila.classList.remove('drag-over');
+      var destIdx=parseInt(fila.getAttribute('data-idx'));
+      var destVeh=fila.getAttribute('data-gkey');
+      if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
+      moverOptimista(dragSrcIdx,destIdx,dragSrcVeh,destVeh);
+    });
+  });
+  document.querySelectorAll('.grupo').forEach(function(g){
+    g.addEventListener('dragover',function(e){e.preventDefault();});
+    g.addEventListener('drop',function(e){
+      e.preventDefault();
+      if(dragSrcIdx===null)return;
+      var gkey=g.getAttribute('data-gkey');
+      if(gkey==='__sin__'||gkey===dragSrcVeh)return;
+      var partes=gkey.split('_v');
+      moverAGrupo(dragSrcIdx,partes[0],parseInt(partes[1])||1,gkey);
     });
   });
 }
 
-function moverConFlechas(idx, dir, gkey){
-  var SIN='__sin__';
-  // Reconstruir grupos
-  var grupos={};
+function getGrupos(){
+  var SIN='__sin__'; var g={};
   paradas.forEach(function(p,i){
-    var v=p.vehiculo||SIN;
-    var vuelta=parseInt(p.vuelta)||1;
-    var gk=v===SIN?SIN:(v+'_v'+vuelta);
-    if(!grupos[gk])grupos[gk]=[];
-    grupos[gk].push(i);
+    var v=p.vehiculo||SIN; var vu=parseInt(p.vuelta)||1;
+    var gk=v===SIN?SIN:(v+'_v'+vu);
+    if(!g[gk])g[gk]=[];
+    g[gk].push(i);
   });
-  // Ordenar el grupo por orden actual
-  var grpArr=(grupos[gkey]||[]).slice();
-  grpArr.sort(function(a,b){return (paradas[a].orden||0)-(paradas[b].orden||0);});
+  return g;
+}
 
-  var pos=grpArr.indexOf(idx);
-  if(pos===-1)return;
-  var newPos=dir==='up'?pos-1:pos+1;
-  if(newPos<0||newPos>=grpArr.length)return;
-
-  // Intercambiar
-  var tmp=grpArr[pos]; grpArr[pos]=grpArr[newPos]; grpArr[newPos]=tmp;
-
-  // Guardar orden secuencial
-  var saves=[];
-  grpArr.forEach(function(i,p){
-    paradas[i].orden=p;
-    saves.push(apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||'',notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:p}));
+function guardarGrupoBackground(grpArr){
+  grpArr.forEach(function(i,pos){ paradas[i].orden=pos; });
+  render();
+  var saves=grpArr.map(function(i,pos){
+    return apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||'',notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos});
   });
-  Promise.all(saves).then(function(){render();toast('Orden guardado');}).catch(function(){toast('Error');});
+  Promise.all(saves).catch(function(){ toast('Error guardando — recarga para verificar'); });
+}
+
+function moverOptimista(srcIdx,destIdx,srcVeh,destVeh){
+  var SIN='__sin__';
+  if(srcVeh!==destVeh&&destVeh!==SIN){
+    var p=destVeh.split('_v');
+    paradas[srcIdx].vehiculo=p[0];
+    paradas[srcIdx].vuelta=parseInt(p[1])||1;
+  }
+  var grupos=getGrupos();
+  var newVeh=paradas[srcIdx].vehiculo||SIN;
+  var newVuelta=parseInt(paradas[srcIdx].vuelta)||1;
+  var newGk=newVeh===SIN?SIN:(newVeh+'_v'+newVuelta);
+  var arr=(grupos[newGk]||[]).filter(function(i){return i!==srcIdx;});
+  var pos=arr.indexOf(destIdx); if(pos===-1)pos=arr.length;
+  arr.splice(pos,0,srcIdx);
+  guardarGrupoBackground(arr);
+}
+
+function moverAGrupo(srcIdx,newVeh,newVuelta,newGk){
+  paradas[srcIdx].vehiculo=newVeh;
+  paradas[srcIdx].vuelta=newVuelta;
+  var grupos=getGrupos();
+  var arr=grupos[newGk]||[];
+  if(arr.indexOf(srcIdx)===-1)arr.push(srcIdx);
+  guardarGrupoBackground(arr);
 }
 
 function guardarDetalle(btn){
