@@ -404,7 +404,7 @@ function renderLogistica(data) {
       items.forEach(function(p) {
         var pid = JSON.stringify(p).replace(/"/g, '&quot;');
         html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '" data-p="' + pid + '">';
-        html += '<div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '-') + '</div></div>' + estadoBadge(p.estado) + '</div>';
+        html += '<div class="card-top"><div style="flex:1"><div class="card-numero-wrap"><span class="card-numero">#' + p.numero + '</span><button class="copy-btn" data-num="' + String(p.numero) + '">copiar</button></div><div class="card-cliente">' + (p.cliente || '-') + '</div></div>' + estadoBadge(p.estado) + '</div>';
         if (p.fecha_entrega) html += '<div class="card-meta"><span>' + p.fecha_entrega + '</span></div>';
         html += '</div>';
       });
