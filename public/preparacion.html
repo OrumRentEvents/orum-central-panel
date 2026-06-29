@@ -13,17 +13,83 @@ body {
   min-height: 100vh;
 }
 
-/* ── ACCESO DENEGADO ── */
-#acceso-denegado {
-  display: none;
+/* ── PIN SCREEN ── */
+#pin-screen {
+  display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  text-align: center;
   padding: 2rem;
 }
-#acceso-denegado h2 { font-size: 18px; font-weight: 500; margin-bottom: 8px; color: #A32D2D; }
-#acceso-denegado p { font-size: 14px; color: #6b6a64; }
+.pin-box {
+  background: #fff;
+  border: 0.5px solid #e2e2de;
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+}
+.pin-logo {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #1a1a18;
+  margin-bottom: 6px;
+}
+.pin-subtitle {
+  font-size: 12px;
+  color: #9a988f;
+  margin-bottom: 1.5rem;
+}
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid #ccc;
+  background: #fff;
+  transition: background 0.1s, border-color 0.1s;
+}
+.pin-dot.filled {
+  background: #1a1a18;
+  border-color: #1a1a18;
+}
+.pin-dot.error {
+  background: #A32D2D;
+  border-color: #A32D2D;
+}
+.pin-error {
+  font-size: 12px;
+  color: #A32D2D;
+  height: 16px;
+  margin-bottom: 1rem;
+}
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.pin-key {
+  background: #f7f6f2;
+  border: 0.5px solid #e2e2de;
+  border-radius: 10px;
+  padding: 16px 8px;
+  font-size: 20px;
+  font-weight: 400;
+  color: #1a1a18;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.pin-key:active { background: #e2e2de; }
+.pin-key.delete { font-size: 16px; color: #6b6a64; }
+.pin-key.empty { background: transparent; border-color: transparent; cursor: default; }
 
 /* ── CABECERA ── */
 .app-header {
@@ -40,31 +106,9 @@ body {
   justify-content: space-between;
   margin-bottom: 10px;
 }
-.app-header h1 {
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
-}
-.app-header .perfil-badge {
-  font-size: 11px;
-  background: rgba(255,255,255,0.15);
-  padding: 3px 8px;
-  border-radius: 20px;
-  color: #fff;
-}
-.ultima-actualizacion {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  margin-bottom: 10px;
-}
-
-/* ── PESTAÑAS ── */
-.tabs {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
+.app-header h1 { font-size: 15px; font-weight: 500; letter-spacing: 0.3px; }
+.ultima-actualizacion { font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab-btn {
   flex-shrink: 0;
@@ -77,212 +121,7 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
-.tab-btn.active {
-  background: rgba(255,255,255,0.15);
-  color: #fff;
-  font-weight: 500;
-}
-
-/* ── CUERPO PRINCIPAL ── */
-#app-body {
-  padding: 16px;
-  max-width: 680px;
-  margin: 0 auto;
-}
-
-/* ── LOADING ── */
-.loading {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: #6b6a64;
-  font-size: 14px;
-}
-
-/* ── PERIODO HEADER ── */
-.periodo-header {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: #6b6a64;
-  margin: 20px 0 8px;
-}
-.periodo-header:first-child { margin-top: 0; }
-
-/* ── PROGRESS BAR ── */
-.periodo-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.progress-bar-bg {
-  flex: 1;
-  height: 4px;
-  background: #e2e2de;
-  border-radius: 2px;
-  overflow: hidden;
-}
-.progress-bar-fill {
-  height: 100%;
-  background: #1D9E75;
-  border-radius: 2px;
-  transition: width 0.3s;
-}
-.progress-text {
-  font-size: 11px;
-  color: #6b6a64;
-  white-space: nowrap;
-}
-
-/* ── TARJETA PROYECTO ── */
-.proyecto-card {
-  background: #fff;
-  border: 0.5px solid #e2e2de;
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-}
-.proyecto-card.listo {
-  border-color: #9FE1CB;
-  background: #f4fcf9;
-}
-.card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.card-numero {
-  font-size: 11px;
-  color: #6b6a64;
-  font-weight: 500;
-}
-.card-cliente {
-  font-size: 15px;
-  font-weight: 500;
-  color: #1a1a18;
-  flex: 1;
-}
-.badge-estado {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 20px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.badge-listo { background: #E1F5EE; color: #0F6E56; }
-.badge-confirmado { background: #E6F1FB; color: #185FA5; }
-.badge-warning { background: #FAEEDA; color: #854F0B; }
-.card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 12px;
-  color: #6b6a64;
-}
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-/* ── MATERIAL ── */
-.familia-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: #fff;
-  border: 0.5px solid #e2e2de;
-  border-radius: 10px;
-  margin-bottom: 4px;
-  cursor: pointer;
-  user-select: none;
-}
-.familia-nombre {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1a1a18;
-}
-.familia-chevron {
-  font-size: 12px;
-  color: #6b6a64;
-  transition: transform 0.2s;
-}
-.familia-chevron.open { transform: rotate(180deg); }
-.familia-body { display: none; margin-bottom: 8px; }
-.familia-body.open { display: block; }
-.articulo-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 14px;
-  background: #fff;
-  border: 0.5px solid #e2e2de;
-  border-top: none;
-  font-size: 13px;
-}
-.articulo-row:last-child { border-radius: 0 0 8px 8px; }
-.articulo-nombre { color: #1a1a18; flex: 1; }
-.articulo-total {
-  font-weight: 500;
-  font-size: 15px;
-  color: #1a1a18;
-  margin: 0 12px;
-}
-.articulo-detalle {
-  font-size: 11px;
-  color: #6b6a64;
-}
-
-/* ── SERVICIOS (Almacén) ── */
-.servicio-grupo {
-  background: #fff;
-  border: 0.5px solid #e2e2de;
-  border-radius: 10px;
-  margin-bottom: 8px;
-  overflow: hidden;
-}
-.servicio-grupo-header {
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  border-bottom: 0.5px solid #e2e2de;
-  background: #f7f6f2;
-}
-.servicio-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 9px 14px;
-  font-size: 13px;
-  border-bottom: 0.5px solid #f0f0ec;
-}
-.servicio-item:last-child { border-bottom: none; }
-.servicio-cliente { color: #1a1a18; flex: 1; }
-.servicio-dato { color: #6b6a64; font-size: 12px; }
-.servicio-cantidad {
-  font-weight: 500;
-  font-size: 14px;
-  margin-left: 10px;
-}
-
-/* ── LOGÍSTICA (Almacén) ── */
-.logistica-seccion {
-  margin-bottom: 16px;
-}
-.logistica-titulo {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: #6b6a64;
-  margin-bottom: 8px;
-}
-
-/* ── RECARGAR ── */
+.tab-btn.active { background: rgba(255,255,255,0.15); color: #fff; font-weight: 500; }
 .btn-recargar {
   display: flex;
   align-items: center;
@@ -296,21 +135,107 @@ body {
   cursor: pointer;
 }
 .btn-recargar:active { opacity: 0.7; }
+
+/* ── CUERPO ── */
+#app-body { padding: 16px; max-width: 680px; margin: 0 auto; }
+.loading { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
+
+/* ── PERIODOS ── */
+.periodo-header {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.8px;
+  text-transform: uppercase; color: #6b6a64; margin: 20px 0 8px;
+}
+.periodo-header:first-child { margin-top: 0; }
+.periodo-progress { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.progress-bar-bg { flex: 1; height: 4px; background: #e2e2de; border-radius: 2px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: #1D9E75; border-radius: 2px; }
+.progress-text { font-size: 11px; color: #6b6a64; white-space: nowrap; }
+
+/* ── TARJETAS ── */
+.proyecto-card {
+  background: #fff; border: 0.5px solid #e2e2de;
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+}
+.proyecto-card.listo { border-color: #9FE1CB; background: #f4fcf9; }
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.card-numero { font-size: 11px; color: #6b6a64; font-weight: 500; }
+.card-cliente { font-size: 15px; font-weight: 500; color: #1a1a18; flex: 1; }
+.badge-estado { font-size: 11px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.badge-listo { background: #E1F5EE; color: #0F6E56; }
+.badge-confirmado { background: #E6F1FB; color: #185FA5; }
+.badge-warning { background: #FAEEDA; color: #854F0B; }
+.card-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: #6b6a64; }
+
+/* ── MATERIAL ── */
+.familia-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: #fff; border: 0.5px solid #e2e2de;
+  border-radius: 10px; margin-bottom: 4px; cursor: pointer; user-select: none;
+}
+.familia-nombre { font-size: 13px; font-weight: 500; }
+.familia-chevron { font-size: 12px; color: #6b6a64; transition: transform 0.2s; }
+.familia-chevron.open { transform: rotate(180deg); }
+.familia-body { display: none; margin-bottom: 8px; }
+.familia-body.open { display: block; }
+.articulo-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: #fff; border: 0.5px solid #e2e2de;
+  border-top: none; font-size: 13px;
+}
+.articulo-row:last-child { border-radius: 0 0 8px 8px; }
+.articulo-nombre { color: #1a1a18; flex: 1; }
+.articulo-total { font-weight: 500; font-size: 15px; color: #1a1a18; margin: 0 12px; }
+
+/* ── SERVICIOS ── */
+.servicio-grupo { background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+.servicio-grupo-header { padding: 10px 14px; font-size: 13px; font-weight: 500; border-bottom: 0.5px solid #e2e2de; background: #f7f6f2; }
+.servicio-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; font-size: 13px; border-bottom: 0.5px solid #f0f0ec; }
+.servicio-item:last-child { border-bottom: none; }
+.servicio-cliente { color: #1a1a18; flex: 1; }
+.servicio-dato { color: #6b6a64; font-size: 12px; }
+.servicio-cantidad { font-weight: 500; font-size: 14px; margin-left: 10px; }
+
+/* ── LOGÍSTICA ── */
+.logistica-seccion { margin-bottom: 16px; }
+.logistica-titulo { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
-<div id="acceso-denegado">
-  <div>
-    <h2>Acceso no autorizado</h2>
-    <p>El enlace no es válido o ha caducado.<br>Contacta con administración.</p>
+<!-- PIN SCREEN -->
+<div id="pin-screen">
+  <div class="pin-box">
+    <div class="pin-logo">ORUM</div>
+    <div class="pin-subtitle">Introduce tu PIN de acceso</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-keypad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key empty"></button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key delete" onclick="pinBorrar()">⌫</button>
+    </div>
   </div>
 </div>
 
+<!-- APP -->
 <div id="app" style="display:none;">
   <div class="app-header">
     <div class="app-header-top">
-      <h1>ORUM — Preparación</h1>
+      <h1 id="app-titulo">ORUM — Preparación</h1>
       <button class="btn-recargar" onclick="recargar()">↻ Recargar</button>
     </div>
     <div class="ultima-actualizacion" id="ultima-act">Cargando...</div>
@@ -322,47 +247,71 @@ body {
 </div>
 
 <script>
-const params = new URLSearchParams(window.location.search);
-const TOKEN = params.get('token') || '';
-const PERFIL_NOMBRES = {
-  'ORUMx2026Lav': 'Lavandería',
-  'ORUMx2026Off': 'Office',
-  'ORUMx2026Alm': 'Almacén'
+const PINES = {
+  '1111': { token: 'ORUMx2026Lav', nombre: 'Lavandería', tabs: ['lavanderia'] },
+  '2222': { token: 'ORUMx2026Off', nombre: 'Office',     tabs: ['office'] },
+  '3333': { token: 'ORUMx2026Alm', nombre: 'Almacén',    tabs: ['almacen', 'lavanderia', 'office'] }
 };
-const PERFIL_TABS = {
-  'ORUMx2026Lav': ['lavanderia'],
-  'ORUMx2026Off': ['office'],
-  'ORUMx2026Alm': ['almacen', 'lavanderia', 'office']
-};
-const TAB_NOMBRES = {
-  'lavanderia': 'Lavandería',
-  'office': 'Office',
-  'almacen': 'Almacén'
-};
+const TAB_NOMBRES = { lavanderia: 'Lavandería', office: 'Office', almacen: 'Almacén' };
 const TAB_SUBTABS = {
-  'lavanderia': ['Por proyecto', 'Por material'],
-  'office':     ['Por proyecto', 'Por material'],
-  'almacen':    ['Por proyecto', 'Por material', 'Servicios', 'Logística']
+  lavanderia: ['Por proyecto', 'Por material'],
+  office:     ['Por proyecto', 'Por material'],
+  almacen:    ['Por proyecto', 'Por material', 'Servicios', 'Logística']
 };
 
-const perfilNombre = PERFIL_NOMBRES[TOKEN];
-const tabs = PERFIL_TABS[TOKEN];
+let pinActual = '';
+let perfilActivo = null;
+let tabActiva = null;
+let subtabActiva = 'Por proyecto';
+let datosCache = {};
 
-if (!perfilNombre) {
-  document.getElementById('acceso-denegado').style.display = 'flex';
-} else {
-  document.getElementById('app').style.display = 'block';
-  document.querySelector('.app-header h1').textContent = 'ORUM — ' + perfilNombre;
+function pinKey(n) {
+  if (pinActual.length >= 4) return;
+  pinActual += n;
+  actualizarDots();
+  if (pinActual.length === 4) validarPin();
 }
 
-let datosCache = {};
-let tabActiva = tabs ? tabs[0] : null;
-let subtabActiva = 'Por proyecto';
+function pinBorrar() {
+  pinActual = pinActual.slice(0, -1);
+  document.getElementById('pin-error').textContent = '';
+  actualizarDots(false);
+}
+
+function actualizarDots(error) {
+  for (let i = 0; i < 4; i++) {
+    const d = document.getElementById('d' + i);
+    d.className = 'pin-dot';
+    if (error) d.classList.add('error');
+    else if (i < pinActual.length) d.classList.add('filled');
+  }
+}
+
+function validarPin() {
+  const perfil = PINES[pinActual];
+  if (!perfil) {
+    document.getElementById('pin-error').textContent = 'PIN incorrecto';
+    actualizarDots(true);
+    setTimeout(() => {
+      pinActual = '';
+      actualizarDots(false);
+      document.getElementById('pin-error').textContent = '';
+    }, 800);
+    return;
+  }
+  perfilActivo = perfil;
+  tabActiva = perfil.tabs[0];
+  document.getElementById('pin-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('app-titulo').textContent = 'ORUM — ' + perfil.nombre;
+  construirTabs();
+  cargarDatos(tabActiva);
+}
 
 function construirTabs() {
   const cont = document.getElementById('tabs-container');
   cont.innerHTML = '';
-  tabs.forEach(tab => {
+  perfilActivo.tabs.forEach(tab => {
     const btn = document.createElement('button');
     btn.className = 'tab-btn' + (tab === tabActiva ? ' active' : '');
     btn.textContent = TAB_NOMBRES[tab];
@@ -375,139 +324,91 @@ function cambiarTab(tab) {
   tabActiva = tab;
   subtabActiva = 'Por proyecto';
   construirTabs();
-  if (datosCache[tab]) {
-    renderizar(datosCache[tab], tab);
-  } else {
-    cargarDatos(tab);
-  }
+  if (datosCache[tab]) renderizar(datosCache[tab], tab);
+  else cargarDatos(tab);
 }
 
 async function cargarDatos(tab) {
   document.getElementById('app-body').innerHTML = '<div class="loading">Cargando...</div>';
   try {
-    const resp = await fetch('/api/preparacion-publica?token=' + TOKEN + '&vista=' + tab);
-    if (resp.status === 401) {
-      document.getElementById('app').style.display = 'none';
-      document.getElementById('acceso-denegado').style.display = 'flex';
-      return;
-    }
+    const resp = await fetch('/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab);
     const data = await resp.json();
+    if (data.error) { document.getElementById('app-body').innerHTML = '<div class="loading">Error: ' + data.error + '</div>'; return; }
     datosCache[tab] = data;
     renderizar(data, tab);
-    document.getElementById('ultima-act').textContent =
-      data.ultima_actualizacion ? 'Actualizado ' + data.ultima_actualizacion : '';
+    document.getElementById('ultima-act').textContent = data.ultima_actualizacion ? 'Actualizado ' + data.ultima_actualizacion : '';
   } catch (err) {
     document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexión</div>';
   }
 }
 
-function recargar() {
-  datosCache = {};
-  cargarDatos(tabActiva);
-}
+function recargar() { datosCache = {}; cargarDatos(tabActiva); }
 
 function renderizar(data, tab) {
   const body = document.getElementById('app-body');
   const subtabs = TAB_SUBTABS[tab];
-
   let html = '<div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;">';
   subtabs.forEach(st => {
     const activa = st === subtabActiva ? 'background:#1a1a18;color:#fff;' : 'background:#fff;color:#1a1a18;border:0.5px solid #e2e2de;';
     html += '<button onclick="cambiarSubtab(\'' + st + '\')" style="' + activa + 'padding:6px 14px;border-radius:6px;font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;">' + st + '</button>';
   });
   html += '</div>';
-
-  if (subtabActiva === 'Por proyecto') {
-    html += renderPorProyecto(data);
-  } else if (subtabActiva === 'Por material') {
-    html += renderPorMaterial(data);
-  } else if (subtabActiva === 'Servicios') {
-    html += renderServicios(data);
-  } else if (subtabActiva === 'Logística') {
-    html += renderLogistica(data);
-  }
-
+  if (subtabActiva === 'Por proyecto') html += renderPorProyecto(data);
+  else if (subtabActiva === 'Por material') html += renderPorMaterial(data);
+  else if (subtabActiva === 'Servicios') html += renderServicios(data);
+  else if (subtabActiva === 'Logística') html += renderLogistica(data);
   body.innerHTML = html;
 }
 
-function cambiarSubtab(st) {
-  subtabActiva = st;
-  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva);
-}
-
-function estadoBadge(estado) {
-  const e = (estado || '').toLowerCase();
-  if (['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x))) {
-    return '<span class="badge-estado badge-listo">' + estado + '</span>';
-  }
-  if (['pending','concept','inquiry'].some(x => e.includes(x))) {
-    return '<span class="badge-estado badge-warning">' + estado + '</span>';
-  }
-  return '<span class="badge-estado badge-confirmado">' + estado + '</span>';
-}
+function cambiarSubtab(st) { subtabActiva = st; if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva); }
 
 function esListo(estado) {
   const e = (estado || '').toLowerCase();
   return ['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x));
 }
 
+function estadoBadge(estado) {
+  const e = (estado || '').toLowerCase();
+  if (['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x)))
+    return '<span class="badge-estado badge-listo">' + estado + '</span>';
+  if (['pending','concept','inquiry'].some(x => e.includes(x)))
+    return '<span class="badge-estado badge-warning">' + estado + '</span>';
+  return '<span class="badge-estado badge-confirmado">' + estado + '</span>';
+}
+
 function renderPorProyecto(data) {
   let html = '';
-  const ordenPeriodos = data.orden_periodos || [];
   const resumen = {};
   (data.resumen_periodos || []).forEach(r => { resumen[r.periodo] = r; });
-
-  ordenPeriodos.forEach(periodo => {
+  (data.orden_periodos || []).forEach(periodo => {
     const r = resumen[periodo] || { listos: 0, total: 0 };
     if (r.total === 0) return;
-    const pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
+    const pct = Math.round((r.listos / r.total) * 100);
     html += '<div class="periodo-header">' + periodo + '</div>';
-    html += '<div class="periodo-progress">';
-    html += '<div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div>';
-    html += '<span class="progress-text">' + r.listos + '/' + r.total + '</span>';
-    html += '</div>';
-
-    const proyPeriodo = data.por_proyecto[periodo] || { confirmado: [], preparado: [] };
-    const todos = proyPeriodo.confirmado.concat(proyPeriodo.preparado);
-    todos.sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''));
-
-    todos.forEach(p => {
-      const listo = esListo(p.estado);
-      html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '">';
-      html += '<div class="card-top">';
-      html += '<div>';
-      html += '<div class="card-numero">#' + p.numero + '</div>';
-      html += '<div class="card-cliente">' + (p.cliente || '—') + '</div>';
-      html += '</div>';
-      html += estadoBadge(p.estado);
-      html += '</div>';
-      html += '<div class="card-meta">';
-      if (p.fecha_entrega) html += '<span class="meta-item">📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
-      if (p.localizacion) html += '<span class="meta-item">📍 ' + p.localizacion + '</span>';
-      html += '</div></div>';
-    });
+    html += '<div class="periodo-progress"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div><span class="progress-text">' + r.listos + '/' + r.total + '</span></div>';
+    const pp = data.por_proyecto[periodo] || { confirmado: [], preparado: [] };
+    pp.confirmado.concat(pp.preparado)
+      .sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
+      .forEach(p => {
+        const listo = esListo(p.estado);
+        html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '"><div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>' + estadoBadge(p.estado) + '</div><div class="card-meta">';
+        if (p.fecha_entrega) html += '<span>📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
+        if (p.localizacion) html += '<span>📍 ' + p.localizacion + '</span>';
+        html += '</div></div>';
+      });
   });
-
-  if (!html) html = '<div class="loading">No hay proyectos en este periodo</div>';
-  return html;
+  return html || '<div class="loading">No hay proyectos en este periodo</div>';
 }
 
 function renderPorMaterial(data) {
-  let html = '';
   const familias = data.por_material || [];
   if (!familias.length) return '<div class="loading">Sin artículos en este periodo</div>';
-
+  let html = '';
   familias.forEach((f, fi) => {
-    html += '<div class="familia-header" onclick="toggleFamilia(' + fi + ')">';
-    html += '<span class="familia-nombre">' + f.familia + '</span>';
-    html += '<span class="familia-chevron" id="chev-' + fi + '">▼</span>';
-    html += '</div>';
+    html += '<div class="familia-header" onclick="toggleFamilia(' + fi + ')"><span class="familia-nombre">' + f.familia + '</span><span class="familia-chevron" id="chev-' + fi + '">▼</span></div>';
     html += '<div class="familia-body" id="fam-' + fi + '">';
     f.articulos.forEach(a => {
-      html += '<div class="articulo-row">';
-      html += '<span class="articulo-nombre">' + a.articulo + '</span>';
-      html += '<span class="articulo-total">' + a.total + '</span>';
-      html += '</div>';
+      html += '<div class="articulo-row"><span class="articulo-nombre">' + a.articulo + '</span><span class="articulo-total">' + a.total + '</span></div>';
     });
     html += '</div>';
   });
@@ -515,11 +416,8 @@ function renderPorMaterial(data) {
 }
 
 function toggleFamilia(fi) {
-  const body = document.getElementById('fam-' + fi);
-  const chev = document.getElementById('chev-' + fi);
-  if (!body) return;
-  body.classList.toggle('open');
-  chev.classList.toggle('open');
+  document.getElementById('fam-' + fi).classList.toggle('open');
+  document.getElementById('chev-' + fi).classList.toggle('open');
 }
 
 function renderServicios(data) {
@@ -528,14 +426,9 @@ function renderServicios(data) {
   if (!grupos.length) return '<div class="loading">Sin servicios en los próximos 14 días</div>';
   let html = '';
   grupos.forEach(g => {
-    html += '<div class="servicio-grupo">';
-    html += '<div class="servicio-grupo-header">' + g.tipo + '</div>';
+    html += '<div class="servicio-grupo"><div class="servicio-grupo-header">' + g.tipo + '</div>';
     g.items.forEach(s => {
-      html += '<div class="servicio-item">';
-      html += '<span class="servicio-cliente">' + (s.cliente || '#' + s.proyecto_numero) + '</span>';
-      html += '<span class="servicio-dato">' + (s.fecha_entrega || '') + '</span>';
-      html += '<span class="servicio-cantidad">×' + s.cantidad + '</span>';
-      html += '</div>';
+      html += '<div class="servicio-item"><span class="servicio-cliente">' + (s.cliente || '#' + s.proyecto_numero) + '</span><span class="servicio-dato">' + (s.fecha_entrega || '') + '</span><span class="servicio-cantidad">×' + s.cantidad + '</span></div>';
     });
     html += '</div>';
   });
@@ -545,34 +438,21 @@ function renderServicios(data) {
 function renderLogistica(data) {
   if (!data.logistica) return '<div class="loading">Sin datos de logística</div>';
   let html = '';
-
-  ['lavanderia', 'office'].forEach(seccion => {
-    const items = data.logistica[seccion] || [];
-    html += '<div class="logistica-seccion">';
-    html += '<div class="logistica-titulo">' + (seccion === 'lavanderia' ? 'Lavandería' : 'Office') + ' — ' + items.length + ' proyectos</div>';
+  ['lavanderia', 'office'].forEach(sec => {
+    const items = data.logistica[sec] || [];
+    html += '<div class="logistica-seccion"><div class="logistica-titulo">' + (sec === 'lavanderia' ? 'Lavandería' : 'Office') + ' — ' + items.length + ' proyectos</div>';
     if (!items.length) {
       html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los próximos 14 días</div>';
     } else {
       items.forEach(p => {
-        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '">';
-        html += '<div class="card-top">';
-        html += '<div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>';
-        html += estadoBadge(p.estado);
-        html += '</div>';
-        if (p.fecha_entrega) {
-          html += '<div class="card-meta"><span class="meta-item">📅 ' + p.fecha_entrega + '</span></div>';
-        }
+        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '"><div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>' + estadoBadge(p.estado) + '</div>';
+        if (p.fecha_entrega) html += '<div class="card-meta"><span>📅 ' + p.fecha_entrega + '</span></div>';
         html += '</div>';
       });
     }
     html += '</div>';
   });
   return html;
-}
-
-if (tabs && tabs.length) {
-  construirTabs();
-  cargarDatos(tabActiva);
 }
 </script>
 </body>
