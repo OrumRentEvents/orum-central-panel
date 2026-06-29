@@ -175,7 +175,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 var PIN='2000';
 var VEHS=['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
 var pin='', modo='hoy', paradas=[];
-var dragSrcIdx=null, dragSrcVeh=null;
+var dragSrcIdx=null;
 
 // ── PIN ──
 function initKP(){
@@ -327,7 +327,7 @@ function renderFila(idx,gkey){
 
   var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||''}));
 
-  var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'" draggable="true">';
+  var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'" >';
   html+='<td class="td-drag">⠿</td>';
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
@@ -407,77 +407,48 @@ function bindEvents(){
     btn.addEventListener('click',function(){eliminarManual(btn.getAttribute('data-id'));});
   });
 
-  // Drag & drop
-  document.querySelectorAll('.fila[draggable=true]').forEach(function(fila){
-    fila.addEventListener('dragstart',function(e){
-      dragSrcIdx=parseInt(fila.getAttribute('data-idx'));
-      dragSrcVeh=fila.getAttribute('data-gkey');
-      e.dataTransfer.effectAllowed='move';
-      e.dataTransfer.setData('text/plain',dragSrcIdx);
-    });
-    fila.addEventListener('dragover',function(e){
-      e.preventDefault(); e.dataTransfer.dropEffect='move';
-      fila.classList.add('drag-over');
-    });
-    fila.addEventListener('dragleave',function(){fila.classList.remove('drag-over');});
-    fila.addEventListener('drop',function(e){
-      e.preventDefault(); fila.classList.remove('drag-over');
-      var destIdx=parseInt(fila.getAttribute('data-idx'));
-      var destVeh=fila.getAttribute('data-gkey');
-      if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
-
-      // Si cambia de grupo, actualizar vehiculo/vuelta del origen
-      if(dragSrcVeh!==destVeh&&destVeh!=='__sin__'){
-        var partes=destVeh.split('_v');
-        paradas[dragSrcIdx].vehiculo=partes[0];
-        paradas[dragSrcIdx].vuelta=parseInt(partes[1])||1;
-      }
-
-      // Reconstruir grupo destino con nuevo orden
-      var SIN='__sin__';
-      var grupos={};
-      paradas.forEach(function(p,i){
-        var v=p.vehiculo||SIN;
-        var vuelta=parseInt(p.vuelta)||1;
-        var gk=v===SIN?SIN:(v+'_v'+vuelta);
-        if(!grupos[gk])grupos[gk]=[];
-        grupos[gk].push(i);
-      });
-      var newVeh=paradas[dragSrcIdx].vehiculo||SIN;
-      var newVuelta=parseInt(paradas[dragSrcIdx].vuelta)||1;
-      var newGk=newVeh===SIN?SIN:(newVeh+'_v'+newVuelta);
-      var grpArr=(grupos[newGk]||[]).filter(function(i){return i!==dragSrcIdx;});
-      var posDestino=grpArr.indexOf(destIdx);
-      if(posDestino===-1)posDestino=grpArr.length;
-      grpArr.splice(posDestino,0,dragSrcIdx);
-
-      // Orden secuencial y guardar todo el grupo
-      var saves=[];
-      grpArr.forEach(function(i,pos){
-        paradas[i].orden=pos;
-        saves.push(apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||'',notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos}));
-      });
-      Promise.all(saves).then(function(){render();toast('Orden guardado');}).catch(function(){toast('Error al mover');render();});
+  // Flechas de orden
+  document.querySelectorAll('.btn-orden').forEach(function(btn){
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      var idx=parseInt(btn.getAttribute('data-idx'));
+      var dir=btn.getAttribute('data-dir');
+      var gkey=btn.getAttribute('data-gkey');
+      moverConFlechas(idx, dir, gkey);
     });
   });
+}
 
-  // Soltar en grupo header (mover al grupo)
-  document.querySelectorAll('.grupo').forEach(function(g){
-    g.addEventListener('dragover',function(e){e.preventDefault();});
-    g.addEventListener('drop',function(e){
-      e.preventDefault();
-      if(dragSrcIdx===null)return;
-      var gkey=g.getAttribute('data-gkey');
-      if(gkey==='__sin__'||gkey===dragSrcVeh)return;
-      var partes=gkey.split('_v');
-      var newVeh=partes[0]; var newVuelta=parseInt(partes[1])||1;
-      paradas[dragSrcIdx].vehiculo=newVeh;
-      paradas[dragSrcIdx].vuelta=newVuelta;
-      var p=paradas[dragSrcIdx];
-      apiPost({action:'set_asignacion',clave:p.clave,proyecto_id:p.proyecto_id,tipo:p.tipo,fecha:p.fecha,vehiculo:newVeh,conductor:p.conductor||'',notas:p.notas||'',vuelta:newVuelta,orden:p.orden||0})
-        .then(function(){render();toast('Movido a '+newVeh);});
-    });
+function moverConFlechas(idx, dir, gkey){
+  var SIN='__sin__';
+  // Reconstruir grupos
+  var grupos={};
+  paradas.forEach(function(p,i){
+    var v=p.vehiculo||SIN;
+    var vuelta=parseInt(p.vuelta)||1;
+    var gk=v===SIN?SIN:(v+'_v'+vuelta);
+    if(!grupos[gk])grupos[gk]=[];
+    grupos[gk].push(i);
   });
+  // Ordenar el grupo por orden actual
+  var grpArr=(grupos[gkey]||[]).slice();
+  grpArr.sort(function(a,b){return (paradas[a].orden||0)-(paradas[b].orden||0);});
+
+  var pos=grpArr.indexOf(idx);
+  if(pos===-1)return;
+  var newPos=dir==='up'?pos-1:pos+1;
+  if(newPos<0||newPos>=grpArr.length)return;
+
+  // Intercambiar
+  var tmp=grpArr[pos]; grpArr[pos]=grpArr[newPos]; grpArr[newPos]=tmp;
+
+  // Guardar orden secuencial
+  var saves=[];
+  grpArr.forEach(function(i,p){
+    paradas[i].orden=p;
+    saves.push(apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||'',notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:p}));
+  });
+  Promise.all(saves).then(function(){render();toast('Orden guardado');}).catch(function(){toast('Error');});
 }
 
 function guardarDetalle(btn){
