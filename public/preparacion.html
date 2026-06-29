@@ -3,25 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>ORUM — Preparación</title>
+<title>ORUM Preparacion</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f7f6f2;
-  color: #1a1a18;
-  min-height: 100vh;
-}
-
-/* ── PIN ── */
-#pin-screen {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 100vh; padding: 2rem;
-}
-.pin-box {
-  background: #fff; border: 0.5px solid #e2e2de; border-radius: 16px;
-  padding: 2rem 1.5rem; width: 100%; max-width: 320px; text-align: center;
-}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
+#pin-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
+.pin-box { background: #fff; border: 0.5px solid #e2e2de; border-radius: 16px; padding: 2rem 1.5rem; width: 100%; max-width: 320px; text-align: center; }
 .pin-logo { font-size: 13px; font-weight: 600; letter-spacing: 2px; color: #1a1a18; margin-bottom: 6px; }
 .pin-subtitle { font-size: 12px; color: #9a988f; margin-bottom: 1.5rem; }
 .pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
@@ -30,165 +17,78 @@ body {
 .pin-dot.error { background: #A32D2D; border-color: #A32D2D; }
 .pin-error { font-size: 12px; color: #A32D2D; height: 16px; margin-bottom: 1rem; }
 .pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.pin-key {
-  background: #f7f6f2; border: 0.5px solid #e2e2de; border-radius: 10px;
-  padding: 16px 8px; font-size: 20px; color: #1a1a18; cursor: pointer; user-select: none;
-}
+.pin-key { background: #f7f6f2; border: 0.5px solid #e2e2de; border-radius: 10px; padding: 16px 8px; font-size: 20px; color: #1a1a18; cursor: pointer; user-select: none; }
 .pin-key:active { background: #e2e2de; }
 .pin-key.delete { font-size: 16px; color: #6b6a64; }
 .pin-key.empty { background: transparent; border-color: transparent; cursor: default; }
-
-/* ── CABECERA ── */
-.app-header {
-  background: #1a1a18; color: #fff;
-  padding: 14px 16px 10px; position: sticky; top: 0; z-index: 100;
-}
+.app-header { background: #1a1a18; color: #fff; padding: 14px 16px 10px; position: sticky; top: 0; z-index: 100; }
 .app-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .app-header h1 { font-size: 15px; font-weight: 500; }
 .ultima-actualizacion { font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
 .tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
-.tab-btn {
-  flex-shrink: 0; padding: 6px 14px; font-size: 13px;
-  background: transparent; color: rgba(255,255,255,0.6); border: none; border-radius: 6px; cursor: pointer;
-}
+.tab-btn { flex-shrink: 0; padding: 6px 14px; font-size: 13px; background: transparent; color: rgba(255,255,255,0.6); border: none; border-radius: 6px; cursor: pointer; }
 .tab-btn.active { background: rgba(255,255,255,0.15); color: #fff; font-weight: 500; }
-.btn-recargar {
-  background: transparent; border: 0.5px solid rgba(255,255,255,0.3);
-  color: rgba(255,255,255,0.8); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer;
-}
-
-/* ── BUSCADOR ── */
+.btn-recargar { background: transparent; border: 0.5px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.8); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
 .buscador-wrap { padding: 12px 16px 4px; max-width: 680px; margin: 0 auto; }
-.buscador-wrap input {
-  width: 100%; padding: 9px 12px; font-size: 14px;
-  border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18;
-}
+.buscador-wrap input { width: 100%; padding: 9px 12px; font-size: 14px; border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18; }
 .buscador-wrap input:focus { outline: none; border-color: #1a1a18; }
-
-/* ── CUERPO ── */
 #app-body { padding: 12px 16px 16px; max-width: 680px; margin: 0 auto; }
 .loading { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
-
-/* ── SUBTABS ── */
 .subtabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
 .subtabs::-webkit-scrollbar { display: none; }
-.subtab-btn {
-  flex-shrink: 0; padding: 6px 14px; border-radius: 6px; font-size: 13px;
-  white-space: nowrap; cursor: pointer; border: 0.5px solid #e2e2de;
-  background: #fff; color: #1a1a18;
-}
+.subtab-btn { flex-shrink: 0; padding: 6px 14px; border-radius: 6px; font-size: 13px; white-space: nowrap; cursor: pointer; border: 0.5px solid #e2e2de; background: #fff; color: #1a1a18; }
 .subtab-btn.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
-
-/* ── PERIODOS ── */
-.periodo-header {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.8px;
-  text-transform: uppercase; color: #6b6a64; margin: 20px 0 8px;
-}
+.periodo-header { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin: 20px 0 8px; }
 .periodo-header:first-child { margin-top: 0; }
 .periodo-progress { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .progress-bar-bg { flex: 1; height: 4px; background: #e2e2de; border-radius: 2px; overflow: hidden; }
 .progress-bar-fill { height: 100%; background: #1D9E75; border-radius: 2px; }
 .progress-text { font-size: 11px; color: #6b6a64; white-space: nowrap; }
-
-/* ── TARJETAS ── */
-.proyecto-card {
-  background: #fff; border: 0.5px solid #e2e2de;
-  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
-}
+.proyecto-card { background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
 .proyecto-card:active { background: #f7f6f2; }
 .proyecto-card.listo { border-color: #9FE1CB; background: #f4fcf9; }
 .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .card-numero-wrap { display: flex; align-items: center; gap: 6px; }
 .card-numero { font-size: 11px; color: #6b6a64; font-weight: 500; }
-.copy-btn {
-  font-size: 10px; color: #9a988f; background: #f0f0ec;
-  border: none; border-radius: 4px; padding: 1px 5px; cursor: pointer;
-}
-.copy-btn:active { background: #1D9E75; color: #fff; }
+.copy-btn { font-size: 10px; color: #9a988f; background: #f0f0ec; border: none; border-radius: 4px; padding: 1px 5px; cursor: pointer; }
 .card-cliente { font-size: 15px; font-weight: 500; color: #1a1a18; flex: 1; }
 .badge-estado { font-size: 11px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
 .badge-listo { background: #E1F5EE; color: #0F6E56; }
 .badge-confirmado { background: #E6F1FB; color: #185FA5; }
 .badge-warning { background: #FAEEDA; color: #854F0B; }
 .card-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: #6b6a64; }
-
-/* ── MATERIAL ── */
-.familia-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; background: #fff; border: 0.5px solid #e2e2de;
-  border-radius: 10px; margin-bottom: 4px; cursor: pointer; user-select: none;
-}
+.familia-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; margin-bottom: 4px; cursor: pointer; user-select: none; }
 .familia-nombre { font-size: 13px; font-weight: 500; }
 .familia-chevron { font-size: 12px; color: #6b6a64; transition: transform 0.2s; }
 .familia-chevron.open { transform: rotate(180deg); }
 .familia-body { display: none; margin-bottom: 8px; }
 .familia-body.open { display: block; }
-.articulo-row {
-  padding: 8px 14px; background: #fff; border: 0.5px solid #e2e2de;
-  border-top: none; font-size: 13px;
-}
+.articulo-row { padding: 8px 14px; background: #fff; border: 0.5px solid #e2e2de; border-top: none; font-size: 13px; }
 .articulo-row:last-child { border-radius: 0 0 8px 8px; }
 .articulo-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .articulo-nombre { color: #1a1a18; flex: 1; }
 .articulo-total { font-weight: 500; font-size: 15px; color: #1a1a18; margin-left: 12px; }
-.articulo-proyectos { font-size: 11px; color: #6b6a64; padding-left: 0; }
-.articulo-proy-item { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 0.5px solid #f0f0ec; }
+.articulo-proy-item { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; border-bottom: 0.5px solid #f0f0ec; font-size: 12px; }
 .articulo-proy-item:last-child { border-bottom: none; }
-
-/* ── SERVICIOS ── */
 .servicio-grupo { background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
 .servicio-grupo-header { padding: 10px 14px; font-size: 13px; font-weight: 500; border-bottom: 0.5px solid #e2e2de; background: #f7f6f2; }
 .servicio-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; font-size: 13px; border-bottom: 0.5px solid #f0f0ec; }
 .servicio-item:last-child { border-bottom: none; }
-.servicio-cliente { color: #1a1a18; flex: 1; }
-.servicio-dato { color: #6b6a64; font-size: 12px; }
-.servicio-cantidad { font-weight: 500; font-size: 14px; margin-left: 10px; }
-
-/* ── LOGÍSTICA ── */
 .logistica-seccion { margin-bottom: 16px; }
 .logistica-titulo { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin-bottom: 8px; }
-
-/* ── MODAL ── */
-#modal-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.5); z-index: 200;
-  align-items: flex-end; justify-content: center;
-}
+#modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: flex-end; justify-content: center; }
 #modal-overlay.open { display: flex; }
-#modal-box {
-  background: #fff; border-radius: 16px 16px 0 0;
-  width: 100%; max-width: 680px; max-height: 80vh;
-  overflow-y: auto; padding: 0 0 2rem;
-}
-.modal-header {
-  position: sticky; top: 0; background: #fff;
-  padding: 16px 16px 12px; border-bottom: 0.5px solid #e2e2de;
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-}
+#modal-box { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 680px; max-height: 80vh; overflow-y: auto; padding: 0 0 2rem; }
+.modal-header { position: sticky; top: 0; background: #fff; padding: 16px 16px 12px; border-bottom: 0.5px solid #e2e2de; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .modal-titulo { font-size: 15px; font-weight: 500; flex: 1; }
 .modal-numero { font-size: 11px; color: #6b6a64; margin-bottom: 2px; }
-.modal-close {
-  background: #f0f0ec; border: none; border-radius: 50%;
-  width: 28px; height: 28px; font-size: 16px; cursor: pointer; flex-shrink: 0;
-}
+.modal-close { background: #f0f0ec; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 16px; cursor: pointer; flex-shrink: 0; }
 .modal-body { padding: 12px 16px; }
 .modal-seccion { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin: 12px 0 6px; }
-.modal-item {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 0; border-bottom: 0.5px solid #f0f0ec; font-size: 13px;
-}
+.modal-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 0.5px solid #f0f0ec; font-size: 13px; }
 .modal-item:last-child { border-bottom: none; }
-.modal-articulo { color: #1a1a18; flex: 1; }
-.modal-cantidad { font-weight: 500; color: #1a1a18; margin-left: 12px; }
-.modal-familia { font-size: 11px; color: #9a988f; }
-
-/* ── TOAST ── */
-#toast {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px;
-  border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300;
-}
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300; }
 #toast.show { opacity: 1; }
 </style>
 </head>
@@ -205,46 +105,33 @@ body {
       <div class="pin-dot" id="d3"></div>
     </div>
     <div class="pin-error" id="pin-error"></div>
-    <div class="pin-keypad">
-      <button class="pin-key" onclick="pinKey('1')">1</button>
-      <button class="pin-key" onclick="pinKey('2')">2</button>
-      <button class="pin-key" onclick="pinKey('3')">3</button>
-      <button class="pin-key" onclick="pinKey('4')">4</button>
-      <button class="pin-key" onclick="pinKey('5')">5</button>
-      <button class="pin-key" onclick="pinKey('6')">6</button>
-      <button class="pin-key" onclick="pinKey('7')">7</button>
-      <button class="pin-key" onclick="pinKey('8')">8</button>
-      <button class="pin-key" onclick="pinKey('9')">9</button>
-      <button class="pin-key empty"></button>
-      <button class="pin-key" onclick="pinKey('0')">0</button>
-      <button class="pin-key delete" onclick="pinBorrar()">⌫</button>
-    </div>
+    <div class="pin-keypad" id="keypad"></div>
   </div>
 </div>
 
 <div id="app" style="display:none;">
   <div class="app-header">
     <div class="app-header-top">
-      <h1 id="app-titulo">ORUM — Preparación</h1>
-      <button class="btn-recargar" onclick="recargar()">↻ Recargar</button>
+      <h1 id="app-titulo">ORUM</h1>
+      <button class="btn-recargar" id="btn-recargar">Recargar</button>
     </div>
     <div class="ultima-actualizacion" id="ultima-act">Cargando...</div>
     <div class="tabs" id="tabs-container"></div>
   </div>
   <div class="buscador-wrap" id="buscador-wrap" style="display:none;">
-    <input type="text" id="buscador" placeholder="Buscar cliente o nº proyecto..." oninput="filtrarProyectos()">
+    <input type="text" id="buscador" placeholder="Buscar cliente o num proyecto...">
   </div>
   <div id="app-body"><div class="loading">Cargando datos...</div></div>
 </div>
 
-<div id="modal-overlay" onclick="cerrarModal(event)">
+<div id="modal-overlay">
   <div id="modal-box">
     <div class="modal-header">
       <div>
         <div class="modal-numero" id="modal-numero"></div>
         <div class="modal-titulo" id="modal-titulo"></div>
       </div>
-      <button class="modal-close" onclick="cerrarModalBtn()">✕</button>
+      <button class="modal-close" id="modal-close-btn">X</button>
     </div>
     <div class="modal-body" id="modal-body"></div>
   </div>
@@ -253,223 +140,234 @@ body {
 <div id="toast">Copiado</div>
 
 <script>
-const PINES = {
-  '1111': { token: 'ORUMx2026Lav', nombre: 'Lavandería', tabs: ['lavanderia'] },
-  '2222': { token: 'ORUMx2026Off', nombre: 'Office',     tabs: ['office'] },
-  '3333': { token: 'ORUMx2026Alm', nombre: 'Almacén',    tabs: ['almacen', 'lavanderia', 'office'] }
+var PINES = {
+  '1111': { token: 'ORUMx2026Lav', nombre: 'Lavanderia', tabs: ['lavanderia'] },
+  '2222': { token: 'ORUMx2026Off', nombre: 'Office', tabs: ['office'] },
+  '3333': { token: 'ORUMx2026Alm', nombre: 'Almacen', tabs: ['almacen', 'lavanderia', 'office'] }
 };
-const TAB_NOMBRES = { lavanderia: 'Lavandería', office: 'Office', almacen: 'Almacén' };
-const TAB_SUBTABS = {
+var TAB_NOMBRES = { lavanderia: 'Lavanderia', office: 'Office', almacen: 'Almacen' };
+var TAB_SUBTABS = {
   lavanderia: ['Por proyecto', 'Por material'],
-  office:     ['Por proyecto', 'Por material'],
-  almacen:    ['Por proyecto', 'Por material', 'Servicios', 'Logística']
+  office: ['Por proyecto', 'Por material'],
+  almacen: ['Por proyecto', 'Por material', 'Servicios', 'Logistica']
 };
 
-let pinActual = '';
-let perfilActivo = null;
-let tabActiva = null;
-let subtabActiva = 'Por proyecto';
-let datosCache = {};
-let equipmentCache = {};
-let filtroTexto = '';
+var pinActual = '';
+var perfilActivo = null;
+var tabActiva = null;
+var subtabActiva = 'Por proyecto';
+var datosCache = {};
+var equipmentCache = {};
+var filtroTexto = '';
 
-// ── PIN ──
+function initKeypad() {
+  var kp = document.getElementById('keypad');
+  var keys = ['1','2','3','4','5','6','7','8','9','','0','del'];
+  keys.forEach(function(k) {
+    var btn = document.createElement('button');
+    if (k === '') {
+      btn.className = 'pin-key empty';
+    } else if (k === 'del') {
+      btn.className = 'pin-key delete';
+      btn.textContent = '<<';
+      btn.addEventListener('click', function() { pinBorrar(); });
+    } else {
+      btn.className = 'pin-key';
+      btn.textContent = k;
+      (function(num) {
+        btn.addEventListener('click', function() { pinKey(num); });
+      })(k);
+    }
+    kp.appendChild(btn);
+  });
+}
+
 function pinKey(n) {
   if (pinActual.length >= 4) return;
   pinActual += n;
-  actualizarDots();
+  actualizarDots(false);
   if (pinActual.length === 4) validarPin();
 }
+
 function pinBorrar() {
   pinActual = pinActual.slice(0, -1);
   document.getElementById('pin-error').textContent = '';
   actualizarDots(false);
 }
+
 function actualizarDots(error) {
-  for (let i = 0; i < 4; i++) {
-    const d = document.getElementById('d' + i);
+  for (var i = 0; i < 4; i++) {
+    var d = document.getElementById('d' + i);
     d.className = 'pin-dot';
     if (error) d.classList.add('error');
     else if (i < pinActual.length) d.classList.add('filled');
   }
 }
+
 function validarPin() {
-  const perfil = PINES[pinActual];
+  var perfil = PINES[pinActual];
   if (!perfil) {
     document.getElementById('pin-error').textContent = 'PIN incorrecto';
     actualizarDots(true);
-    setTimeout(() => { pinActual = ''; actualizarDots(false); document.getElementById('pin-error').textContent = ''; }, 800);
+    setTimeout(function() {
+      pinActual = '';
+      actualizarDots(false);
+      document.getElementById('pin-error').textContent = '';
+    }, 800);
     return;
   }
   perfilActivo = perfil;
   tabActiva = perfil.tabs[0];
   document.getElementById('pin-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  document.getElementById('app-titulo').textContent = 'ORUM — ' + perfil.nombre;
+  document.getElementById('app-titulo').textContent = 'ORUM - ' + perfil.nombre;
   construirTabs();
   cargarDatos(tabActiva);
 }
 
-// ── TABS ──
 function construirTabs() {
-  const cont = document.getElementById('tabs-container');
+  var cont = document.getElementById('tabs-container');
   cont.innerHTML = '';
-  perfilActivo.tabs.forEach(tab => {
-    const btn = document.createElement('button');
+  perfilActivo.tabs.forEach(function(tab) {
+    var btn = document.createElement('button');
     btn.className = 'tab-btn' + (tab === tabActiva ? ' active' : '');
     btn.textContent = TAB_NOMBRES[tab];
-    btn.onclick = () => cambiarTab(tab);
+    (function(t) { btn.addEventListener('click', function() { cambiarTab(t); }); })(tab);
     cont.appendChild(btn);
   });
 }
+
 function cambiarTab(tab) {
   tabActiva = tab;
   subtabActiva = 'Por proyecto';
   filtroTexto = '';
-  const buscador = document.getElementById('buscador');
-  if (buscador) buscador.value = '';
+  var b = document.getElementById('buscador');
+  if (b) b.value = '';
   construirTabs();
-  if (datosCache[tab]) renderizar(datosCache[tab], tab);
+  if (datosCache[tab]) renderizar(datosCache[tab]);
   else cargarDatos(tab);
 }
 
-// ── CARGA ──
-async function cargarDatos(tab) {
+function cargarDatos(tab) {
   document.getElementById('app-body').innerHTML = '<div class="loading">Cargando...</div>';
   document.getElementById('buscador-wrap').style.display = 'none';
-  try {
-    const resp = await fetch('/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab + '&t=' + Date.now());
-    const data = await resp.json();
+  var url = '/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab + '&t=' + Date.now();
+  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
     if (data.error) { document.getElementById('app-body').innerHTML = '<div class="loading">Error: ' + data.error + '</div>'; return; }
     datosCache[tab] = data;
-    // Indexar equipment por proyecto_id para el modal
     equipmentCache = {};
-    (data.equipment_detalle || []).forEach(e => {
-      const pid = String(e.proyecto_id);
+    (data.equipment_detalle || []).forEach(function(e) {
+      var pid = String(e.proyecto_id);
       if (!equipmentCache[pid]) equipmentCache[pid] = [];
       equipmentCache[pid].push(e);
     });
-    renderizar(data, tab);
+    renderizar(data);
     document.getElementById('ultima-act').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  } catch (err) {
-    document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexión</div>';
-  }
+  }).catch(function() {
+    document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexion</div>';
+  });
 }
+
 function recargar() { datosCache = {}; cargarDatos(tabActiva); }
 
-// ── RENDER ──
-function renderizar(data, tab) {
-  const subtabs = TAB_SUBTABS[tab];
-  let html = '<div class="subtabs">';
-  subtabs.forEach(st => {
-    html += '<button class="subtab-btn' + (st === subtabActiva ? ' active' : '') + '" onclick="cambiarSubtab(\'' + st + '\')">' + st + '</button>';
+function renderizar(data) {
+  var subtabs = TAB_SUBTABS[tabActiva];
+  var html = '<div class="subtabs">';
+  subtabs.forEach(function(st) {
+    html += '<button class="subtab-btn' + (st === subtabActiva ? ' active' : '') + '" data-st="' + st + '">' + st + '</button>';
   });
   html += '</div>';
-
-  const esPorProyecto = subtabActiva === 'Por proyecto';
-  document.getElementById('buscador-wrap').style.display = esPorProyecto ? 'block' : 'none';
-
+  document.getElementById('buscador-wrap').style.display = subtabActiva === 'Por proyecto' ? 'block' : 'none';
   if (subtabActiva === 'Por proyecto') html += renderPorProyecto(data);
   else if (subtabActiva === 'Por material') html += renderPorMaterial(data);
   else if (subtabActiva === 'Servicios') html += renderServicios(data);
-  else if (subtabActiva === 'Logística') html += renderLogistica(data);
-
+  else if (subtabActiva === 'Logistica') html += renderLogistica(data);
   document.getElementById('app-body').innerHTML = html;
+  document.querySelectorAll('.subtab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { cambiarSubtab(btn.getAttribute('data-st')); });
+  });
 }
+
 function cambiarSubtab(st) {
   subtabActiva = st;
   filtroTexto = '';
-  const buscador = document.getElementById('buscador');
-  if (buscador) buscador.value = '';
-  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva);
+  var b = document.getElementById('buscador');
+  if (b) b.value = '';
+  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
 }
 
-// ── BUSCADOR ──
-function filtrarProyectos() {
-  filtroTexto = (document.getElementById('buscador').value || '').toLowerCase();
-  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva], tabActiva);
-}
-
-// ── BADGES ──
 function esListo(estado) {
-  const e = (estado || '').toLowerCase();
-  return ['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x));
+  var e = (estado || '').toLowerCase();
+  return ['returned','cargado','marbella','on location','controlado','preparado'].some(function(x) { return e.indexOf(x) !== -1; });
 }
+
 function estadoBadge(estado) {
-  const e = (estado || '').toLowerCase();
-  if (['returned','cargado','marbella','on location','controlado','preparado'].some(x => e.includes(x)))
+  var e = (estado || '').toLowerCase();
+  if (['returned','cargado','marbella','on location','controlado','preparado'].some(function(x) { return e.indexOf(x) !== -1; }))
     return '<span class="badge-estado badge-listo">' + estado + '</span>';
-  if (['pending','concept','inquiry'].some(x => e.includes(x)))
+  if (['pending','concept','inquiry'].some(function(x) { return e.indexOf(x) !== -1; }))
     return '<span class="badge-estado badge-warning">' + estado + '</span>';
   return '<span class="badge-estado badge-confirmado">' + estado + '</span>';
 }
 
-// ── POR PROYECTO ──
 function renderPorProyecto(data) {
-  const resumen = {};
-  (data.resumen_periodos || []).forEach(r => { resumen[r.periodo] = r; });
-  let html = '';
-  (data.orden_periodos || []).forEach(periodo => {
-    const r = resumen[periodo] || { listos: 0, total: 0 };
-    const pp = data.por_proyecto[periodo] || { confirmado: [], preparado: [] };
-    let todos = pp.confirmado.concat(pp.preparado);
+  var resumen = {};
+  (data.resumen_periodos || []).forEach(function(r) { resumen[r.periodo] = r; });
+  var html = '';
+  (data.orden_periodos || []).forEach(function(periodo) {
+    var r = resumen[periodo] || { listos: 0, total: 0 };
+    var pp = data.por_proyecto[periodo] || { confirmado: [], preparado: [] };
+    var todos = pp.confirmado.concat(pp.preparado);
     if (filtroTexto) {
-      todos = todos.filter(p =>
-        (p.cliente || '').toLowerCase().includes(filtroTexto) ||
-        String(p.numero || '').includes(filtroTexto)
-      );
+      todos = todos.filter(function(p) {
+        return (p.cliente || '').toLowerCase().indexOf(filtroTexto) !== -1 || String(p.numero || '').indexOf(filtroTexto) !== -1;
+      });
     }
-    if (r.total === 0 && !filtroTexto) return;
+    if (!filtroTexto && r.total === 0) return;
     if (filtroTexto && !todos.length) return;
-    const pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
+    var pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
     html += '<div class="periodo-header">' + periodo + '</div>';
-    if (!filtroTexto) {
-      html += '<div class="periodo-progress"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div><span class="progress-text">' + r.listos + '/' + r.total + '</span></div>';
-    }
-    todos.sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''));
-    todos.forEach(p => {
-      const listo = esListo(p.estado);
-      const num = String(p.numero || '');
-      html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '" onclick="abrirModal(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')">';
+    if (!filtroTexto) html += '<div class="periodo-progress"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div><span class="progress-text">' + r.listos + '/' + r.total + '</span></div>';
+    todos.sort(function(a, b) { return (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''); });
+    todos.forEach(function(p) {
+      var listo = esListo(p.estado);
+      var num = String(p.numero || '');
+      var pid = JSON.stringify(p).replace(/"/g, '&quot;');
+      html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '" data-p="' + pid + '">';
       html += '<div class="card-top"><div style="flex:1">';
       html += '<div class="card-numero-wrap"><span class="card-numero">#' + num + '</span>';
-      html += '<button class="copy-btn" onclick="copiarNumero(event,\'' + num + '\')">copiar</button></div>';
-      html += '<div class="card-cliente">' + (p.cliente || '—') + '</div>';
+      html += '<button class="copy-btn" data-num="' + num + '">copiar</button></div>';
+      html += '<div class="card-cliente">' + (p.cliente || '-') + '</div>';
       html += '</div>' + estadoBadge(p.estado) + '</div>';
       html += '<div class="card-meta">';
-      if (p.fecha_entrega) html += '<span>📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
-      if (p.localizacion) html += '<span>📍 ' + p.localizacion + '</span>';
+      if (p.fecha_entrega) html += '<span>Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
+      if (p.localizacion) html += '<span>Loc: ' + p.localizacion + '</span>';
       html += '</div></div>';
     });
   });
-  return html || '<div class="loading">No hay proyectos que coincidan</div>';
+  if (!html) return '<div class="loading">No hay proyectos</div>';
+  return html;
 }
 
-// ── POR MATERIAL ──
 function renderPorMaterial(data) {
-  const familias = data.por_material || [];
-  if (!familias.length) return '<div class="loading">Sin artículos en este periodo</div>';
-  let html = '';
-  familias.forEach((f, fi) => {
-    html += '<div class="familia-header" onclick="toggleFamilia(' + fi + ')"><span class="familia-nombre">' + f.familia + '</span><span class="familia-chevron" id="chev-' + fi + '">▼</span></div>';
+  var familias = data.por_material || [];
+  if (!familias.length) return '<div class="loading">Sin articulos en este periodo</div>';
+  var html = '';
+  familias.forEach(function(f, fi) {
+    html += '<div class="familia-header" data-fi="' + fi + '"><span class="familia-nombre">' + f.familia + '</span><span class="familia-chevron" id="chev-' + fi + '">v</span></div>';
     html += '<div class="familia-body" id="fam-' + fi + '">';
-    f.articulos.forEach(a => {
+    f.articulos.forEach(function(a) {
       html += '<div class="articulo-row"><div class="articulo-top"><span class="articulo-nombre">' + a.articulo + '</span><span class="articulo-total">' + a.total + '</span></div>';
       if (a.detalle && a.detalle.length) {
-        html += '<div class="articulo-proyectos">';
-        .slice()
-          .sort((x, y) => {
-            const fx = x.fecha_entrega ? x.fecha_entrega.split('/').reverse().join('-') : '';
-            const fy = y.fecha_entrega ? y.fecha_entrega.split('/').reverse().join('-') : '';
-            return fx.localeCompare(fy);
-          })
-          .forEach(d => {
-            html += '<div class="articulo-proy-item">';
-            html += '<span style="color:#1a1a18;">#' + d.proyecto_numero + ' ' + (d.cliente || '') + '</span>';
-            html += '<span style="color:#9a988f;font-size:11px;margin:0 8px;">' + (d.fecha_entrega || '') + '</span>';
-            html += '<span style="font-weight:500;">×' + d.cantidad + '</span>';
-            html += '</div>';
-          });
+        var sorted = a.detalle.slice().sort(function(x, y) {
+          var fx = x.fecha_entrega ? x.fecha_entrega.split('/').reverse().join('-') : '';
+          var fy = y.fecha_entrega ? y.fecha_entrega.split('/').reverse().join('-') : '';
+          return fx.localeCompare(fy);
+        });
+        html += '<div style="margin-top:4px;">';
+        sorted.forEach(function(d) {
+          html += '<div class="articulo-proy-item"><span style="color:#1a1a18;">#' + d.proyecto_numero + ' ' + (d.cliente || '') + '</span><span style="color:#9a988f;font-size:11px;margin:0 8px;">' + (d.fecha_entrega || '') + '</span><span style="font-weight:500;">x' + d.cantidad + '</span></div>';
+        });
         html += '</div>';
       }
       html += '</div>';
@@ -478,41 +376,36 @@ function renderPorMaterial(data) {
   });
   return html;
 }
-function toggleFamilia(fi) {
-  document.getElementById('fam-' + fi).classList.toggle('open');
-  document.getElementById('chev-' + fi).classList.toggle('open');
-}
 
-// ── SERVICIOS ──
 function renderServicios(data) {
   if (!data.servicios) return '<div class="loading">Sin datos de servicios</div>';
-  const grupos = data.servicios.por_tipo || [];
-  if (!grupos.length) return '<div class="loading">Sin servicios en los próximos 14 días</div>';
-  let html = '';
-  grupos.forEach(g => {
+  var grupos = data.servicios.por_tipo || [];
+  if (!grupos.length) return '<div class="loading">Sin servicios en los proximos 14 dias</div>';
+  var html = '';
+  grupos.forEach(function(g) {
     html += '<div class="servicio-grupo"><div class="servicio-grupo-header">' + g.tipo + '</div>';
-    g.items.forEach(s => {
-      html += '<div class="servicio-item"><span class="servicio-cliente">' + (s.cliente || '#' + s.proyecto_numero) + '</span><span class="servicio-dato">' + (s.fecha_entrega || '') + '</span><span class="servicio-cantidad">×' + s.cantidad + '</span></div>';
+    g.items.forEach(function(s) {
+      html += '<div class="servicio-item"><span style="flex:1;">' + (s.cliente || '#' + s.proyecto_numero) + '</span><span style="color:#6b6a64;font-size:12px;">' + (s.fecha_entrega || '') + '</span><span style="font-weight:500;margin-left:10px;">x' + s.cantidad + '</span></div>';
     });
     html += '</div>';
   });
   return html;
 }
 
-// ── LOGÍSTICA ──
 function renderLogistica(data) {
-  if (!data.logistica) return '<div class="loading">Sin datos de logística</div>';
-  let html = '';
-  ['lavanderia', 'office'].forEach(sec => {
-    const items = data.logistica[sec] || [];
-    html += '<div class="logistica-seccion"><div class="logistica-titulo">' + (sec === 'lavanderia' ? 'Lavandería' : 'Office') + ' — ' + items.length + ' proyectos</div>';
+  if (!data.logistica) return '<div class="loading">Sin datos de logistica</div>';
+  var html = '';
+  ['lavanderia', 'office'].forEach(function(sec) {
+    var items = data.logistica[sec] || [];
+    html += '<div class="logistica-seccion"><div class="logistica-titulo">' + (sec === 'lavanderia' ? 'Lavanderia' : 'Office') + ' - ' + items.length + ' proyectos</div>';
     if (!items.length) {
-      html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los próximos 14 días</div>';
+      html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los proximos 14 dias</div>';
     } else {
-      items.forEach(p => {
-        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '" onclick="abrirModal(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')">';
-        html += '<div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '—') + '</div></div>' + estadoBadge(p.estado) + '</div>';
-        if (p.fecha_entrega) html += '<div class="card-meta"><span>📅 ' + p.fecha_entrega + '</span></div>';
+      items.forEach(function(p) {
+        var pid = JSON.stringify(p).replace(/"/g, '&quot;');
+        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '" data-p="' + pid + '">';
+        html += '<div class="card-top"><div><div class="card-numero">#' + p.numero + '</div><div class="card-cliente">' + (p.cliente || '-') + '</div></div>' + estadoBadge(p.estado) + '</div>';
+        if (p.fecha_entrega) html += '<div class="card-meta"><span>' + p.fecha_entrega + '</span></div>';
         html += '</div>';
       });
     }
@@ -521,61 +414,86 @@ function renderLogistica(data) {
   return html;
 }
 
-// ── MODAL ──
 function abrirModal(p) {
   document.getElementById('modal-numero').textContent = '#' + p.numero;
-  document.getElementById('modal-titulo').textContent = p.cliente || '—';
-  const body = document.getElementById('modal-body');
-
-  let html = '';
-  if (p.fecha_entrega) html += '<div style="font-size:13px;color:#6b6a64;margin-bottom:8px;">📅 ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + (p.localizacion ? '&nbsp;&nbsp;📍 ' + p.localizacion : '') + '</div>';
+  document.getElementById('modal-titulo').textContent = p.cliente || '-';
+  var body = document.getElementById('modal-body');
+  var html = '';
+  if (p.fecha_entrega) html += '<div style="font-size:13px;color:#6b6a64;margin-bottom:8px;">Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + (p.localizacion ? '  Loc: ' + p.localizacion : '') + '</div>';
   html += estadoBadge(p.estado);
-
-  // Equipment del proyecto — viene del cache indexado por el servidor
-  const items = equipmentCache[String(p.id)] || [];
+  var items = equipmentCache[String(p.id)] || [];
+  html += '<div class="modal-seccion">Material</div>';
   if (items.length) {
-    html += '<div class="modal-seccion">Material</div>';
-    // Agrupar por familia
-    const familias = {};
-    items.forEach(e => {
-      const fam = e.familia || 'Sin familia';
+    var familias = {};
+    items.forEach(function(e) {
+      var fam = e.familia || 'Sin familia';
       if (!familias[fam]) familias[fam] = [];
       familias[fam].push(e);
     });
-    Object.keys(familias).sort().forEach(fam => {
+    Object.keys(familias).sort().forEach(function(fam) {
       html += '<div style="font-size:11px;color:#9a988f;margin:8px 0 4px;font-weight:600;">' + fam + '</div>';
-      familias[fam].forEach(e => {
-        html += '<div class="modal-item"><span class="modal-articulo">' + (e.articulo || e.nombre || '') + '</span><span class="modal-cantidad">×' + (e.cantidad || 0) + '</span></div>';
+      familias[fam].forEach(function(e) {
+        html += '<div class="modal-item"><span style="flex:1;">' + (e.articulo || '') + '</span><span style="font-weight:500;">x' + (e.cantidad || 0) + '</span></div>';
       });
     });
   } else {
-    html += '<div class="modal-seccion">Material</div><div style="font-size:13px;color:#9a988f;padding:8px 0;">Sin artículos cargados para este proyecto</div>';
+    html += '<div style="font-size:13px;color:#9a988f;padding:8px 0;">Sin articulos cargados</div>';
   }
-
   body.innerHTML = html;
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
-function cerrarModal(e) {
-  if (e.target === document.getElementById('modal-overlay')) cerrarModalBtn();
-}
-function cerrarModalBtn() {
+
+function cerrarModal() {
   document.getElementById('modal-overlay').classList.remove('open');
   document.body.style.overflow = '';
 }
 
-// ── COPIAR ──
-function copiarNumero(e, num) {
-  e.stopPropagation();
-  navigator.clipboard.writeText(num).catch(() => {});
-  mostrarToast('Nº ' + num + ' copiado');
-}
 function mostrarToast(msg) {
-  const t = document.getElementById('toast');
+  var t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 1500);
+  setTimeout(function() { t.classList.remove('show'); }, 1500);
 }
+
+document.addEventListener('click', function(e) {
+  var card = e.target.closest('.proyecto-card');
+  var copyBtn = e.target.closest('.copy-btn');
+  var famHeader = e.target.closest('.familia-header');
+  var modalOverlay = e.target.closest('#modal-overlay');
+  var modalBox = e.target.closest('#modal-box');
+
+  if (copyBtn) {
+    e.stopPropagation();
+    var num = copyBtn.getAttribute('data-num');
+    if (navigator.clipboard) navigator.clipboard.writeText(num).catch(function(){});
+    mostrarToast('Num ' + num + ' copiado');
+    return;
+  }
+  if (card) {
+    var pData = card.getAttribute('data-p');
+    if (pData) { try { abrirModal(JSON.parse(pData.replace(/&quot;/g, '"'))); } catch(err) {} }
+    return;
+  }
+  if (famHeader) {
+    var fi = famHeader.getAttribute('data-fi');
+    var fb = document.getElementById('fam-' + fi);
+    var chev = document.getElementById('chev-' + fi);
+    if (fb) fb.classList.toggle('open');
+    if (chev) chev.classList.toggle('open');
+    return;
+  }
+  if (modalOverlay && !modalBox) { cerrarModal(); }
+});
+
+document.getElementById('modal-close-btn').addEventListener('click', cerrarModal);
+document.getElementById('btn-recargar').addEventListener('click', recargar);
+document.getElementById('buscador') && document.getElementById('buscador').addEventListener('input', function() {
+  filtroTexto = this.value.toLowerCase();
+  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
+});
+
+initKeypad();
 </script>
 </body>
 </html>
