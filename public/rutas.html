@@ -6,7 +6,7 @@
 <title>ORUM Rutas</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0efeb; color: #1a1a18; min-height: 100vh; }
 
 /* PIN */
 #pin-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
@@ -24,77 +24,103 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .pin-key.empty { background: transparent; border-color: transparent; }
 
 /* CABECERA */
-.app-header { background: #1a1a18; color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 100; }
-.header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.header-top h1 { font-size: 15px; font-weight: 500; }
-.btn-recargar { background: transparent; border: 0.5px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.8); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
-.fecha-nav { display: flex; align-items: center; gap: 8px; }
-.fecha-nav input[type=date] { background: rgba(255,255,255,0.1); border: 0.5px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 4px 8px; font-size: 13px; }
-.fecha-nav input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
-.btn-fecha { background: rgba(255,255,255,0.1); border: 0.5px solid rgba(255,255,255,0.2); color: #fff; font-size: 13px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
-.btn-fecha.active { background: rgba(255,255,255,0.25); }
-.header-stats { font-size: 11px; color: rgba(255,255,255,0.5); }
+.app-header { background: #1a1a18; color: #fff; padding: 10px 16px; position: sticky; top: 0; z-index: 100; }
+.header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.header-top h1 { font-size: 14px; font-weight: 500; }
+.btn-sm { background: rgba(255,255,255,0.1); border: 0.5px solid rgba(255,255,255,0.2); color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+.btn-sm.active { background: rgba(255,255,255,0.25); }
+.header-nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.header-nav input[type=date] { background: rgba(255,255,255,0.1); border: 0.5px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 3px 8px; font-size: 12px; }
+.header-nav input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
+.header-stats { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; }
 
 /* CUERPO */
-#app-body { padding: 12px 16px 80px; max-width: 680px; margin: 0 auto; }
+#app-body { padding: 10px 12px 80px; max-width: 1200px; margin: 0 auto; }
 .loading { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
 
-/* DIA HEADER */
-.dia-header { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin: 20px 0 8px; }
-.dia-header:first-child { margin-top: 0; }
+/* GRUPO VEHICULO */
+.grupo-vehiculo { margin-bottom: 12px; }
+.grupo-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; background: #1a1a18; color: #fff;
+  border-radius: 8px 8px 0 0; font-size: 12px; font-weight: 600;
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
+.grupo-header.sin-asignar { background: #6b6a64; }
+.grupo-count { background: rgba(255,255,255,0.2); border-radius: 10px; padding: 1px 7px; font-size: 11px; }
 
-/* TARJETA PARADA */
-.parada-card { background: #fff; border: 0.5px solid #e2e2de; border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
-.parada-card.entrega { border-left: 3px solid #1D9E75; }
-.parada-card.recogida { border-left: 3px solid #BA7517; }
-.parada-card.otro { border-left: 3px solid #378ADD; }
-.parada-card.manual { border-left: 3px solid #7F77DD; }
-.parada-top { padding: 12px 14px 8px; }
-.parada-row1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
-.badge-tipo { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.5px; flex-shrink: 0; }
+/* TABLA FILAS */
+.tabla-rutas { width: 100%; border-collapse: collapse; background: #fff; border-radius: 0 0 8px 8px; overflow: hidden; border: 0.5px solid #e2e2de; }
+.tabla-rutas thead th {
+  padding: 7px 10px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+  text-transform: uppercase; color: #6b6a64; background: #f7f6f2;
+  border-bottom: 0.5px solid #e2e2de; white-space: nowrap; text-align: left;
+}
+.fila-parada { border-bottom: 0.5px solid #f0f0ec; cursor: pointer; transition: background 0.1s; }
+.fila-parada:last-child { border-bottom: none; }
+.fila-parada:hover { background: #fafaf8; }
+.fila-parada.expandida { background: #fafaf8; }
+.fila-parada td { padding: 8px 10px; font-size: 13px; vertical-align: middle; }
+.fila-parada .td-orden { width: 32px; text-align: center; }
+.btn-orden { background: none; border: none; color: #ccc; font-size: 14px; cursor: pointer; padding: 2px 4px; display: block; line-height: 1; }
+.btn-orden:hover { color: #1a1a18; }
+.td-tipo { width: 80px; }
+.badge-tipo { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; letter-spacing: 0.3px; white-space: nowrap; }
 .badge-entrega { background: #E1F5EE; color: #0F6E56; }
 .badge-recogida { background: #FAEEDA; color: #854F0B; }
 .badge-otro { background: #E6F1FB; color: #185FA5; }
 .badge-manual { background: #EEEDFE; color: #3C3489; }
-.parada-hora { font-size: 12px; color: #6b6a64; }
-.badge-estado { font-size: 10px; padding: 2px 7px; border-radius: 10px; }
+.td-fecha { width: 85px; white-space: nowrap; color: #6b6a64; font-size: 12px; }
+.td-cliente { min-width: 160px; font-weight: 500; }
+.td-num { font-size: 11px; color: #9a988f; }
+.td-loc { color: #6b6a64; font-size: 12px; }
+.btn-maps { font-size: 10px; background: #E6F1FB; color: #185FA5; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; text-decoration: none; white-space: nowrap; margin-left: 4px; }
+.td-estado { width: 90px; }
+.badge-estado { font-size: 10px; padding: 2px 6px; border-radius: 10px; white-space: nowrap; }
 .estado-listo { background: #E1F5EE; color: #0F6E56; }
-.estado-confirmado { background: #E6F1FB; color: #185FA5; }
-.parada-cliente { font-size: 15px; font-weight: 500; color: #1a1a18; margin-bottom: 4px; }
-.parada-numero { font-size: 11px; color: #9a988f; }
-.parada-loc { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b6a64; margin-top: 4px; }
-.btn-maps { font-size: 11px; background: #E6F1FB; color: #185FA5; border: none; border-radius: 6px; padding: 3px 8px; cursor: pointer; flex-shrink: 0; text-decoration: none; }
+.estado-conf { background: #E6F1FB; color: #185FA5; }
+.td-vehiculo { width: 120px; font-size: 12px; color: #1a1a18; }
+.td-conductor { width: 100px; font-size: 12px; color: #1a1a18; }
+.td-expand { width: 24px; text-align: center; color: #ccc; font-size: 11px; }
 
-/* CAMPOS ASIGNACION */
-.parada-asign { padding: 8px 14px 12px; border-top: 0.5px solid #f0f0ec; display: flex; gap: 8px; flex-wrap: wrap; }
-.parada-asign select, .parada-asign input { flex: 1; min-width: 120px; padding: 7px 10px; font-size: 13px; border: 0.5px solid #e2e2de; border-radius: 7px; background: #fff; color: #1a1a18; }
-.parada-asign select:focus, .parada-asign input:focus { outline: none; border-color: #1a1a18; }
-.btn-guardar { padding: 7px 14px; font-size: 13px; background: #1a1a18; color: #fff; border: none; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+/* FILA EXPANDIDA */
+.fila-detalle { display: none; background: #f7f6f2; }
+.fila-detalle.open { display: table-row; }
+.fila-detalle td { padding: 10px 12px; border-bottom: 0.5px solid #e2e2de; }
+.detalle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.detalle-campo label { font-size: 10px; color: #6b6a64; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; display: block; margin-bottom: 3px; }
+.detalle-campo select, .detalle-campo input[type=text], .detalle-campo textarea {
+  width: 100%; padding: 7px 9px; font-size: 13px; border: 0.5px solid #e2e2de;
+  border-radius: 7px; background: #fff; color: #1a1a18; font-family: inherit;
+}
+.detalle-campo textarea { resize: vertical; min-height: 50px; }
+.detalle-campo select:focus, .detalle-campo input:focus, .detalle-campo textarea:focus { outline: none; border-color: #1a1a18; }
+.detalle-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.btn-guardar { padding: 7px 16px; font-size: 13px; background: #1a1a18; color: #fff; border: none; border-radius: 7px; cursor: pointer; }
 .btn-guardar:active { opacity: 0.8; }
-.btn-guardar.guardado { background: #1D9E75; }
-.btn-del-manual { padding: 7px 10px; font-size: 13px; background: #fff; color: #A32D2D; border: 0.5px solid #F09595; border-radius: 7px; cursor: pointer; }
+.btn-guardar.ok { background: #1D9E75; }
+.btn-del { padding: 7px 12px; font-size: 13px; background: #fff; color: #A32D2D; border: 0.5px solid #F09595; border-radius: 7px; cursor: pointer; }
+.saved-msg { font-size: 12px; color: #1D9E75; }
 
 /* FAB */
-#fab { position: fixed; bottom: 20px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: #1a1a18; color: #fff; font-size: 28px; border: none; cursor: pointer; z-index: 50; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-#fab:active { background: #333; }
+#fab { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; background: #1a1a18; color: #fff; font-size: 26px; border: none; cursor: pointer; z-index: 50; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
 
-/* MODAL PARADA MANUAL */
+/* MODAL */
 #modal-manual { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: flex-end; justify-content: center; }
 #modal-manual.open { display: flex; }
-#modal-manual-box { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 680px; padding: 0 0 2rem; }
-.modal-header { padding: 16px; border-bottom: 0.5px solid #e2e2de; display: flex; align-items: center; justify-content: space-between; }
+.modal-box { background: #fff; border-radius: 16px 16px 0 0; width: 100%; max-width: 680px; padding: 0 0 2rem; max-height: 90vh; overflow-y: auto; }
+.modal-header { padding: 14px 16px; border-bottom: 0.5px solid #e2e2de; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #fff; }
 .modal-header h2 { font-size: 15px; font-weight: 500; }
 .modal-close { background: #f0f0ec; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 16px; cursor: pointer; }
-.modal-form { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.modal-form label { font-size: 11px; color: #6b6a64; font-weight: 500; margin-bottom: 2px; display: block; }
-.modal-form input, .modal-form select { width: 100%; padding: 9px 12px; font-size: 14px; border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18; }
-.modal-form input:focus, .modal-form select:focus { outline: none; border-color: #1a1a18; }
+.modal-form { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.modal-form label { font-size: 11px; color: #6b6a64; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 3px; }
+.modal-form input, .modal-form select, .modal-form textarea { width: 100%; padding: 9px 12px; font-size: 14px; border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18; font-family: inherit; }
+.modal-form textarea { resize: vertical; min-height: 50px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.btn-guardar-manual { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; background: #1a1a18; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin-top: 4px; }
-.btn-guardar-manual:active { opacity: 0.8; }
+.btn-guardar-modal { width: 100%; padding: 12px; font-size: 14px; font-weight: 500; background: #1a1a18; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin-top: 4px; }
 
 /* TOAST */
-#toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300; }
+#toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300; white-space: nowrap; }
 #toast.show { opacity: 1; }
 </style>
 </head>
@@ -117,11 +143,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   <div class="app-header">
     <div class="header-top">
       <h1>ORUM Rutas</h1>
-      <button class="btn-recargar" id="btn-recargar">Recargar</button>
+      <button class="btn-sm" id="btn-recargar">Recargar</button>
     </div>
-    <div class="fecha-nav">
-      <button class="btn-fecha active" id="btn-hoy">Hoy</button>
-      <button class="btn-fecha" id="btn-semana">Esta semana</button>
+    <div class="header-nav">
+      <button class="btn-sm active" id="btn-hoy">Hoy</button>
+      <button class="btn-sm" id="btn-semana">Esta semana</button>
       <input type="date" id="fecha-picker">
     </div>
     <div class="header-stats" id="header-stats"></div>
@@ -129,10 +155,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   <div id="app-body"><div class="loading">Cargando...</div></div>
 </div>
 
-<button id="fab" style="display:none;">+</button>
+<button id="fab">+</button>
 
 <div id="modal-manual">
-  <div id="modal-manual-box">
+  <div class="modal-box">
     <div class="modal-header">
       <h2>Anadir parada manual</h2>
       <button class="modal-close" id="modal-close-btn">X</button>
@@ -148,35 +174,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
           <option value="OTRO">Otro</option>
         </select>
       </div>
-      <div>
-        <label>Descripcion</label>
-        <input type="text" id="m-desc" placeholder="Ej: Recoger manteles sucios Marbella">
-      </div>
-      <div>
-        <label>Direccion</label>
-        <input type="text" id="m-dir" placeholder="Calle, ciudad...">
-      </div>
+      <div><label>Descripcion</label><input type="text" id="m-desc" placeholder="Ej: Recoger manteles sucios Marbella"></div>
+      <div><label>Direccion</label><input type="text" id="m-dir" placeholder="Calle, ciudad..."></div>
       <div class="form-row">
-        <div>
-          <label>Fecha</label>
-          <input type="date" id="m-fecha">
-        </div>
-        <div>
-          <label>Hora</label>
-          <input type="time" id="m-hora">
-        </div>
+        <div><label>Fecha</label><input type="date" id="m-fecha"></div>
+        <div><label>Hora</label><input type="time" id="m-hora"></div>
       </div>
-      <div>
-        <label>Vehiculo</label>
-        <select id="m-vehiculo">
-          <option value="">Sin asignar</option>
-        </select>
-      </div>
-      <div>
-        <label>Conductor</label>
-        <input type="text" id="m-conductor" placeholder="Nombre del conductor">
-      </div>
-      <button class="btn-guardar-manual" id="btn-guardar-manual">Guardar parada</button>
+      <div><label>Vehiculo</label><select id="m-vehiculo"><option value="">Sin asignar</option></select></div>
+      <div><label>Conductor</label><input type="text" id="m-conductor" placeholder="Nombre del conductor"></div>
+      <div><label>Notas</label><textarea id="m-notas" placeholder="Notas adicionales..."></textarea></div>
+      <button class="btn-guardar-modal" id="btn-guardar-modal">Guardar parada</button>
     </div>
   </div>
 </div>
@@ -185,10 +192,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 <script>
 var PIN_VALIDO = '2000';
-var VEHICULOS = ['NISSAN', 'IVECO', 'VOLKSWAGEN', 'RENAULT', 'AZUL', 'FURGO NDL', 'FURGO NCW'];
+var VEHICULOS = ['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
 var pinActual = '';
 var modoFecha = 'hoy';
 var paradasGlobal = [];
+var ordenManual = {}; // clave: vehiculo -> array ordenado de indices
 
 // ── PIN ──
 function initKeypad() {
@@ -197,357 +205,322 @@ function initKeypad() {
     var btn = document.createElement('button');
     if (k === '') { btn.className = 'pin-key empty'; }
     else if (k === 'del') {
-      btn.className = 'pin-key';
-      btn.textContent = '<<';
-      btn.addEventListener('click', function() { pinBorrar(); });
+      btn.className = 'pin-key'; btn.textContent = '<<';
+      btn.addEventListener('click', pinBorrar);
     } else {
-      btn.className = 'pin-key';
-      btn.textContent = k;
+      btn.className = 'pin-key'; btn.textContent = k;
       (function(n) { btn.addEventListener('click', function() { pinKey(n); }); })(k);
     }
     kp.appendChild(btn);
   });
 }
-
 function pinKey(n) {
   if (pinActual.length >= 4) return;
-  pinActual += n;
-  actualizarDots(false);
+  pinActual += n; actualizarDots(false);
   if (pinActual.length === 4) validarPin();
 }
-
-function pinBorrar() {
-  pinActual = pinActual.slice(0, -1);
-  document.getElementById('pin-error').textContent = '';
-  actualizarDots(false);
-}
-
+function pinBorrar() { pinActual = pinActual.slice(0,-1); document.getElementById('pin-error').textContent=''; actualizarDots(false); }
 function actualizarDots(error) {
-  for (var i = 0; i < 4; i++) {
-    var d = document.getElementById('d' + i);
-    d.className = 'pin-dot';
-    if (error) d.classList.add('error');
-    else if (i < pinActual.length) d.classList.add('filled');
-  }
+  for(var i=0;i<4;i++){var d=document.getElementById('d'+i);d.className='pin-dot';if(error)d.classList.add('error');else if(i<pinActual.length)d.classList.add('filled');}
 }
-
 function validarPin() {
   if (pinActual !== PIN_VALIDO) {
-    document.getElementById('pin-error').textContent = 'PIN incorrecto';
-    actualizarDots(true);
-    setTimeout(function() { pinActual = ''; actualizarDots(false); document.getElementById('pin-error').textContent = ''; }, 800);
-    return;
+    document.getElementById('pin-error').textContent='PIN incorrecto'; actualizarDots(true);
+    setTimeout(function(){pinActual='';actualizarDots(false);document.getElementById('pin-error').textContent='';},800); return;
   }
-  document.getElementById('pin-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('fab').style.display = 'flex';
-  initVehiculos();
-  setFechaHoy();
-  cargarDatos();
+  document.getElementById('pin-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('fab').style.display='flex';
+  initVehiculosModal();
+  setFechaHoy(); cargarDatos();
 }
 
 // ── FECHAS ──
-function getHoy() {
-  var d = new Date();
-  return d.toISOString().split('T')[0];
+function getHoy(){ var d=new Date(); return d.toISOString().split('T')[0]; }
+function getSemana(){
+  var d=new Date(); var dia=d.getDay()||7;
+  var lunes=new Date(d); lunes.setDate(d.getDate()-dia+1);
+  var domingo=new Date(lunes); domingo.setDate(lunes.getDate()+6);
+  return {desde:lunes.toISOString().split('T')[0], hasta:domingo.toISOString().split('T')[0]};
 }
-
-function getLunesViernes() {
-  var d = new Date();
-  var dia = d.getDay() || 7;
-  var lunes = new Date(d);
-  lunes.setDate(d.getDate() - dia + 1);
-  var viernes = new Date(lunes);
-  viernes.setDate(lunes.getDate() + 6);
-  return {
-    desde: lunes.toISOString().split('T')[0],
-    hasta: viernes.toISOString().split('T')[0]
-  };
-}
-
-function setFechaHoy() {
-  var hoy = getHoy();
-  document.getElementById('fecha-picker').value = hoy;
-  modoFecha = 'hoy';
-  document.getElementById('btn-hoy').classList.add('active');
-  document.getElementById('btn-semana').classList.remove('active');
+function setFechaHoy(){ document.getElementById('fecha-picker').value=getHoy(); modoFecha='hoy'; }
+function getRango(){
+  if(modoFecha==='semana') return getSemana();
+  var d=document.getElementById('fecha-picker').value||getHoy();
+  return {desde:d,hasta:d};
 }
 
 // ── CARGA ──
-function getRangoActual() {
-  if (modoFecha === 'hoy') {
-    var d = document.getElementById('fecha-picker').value || getHoy();
-    return { desde: d, hasta: d };
-  }
-  return getLunesViernes();
-}
-
-function cargarDatos() {
-  document.getElementById('app-body').innerHTML = '<div class="loading">Cargando paradas...</div>';
-  document.getElementById('header-stats').textContent = '';
-  var r = getRangoActual();
-  fetch('/api/rutas?desde=' + r.desde + '&hasta=' + r.hasta + '&token=ORUMx2026RutasPublic&t=' + Date.now())
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      if (data.error) { document.getElementById('app-body').innerHTML = '<div class="loading">Error: ' + data.error + '</div>'; return; }
-      paradasGlobal = data.paradas || [];
-      if (data.vehiculos) VEHICULOS = data.vehiculos;
-      renderizar(paradasGlobal);
+function cargarDatos(){
+  document.getElementById('app-body').innerHTML='<div class="loading">Cargando paradas...</div>';
+  document.getElementById('header-stats').textContent='';
+  var r=getRango();
+  fetch('/api/rutas?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now())
+    .then(function(res){return res.json();})
+    .then(function(data){
+      if(data.error){document.getElementById('app-body').innerHTML='<div class="loading">Error: '+data.error+'</div>';return;}
+      paradasGlobal=data.paradas||[];
+      if(data.vehiculos) VEHICULOS=data.vehiculos;
+      ordenManual={};
+      renderizar();
     })
-    .catch(function() { document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexion</div>'; });
+    .catch(function(){document.getElementById('app-body').innerHTML='<div class="loading">Error de conexion</div>';});
 }
 
-function renderizar(paradas) {
-  var total = paradas.length;
-  var conVehiculo = paradas.filter(function(p) { return p.vehiculo; }).length;
-  document.getElementById('header-stats').textContent = total + ' paradas - ' + conVehiculo + ' con vehiculo asignado';
+// ── RENDERIZAR ──
+function renderizar(){
+  var total=paradasGlobal.length;
+  var conVeh=paradasGlobal.filter(function(p){return p.vehiculo;}).length;
+  document.getElementById('header-stats').textContent=total+' paradas - '+conVeh+' con vehiculo asignado';
 
-  // Agrupar por fecha
-  var porFecha = {};
-  paradas.forEach(function(p) {
-    var f = p.fecha || 'Sin fecha';
-    if (!porFecha[f]) porFecha[f] = [];
-    porFecha[f].push(p);
+  // Agrupar por vehiculo
+  var grupos={};
+  var SIN='__sin_asignar__';
+  paradasGlobal.forEach(function(p,idx){
+    var veh=p.vehiculo||SIN;
+    if(!grupos[veh]) grupos[veh]=[];
+    grupos[veh].push(idx);
   });
 
-  var fechas = Object.keys(porFecha).sort();
-  var html = '';
+  // Aplicar orden manual
+  Object.keys(ordenManual).forEach(function(veh){
+    if(grupos[veh]) grupos[veh]=ordenManual[veh];
+  });
 
-  if (!fechas.length) {
-    html = '<div class="loading">No hay paradas en este periodo</div>';
-  } else {
-    fechas.forEach(function(fecha) {
-      var label = formatFechaLabel(fecha);
-      html += '<div class="dia-header">' + label + '</div>';
-      porFecha[fecha].forEach(function(p, idx) {
-        html += renderParada(p, fecha + '_' + idx);
-      });
+  var html='';
+
+  // Primero grupos con vehiculo asignado
+  var vehiculosUsados=Object.keys(grupos).filter(function(v){return v!==SIN;}).sort();
+  vehiculosUsados.forEach(function(veh){
+    html+=renderGrupo(veh, grupos[veh], false);
+  });
+  // Sin asignar al final
+  if(grupos[SIN] && grupos[SIN].length){
+    html+=renderGrupo('Sin vehiculo asignado', grupos[SIN], true);
+  }
+
+  if(!html) html='<div class="loading">No hay paradas en este periodo</div>';
+  document.getElementById('app-body').innerHTML=html;
+
+  // Eventos expand
+  document.querySelectorAll('.fila-parada').forEach(function(fila){
+    fila.addEventListener('click', function(e){
+      if(e.target.closest('.btn-orden')||e.target.closest('.btn-guardar')||e.target.closest('.btn-del')||e.target.closest('select')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.btn-maps')) return;
+      var key=fila.getAttribute('data-key');
+      var det=document.getElementById('det-'+key);
+      if(det){ det.classList.toggle('open'); fila.classList.toggle('expandida'); }
     });
-  }
-
-  document.getElementById('app-body').innerHTML = html;
-
-  // Eventos en las tarjetas
-  document.querySelectorAll('.btn-guardar-parada').forEach(function(btn) {
-    btn.addEventListener('click', function() { guardarAsignacion(btn); });
   });
-  document.querySelectorAll('.btn-del-manual').forEach(function(btn) {
-    btn.addEventListener('click', function() { eliminarManual(btn.getAttribute('data-id')); });
+  // Eventos guardar
+  document.querySelectorAll('.btn-guardar').forEach(function(btn){
+    btn.addEventListener('click', function(){ guardarFila(btn.getAttribute('data-key')); });
+  });
+  // Eventos eliminar
+  document.querySelectorAll('.btn-del').forEach(function(btn){
+    btn.addEventListener('click', function(){ eliminarManual(btn.getAttribute('data-id')); });
+  });
+  // Eventos orden
+  document.querySelectorAll('.btn-orden').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      moverFila(btn.getAttribute('data-veh'), parseInt(btn.getAttribute('data-idx')), btn.getAttribute('data-dir'));
+    });
   });
 }
 
-function formatFechaLabel(isoDate) {
-  if (!isoDate || isoDate === 'Sin fecha') return 'Sin fecha';
-  var dias = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
-  var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  var d = new Date(isoDate + 'T12:00:00');
-  return dias[d.getDay()] + ' ' + d.getDate() + ' de ' + meses[d.getMonth()];
+function renderGrupo(veh, indices, esSinAsignar){
+  var SIN='__sin_asignar__';
+  var vehKey=esSinAsignar?SIN:veh;
+  var html='<div class="grupo-vehiculo">';
+  html+='<div class="grupo-header'+(esSinAsignar?' sin-asignar':'')+'">'+veh+'<span class="grupo-count">'+indices.length+'</span></div>';
+  html+='<table class="tabla-rutas"><thead><tr>';
+  html+='<th style="width:32px"></th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo</th><th>Conductor</th><th style="width:20px"></th>';
+  html+='</tr></thead><tbody>';
+  indices.forEach(function(idx, pos){
+    html+=renderFila(idx, pos, indices.length, vehKey);
+  });
+  html+='</tbody></table></div>';
+  return html;
 }
 
-function renderParada(p, key) {
-  var tipo = (p.tipo || 'OTRO').toLowerCase();
-  var cardClass = 'parada-card ' + (p.es_manual ? 'manual' : tipo);
-  var badgeClass = p.es_manual ? 'badge-tipo badge-manual' : ('badge-tipo badge-' + tipo);
-  var badgeTexto = p.es_manual ? 'MANUAL' : p.tipo;
+function renderFila(idx, pos, total, vehKey){
+  var p=paradasGlobal[idx];
+  var key='p'+idx;
+  var tipo=(p.tipo||'OTRO').toLowerCase();
+  var badgeClass=p.es_manual?'badge-manual':'badge-'+tipo;
+  var badgeTexto=p.es_manual?'MANUAL':p.tipo;
+  var esListo=['returned','cargado','marbella','on location','controlado','preparado'].some(function(x){return(p.estado||'').toLowerCase().indexOf(x)!==-1;});
+  var estadoHtml=p.estado?('<span class="badge-estado '+(esListo?'estado-listo':'estado-conf')+'">'+p.estado+'</span>'):'';
+  var mapsHtml=p.google_maps_url?('<a href="'+p.google_maps_url+'" target="_blank" class="btn-maps">Maps</a>'):'';
+  var fechaLabel=p.fecha?formatFechaCorta(p.fecha):'';
+  var horaLabel=p.hora&&p.hora!='30/12/1899'?(' '+p.hora):'';
 
-  var esListo = ['returned','cargado','marbella','on location','controlado','preparado'].some(function(x) {
-    return (p.estado || '').toLowerCase().indexOf(x) !== -1;
-  });
-  var estadoBadge = p.estado ? ('<span class="badge-estado ' + (esListo ? 'estado-listo' : 'estado-confirmado') + '">' + p.estado + '</span>') : '';
+  // Opciones vehiculo
+  var vehOpts='<option value="">Sin vehiculo</option>';
+  VEHICULOS.forEach(function(v){ vehOpts+='<option value="'+v+'"'+(p.vehiculo===v?' selected':'')+'>'+v+'</option>'; });
 
-  var mapsBtn = p.google_maps_url ? ('<a href="' + p.google_maps_url + '" target="_blank" class="btn-maps">Maps</a>') : '';
+  var pDataB64=btoa(unescape(encodeURIComponent(JSON.stringify({idx:idx,id_manual:p.id_manual,es_manual:p.es_manual}))));
 
-  var vehOptions = '<option value="">Sin vehiculo</option>';
-  VEHICULOS.forEach(function(v) {
-    vehOptions += '<option value="' + v + '"' + (p.vehiculo === v ? ' selected' : '') + '>' + v + '</option>';
-  });
+  var html='<tr class="fila-parada" data-key="'+key+'" data-idx="'+idx+'">';
+  // Orden
+  html+='<td class="td-orden"><button class="btn-orden" data-veh="'+vehKey+'" data-idx="'+pos+'" data-dir="up">'+(pos>0?'↑':'')+'</button><button class="btn-orden" data-veh="'+vehKey+'" data-idx="'+pos+'" data-dir="down">'+(pos<total-1?'↓':'')+'</button></td>';
+  html+='<td class="td-tipo"><span class="badge-tipo '+badgeClass+'">'+badgeTexto+'</span></td>';
+  html+='<td class="td-fecha">'+fechaLabel+horaLabel+'</td>';
+  html+='<td><div style="font-weight:500;font-size:13px;">'+(p.cliente||'-')+'</div>'+(p.numero?'<div class="td-num">#'+p.numero+'</div>':'')+'</td>';
+  html+='<td class="td-loc">'+(p.localizacion||'-')+mapsHtml+'</td>';
+  html+='<td class="td-estado">'+estadoHtml+'</td>';
+  html+='<td class="td-vehiculo">'+(p.vehiculo||'<span style="color:#ccc">-</span>')+'</td>';
+  html+='<td class="td-conductor">'+(p.conductor||'<span style="color:#ccc">-</span>')+'</td>';
+  html+='<td class="td-expand">▾</td>';
+  html+='</tr>';
 
-  var pData = encodeURIComponent(JSON.stringify({ id_manual: p.id_manual, proyecto_id: p.proyecto_id, tipo: p.tipo, fecha: p.fecha, numero: p.numero, es_manual: p.es_manual }));
-  var delBtn = p.es_manual ? ('<button class="btn-del-manual" data-id="' + p.id_manual + '">Eliminar</button>') : '';
+  // Fila detalle expandible
+  html+='<tr class="fila-detalle" id="det-'+key+'"><td colspan="9">';
+  html+='<div class="detalle-grid">';
+  html+='<div class="detalle-campo"><label>Vehiculo</label><select id="veh-'+key+'">'+vehOpts+'</select></div>';
+  html+='<div class="detalle-campo"><label>Conductor</label><input type="text" id="cond-'+key+'" value="'+(p.conductor||'')+'" placeholder="Nombre conductor"></div>';
+  html+='<div class="detalle-campo"><label>Notas</label><textarea id="notas-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
+  html+='</div>';
+  html+='<div class="detalle-actions">';
+  html+='<button class="btn-guardar" data-key="'+key+'" data-p="'+pDataB64+'">Guardar</button>';
+  if(p.es_manual) html+='<button class="btn-del" data-id="'+p.id_manual+'">Eliminar</button>';
+  html+='<span class="saved-msg" id="msg-'+key+'"></span>';
+  html+='</div></td></tr>';
 
-  return '<div class="' + cardClass + '">' +
-    '<div class="parada-top">' +
-      '<div class="parada-row1">' +
-        '<span class="' + badgeClass + '">' + badgeTexto + '</span>' +
-        (p.hora ? '<span class="parada-hora">' + p.hora + '</span>' : '') +
-        estadoBadge +
-      '</div>' +
-      '<div class="parada-cliente">' + (p.cliente || '-') + '</div>' +
-      (p.numero ? '<div class="parada-numero">#' + p.numero + '</div>' : '') +
-      '<div class="parada-loc">' +
-        (p.localizacion ? '<span>' + p.localizacion + '</span>' : '') +
-        mapsBtn +
-      '</div>' +
-    '</div>' +
-    '<div class="parada-asign">' +
-      '<select class="sel-vehiculo" data-key="' + key + '">' + vehOptions + '</select>' +
-      '<input type="text" class="inp-conductor" data-key="' + key + '" placeholder="Conductor" value="' + (p.conductor || '') + '">' +
-      '<button class="btn-guardar btn-guardar-parada" data-key="' + key + '" data-p="' + pData + '">Guardar</button>' +
-      delBtn +
-    '</div>' +
-  '</div>';
+  return html;
 }
 
-function guardarAsignacion(btn) {
-  var key = btn.getAttribute('data-key');
-  var pRaw = btn.getAttribute('data-p');
-  var p;
-  try { p = JSON.parse(decodeURIComponent(pRaw)); } catch(e) { return; }
+function formatFechaCorta(iso){
+  if(!iso) return '';
+  var dias=['dom','lun','mar','mie','jue','vie','sab'];
+  var d=new Date(iso+'T12:00:00');
+  return dias[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
+}
 
-  var sel = document.querySelector('.sel-vehiculo[data-key="' + key + '"]');
-  var inp = document.querySelector('.inp-conductor[data-key="' + key + '"]');
-  var vehiculo = sel ? sel.value : '';
-  var conductor = inp ? inp.value : '';
+function moverFila(vehKey, pos, dir){
+  var SIN='__sin_asignar__';
+  // Reconstruir el array de indices del grupo
+  var grupos={};
+  paradasGlobal.forEach(function(p,idx){
+    var v=p.vehiculo||SIN;
+    if(!grupos[v]) grupos[v]=[];
+    grupos[v].push(idx);
+  });
+  Object.keys(ordenManual).forEach(function(v){ if(grupos[v]) grupos[v]=ordenManual[v]; });
 
-  btn.textContent = '...';
-  btn.disabled = true;
+  var arr=grupos[vehKey];
+  if(!arr) return;
+  var newPos=dir==='up'?pos-1:pos+1;
+  if(newPos<0||newPos>=arr.length) return;
+  var tmp=arr[pos]; arr[pos]=arr[newPos]; arr[newPos]=tmp;
+  ordenManual[vehKey]=arr;
+  renderizar();
+}
 
-  var body = {
-    action: p.es_manual ? 'update_manual' : 'update_manual',
-    vehiculo: vehiculo,
-    conductor: conductor
+function guardarFila(key){
+  var btn=document.querySelector('.btn-guardar[data-key="'+key+'"]');
+  var pB64=btn.getAttribute('data-p');
+  var pData; try { pData=JSON.parse(decodeURIComponent(escape(atob(pB64)))); } catch(e){return;}
+
+  var vehiculo=document.getElementById('veh-'+key).value;
+  var conductor=document.getElementById('cond-'+key).value;
+  var notas=document.getElementById('notas-'+key).value;
+  var idx=pData.idx;
+
+  btn.textContent='...'; btn.disabled=true;
+
+  var body={
+    action: pData.es_manual?'update_manual':'update_manual',
+    vehiculo:vehiculo, conductor:conductor, notas:notas,
+    clientToken:'ORUMx2026RutasPublic'
   };
+  if(pData.es_manual){ body.id=pData.id_manual; }
+  else { body.id='proj_'+idx+'_'+paradasGlobal[idx].tipo+'_'+paradasGlobal[idx].fecha; }
 
-  if (p.es_manual) {
-    body.action = 'update_manual';
-    body.id = p.id_manual;
-  } else {
-    // Para proyectos de Rentman, guardamos en una tabla de asignaciones
-    body.action = 'update_manual';
-    // TODO: cuando implementemos escritura a RUTA ORUM 2026
-    // Por ahora guardamos como parada manual con los datos del proyecto
-    body.id = p.proyecto_id + '_' + p.tipo + '_' + p.fecha;
-  }
-
-  fetch('/api/rutas/manual', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, clientToken: 'ORUMx2026RutasPublic' })
-  }).then(function() {
-    btn.textContent = 'Guardado';
-    btn.classList.add('guardado');
-    mostrarToast('Asignacion guardada');
-    setTimeout(function() { btn.textContent = 'Guardar'; btn.classList.remove('guardado'); btn.disabled = false; }, 2000);
-  }).catch(function() {
-    btn.textContent = 'Error';
-    btn.disabled = false;
-  });
+  fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(){
+      // Actualizar cache local
+      paradasGlobal[idx].vehiculo=vehiculo;
+      paradasGlobal[idx].conductor=conductor;
+      paradasGlobal[idx].notas=notas;
+      btn.textContent='Guardado'; btn.classList.add('ok');
+      var msg=document.getElementById('msg-'+key);
+      if(msg) msg.textContent='Guardado';
+      mostrarToast('Guardado');
+      setTimeout(function(){ btn.textContent='Guardar'; btn.classList.remove('ok'); btn.disabled=false; if(msg)msg.textContent=''; renderizar(); },1500);
+    })
+    .catch(function(){ btn.textContent='Error'; btn.disabled=false; });
 }
 
-function eliminarManual(id) {
-  if (!confirm('Eliminar esta parada manual?')) return;
-  fetch('/api/rutas/manual', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'del_manual', id: id, clientToken: 'ORUMx2026RutasPublic' })
-  }).then(function() {
-    mostrarToast('Parada eliminada');
-    cargarDatos();
-  });
+function eliminarManual(id){
+  if(!confirm('Eliminar esta parada?')) return;
+  fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'del_manual',id:id,clientToken:'ORUMx2026RutasPublic'})})
+    .then(function(){ mostrarToast('Parada eliminada'); cargarDatos(); });
 }
 
 // ── MODAL MANUAL ──
-function abrirModal() {
-  var hoy = document.getElementById('fecha-picker').value || getHoy();
-  document.getElementById('m-fecha').value = hoy;
-  document.getElementById('m-hora').value = '09:00';
-  document.getElementById('m-desc').value = '';
-  document.getElementById('m-dir').value = '';
-  document.getElementById('m-conductor').value = '';
-  document.getElementById('m-vehiculo').value = '';
+function initVehiculosModal(){
+  var sel=document.getElementById('m-vehiculo');
+  sel.innerHTML='<option value="">Sin asignar</option>';
+  VEHICULOS.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
+}
+function abrirModal(){
+  document.getElementById('m-fecha').value=document.getElementById('fecha-picker').value||getHoy();
+  document.getElementById('m-hora').value='09:00';
+  document.getElementById('m-desc').value='';
+  document.getElementById('m-dir').value='';
+  document.getElementById('m-conductor').value='';
+  document.getElementById('m-vehiculo').value='';
+  document.getElementById('m-notas').value='';
   document.getElementById('modal-manual').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  document.body.style.overflow='hidden';
 }
-
-function cerrarModal() {
-  document.getElementById('modal-manual').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function initVehiculos() {
-  var sel = document.getElementById('m-vehiculo');
-  sel.innerHTML = '<option value="">Sin asignar</option>';
-  VEHICULOS.forEach(function(v) {
-    var opt = document.createElement('option');
-    opt.value = v; opt.textContent = v;
-    sel.appendChild(opt);
-  });
-}
-
-function guardarManual() {
-  var body = {
-    action: 'add_manual',
-    tipo: document.getElementById('m-tipo').value,
-    descripcion: document.getElementById('m-desc').value,
-    direccion: document.getElementById('m-dir').value,
-    fecha: document.getElementById('m-fecha').value,
-    hora: document.getElementById('m-hora').value,
-    vehiculo: document.getElementById('m-vehiculo').value,
-    conductor: document.getElementById('m-conductor').value
+function cerrarModal(){ document.getElementById('modal-manual').classList.remove('open'); document.body.style.overflow=''; }
+function guardarManual(){
+  var body={
+    action:'add_manual',
+    tipo:document.getElementById('m-tipo').value,
+    descripcion:document.getElementById('m-desc').value,
+    direccion:document.getElementById('m-dir').value,
+    fecha:document.getElementById('m-fecha').value,
+    hora:document.getElementById('m-hora').value,
+    vehiculo:document.getElementById('m-vehiculo').value,
+    conductor:document.getElementById('m-conductor').value,
+    notas:document.getElementById('m-notas').value,
+    clientToken:'ORUMx2026RutasPublic'
   };
-  if (!body.descripcion) { alert('La descripcion es obligatoria'); return; }
-  if (!body.fecha) { alert('La fecha es obligatoria'); return; }
-
-  var btn = document.getElementById('btn-guardar-manual');
-  btn.textContent = 'Guardando...';
-  btn.disabled = true;
-
-  fetch('/api/rutas/manual', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, clientToken: 'ORUMx2026RutasPublic' })
-  }).then(function(r) { return r.json(); }).then(function() {
-    cerrarModal();
-    mostrarToast('Parada anadida');
-    cargarDatos();
-    btn.textContent = 'Guardar parada';
-    btn.disabled = false;
-  }).catch(function() {
-    btn.textContent = 'Error';
-    btn.disabled = false;
-  });
+  if(!body.descripcion){alert('La descripcion es obligatoria');return;}
+  if(!body.fecha){alert('La fecha es obligatoria');return;}
+  var btn=document.getElementById('btn-guardar-modal');
+  btn.textContent='Guardando...'; btn.disabled=true;
+  fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();})
+    .then(function(){cerrarModal();mostrarToast('Parada anadida');cargarDatos();btn.textContent='Guardar parada';btn.disabled=false;})
+    .catch(function(){btn.textContent='Error';btn.disabled=false;});
 }
 
-function mostrarToast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(function() { t.classList.remove('show'); }, 2000);
+function mostrarToast(msg){
+  var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2000);
 }
 
 // ── EVENTOS ──
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded',function(){
   initKeypad();
-
-  document.getElementById('btn-recargar').addEventListener('click', cargarDatos);
-  document.getElementById('fab').addEventListener('click', abrirModal);
-  document.getElementById('modal-close-btn').addEventListener('click', cerrarModal);
-  document.getElementById('btn-guardar-manual').addEventListener('click', guardarManual);
-
-  document.getElementById('btn-hoy').addEventListener('click', function() {
-    modoFecha = 'hoy';
-    this.classList.add('active');
-    document.getElementById('btn-semana').classList.remove('active');
-    cargarDatos();
+  document.getElementById('btn-recargar').addEventListener('click',cargarDatos);
+  document.getElementById('fab').addEventListener('click',abrirModal);
+  document.getElementById('modal-close-btn').addEventListener('click',cerrarModal);
+  document.getElementById('btn-guardar-modal').addEventListener('click',guardarManual);
+  document.getElementById('btn-hoy').addEventListener('click',function(){
+    modoFecha='hoy'; this.classList.add('active'); document.getElementById('btn-semana').classList.remove('active'); cargarDatos();
   });
-
-  document.getElementById('btn-semana').addEventListener('click', function() {
-    modoFecha = 'semana';
-    this.classList.add('active');
-    document.getElementById('btn-hoy').classList.remove('active');
-    cargarDatos();
+  document.getElementById('btn-semana').addEventListener('click',function(){
+    modoFecha='semana'; this.classList.add('active'); document.getElementById('btn-hoy').classList.remove('active'); cargarDatos();
   });
-
-  document.getElementById('fecha-picker').addEventListener('change', function() {
-    modoFecha = 'hoy';
-    document.getElementById('btn-hoy').classList.add('active');
-    document.getElementById('btn-semana').classList.remove('active');
-    cargarDatos();
+  document.getElementById('fecha-picker').addEventListener('change',function(){
+    modoFecha='hoy'; document.getElementById('btn-hoy').classList.add('active'); document.getElementById('btn-semana').classList.remove('active'); cargarDatos();
   });
-
-  document.getElementById('modal-manual').addEventListener('click', function(e) {
-    if (e.target === this) cerrarModal();
-  });
+  document.getElementById('modal-manual').addEventListener('click',function(e){ if(e.target===this) cerrarModal(); });
 });
 </script>
 </body>
