@@ -172,7 +172,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div id="toast">OK</div>
 
 <script>
-var PIN='2000';
+var PINES_CONFIG={
+  '2000':{rol:'logistica'},
+  '3000':{rol:'comercial'}
+};
+var PIN=''; var ROL='';
 var VEHS=['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
 var pin='', modo='hoy', paradas=[];
 var dragSrcIdx=null;
@@ -192,7 +196,9 @@ function pinKey(n){if(pin.length>=4)return;pin+=n;dots(false);if(pin.length===4)
 function pinDel(){pin=pin.slice(0,-1);document.getElementById('pin-err').textContent='';dots(false);}
 function dots(err){for(var i=0;i<4;i++){var d=document.getElementById('d'+i);d.className='pin-dot';if(err)d.classList.add('error');else if(i<pin.length)d.classList.add('filled');}}
 function pinCheck(){
-  if(pin!==PIN){document.getElementById('pin-err').textContent='PIN incorrecto';dots(true);setTimeout(function(){pin='';dots(false);document.getElementById('pin-err').textContent='';},800);return;}
+  var cfg=PINES_CONFIG[pin];
+  if(!cfg){document.getElementById('pin-err').textContent='PIN incorrecto';dots(true);setTimeout(function(){pin='';dots(false);document.getElementById('pin-err').textContent='';},800);return;}
+  ROL=cfg.rol;
   document.getElementById('pin-screen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('fab').style.display='flex';
@@ -302,12 +308,12 @@ function renderGrupo(g){
   if(conductorGrupo)html+='<span class="grupo-conductor">'+conductorGrupo+'</span>';
   html+='</div>';
   html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo</th><th>Notas</th><th></th></tr></thead><tbody>';
-  g.items.forEach(function(idx){html+=renderFila(idx,g.gkey);});
+  g.items.forEach(function(idx,pos){html+=renderFila(idx,g.gkey,pos,g.items.length);});
   html+='</tbody></table></div>';
   return html;
 }
 
-function renderFila(idx,gkey){
+function renderFila(idx,gkey,pos,total){
   var p=paradas[idx];
   var key='p'+idx;
   var tipo=(p.tipo||'OTRO').toLowerCase();
@@ -328,13 +334,16 @@ function renderFila(idx,gkey){
   var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||''}));
 
   var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'" >';
-  html+='<td class="td-drag">⠿</td>';
+  var esUltimo=(pos===total-1);
+  var flechasHtml=ROL==='logistica'?('<button class="btn-orden" data-idx="'+idx+'" data-dir="up" data-gkey="'+gkey+'" '+(pos===0?'disabled':'')+'>↑</button><button class="btn-orden" data-idx="'+idx+'" data-dir="down" data-gkey="'+gkey+'" '+(esUltimo?'disabled':'')+'>↓</button>'):'&nbsp;';
+  html+='<td class="td-drag">'+flechasHtml+'</td>';
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
   html+='<td class="td-cli"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+(p.numero?'<div class="cli-num">#'+p.numero+'</div>':'')+'</td>';
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
-  html+='<td class="td-veh"><select class="sel-veh" data-idx="'+idx+'" data-gkey="'+gkey+'">'+vehOpts+'</select></td>';
+  var vehCelda=ROL==='logistica'?('<select class="sel-veh" data-idx="'+idx+'" data-gkey="'+gkey+'">'+vehOpts+'</select>'):(p.vehiculo||'<span style="color:#ccc">—</span>');
+  html+='<td class="td-veh">'+vehCelda+'</td>';
   html+='<td class="td-notas">'+(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
@@ -344,9 +353,11 @@ function renderFila(idx,gkey){
   var vehOpts2='<option value="">Sin vehiculo</option>';
   VEHS.forEach(function(v){vehOpts2+='<option value="'+v+'"'+(p.vehiculo===v?' selected':'')+'>'+v+'</option>';});
   html+='<div class="det-grid">';
-  html+='<div class="det-campo"><label>Vehiculo</label><select id="dv-'+key+'">'+vehOpts2+'</select></div>';
-  html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">'+vuelOpts+'</select></div>';
-  html+='<div class="det-campo"><label>Conductor</label><input type="text" id="dc-'+key+'" value="'+(p.conductor||'')+'" placeholder="Nombre conductor"></div>';
+  if(ROL==='logistica'){
+    html+='<div class="det-campo"><label>Vehiculo</label><select id="dv-'+key+'">'+vehOpts2+'</select></div>';
+    html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">'+vuelOpts+'</select></div>';
+    html+='<div class="det-campo"><label>Conductor</label><input type="text" id="dc-'+key+'" value="'+(p.conductor||'')+'" placeholder="Nombre conductor"></div>';
+  }
   html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
   html+='</div><div class="det-acts">';
   html+='<button class="btn-g btn-save" data-key="'+key+'" data-p="'+pEnc+'">Guardar</button>';
@@ -514,7 +525,7 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 document.addEventListener('DOMContentLoaded',function(){
   initKP();
   document.getElementById('btn-rec').addEventListener('click',load);
-  document.getElementById('fab').addEventListener('click',abrirModal);
+  document.getElementById('fab').addEventListener('click',function(){ if(ROL==='logistica') abrirModal(); });
   document.getElementById('mcls').addEventListener('click',cerrarModal);
   document.getElementById('btn-gm').addEventListener('click',guardarManual);
   document.getElementById('btn-hoy').addEventListener('click',function(){modo='hoy';this.classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
