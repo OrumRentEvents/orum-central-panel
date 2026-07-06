@@ -12,7 +12,6 @@
     color: #1a1a18;
   }
 
-  /* ── PANTALLA DE LOGIN ── */
   #login-screen {
     display: flex;
     align-items: center;
@@ -28,148 +27,52 @@
     width: 100%;
     max-width: 360px;
   }
-  .login-box h1 {
-    font-size: 20px;
-    font-weight: 500;
-    margin-bottom: 4px;
-  }
-  .login-box p.subtitle {
-    font-size: 13px;
-    color: #6b6a64;
-    margin-bottom: 1.5rem;
-  }
-  .login-box label {
-    display: block;
-    font-size: 12px;
-    color: #6b6a64;
-    margin-bottom: 4px;
-    margin-top: 12px;
-  }
+  .login-box h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  .login-box p.subtitle { font-size: 13px; color: #6b6a64; margin-bottom: 1.5rem; }
+  .login-box label { display: block; font-size: 12px; color: #6b6a64; margin-bottom: 4px; margin-top: 12px; }
   .login-box input {
-    width: 100%;
-    padding: 9px 12px;
-    font-size: 14px;
-    border: 0.5px solid #e2e2de;
-    border-radius: 8px;
-    background: #fff;
-    color: #1a1a18;
+    width: 100%; padding: 9px 12px; font-size: 14px;
+    border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18;
   }
-  .login-box input:focus {
-    outline: none;
-    border-color: #378ADD;
-  }
+  .login-box input:focus { outline: none; border-color: #378ADD; }
   .login-box button {
-    width: 100%;
-    margin-top: 1.5rem;
-    padding: 10px;
-    font-size: 14px;
-    font-weight: 500;
-    background: #1a1a18;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
+    width: 100%; margin-top: 1.5rem; padding: 10px; font-size: 14px; font-weight: 500;
+    background: #1a1a18; color: #fff; border: none; border-radius: 8px; cursor: pointer;
   }
   .login-box button:hover { background: #333; }
-  .login-error {
-    color: #A32D2D;
-    font-size: 13px;
-    margin-top: 10px;
-    display: none;
-  }
+  .login-error { color: #A32D2D; font-size: 13px; margin-top: 10px; display: none; }
 
-  /* ── APP PRINCIPAL ── */
   #app-screen { display: none; min-height: 100vh; }
   .app-layout { display: flex; min-height: 100vh; }
 
-  .sidebar {
-    width: 220px;
-    background: #f7f6f2;
-    border-right: 0.5px solid #e2e2de;
-    padding: 1.25rem 0;
-    flex-shrink: 0;
-  }
-  .sidebar-header {
-    padding: 0 1.25rem 1rem;
-    border-bottom: 0.5px solid #e2e2de;
-    margin-bottom: 0.5rem;
-  }
+  .sidebar { width: 220px; background: #f7f6f2; border-right: 0.5px solid #e2e2de; padding: 1.25rem 0; flex-shrink: 0; }
+  .sidebar-header { padding: 0 1.25rem 1rem; border-bottom: 0.5px solid #e2e2de; margin-bottom: 0.5rem; }
   .sidebar-header .org-name { font-weight: 500; font-size: 15px; }
   .sidebar-header .user-name { font-size: 12px; color: #6b6a64; margin-top: 2px; }
 
-  .nav-group-title {
-    padding: 1rem 1.25rem 0.25rem;
-    font-size: 11px;
-    color: #9a988f;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 1.25rem;
-    font-size: 13px;
-    color: #4a4944;
-    cursor: pointer;
-    border-left: 2px solid transparent;
-  }
+  .nav-group-title { padding: 1rem 1.25rem 0.25rem; font-size: 11px; color: #9a988f; text-transform: uppercase; letter-spacing: 0.03em; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 1.25rem; font-size: 13px; color: #4a4944; cursor: pointer; border-left: 2px solid transparent; }
   .nav-item:hover { background: #efeee9; }
-  .nav-item.active {
-    background: #e6f1fb;
-    border-left-color: #378ADD;
-    color: #0C447C;
-    font-weight: 500;
-  }
+  .nav-item.active { background: #e6f1fb; border-left-color: #378ADD; color: #0C447C; font-weight: 500; }
 
   .logout-button {
-    margin: 1.5rem 1.25rem 0;
-    padding: 8px 12px;
-    font-size: 13px;
-    border: 0.5px solid #e2e2de;
-    border-radius: 8px;
-    background: #fff;
-    color: #4a4944;
-    cursor: pointer;
+    margin: 1.5rem 1.25rem 0; padding: 8px 12px; font-size: 13px;
+    border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #4a4944; cursor: pointer;
     width: calc(100% - 2.5rem);
   }
 
-  .main-content {
-    flex: 1;
-    padding: 1.5rem 1.75rem;
-    min-width: 0;
-  }
-  .main-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.25rem;
-  }
+  .main-content { flex: 1; padding: 1.5rem 1.75rem; min-width: 0; }
+  .main-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
   .main-header h1 { font-size: 22px; font-weight: 500; }
-  .last-update {
-    font-size: 12px;
-    color: #6b6a64;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .last-update .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: #27500A;
-    flex-shrink: 0;
-  }
+  .last-update { font-size: 12px; color: #6b6a64; display: flex; align-items: center; gap: 6px; }
+  .last-update .dot { width: 7px; height: 7px; border-radius: 50%; background: #27500A; flex-shrink: 0; }
   .last-update.stale .dot { background: #854F0B; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; padding: 8px 4px; color: #6b6a64; font-weight: 400; border-bottom: 0.5px solid #e2e2de; }
   td { padding: 9px 4px; border-bottom: 0.5px solid #e2e2de; }
 
-  .badge {
-    font-size: 12px;
-    padding: 3px 9px;
-    border-radius: 8px;
-    display: inline-block;
-  }
+  .badge { font-size: 12px; padding: 3px 9px; border-radius: 8px; display: inline-block; }
   .badge-success { background: #EAF3DE; color: #27500A; }
   .badge-warning { background: #FAEEDA; color: #854F0B; }
   .badge-danger { background: #FCEBEB; color: #A32D2D; }
@@ -177,30 +80,21 @@
 
   .search-box { position: relative; }
   .search-box input {
-    width: 220px;
-    padding: 6px 12px 6px 32px;
-    font-size: 13px;
-    border: 0.5px solid #e2e2de;
-    border-radius: 8px;
-    background: #fff;
-    color: #1a1a18;
+    width: 220px; padding: 6px 12px 6px 32px; font-size: 13px;
+    border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18;
   }
   .search-box::before {
-    content: "🔍";
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 12px;
-    opacity: 0.5;
+    content: "🔍"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: 0.5;
   }
 
   .loading-text { color: #9a988f; font-size: 13px; padding: 2rem 0; }
+
+  select { padding: 6px 10px; border: 0.5px solid #e2e2de; border-radius: 8px; font-size: 13px; background: #fff; color: #1a1a18; }
+  .pnc-filtro-btn { font-size:13px; padding:6px 14px; border-radius:8px; background:#fff; color:#4a4944; border:0.5px solid #e2e2de; cursor:pointer; }
 </style>
 </head>
 <body>
 
-<!-- ============ PANTALLA DE LOGIN ============ -->
 <div id="login-screen">
   <div class="login-box">
     <h1>ORUM Central</h1>
@@ -208,18 +102,14 @@
     <form id="login-form">
       <label for="usuario">Usuario</label>
       <input type="text" id="usuario" autocomplete="username" required>
-
       <label for="password">Contraseña</label>
       <input type="password" id="password" autocomplete="current-password" required>
-
       <p class="login-error" id="login-error"></p>
-
       <button type="submit">Entrar</button>
     </form>
   </div>
 </div>
 
-<!-- ============ APP PRINCIPAL ============ -->
 <div id="app-screen">
   <div class="app-layout">
     <div class="sidebar">
@@ -249,7 +139,6 @@
 <script>
 let usuarioActual = null;
 
-// ── LOGIN ──
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const usuario = document.getElementById('usuario').value.trim();
@@ -279,13 +168,11 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   }
 });
 
-// ── LOGOUT ──
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
   location.reload();
 });
 
-// ── Comprobar si ya hay sesión activa al cargar la página ──
 async function comprobarSesion() {
   try {
     const resp = await fetch('/api/sesion');
@@ -294,9 +181,7 @@ async function comprobarSesion() {
       usuarioActual = data.usuario;
       mostrarApp();
     }
-  } catch (err) {
-    // sin sesión, se queda en login
-  }
+  } catch (err) {}
 }
 
 function mostrarApp() {
@@ -307,12 +192,10 @@ function mostrarApp() {
   cargarProyectos();
 }
 
-// ── MENÚ DINÁMICO SEGÚN ROL ──
 function construirMenu() {
   const nav = document.getElementById('nav-container');
   nav.innerHTML = '';
 
-  // Por ahora, todos los roles ven al menos "Proyectos" — iremos añadiendo módulos por rol
   const grupoTitle = document.createElement('div');
   grupoTitle.className = 'nav-group-title';
   grupoTitle.textContent = usuarioActual.rol;
@@ -349,9 +232,7 @@ function construirMenu() {
     el.id = 'menu-item-' + item.id;
     el.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:' + (item.activo ? 'pointer' : 'default') + '; color:' + (item.activo ? '#4a4944' : '#b8b6ad') + ';';
     el.textContent = item.label;
-    if (item.activo) {
-      el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
-    }
+    if (item.activo) { el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); }; }
     submenu.appendChild(el);
   });
 
@@ -384,9 +265,38 @@ function construirMenu() {
   });
 
   nav.appendChild(submenuPrep);
-}function marcarMenuActivo(idActivo) {
+
+  const itemFacturas = document.createElement('div');
+  itemFacturas.className = 'nav-item';
+  itemFacturas.style.fontWeight = '500';
+  itemFacturas.style.cursor = 'pointer';
+  itemFacturas.textContent = '🧾 Facturas Proveedores';
+  itemFacturas.onclick = () => { marcarMenuActivo('menu-item-fact-listado'); cargarFacturasProveedores(); };
+  nav.appendChild(itemFacturas);
+
+  const submenuFacturas = document.createElement('div');
+  submenuFacturas.style.paddingLeft = '1.25rem';
+
+  const subitemsFacturas = [
+    { id: 'fact-listado', label: 'Listado', onClick: () => cargarFacturasProveedores() },
+    { id: 'fact-config', label: 'Configurar proveedores', onClick: () => cargarConfiguracionProveedores() },
+  ];
+
+  subitemsFacturas.forEach(item => {
+    const el = document.createElement('div');
+    el.id = 'menu-item-' + item.id;
+    el.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:#4a4944;';
+    el.textContent = item.label;
+    el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
+    submenuFacturas.appendChild(el);
+  });
+
+  nav.appendChild(submenuFacturas);
+}
+
+function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('[id^="menu-item-fin-"], [id^="menu-item-prep-"]').forEach(el => {
+  document.querySelectorAll('[id^="menu-item-fin-"], [id^="menu-item-prep-"], [id^="menu-item-fact-"]').forEach(el => {
     el.style.background = 'transparent';
     el.style.borderLeft = '2px solid transparent';
     el.style.color = '#4a4944';
@@ -394,7 +304,7 @@ function construirMenu() {
   });
   const el = document.getElementById(idActivo);
   if (!el) return;
-  if (el.id.startsWith('menu-item-fin-') || el.id.startsWith('menu-item-prep-')) {
+  if (el.id.startsWith('menu-item-fin-') || el.id.startsWith('menu-item-prep-') || el.id.startsWith('menu-item-fact-')) {
     el.style.background = '#e6f1fb';
     el.style.borderLeft = '2px solid #378ADD';
     el.style.color = '#0C447C';
@@ -407,7 +317,6 @@ function construirMenu() {
 let financieroDataGlobal = null;
 let pestanaFinancieroActiva = 'proyectos';
 
-// ── CARGAR FINANCIERO (Resumen) ──
 async function cargarFinancieroResumen() {
   document.getElementById('content-title').textContent = 'Financiero · Resumen';
   const body = document.getElementById('content-body');
@@ -420,10 +329,7 @@ async function cargarFinancieroResumen() {
     }
     const data = financieroDataGlobal;
 
-    if (data.error) {
-      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
-      return;
-    }
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
 
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarResumenFinanciero(data);
@@ -528,7 +434,6 @@ function irAControlPagosConFiltro(tipo) {
   });
 }
 
-// ── CARGAR FINANCIERO (Vencidas y morosidad) ──
 async function cargarFinancieroVencidas() {
   document.getElementById('content-title').textContent = 'Financiero · Vencidas y morosidad';
   const body = document.getElementById('content-body');
@@ -541,10 +446,7 @@ async function cargarFinancieroVencidas() {
     }
     const data = financieroDataGlobal;
 
-    if (data.error) {
-      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
-      return;
-    }
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
 
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarVencidas(data);
@@ -591,8 +493,7 @@ function pintarVencidas(data) {
           <th style="text-align:right;">Pendiente</th>
         </tr>
       </thead>
-      <tbody id="tabla-vencidas-body">
-      </tbody>
+      <tbody id="tabla-vencidas-body"></tbody>
     </table>
   `;
 
@@ -635,7 +536,6 @@ function renderTablaVencidas(lista) {
   }).join('');
 }
 
-// ── CARGAR FINANCIERO (Auditoría / Alertas) ──
 async function cargarFinancieroAuditoria() {
   document.getElementById('content-title').textContent = 'Financiero · Auditoría / Alertas';
   const body = document.getElementById('content-body');
@@ -648,10 +548,7 @@ async function cargarFinancieroAuditoria() {
     }
     const data = financieroDataGlobal;
 
-    if (data.error) {
-      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
-      return;
-    }
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
 
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarAuditoria(data);
@@ -827,14 +724,10 @@ function renderTablaAuditoria(pestana, listaOriginal) {
   }
 }
 
-// ================================================================
-// PREPARACIÓN — Lavandería / Office / Almacén
-// ================================================================
-
 const TITULOS_PREP = { lavanderia: 'Lavandería', office: 'Office', almacen: 'Almacén' };
-let preparacionDataGlobal = {}; // cache por vista, para no recargar al cambiar de pestaña
+let preparacionDataGlobal = {};
 let preparacionVistaActiva = null;
-let preparacionPestanaActiva = 'proyecto'; // 'proyecto' | 'material'
+let preparacionPestanaActiva = 'proyecto';
 
 async function cargarPreparacion(vista) {
   preparacionVistaActiva = vista;
@@ -847,10 +740,7 @@ async function cargarPreparacion(vista) {
     const resp = await fetch('/api/preparacion?vista=' + vista);
     const data = await resp.json();
 
-    if (data.error) {
-      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
-      return;
-    }
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
 
     preparacionDataGlobal[vista] = data;
     actualizarIndicadorFecha(data.ultima_actualizacion);
@@ -913,7 +803,6 @@ function cambiarPestanaPreparacion(pestana) {
   if (tabServicios) tabServicios.style.cssText += estiloTab(pestana === 'servicios');
   if (tabLogistica) tabLogistica.style.cssText += estiloTab(pestana === 'logistica');
 
-  // El buscador solo tiene sentido en Por proyecto / Por material
   const filtros = document.getElementById('prep-filtros');
   filtros.style.display = (pestana === 'servicios' || pestana === 'logistica') ? 'none' : 'flex';
   if (document.getElementById('buscador-prep')) document.getElementById('buscador-prep').value = '';
@@ -996,7 +885,6 @@ function renderTarjetasProyectosPrep(lista, tipoColor) {
   `).join('');
 }
 
-// ── Modal de detalle: material de un proyecto concreto ──
 function abrirDetalleProyectoPrep(proyectoId, numero) {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const lineas = [];
@@ -1060,7 +948,7 @@ function colorPeriodo(periodo) {
   if (periodo === 'MAÑANA') return { bg: '#FAEEDA', color: '#854F0B' };
   if (periodo === 'PASADO MAÑANA') return { bg: '#FCF6E3', color: '#7A6A1E' };
   if (periodo === 'ESTA SEMANA') return { bg: '#FAEEDA', color: '#854F0B' };
-  return { bg: '#f7f6f2', color: '#6b6a64' }; // PRÓXIMA SEMANA / PRÓXIMOS 5 DÍAS
+  return { bg: '#f7f6f2', color: '#6b6a64' };
 }
 
 function renderPreparacionPorMaterial() {
@@ -1129,7 +1017,6 @@ function toggleFamiliaPrep(id) {
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
-// ── Pestaña Servicios (solo Almacén) — dos columnas: por cliente / por tipo ──
 function renderPreparacionServicios() {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const cont = document.getElementById('prep-contenido');
@@ -1179,16 +1066,12 @@ function renderPreparacionServicios() {
   `;
 }
 
-// ── Pestaña Logística (solo Almacén) — proyectos asignados a Lavandería vs Office ──
 function renderPreparacionLogistica() {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const cont = document.getElementById('prep-contenido');
   const logistica = data.logistica;
 
-  if (!logistica) {
-    cont.innerHTML = '<p style="color:#9a988f; font-size:13px;">Sin datos.</p>';
-    return;
-  }
+  if (!logistica) { cont.innerHTML = '<p style="color:#9a988f; font-size:13px;">Sin datos.</p>'; return; }
 
   const renderProyectos = (lista) => {
     if (lista.length === 0) return '<p style="color:#9a988f; font-size:13px;">Ninguno en los próximos 14 días.</p>';
@@ -1218,7 +1101,6 @@ function renderPreparacionLogistica() {
   `;
 }
 
-// ── CARGAR FINANCIERO (Control de pagos) ──
 async function cargarFinanciero() {
   document.getElementById('content-title').textContent = 'Financiero · Control de pagos';
   const body = document.getElementById('content-body');
@@ -1231,10 +1113,7 @@ async function cargarFinanciero() {
     }
     const data = financieroDataGlobal;
 
-    if (data.error) {
-      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
-      return;
-    }
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
 
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarFinanciero();
@@ -1347,12 +1226,11 @@ function filtrarSoloNoCuadranPNC() {
   }, 0);
 }
 
-// ── COMPONENTE REUTILIZABLE: filtro multi-selección de estados de proyecto ──
-window.estadosSeleccionados = {}; // { idDropdown: Set de estados marcados }
+window.estadosSeleccionados = {};
 
 function htmlFiltroEstados(idDropdown, todosLosEstados, onChangeFn) {
   if (!window.estadosSeleccionados[idDropdown]) {
-    window.estadosSeleccionados[idDropdown] = new Set(); // vacío = todos
+    window.estadosSeleccionados[idDropdown] = new Set();
   }
   const checkboxes = todosLosEstados.map(estado => `
     <label style="display:flex; align-items:center; gap:6px; padding:4px 8px; font-size:13px; cursor:pointer; white-space:nowrap;">
@@ -1376,7 +1254,6 @@ function htmlFiltroEstados(idDropdown, todosLosEstados, onChangeFn) {
 }
 
 function toggleDropdownEstados(idDropdown) {
-  // Cerrar otros dropdowns abiertos
   document.querySelectorAll('[id^="dropdown-"]').forEach(el => {
     if (el.id !== 'dropdown-' + idDropdown) el.style.display = 'none';
   });
@@ -1391,14 +1268,12 @@ function toggleEstadoFiltro(idDropdown, estado, onChangeFn) {
   window[onChangeFn]();
 }
 
-// Cierra los dropdowns si se hace clic fuera de ellos
 document.addEventListener('click', (e) => {
   if (!e.target.closest('[id^="dropdown-"]') && !e.target.closest('button[onclick^="toggleDropdownEstados"]')) {
     document.querySelectorAll('[id^="dropdown-"]').forEach(el => el.style.display = 'none');
   }
 });
 
-// ── PESTAÑA FACTURAS ──
 function pintarFiltrosYTablaFacturas() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_facturas.map(f => f.comercial).filter(Boolean))].sort();
@@ -1565,7 +1440,6 @@ function renderTablaFacturas(lista) {
   document.getElementById('financiero-tabla').innerHTML = html;
 }
 
-// ── PESTAÑA PROYECTOS (vista agregada) ──
 let ordenProyectosFin = { campo: 'numero', asc: false };
 
 function pintarFiltrosYTablaProyectos() {
@@ -1707,7 +1581,6 @@ function flechaOrdenProyectosFin(campo) {
   return ordenProyectosFin.asc ? ' ▲' : ' ▼';
 }
 
-// ── PESTAÑA PNC ──
 function pintarFiltrosYTablaPNC() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_pnc.map(p => p.comercial).filter(Boolean))].sort();
@@ -1822,7 +1695,392 @@ function renderTablaPNC(lista) {
   document.getElementById('financiero-tabla').innerHTML = html;
 }
 
-// ── CARGAR PROYECTOS ──
+// ================================================================
+// FACTURAS PROVEEDORES
+// ================================================================
+
+let facturasProveedoresDataGlobal = null;
+let facturasFiltroDepartamentoActivo = null;
+
+async function cargarFacturasProveedores() {
+  document.getElementById('content-title').textContent = 'Facturas Proveedores · Listado';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando facturas...</p>';
+
+  try {
+    const resp = await fetch('/api/facturas-proveedores');
+    const data = await resp.json();
+
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+
+    facturasProveedoresDataGlobal = data;
+    facturasFiltroDepartamentoActivo = null;
+    pintarFacturasProveedores();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+
+async function sincronizarFacturasProveedores() {
+  const btn = document.getElementById('btn-sync-facturas');
+  const estadoSync = document.getElementById('estado-sync-facturas');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sincronizando...';
+  estadoSync.textContent = '';
+
+  try {
+    const resp = await fetch('/api/facturas-proveedores/sincronizar?anio=2026', { method: 'POST' });
+    const data = await resp.json();
+
+    if (data.error) {
+      estadoSync.textContent = 'Error: ' + data.error;
+      estadoSync.style.color = '#A32D2D';
+    } else {
+      estadoSync.textContent = `✓ ${data.procesadas} facturas nuevas procesadas${data.con_error > 0 ? ', ' + data.con_error + ' con error' : ''}.`;
+      estadoSync.style.color = '#27500A';
+      await cargarFacturasProveedores();
+      return;
+    }
+  } catch (err) {
+    estadoSync.textContent = 'Error de conexión';
+    estadoSync.style.color = '#A32D2D';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Actualizar facturas';
+  }
+}
+
+function pintarFacturasProveedores() {
+  const body = document.getElementById('content-body');
+  const data = facturasProveedoresDataGlobal;
+  const facturas = data.facturas;
+
+  const totalBase = facturas.reduce((sum, f) => sum + (parseFloat(f.importeBase) || 0), 0);
+  const totalIva = facturas.reduce((sum, f) => sum + (parseFloat(f.iva) || 0), 0);
+  const nBaja = facturas.filter(f => f.confianza === 'baja').length;
+  const nMedia = facturas.filter(f => f.confianza === 'media').length;
+
+  const chipsDepartamento = data.resumen_departamentos.map(d => {
+    const activo = facturasFiltroDepartamentoActivo === d.departamento;
+    return `
+      <div onclick="filtrarFacturasPorDepartamento('${d.departamento.replace(/'/g, "\\'")}')"
+        style="cursor:pointer; background:${activo ? '#e6f1fb' : '#f7f6f2'}; border:0.5px solid ${activo ? '#B5D4F4' : '#e2e2de'}; border-radius:8px; padding:0.75rem 1rem; min-width:150px;">
+        <p style="font-size:12px; color:${activo ? '#0C447C' : '#6b6a64'}; margin:0 0 4px;">${d.departamento}</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:${activo ? '#0C447C' : '#1a1a18'};">${euros(d.total)}</p>
+      </div>
+    `;
+  }).join('');
+
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <div style="display:flex; gap:12px; align-items:center;">
+        <button id="btn-sync-facturas" onclick="sincronizarFacturasProveedores()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🔄 Actualizar facturas</button>
+        <span id="estado-sync-facturas" style="font-size:12px;"></span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.25rem;">
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Total base (sin IVA)</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${euros(totalBase)}</p>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Total IVA soportado</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${euros(totalIva)}</p>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Nº facturas</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${facturas.length}</p>
+      </div>
+      <div style="background:${(nBaja + nMedia) > 0 ? '#FAEEDA' : '#f7f6f2'}; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:${(nBaja + nMedia) > 0 ? '#854F0B' : '#6b6a64'}; margin:0 0 6px;">A revisar (confianza media/baja)</p>
+        <p style="font-size:22px; font-weight:500; margin:0; color:${(nBaja + nMedia) > 0 ? '#412402' : '#1a1a18'};">${nBaja + nMedia}</p>
+      </div>
+    </div>
+
+    <p style="font-size:13px; font-weight:500; color:#1a1a18; margin:0 0 8px;">Por departamento (base sin IVA) — haz clic para filtrar</p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:1.25rem;">
+      ${chipsDepartamento}
+      ${facturasFiltroDepartamentoActivo ? `<div onclick="filtrarFacturasPorDepartamento(null)" style="cursor:pointer; display:flex; align-items:center; padding:0.75rem 1rem; font-size:13px; color:#6b6a64;">✕ Quitar filtro</div>` : ''}
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
+      <select id="filtro-fact-proveedor" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
+        <option value="">Proveedor: Todos</option>
+        ${[...new Set(facturas.map(f => f.proveedor))].sort().map(p => `<option value="${p}">${p}</option>`).join('')}
+      </select>
+      <select id="filtro-fact-confianza" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
+        <option value="">Confianza: Todas</option>
+        <option value="alta">Alta</option>
+        <option value="media">Media</option>
+        <option value="baja">Baja</option>
+      </select>
+      <div class="search-box" style="margin-left:auto;">
+        <input type="text" id="buscador-fact-proveedores" placeholder="Buscar proveedor o nº factura..." oninput="aplicarFiltrosFacturasProveedores()">
+      </div>
+    </div>
+
+    <div id="tabla-facturas-proveedores"></div>
+  `;
+
+  body.innerHTML = html;
+  renderTablaFacturasProveedores(facturas);
+}
+
+function filtrarFacturasPorDepartamento(departamento) {
+  facturasFiltroDepartamentoActivo = departamento;
+  pintarFacturasProveedores();
+}
+
+function aplicarFiltrosFacturasProveedores() {
+  const data = facturasProveedoresDataGlobal;
+  const proveedor = document.getElementById('filtro-fact-proveedor').value;
+  const confianza = document.getElementById('filtro-fact-confianza').value;
+  const busqueda = document.getElementById('buscador-fact-proveedores').value.toLowerCase();
+
+  let filtradas = data.facturas;
+
+  if (facturasFiltroDepartamentoActivo) {
+    filtradas = filtradas.filter(f => f.desglose_departamentos.some(d => d.departamento === facturasFiltroDepartamentoActivo));
+  }
+  if (proveedor) filtradas = filtradas.filter(f => f.proveedor === proveedor);
+  if (confianza) filtradas = filtradas.filter(f => f.confianza === confianza);
+  if (busqueda) {
+    filtradas = filtradas.filter(f =>
+      (f.proveedor || '').toLowerCase().includes(busqueda) ||
+      String(f.numeroFactura || '').toLowerCase().includes(busqueda)
+    );
+  }
+
+  renderTablaFacturasProveedores(filtradas);
+}
+
+function renderTablaFacturasProveedores(lista) {
+  const cont = document.getElementById('tabla-facturas-proveedores');
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Proveedor</th>
+          <th>Nº Factura</th>
+          <th>Fecha</th>
+          <th style="text-align:right;">Base</th>
+          <th style="text-align:right;">IVA</th>
+          <th style="text-align:right;">Total</th>
+          <th>Departamento(s)</th>
+          <th>Confianza</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  if (lista.length === 0) {
+    html += '<tr><td colspan="8" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+  }
+
+  lista.forEach(f => {
+    const badgeConfianza = f.confianza === 'alta'
+      ? '<span class="badge badge-success">Alta</span>'
+      : f.confianza === 'media'
+        ? '<span class="badge badge-warning">Media</span>'
+        : '<span class="badge badge-danger">Baja</span>';
+
+    const departamentosHtml = f.desglose_departamentos.map(d =>
+      `<span class="badge badge-neutral" style="font-size:11px;" title="${euros(d.importe)}">${d.departamento}${d.porcentaje < 100 ? ' ' + d.porcentaje + '%' : ''}</span>`
+    ).join(' ');
+
+    html += `
+      <tr>
+        <td>${f.proveedor || ''}</td>
+        <td>${f.numeroFactura || ''}</td>
+        <td>${f.fecha || '—'}</td>
+        <td style="text-align:right;">${euros(f.importeBase)}</td>
+        <td style="text-align:right; color:#6b6a64;">${euros(f.iva)}</td>
+        <td style="text-align:right; font-weight:500;">${euros(f.importeTotal)}</td>
+        <td>${departamentosHtml}</td>
+        <td>${badgeConfianza}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+}
+
+const DEPARTAMENTOS_ORUM = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Otros Gastos'];
+
+let configProveedoresGlobal = { proveedores: [], reparto: [] };
+
+async function cargarConfiguracionProveedores() {
+  document.getElementById('content-title').textContent = 'Facturas Proveedores · Configurar proveedores';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando configuración...</p>';
+
+  try {
+    const [respProveedores, respReparto] = await Promise.all([
+      fetch('/api/facturas-proveedores/proveedores'),
+      fetch('/api/facturas-proveedores/reparto')
+    ]);
+    const dataProveedores = await respProveedores.json();
+    const dataReparto = await respReparto.json();
+
+    if (dataProveedores.error) { body.innerHTML = '<p class="loading-text">Error: ' + dataProveedores.error + '</p>'; return; }
+    if (dataReparto.error) { body.innerHTML = '<p class="loading-text">Error: ' + dataReparto.error + '</p>'; return; }
+
+    configProveedoresGlobal.proveedores = dataProveedores.proveedores || [];
+    configProveedoresGlobal.reparto = dataReparto.reparto || [];
+
+    pintarConfiguracionProveedores();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+
+function pintarConfiguracionProveedores() {
+  const body = document.getElementById('content-body');
+  const proveedores = configProveedoresGlobal.proveedores;
+  const reparto = configProveedoresGlobal.reparto;
+
+  const filasHtml = proveedores.map(prov => {
+    const reglasProveedor = reparto.filter(r => r.proveedor === prov);
+    const filasIniciales = reglasProveedor.length > 0 ? reglasProveedor : [{ departamento: '', porcentaje: 100 }];
+    const idProv = 'prov-' + prov.replace(/[^a-zA-Z0-9]/g, '');
+
+    const filasDepartamento = filasIniciales.map((r, idx) => filaDepartamentoHtml(idProv, idx, r.departamento, r.porcentaje)).join('');
+
+    return `
+      <div style="border:0.5px solid #e2e2de; border-radius:8px; padding:1rem; margin-bottom:10px;" id="card-${idProv}">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <p style="font-size:14px; font-weight:500; margin:0;">${prov}</p>
+          <span id="suma-${idProv}" style="font-size:12px; color:#6b6a64;"></span>
+        </div>
+        <div id="filas-${idProv}">${filasDepartamento}</div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button onclick="anadirFilaDepartamento('${idProv}')" style="font-size:12px; padding:5px 10px; border-radius:6px; border:0.5px solid #e2e2de; background:#fff; color:#4a4944; cursor:pointer;">+ Añadir departamento</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  body.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <p style="font-size:13px; color:#6b6a64; margin:0;">Define para cada proveedor a qué departamento(s) va su gasto. Si se reparte entre varios, los porcentajes deben sumar 100%.</p>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span id="estado-guardar-reparto" style="font-size:12px;"></span>
+        <button onclick="guardarConfiguracionProveedores()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar configuración</button>
+      </div>
+    </div>
+    <div>${filasHtml || '<p style="color:#9a988f; font-size:13px;">Aún no hay proveedores registrados. Sincroniza facturas primero desde el Listado.</p>'}</div>
+  `;
+
+  proveedores.forEach(prov => {
+    const idProv = 'prov-' + prov.replace(/[^a-zA-Z0-9]/g, '');
+    actualizarSumaPorcentajes(idProv);
+  });
+}
+
+function filaDepartamentoHtml(idProv, idx, departamentoActual, porcentajeActual) {
+  const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === departamentoActual ? 'selected' : ''}>${d}</option>`).join('');
+  return `
+    <div class="fila-dep" data-idx="${idx}" style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+      <select class="select-departamento" onchange="actualizarSumaPorcentajes('${idProv}')" style="flex:1; font-size:13px;">
+        <option value="">Selecciona departamento...</option>
+        ${opciones}
+      </select>
+      <input type="number" class="input-porcentaje" value="${porcentajeActual}" min="0" max="100" step="1" oninput="actualizarSumaPorcentajes('${idProv}')" style="width:80px; font-size:13px; padding:6px 8px; border:0.5px solid #e2e2de; border-radius:6px;">
+      <span style="font-size:13px; color:#6b6a64;">%</span>
+      <span onclick="quitarFilaDepartamento('${idProv}', this)" style="cursor:pointer; color:#9a988f; font-size:14px; padding:0 4px;">✕</span>
+    </div>
+  `;
+}
+
+function anadirFilaDepartamento(idProv) {
+  const cont = document.getElementById('filas-' + idProv);
+  const idx = cont.children.length;
+  const div = document.createElement('div');
+  div.innerHTML = filaDepartamentoHtml(idProv, idx, '', 0);
+  cont.appendChild(div.firstElementChild);
+  actualizarSumaPorcentajes(idProv);
+}
+
+function quitarFilaDepartamento(idProv, elementoX) {
+  const fila = elementoX.closest('.fila-dep');
+  const cont = document.getElementById('filas-' + idProv);
+  if (cont.children.length > 1) {
+    fila.remove();
+    actualizarSumaPorcentajes(idProv);
+  }
+}
+
+function actualizarSumaPorcentajes(idProv) {
+  const cont = document.getElementById('filas-' + idProv);
+  if (!cont) return;
+  const inputs = cont.querySelectorAll('.input-porcentaje');
+  let suma = 0;
+  inputs.forEach(i => { suma += parseFloat(i.value) || 0; });
+
+  const span = document.getElementById('suma-' + idProv);
+  span.textContent = suma + '% del total';
+  span.style.color = suma === 100 ? '#27500A' : '#A32D2D';
+}
+
+async function guardarConfiguracionProveedores() {
+  const proveedores = configProveedoresGlobal.proveedores;
+  const filasParaGuardar = [];
+  let hayErrores = false;
+
+  proveedores.forEach(prov => {
+    const idProv = 'prov-' + prov.replace(/[^a-zA-Z0-9]/g, '');
+    const cont = document.getElementById('filas-' + idProv);
+    const filas = cont.querySelectorAll('.fila-dep');
+    let suma = 0;
+
+    filas.forEach(fila => {
+      const departamento = fila.querySelector('.select-departamento').value;
+      const porcentaje = parseFloat(fila.querySelector('.input-porcentaje').value) || 0;
+      if (departamento && porcentaje > 0) {
+        filasParaGuardar.push({ proveedor: prov, departamento, porcentaje });
+        suma += porcentaje;
+      }
+    });
+
+    if (suma !== 0 && suma !== 100) hayErrores = true;
+  });
+
+  const estado = document.getElementById('estado-guardar-reparto');
+
+  if (hayErrores) {
+    estado.textContent = '⚠️ Hay proveedores cuyos porcentajes no suman 100%. Revísalos antes de guardar.';
+    estado.style.color = '#A32D2D';
+    return;
+  }
+
+  estado.textContent = 'Guardando...';
+  estado.style.color = '#6b6a64';
+
+  try {
+    const resp = await fetch('/api/facturas-proveedores/reparto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reparto: filasParaGuardar })
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      estado.textContent = 'Error: ' + data.error;
+      estado.style.color = '#A32D2D';
+    } else {
+      estado.textContent = '✓ Configuración guardada (' + data.guardadas + ' reglas)';
+      estado.style.color = '#27500A';
+      configProveedoresGlobal.reparto = filasParaGuardar;
+    }
+  } catch (err) {
+    estado.textContent = 'Error de conexión';
+    estado.style.color = '#A32D2D';
+  }
+}
+
 async function cargarProyectos() {
   document.getElementById('content-title').textContent = 'Proyectos';
   const body = document.getElementById('content-body');
@@ -1832,10 +2090,7 @@ async function cargarProyectos() {
     const resp = await fetch('/api/proyectos');
     const data = await resp.json();
 
-    if (data.error) {
-      body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>';
-      return;
-    }
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
 
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarTablaProyectos(data.data);
@@ -1886,9 +2141,7 @@ function pintarTablaProyectos(proyectos) {
       <tbody id="tabla-proyectos-body">
   `;
 
-  proyectos.forEach(p => {
-    html += filaProyecto(p);
-  });
+  proyectos.forEach(p => { html += filaProyecto(p); });
 
   html += '</tbody></table>';
   body.innerHTML = html;
