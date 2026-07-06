@@ -968,6 +968,123 @@ app.post('/api/rutas/manual', async (req, res) => {
   }
 });
 
+// ================================================================
+// FACTURAS PROVEEDORES — extracción automática vía Claude API
+// ================================================================
+
+const APPS_SCRIPT_FACTURAS_URL = process.env.APPS_SCRIPT_FACTURAS_URL || 'PEGA_AQUI_LA_URL_DEL_SCRIPT_DE_FACTURAS';
+const APPS_SCRIPT_FACTURAS_TOKEN = 'ORUMx2026#Facturas$Sync';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+
+async function extraerDatosFactura(base64Pdf, nombreArchivo, proveedor) {
+  const prompt = `Esta es una factura del proveedor "${proveedor}" (archivo: ${nombreArchivo}).
+Extrae exactamente estos datos y responde SOLO con un JSON válido, sin texto adicional ni markdown:
+{
+  "numeroFactura": "número de factura tal como aparece",
+  "fecha": "fecha de la factura en formato DD/MM/YYYY",
+  "importe": número total de la factura con IVA incluido, como número decimal sin símbolo de moneda,
+  "confianza": "alta" o "media" o "baja" según lo clara/legible que esté la factura
+}`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Pdf } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+
+  const data = await response.json();
+  const textoRespuesta = (data.content || []).find(b => b.type === 'text');
+  if (!textoRespuesta) {
+    throw new Error('Respuesta de Claude sin texto: ' + JSON.stringify(data));
+  }
+
+  const limpio = textoRespuesta.text.replace(/```json|```/g, '').trim();
+  return JSON.parse(limpio);
+}
+
+app.post('/api/facturas-proveedores/sincronizar', requiereLogin, async (req, res) => {
+  try {
+    const anio = req.query.anio || '2026';
+
+    // 1. Pedir lista de PDFs pendientes
+    const paramsLista = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listaPendientes', anio });
+    const respLista = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsLista.toString()}`);
+    const dataLista = await respLista.json();
+
+    if (dataLista.error) {
+      return res.status(500).json({ error: 'Error listando pendientes: ' + dataLista.error });
+    }
+
+    const pendientes = dataLista.pendientes || [];
+    const resultados = [];
+    const errores = [];
+
+    // 2. Procesar cada factura pendiente, una por una
+    for (const item of pendientes) {
+      try {
+        // Descargar el PDF en base64
+        const paramsDescarga = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId: item.fileId });
+        const respDescarga = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsDescarga.toString()}`);
+        const dataDescarga = await respDescarga.json();
+
+        if (dataDescarga.error) {
+          errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: dataDescarga.error });
+          continue;
+        }
+
+        // Extraer datos con Claude
+        const extraido = await extraerDatosFactura(dataDescarga.base64, item.nombreArchivo, item.proveedor);
+
+        // Guardar el resultado en el log del Apps Script
+        await fetch(APPS_SCRIPT_FACTURAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: APPS_SCRIPT_FACTURAS_TOKEN,
+            fileId: item.fileId,
+            proveedor: item.proveedor,
+            nombreArchivo: item.nombreArchivo,
+            numeroFactura: extraido.numeroFactura,
+            fecha: extraido.fecha,
+            importe: extraido.importe,
+            confianza: extraido.confianza
+          })
+        });
+
+        resultados.push({ ...item, ...extraido });
+      } catch (errItem) {
+        errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: errItem.message });
+      }
+    }
+
+    res.json({
+      ok: true,
+      total_pendientes: pendientes.length,
+      procesadas: resultados.length,
+      con_error: errores.length,
+      resultados,
+      errores
+    });
+  } catch (err) {
+    console.error('Error en /api/facturas-proveedores/sincronizar:', err);
+    res.status(500).json({ error: 'Error al sincronizar facturas: ' + err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
 });
