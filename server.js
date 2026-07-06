@@ -1016,7 +1016,17 @@ Si la factura no desglosa IVA (por ejemplo recargo de equivalencia, régimen esp
   }
 
   const limpio = textoRespuesta.text.replace(/```json|```/g, '').trim();
-  return JSON.parse(limpio);
+  const extraido = JSON.parse(limpio);
+
+  // El "total" que devuelve el modelo a veces se confunde con otro número del documento
+  // (capital social, IBAN, etc.). Es más fiable recalcularlo nosotros: base + IVA.
+  const base = parseFloat(extraido.importeBase) || 0;
+  const iva = parseFloat(extraido.iva) || 0;
+  extraido.importeBase = Math.round(base * 100) / 100;
+  extraido.iva = Math.round(iva * 100) / 100;
+  extraido.importeTotal = Math.round((base + iva) * 100) / 100;
+
+  return extraido;
 }
 
 app.post('/api/facturas-proveedores/sincronizar', requiereLogin, async (req, res) => {
