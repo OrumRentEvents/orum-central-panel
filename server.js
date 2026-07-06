@@ -982,9 +982,12 @@ Extrae exactamente estos datos y responde SOLO con un JSON válido, sin texto ad
 {
   "numeroFactura": "número de factura tal como aparece",
   "fecha": "fecha de la factura en formato DD/MM/YYYY",
-  "importe": número total de la factura con IVA incluido, como número decimal sin símbolo de moneda,
+  "importeBase": número base imponible de la factura (SIN IVA), como número decimal sin símbolo de moneda,
+  "iva": importe del IVA aplicado, como número decimal,
+  "importeTotal": número total de la factura CON IVA incluido, como número decimal,
   "confianza": "alta" o "media" o "baja" según lo clara/legible que esté la factura
-}`;
+}
+Si la factura no desglosa IVA (por ejemplo recargo de equivalencia, régimen especial, o un proveedor exento), pon "iva": 0 y "importeBase" igual a "importeTotal".`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -1060,7 +1063,9 @@ app.post('/api/facturas-proveedores/sincronizar', requiereLogin, async (req, res
             nombreArchivo: item.nombreArchivo,
             numeroFactura: extraido.numeroFactura,
             fecha: extraido.fecha,
-            importe: extraido.importe,
+            importeBase: extraido.importeBase,
+            iva: extraido.iva,
+            importeTotal: extraido.importeTotal,
             confianza: extraido.confianza
           })
         });
@@ -1082,6 +1087,122 @@ app.post('/api/facturas-proveedores/sincronizar', requiereLogin, async (req, res
   } catch (err) {
     console.error('Error en /api/facturas-proveedores/sincronizar:', err);
     res.status(500).json({ error: 'Error al sincronizar facturas: ' + err.message });
+  }
+});
+
+// ── Listado completo de facturas ya procesadas, con reparto por departamento aplicado ──
+app.get('/api/facturas-proveedores', requiereLogin, async (req, res) => {
+  try {
+    const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
+    const paramsReparto = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
+
+    const [respListado, respReparto] = await Promise.all([
+      fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsListado.toString()}`),
+      fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsReparto.toString()}`)
+    ]);
+    const dataListado = await respListado.json();
+    const dataReparto = await respReparto.json();
+
+    if (dataListado.error) return res.status(500).json({ error: dataListado.error });
+    if (dataReparto.error) return res.status(500).json({ error: dataReparto.error });
+
+    const facturas = dataListado.facturas || [];
+    const reparto = dataReparto.reparto || [];
+
+    // Indexar reparto por proveedor
+    const repartoPorProveedor = {};
+    reparto.forEach(r => {
+      const prov = String(r.proveedor);
+      if (!repartoPorProveedor[prov]) repartoPorProveedor[prov] = [];
+      repartoPorProveedor[prov].push({ departamento: r.departamento, porcentaje: parseFloat(r.porcentaje) || 0 });
+    });
+
+    // Enriquecer cada factura con el desglose por departamento (importe base repartido)
+    const facturasEnriquecidas = facturas.map(f => {
+      const base = parseFloat(f.importeBase) || 0;
+      const reglasProveedor = repartoPorProveedor[String(f.proveedor)] || null;
+      let desgloseDepartamentos;
+      if (reglasProveedor) {
+        desgloseDepartamentos = reglasProveedor.map(r => ({
+          departamento: r.departamento,
+          porcentaje: r.porcentaje,
+          importe: Math.round(base * (r.porcentaje / 100) * 100) / 100
+        }));
+      } else {
+        desgloseDepartamentos = [{ departamento: 'Sin clasificar', porcentaje: 100, importe: base }];
+      }
+      return { ...f, desglose_departamentos: desgloseDepartamentos };
+    });
+
+    // Agregado por departamento (suma de todas las facturas)
+    const totalesPorDepartamento = {};
+    facturasEnriquecidas.forEach(f => {
+      f.desglose_departamentos.forEach(d => {
+        totalesPorDepartamento[d.departamento] = (totalesPorDepartamento[d.departamento] || 0) + d.importe;
+      });
+    });
+    const resumenDepartamentos = Object.keys(totalesPorDepartamento)
+      .map(dep => ({ departamento: dep, total: Math.round(totalesPorDepartamento[dep] * 100) / 100 }))
+      .sort((a, b) => b.total - a.total);
+
+    res.json({
+      ok: true,
+      facturas: facturasEnriquecidas,
+      resumen_departamentos: resumenDepartamentos,
+      proveedores_sin_clasificar: [...new Set(
+        facturasEnriquecidas.filter(f => !repartoPorProveedor[String(f.proveedor)]).map(f => f.proveedor)
+      )]
+    });
+  } catch (err) {
+    console.error('Error en /api/facturas-proveedores:', err);
+    res.status(500).json({ error: 'Error al obtener facturas: ' + err.message });
+  }
+});
+
+// ── Lista de proveedores únicos vistos hasta ahora (para la pantalla de configuración) ──
+app.get('/api/facturas-proveedores/proveedores', requiereLogin, async (req, res) => {
+  try {
+    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'proveedores' });
+    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
+    const data = await resp.json();
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Obtener la configuración actual de reparto por proveedor ──
+app.get('/api/facturas-proveedores/reparto', requiereLogin, async (req, res) => {
+  try {
+    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
+    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
+    const data = await resp.json();
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Guardar la configuración de reparto por proveedor (sustituye toda la tabla) ──
+app.post('/api/facturas-proveedores/reparto', requiereLogin, async (req, res) => {
+  try {
+    const reparto = req.body.reparto || [];
+    const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: APPS_SCRIPT_FACTURAS_TOKEN,
+        accion: 'guardarReparto',
+        reparto
+      })
+    });
+    const data = await resp.json();
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
