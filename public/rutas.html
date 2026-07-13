@@ -38,7 +38,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 #body{padding:10px 12px 80px;max-width:1280px;margin:0 auto;}
 .load{text-align:center;padding:3rem;color:#6b6a64;font-size:14px;}
 
-/* DIA SEPARADOR (vista semana) */
+/* DIA SEPARADOR */
 .dia-sep{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#6b6a64;padding:14px 4px 6px;margin-top:4px;}
 .dia-sep:first-child{padding-top:4px;}
 
@@ -47,8 +47,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .grupo-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#1a1a18;color:#fff;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;}
 .grupo-hdr.sin{background:#7a7a72;}
 .grupo-hdr-left{display:flex;align-items:center;gap:8px;}
-.grupo-cnt{background:rgba(255,255,255,.2);border-radius:10px;padding:1px 7px;font-size:11px;}
-.grupo-conductor{font-size:11px;font-weight:400;color:rgba(255,255,255,.7);}
+/* CAMBIO 5: conductor más grande y visible */
+.grupo-conductor{font-size:13px;font-weight:600;color:#fff;}
 .btn-wa{background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.3);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;margin-left:8px;}
 
 /* TABLA */
@@ -58,7 +58,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fila:last-child{border-bottom:none;}
 .fila:hover{background:#fafaf6;}
 .fila.exp{background:#fafaf6;}
-.fila.drag-over{background:#E1F5EE;outline:2px dashed #1D9E75;}
+/* CAMBIO 1: indicador visual posición drag */
+.fila.drag-over-top{border-top:3px solid #1D9E75 !important;}
+.fila.drag-over-bottom{border-bottom:3px solid #1D9E75 !important;}
+.fila.drag-over{background:#E1F5EE;}
 .fila[draggable=true]{cursor:grab;}
 .fila[draggable=true]:active{cursor:grabbing;}
 .fila td{padding:7px 10px;font-size:13px;vertical-align:middle;}
@@ -71,19 +74,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .b-manual{background:#EEEDFE;color:#3C3489;}
 .b-compra{background:#FFF3E0;color:#8B4513;}
 .b-taller{background:#FCE4EC;color:#880E4F;}
-.td-fecha{width:90px;white-space:nowrap;color:#6b6a64;font-size:12px;}
+/* CAMBIO 4: columna número proyecto */
+.td-num{width:80px;}
+.num-proy{font-size:15px;font-weight:700;color:#1a1a18;cursor:pointer;padding:3px 6px;border-radius:6px;display:inline-block;}
+.num-proy:hover{background:#f0f0ea;}
+.num-proy.copiado{color:#1D9E75;}
+.td-fecha{width:70px;white-space:nowrap;color:#6b6a64;font-size:12px;}
 .td-cli{min-width:150px;}
 .cli-nom{font-weight:500;font-size:13px;}
-.cli-num{font-size:11px;color:#9a988f;}
 .td-loc{color:#6b6a64;font-size:12px;max-width:200px;}
 .a-maps{font-size:10px;background:#E6F1FB;color:#185FA5;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;text-decoration:none;white-space:nowrap;margin-left:4px;}
 .td-est{width:85px;}
 .be{font-size:10px;padding:2px 6px;border-radius:10px;white-space:nowrap;}
 .be-ok{background:#E1F5EE;color:#0F6E56;}
 .be-cf{background:#E6F1FB;color:#185FA5;}
-.td-veh{width:130px;}
+.td-veh{width:140px;}
 .td-veh select{width:100%;padding:4px 6px;font-size:12px;border:.5px solid #e2e2de;border-radius:6px;background:#fff;color:#1a1a18;cursor:pointer;}
-.td-veh select:focus{outline:none;border-color:#1a1a18;}
 .td-notas{color:#6b6a64;font-size:12px;font-style:italic;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .td-exp{width:20px;text-align:center;color:#ccc;font-size:11px;}
 
@@ -101,6 +107,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .btn-g.ok{background:#1D9E75;}
 .btn-g.del{background:#fff;color:#A32D2D;border:.5px solid #F09595;}
 .msg-ok{font-size:12px;color:#1D9E75;}
+
+/* CAMBIO 2: checkboxes vehículos múltiples */
+.vehs-checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+.veh-check-lbl{display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:.5px solid #e2e2de;border-radius:7px;background:#fff;}
+.veh-check-lbl input[type=checkbox]{width:14px;height:14px;cursor:pointer;}
+.veh-check-lbl.seleccionado{background:#e6f1fb;border-color:#378ADD;color:#0C447C;}
 
 /* VUELTAS */
 .vuelta-sel{padding:4px 7px;font-size:12px;border:.5px solid #e2e2de;border-radius:6px;background:#fff;}
@@ -161,8 +173,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <div><label>Tipo</label><select id="m-tipo"><option value="ENTREGA">Entrega</option><option value="RECOGIDA">Recogida</option><option value="COMPRA">Compra</option><option value="TALLER">Taller</option><option value="OTRO">Otro</option></select></div>
       <div><label>Descripcion</label><input type="text" id="m-desc" placeholder="Ej: Recoger manteles sucios Marbella"></div>
       <div><label>Direccion</label><input type="text" id="m-dir" placeholder="Calle, ciudad..."></div>
-      <div class="form-row"><div><label>Fecha</label><input type="date" id="m-fecha"></div><div><label>Hora</label><input type="time" id="m-hora"></div></div>
-      <div><label>Vehiculo</label><select id="m-veh"><option value="">Sin asignar</option></select></div>
+      <div class="form-row"><div><label>Fecha</label><input type="date" id="m-fecha"></div></div>
+      <div><label>Vehiculos</label><div id="m-vehs-checks" class="vehs-checks"></div></div>
       <div><label>Conductor</label><input type="text" id="m-cond" placeholder="Nombre conductor"></div>
       <div><label>Notas</label><textarea id="m-notas" placeholder="Notas..."></textarea></div>
       <button class="btn-gm" id="btn-gm">Guardar parada</button>
@@ -177,10 +189,9 @@ var PINES_CONFIG={
   '2000':{rol:'logistica'},
   '3000':{rol:'comercial'}
 };
-var PIN=''; var ROL='';
+var ROL='';
 var VEHS=['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
 var pin='', modo='hoy', paradas=[];
-var dragSrcIdx=null;
 
 // ── PIN ──
 function initKP(){
@@ -228,20 +239,36 @@ function load(){
     .catch(function(){document.getElementById('body').innerHTML='<div class="load">Error de conexion</div>';});
 }
 
+// ── CAMBIO 2: Obtener lista de vehículos asignados a una parada (puede ser string o array) ──
+function getVehsParada(p){
+  if(!p.vehiculo)return[];
+  if(Array.isArray(p.vehiculo))return p.vehiculo.filter(Boolean);
+  // soporte para formato antiguo: string separado por comas
+  return p.vehiculo.split(',').map(function(v){return v.trim();}).filter(Boolean);
+}
+
 // ── RENDER ──
 function render(){
-  var conVeh=paradas.filter(function(p){return p.vehiculo;}).length;
+  var conVeh=paradas.filter(function(p){return getVehsParada(p).length>0;}).length;
   document.getElementById('hstats').textContent=paradas.length+' paradas - '+conVeh+' asignadas';
 
   var SIN='__sin__';
-  // Agrupar por vehiculo+vuelta
+  // CAMBIO 2: cada parada puede aparecer en múltiples grupos (uno por vehículo asignado)
   var grupos={};
+
   paradas.forEach(function(p,i){
-    var v=p.vehiculo||SIN;
-    var vuelta=parseInt(p.vuelta)||1;
-    var gkey=v==='__sin__'?'__sin__':(v+'_v'+vuelta);
-    if(!grupos[gkey])grupos[gkey]={veh:v,vuelta:vuelta,gkey:gkey,items:[]};
-    grupos[gkey].items.push(i);
+    var vehs=getVehsParada(p);
+    if(vehs.length===0){
+      if(!grupos[SIN])grupos[SIN]={veh:SIN,vuelta:1,gkey:SIN,items:[]};
+      grupos[SIN].items.push(i);
+    } else {
+      vehs.forEach(function(v){
+        var vuelta=parseInt(p.vuelta)||1;
+        var gkey=v+'_v'+vuelta;
+        if(!grupos[gkey])grupos[gkey]={veh:v,vuelta:vuelta,gkey:gkey,items:[]};
+        grupos[gkey].items.push(i);
+      });
+    }
   });
 
   // Ordenar items dentro de cada grupo por campo orden
@@ -253,19 +280,16 @@ function render(){
     });
   });
 
-  // Si vista semana, agrupar también por día
   var esSemana=(modo==='semana');
   var html='';
 
   if(esSemana){
-    // Obtener días únicos
     var dias={};
     paradas.forEach(function(p){if(p.fecha)dias[p.fecha]=1;});
     var diasArr=Object.keys(dias).sort();
 
     diasArr.forEach(function(fecha){
       html+='<div class="dia-sep">'+formatDiaLargo(fecha)+'</div>';
-      // Grupos que tienen paradas de este día
       var gruposDia={};
       Object.keys(grupos).forEach(function(gk){
         var itemsDia=grupos[gk].items.filter(function(i){return paradas[i].fecha===fecha;});
@@ -274,18 +298,13 @@ function render(){
           gruposDia[gk].items=gruposDia[gk].items.concat(itemsDia);
         }
       });
-      // Primero asignados, luego sin asignar
-      var gSin=gruposDia['__sin__'];
-      Object.keys(gruposDia).filter(function(gk){return gk!=='__sin__';}).sort().forEach(function(gk){
-        html+=renderGrupo(gruposDia[gk]);
-      });
+      var gSin=gruposDia[SIN];
+      Object.keys(gruposDia).filter(function(gk){return gk!==SIN;}).sort().forEach(function(gk){html+=renderGrupo(gruposDia[gk]);});
       if(gSin)html+=renderGrupo(gSin);
     });
   } else {
-    var gSin=grupos['__sin__'];
-    Object.keys(grupos).filter(function(gk){return gk!=='__sin__';}).sort().forEach(function(gk){
-      html+=renderGrupo(grupos[gk]);
-    });
+    var gSin=grupos[SIN];
+    Object.keys(grupos).filter(function(gk){return gk!==SIN;}).sort().forEach(function(gk){html+=renderGrupo(grupos[gk]);});
     if(gSin)html+=renderGrupo(gSin);
   }
 
@@ -297,66 +316,76 @@ function render(){
 function renderGrupo(g){
   var SIN='__sin__';
   var esSin=g.veh===SIN;
+  // CAMBIO 3: sin número de paradas
   var titulo=esSin?'Sin vehiculo asignado':(g.veh+(g.vuelta>1?' — '+g.vuelta+'ª vuelta':''));
-  // Conductor del grupo: primer conductor no vacío
-  var conductorGrupo='';
   var conductores=[];
   g.items.forEach(function(i){if(paradas[i].conductor&&conductores.indexOf(paradas[i].conductor)===-1)conductores.push(paradas[i].conductor);});
-  conductorGrupo=conductores.join(' / ');
+  var conductorGrupo=conductores.join(' / ');
 
   var html='<div class="grupo" data-gkey="'+g.gkey+'">';
-  html+='<div class="grupo-hdr'+(esSin?' sin':'')+'"><div class="grupo-hdr-left"><span>'+titulo+'</span><span class="grupo-cnt">'+g.items.length+'</span></div>';
+  html+='<div class="grupo-hdr'+(esSin?' sin':'')+'"><div class="grupo-hdr-left"><span>'+titulo+'</span></div>';
+  // CAMBIO 5: conductor más grande y visible (ya en CSS, aquí sin cambios de estructura)
   if(conductorGrupo)html+='<span class="grupo-conductor">'+conductorGrupo+'</span>';
   if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">📤 WhatsApp</button>';
   html+='</div>';
-  html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo</th><th>Notas</th><th></th></tr></thead><tbody>';
-  g.items.forEach(function(idx,pos){html+=renderFila(idx,g.gkey,pos,g.items.length);});
+  // CAMBIO 4: columna Nº independiente; CAMBIO 6: sin hora en cabecera Fecha
+  html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
+  g.items.forEach(function(idx){html+=renderFila(idx,g.gkey);});
   html+='</tbody></table></div>';
   return html;
 }
 
-function renderFila(idx,gkey,pos,total){
+function renderFila(idx,gkey){
   var p=paradas[idx];
-  var key='p'+idx;
+  var key='p'+idx+'_'+gkey.replace(/[^a-zA-Z0-9]/g,'');
   var tipo=(p.tipo||'OTRO').toLowerCase();
   var bc=p.es_manual?'b-manual':('b-'+tipo);
   var bt=p.es_manual?'MANUAL':p.tipo;
   var esOk=['returned','cargado','marbella','on location','controlado','preparado'].some(function(x){return(p.estado||'').toLowerCase().indexOf(x)!==-1;});
   var estH=p.estado?('<span class="be '+(esOk?'be-ok':'be-cf')+'">'+p.estado+'</span>'):'';
   var mapsH=p.google_maps_url?('<a href="'+p.google_maps_url+'" target="_blank" class="a-maps">Maps</a>'):'';
-  var fechaH=p.fecha?formatFechaCorta(p.fecha)+(p.hora&&p.hora.length===5?' '+p.hora:''):'';
+  // CAMBIO 6: solo fecha, sin hora
+  var fechaH=p.fecha?formatFechaCorta(p.fecha):'';
+  // CAMBIO 4: número de proyecto
+  var numH=p.numero?('<span class="num-proy" onclick="copiarNum(this,\''+p.numero+'\')" title="Clic para copiar">#'+p.numero+'</span>'):'<span style="color:#ccc">—</span>';
+  // CAMBIO 2: mostrar vehículos asignados (puede ser múltiple)
+  var vehsActuales=getVehsParada(p);
+  var vehTexto=vehsActuales.length>0?vehsActuales.join(', '):'<span style="color:#ccc">—</span>';
+  // En logística, inline sigue siendo simple (el detalle tiene los checkboxes)
+  var vehCelda=ROL==='logistica'?vehTexto:vehTexto;
 
-  // Desplegable vehiculo inline
-  var vehOpts='<option value="">—</option>';
-  VEHS.forEach(function(v){vehOpts+='<option value="'+v+'"'+(p.vehiculo===v?' selected':'')+'>'+v+'</option>';});
-  // Opciones de vuelta
-  var vuelOpts='';
-  for(var vv=1;vv<=4;vv++)vuelOpts+='<option value="'+vv+'"'+((parseInt(p.vuelta)||1)===vv?' selected':'')+'>'+vv+'ª</option>';
-
-  var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||''}));
-
+  var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||'',gkey:gkey}));
   var dragAttr=ROL==='logistica'?' draggable="true"':'';
+
   var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
   html+='<td class="td-drag">'+(ROL==='logistica'?'⠿':'')+'</td>';
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
-  html+='<td class="td-cli"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+(p.numero?'<div class="cli-num">#'+p.numero+'</div>':'')+'</td>';
+  // CAMBIO 4: columna número independiente
+  html+='<td class="td-num">'+numH+'</td>';
+  html+='<td class="td-cli"><div class="cli-nom">'+(p.cliente||'—')+'</div></td>';
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
-  var vehCelda=ROL==='logistica'?('<select class="sel-veh" data-idx="'+idx+'" data-gkey="'+gkey+'">'+vehOpts+'</select>'):(p.vehiculo||'<span style="color:#ccc">—</span>');
   html+='<td class="td-veh">'+vehCelda+'</td>';
   html+='<td class="td-notas">'+(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
 
-  // Fila detalle
-  html+='<tr class="fila-det" id="det-'+key+'"><td colspan="9">';
-  var vehOpts2='<option value="">Sin vehiculo</option>';
-  VEHS.forEach(function(v){vehOpts2+='<option value="'+v+'"'+(p.vehiculo===v?' selected':'')+'>'+v+'</option>';});
+  // Fila detalle expandible
+  html+='<tr class="fila-det" id="det-'+key+'"><td colspan="10">';
   html+='<div class="det-grid">';
   if(ROL==='logistica'){
-    html+='<div class="det-campo"><label>Vehiculo</label><select id="dv-'+key+'">'+vehOpts2+'</select></div>';
-    html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">'+vuelOpts+'</select></div>';
+    // CAMBIO 2: checkboxes de vehículos múltiples en lugar de select
+    html+='<div class="det-campo" style="grid-column:1/-1"><label>Vehiculos asignados</label><div class="vehs-checks" id="vch-'+key+'">';
+    VEHS.forEach(function(v){
+      var chk=vehsActuales.indexOf(v)!==-1?' checked':'';
+      var sel=vehsActuales.indexOf(v)!==-1?' seleccionado':'';
+      html+='<label class="veh-check-lbl'+sel+'" id="lbl-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'"><input type="checkbox" value="'+v+'"'+chk+' onchange="toggleVehCheck(this)"> '+v+'</label>';
+    });
+    html+='</div></div>';
+    html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">';
+    for(var vv=1;vv<=4;vv++)html+='<option value="'+vv+'"'+((parseInt(p.vuelta)||1)===vv?' selected':'')+'>'+vv+'ª</option>';
+    html+='</select></div>';
     html+='<div class="det-campo"><label>Conductor</label><input type="text" id="dc-'+key+'" value="'+(p.conductor||'')+'" placeholder="Nombre conductor"></div>';
   }
   html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
@@ -366,6 +395,13 @@ function renderFila(idx,gkey,pos,total){
   html+='<span class="msg-ok" id="msg-'+key+'"></span>';
   html+='</div></td></tr>';
   return html;
+}
+
+// CAMBIO 2: actualizar estilo del label al marcar/desmarcar checkbox
+function toggleVehCheck(chk){
+  var lbl=chk.closest('.veh-check-lbl');
+  if(chk.checked)lbl.classList.add('seleccionado');
+  else lbl.classList.remove('seleccionado');
 }
 
 function formatFechaCorta(iso){
@@ -382,30 +418,26 @@ function formatDiaLargo(iso){
   return dias[d.getDay()]+' '+d.getDate()+' de '+meses[d.getMonth()];
 }
 
+// CAMBIO 4: copiar número al portapapeles con feedback visual
+function copiarNum(el,num){
+  navigator.clipboard.writeText(String(num)).then(function(){
+    var orig=el.textContent;
+    el.textContent='✓ Copiado';
+    el.classList.add('copiado');
+    setTimeout(function(){el.textContent=orig;el.classList.remove('copiado');},1200);
+  });
+}
+
 // ── EVENTOS ──
 function bindEvents(){
   // Expand fila
   document.querySelectorAll('.fila').forEach(function(fila){
     fila.addEventListener('click',function(e){
-      if(e.target.closest('.sel-veh')||e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea'))return;
+      if(e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.num-proy'))return;
       var idx=fila.getAttribute('data-idx');
-      var det=document.getElementById('det-p'+idx);
+      var gkey=(fila.getAttribute('data-gkey')||'').replace(/[^a-zA-Z0-9]/g,'');
+      var det=document.getElementById('det-p'+idx+'_'+gkey);
       if(det){det.classList.toggle('open');fila.classList.toggle('exp');}
-    });
-  });
-
-  // Auto-save vehiculo al cambiar desplegable inline
-  document.querySelectorAll('.sel-veh').forEach(function(sel){
-    sel.addEventListener('change',function(e){
-      e.stopPropagation();
-      var idx=parseInt(sel.getAttribute('data-idx'));
-      var veh=sel.value;
-      paradas[idx].vehiculo=veh;
-      var clave=paradas[idx].clave;
-      var vuelta=parseInt(paradas[idx].vuelta)||1;
-      apiPost({action:'set_asignacion',clave:clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:veh,conductor:paradas[idx].conductor||'',notas:paradas[idx].notas||'',vuelta:vuelta,orden:paradas[idx].orden||0})
-        .then(function(){toast('Vehiculo asignado');render();})
-        .catch(function(){toast('Error al guardar');});
     });
   });
 
@@ -419,86 +451,108 @@ function bindEvents(){
     btn.addEventListener('click',function(){eliminarManual(btn.getAttribute('data-id'));});
   });
 
-  // Drag & drop con UI optimista
-  var dragSrcIdx=null, dragSrcVeh=null;
+  // CAMBIO 1: Drag & drop corregido — inserción en posición exacta
+  var dragSrcIdx=null, dragSrcGkey=null;
+
   document.querySelectorAll('.fila[draggable=true]').forEach(function(fila){
     fila.addEventListener('dragstart',function(e){
       dragSrcIdx=parseInt(fila.getAttribute('data-idx'));
-      dragSrcVeh=fila.getAttribute('data-gkey');
+      dragSrcGkey=fila.getAttribute('data-gkey');
       e.dataTransfer.effectAllowed='move';
       setTimeout(function(){fila.style.opacity='0.4';},0);
     });
     fila.addEventListener('dragend',function(){
       fila.style.opacity='';
-      document.querySelectorAll('.fila').forEach(function(f){f.classList.remove('drag-over');});
+      document.querySelectorAll('.fila').forEach(function(f){
+        f.classList.remove('drag-over-top','drag-over-bottom','drag-over');
+      });
     });
-    fila.addEventListener('dragover',function(e){e.preventDefault();fila.classList.add('drag-over');});
-    fila.addEventListener('dragleave',function(){fila.classList.remove('drag-over');});
-    fila.addEventListener('drop',function(e){
-      e.preventDefault(); fila.classList.remove('drag-over');
-      var destIdx=parseInt(fila.getAttribute('data-idx'));
-      var destVeh=fila.getAttribute('data-gkey');
-      if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
-      moverOptimista(dragSrcIdx,destIdx,dragSrcVeh,destVeh);
-    });
-  });
-  document.querySelectorAll('.grupo').forEach(function(g){
-    g.addEventListener('dragover',function(e){e.preventDefault();});
-    g.addEventListener('drop',function(e){
+    fila.addEventListener('dragover',function(e){
       e.preventDefault();
-      if(dragSrcIdx===null)return;
-      var gkey=g.getAttribute('data-gkey');
-      if(gkey==='__sin__'||gkey===dragSrcVeh)return;
-      var partes=gkey.split('_v');
-      moverAGrupo(dragSrcIdx,partes[0],parseInt(partes[1])||1,gkey);
+      document.querySelectorAll('.fila').forEach(function(f){f.classList.remove('drag-over-top','drag-over-bottom');});
+      // Detectar si el cursor está en la mitad superior o inferior de la fila
+      var rect=fila.getBoundingClientRect();
+      var mitad=rect.top+rect.height/2;
+      if(e.clientY<mitad){fila.classList.add('drag-over-top');fila.classList.remove('drag-over-bottom');}
+      else{fila.classList.add('drag-over-bottom');fila.classList.remove('drag-over-top');}
+    });
+    fila.addEventListener('dragleave',function(){
+      fila.classList.remove('drag-over-top','drag-over-bottom');
+    });
+    fila.addEventListener('drop',function(e){
+      e.preventDefault();
+      fila.classList.remove('drag-over-top','drag-over-bottom');
+      var destIdx=parseInt(fila.getAttribute('data-idx'));
+      if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
+      // Detectar posición (antes o después del destino)
+      var rect=fila.getBoundingClientRect();
+      var insertarAntes=(e.clientY<rect.top+rect.height/2);
+      moverEnGrupo(dragSrcIdx,destIdx,dragSrcGkey,fila.getAttribute('data-gkey'),insertarAntes);
     });
   });
+}
+
+// CAMBIO 1: función de movimiento corregida — inserción en posición exacta
+function moverEnGrupo(srcIdx,destIdx,srcGkey,destGkey,insertarAntes){
+  var SIN='__sin__';
+  // Si cambia de grupo, actualizar vehículo de la parada origen
+  if(srcGkey!==destGkey&&destGkey!==SIN){
+    var partes=destGkey.split('_v');
+    var vehDestino=partes[0];
+    var vueltaDestino=parseInt(partes[1])||1;
+    var vehsActuales=getVehsParada(paradas[srcIdx]);
+    if(vehsActuales.indexOf(vehDestino)===-1)vehsActuales.push(vehDestino);
+    paradas[srcIdx].vehiculo=vehsActuales;
+    paradas[srcIdx].vuelta=vueltaDestino;
+  }
+
+  // Obtener grupo destino (puede ser el mismo o diferente)
+  var gkeyFinal=destGkey!==SIN?destGkey:(paradas[srcIdx].vehiculo?((getVehsParada(paradas[srcIdx])[0]||'')+'_v'+(parseInt(paradas[srcIdx].vuelta)||1)):SIN);
+
+  // Construir array del grupo destino excluyendo el srcIdx
+  var arr=[];
+  paradas.forEach(function(p,i){
+    if(i===srcIdx)return;
+    var vehs=getVehsParada(p);
+    var vu=parseInt(p.vuelta)||1;
+    var enGrupo=false;
+    if(gkeyFinal===SIN&&vehs.length===0)enGrupo=true;
+    else vehs.forEach(function(v){if((v+'_v'+vu)===gkeyFinal)enGrupo=true;});
+    if(enGrupo)arr.push(i);
+  });
+
+  // Ordenar por orden actual
+  arr.sort(function(a,b){return(paradas[a].orden||0)-(paradas[b].orden||0);});
+
+  // Encontrar posición de destino e insertar en el lugar correcto
+  var posDestino=arr.indexOf(destIdx);
+  if(posDestino===-1){
+    arr.push(srcIdx);
+  } else {
+    if(insertarAntes){arr.splice(posDestino,0,srcIdx);}
+    else{arr.splice(posDestino+1,0,srcIdx);}
+  }
+
+  guardarGrupoBackground(arr);
 }
 
 function getGrupos(){
   var SIN='__sin__'; var g={};
   paradas.forEach(function(p,i){
-    var v=p.vehiculo||SIN; var vu=parseInt(p.vuelta)||1;
-    var gk=v===SIN?SIN:(v+'_v'+vu);
-    if(!g[gk])g[gk]=[];
-    g[gk].push(i);
+    var vehs=getVehsParada(p);
+    if(vehs.length===0){if(!g[SIN])g[SIN]=[];g[SIN].push(i);}
+    else{vehs.forEach(function(v){var vu=parseInt(p.vuelta)||1;var gk=v+'_v'+vu;if(!g[gk])g[gk]=[];g[gk].push(i);});}
   });
   return g;
 }
 
-function guardarGrupoBackground(grpArr){
-  grpArr.forEach(function(i,pos){ paradas[i].orden=pos; });
+function guardarGrupoBackground(arr){
+  arr.forEach(function(i,pos){paradas[i].orden=pos;});
   render();
-  var saves=grpArr.map(function(i,pos){
+  var saves=arr.map(function(i,pos){
     return apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||'',notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos});
   });
-  Promise.all(saves).catch(function(){ toast('Error guardando — recarga para verificar'); });
-}
-
-function moverOptimista(srcIdx,destIdx,srcVeh,destVeh){
-  var SIN='__sin__';
-  if(srcVeh!==destVeh&&destVeh!==SIN){
-    var p=destVeh.split('_v');
-    paradas[srcIdx].vehiculo=p[0];
-    paradas[srcIdx].vuelta=parseInt(p[1])||1;
-  }
-  var grupos=getGrupos();
-  var newVeh=paradas[srcIdx].vehiculo||SIN;
-  var newVuelta=parseInt(paradas[srcIdx].vuelta)||1;
-  var newGk=newVeh===SIN?SIN:(newVeh+'_v'+newVuelta);
-  var arr=(grupos[newGk]||[]).filter(function(i){return i!==srcIdx;});
-  var pos=arr.indexOf(destIdx); if(pos===-1)pos=arr.length;
-  arr.splice(pos,0,srcIdx);
-  guardarGrupoBackground(arr);
-}
-
-function moverAGrupo(srcIdx,newVeh,newVuelta,newGk){
-  paradas[srcIdx].vehiculo=newVeh;
-  paradas[srcIdx].vuelta=newVuelta;
-  var grupos=getGrupos();
-  var arr=grupos[newGk]||[];
-  if(arr.indexOf(srcIdx)===-1)arr.push(srcIdx);
-  guardarGrupoBackground(arr);
+  Promise.all(saves).catch(function(){toast('Error guardando — recarga para verificar');});
 }
 
 function guardarDetalle(btn){
@@ -506,21 +560,32 @@ function guardarDetalle(btn){
   var pRaw=btn.getAttribute('data-p');
   var pData; try{pData=JSON.parse(decodeURIComponent(pRaw));}catch(e){return;}
   var idx=pData.idx;
-  var elVeh=document.getElementById('dv-'+key);
+
+  // CAMBIO 2: recoger todos los checkboxes marcados
+  var vehsSeleccionados=[];
+  var container=document.getElementById('vch-'+key);
+  if(container){
+    container.querySelectorAll('input[type=checkbox]:checked').forEach(function(chk){vehsSeleccionados.push(chk.value);});
+  } else {
+    vehsSeleccionados=getVehsParada(paradas[idx]);
+  }
+
   var elCond=document.getElementById('dc-'+key);
   var elVuel=document.getElementById('vuel-'+key);
-  var vehiculo=elVeh?elVeh.value:(paradas[idx].vehiculo||'');
   var conductor=elCond?elCond.value:(paradas[idx].conductor||'');
   var notas=document.getElementById('dn-'+key).value;
   var vuelta=elVuel?(parseInt(elVuel.value)||1):(parseInt(paradas[idx].vuelta)||1);
 
   btn.textContent='...'; btn.disabled=true;
 
-  var body={action:'set_asignacion',clave:pData.clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:vehiculo,conductor:conductor,notas:notas,vuelta:vuelta,orden:paradas[idx].orden||0};
+  var body={action:'set_asignacion',clave:pData.clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:vehsSeleccionados,conductor:conductor,notas:notas,vuelta:vuelta,orden:paradas[idx].orden||0};
   if(pData.es_manual){body.action='update_manual';body.id=pData.id_manual;}
 
   apiPost(body).then(function(){
-    paradas[idx].vehiculo=vehiculo;paradas[idx].conductor=conductor;paradas[idx].notas=notas;paradas[idx].vuelta=vuelta;
+    paradas[idx].vehiculo=vehsSeleccionados;
+    paradas[idx].conductor=conductor;
+    paradas[idx].notas=notas;
+    paradas[idx].vuelta=vuelta;
     btn.textContent='Guardado';btn.classList.add('ok');
     var msg=document.getElementById('msg-'+key);if(msg)msg.textContent='Guardado';
     toast('Guardado');
@@ -540,21 +605,34 @@ function apiPost(body){
 
 // ── MODAL MANUAL ──
 function initVehs(){
-  var sel=document.getElementById('m-veh');
-  sel.innerHTML='<option value="">Sin asignar</option>';
-  VEHS.forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+  // Checkboxes en modal
+  var cont=document.getElementById('m-vehs-checks');
+  if(cont){
+    cont.innerHTML='';
+    VEHS.forEach(function(v){
+      var lbl=document.createElement('label');
+      lbl.className='veh-check-lbl';
+      lbl.innerHTML='<input type="checkbox" value="'+v+'"> '+v;
+      lbl.querySelector('input').addEventListener('change',function(){toggleVehCheck(this);});
+      cont.appendChild(lbl);
+    });
+  }
 }
 function abrirModal(){
   document.getElementById('m-fecha').value=document.getElementById('fpicker').value||hoy();
-  document.getElementById('m-hora').value='09:00';
   ['m-desc','m-dir','m-cond','m-notas'].forEach(function(id){document.getElementById(id).value='';});
-  document.getElementById('m-veh').value='';
+  // Desmarcar todos los checkboxes
+  var cont=document.getElementById('m-vehs-checks');
+  if(cont)cont.querySelectorAll('input[type=checkbox]').forEach(function(chk){chk.checked=false;chk.closest('.veh-check-lbl').classList.remove('seleccionado');});
   document.getElementById('modal').classList.add('open');
   document.body.style.overflow='hidden';
 }
 function cerrarModal(){document.getElementById('modal').classList.remove('open');document.body.style.overflow='';}
 function guardarManual(){
-  var body={action:'add_manual',tipo:document.getElementById('m-tipo').value,descripcion:document.getElementById('m-desc').value,direccion:document.getElementById('m-dir').value,fecha:document.getElementById('m-fecha').value,hora:document.getElementById('m-hora').value,vehiculo:document.getElementById('m-veh').value,conductor:document.getElementById('m-cond').value,notas:document.getElementById('m-notas').value};
+  var vehs=[];
+  var cont=document.getElementById('m-vehs-checks');
+  if(cont)cont.querySelectorAll('input[type=checkbox]:checked').forEach(function(chk){vehs.push(chk.value);});
+  var body={action:'add_manual',tipo:document.getElementById('m-tipo').value,descripcion:document.getElementById('m-desc').value,direccion:document.getElementById('m-dir').value,fecha:document.getElementById('m-fecha').value,vehiculo:vehs,conductor:document.getElementById('m-cond').value,notas:document.getElementById('m-notas').value};
   if(!body.descripcion){alert('La descripcion es obligatoria');return;}
   if(!body.fecha){alert('La fecha es obligatoria');return;}
   var btn=document.getElementById('btn-gm');btn.textContent='Guardando...';btn.disabled=true;
@@ -563,14 +641,10 @@ function guardarManual(){
 
 function enviarWhatsApp(gkey){
   var SIN='__sin__';
-  // Obtener paradas del grupo ordenadas
   var grupos=getGrupos();
   var grpArr=(grupos[gkey]||[]).slice();
-  grpArr.sort(function(a,b){return (paradas[a].orden||0)-(paradas[b].orden||0);});
-
+  grpArr.sort(function(a,b){return(paradas[a].orden||0)-(paradas[b].orden||0);});
   if(!grpArr.length){toast('Sin paradas en este grupo');return;}
-
-  // Nombre del vehiculo y fecha
   var partes=gkey.split('_v');
   var nombreVeh=partes[0];
   var vuelta=parseInt(partes[1])||1;
@@ -578,24 +652,18 @@ function enviarWhatsApp(gkey){
   grpArr.forEach(function(i){if(paradas[i].fecha)fechas[paradas[i].fecha]=1;});
   var fechasArr=Object.keys(fechas).sort();
   var fechaLabel=fechasArr.map(function(f){return formatDiaLargo(f);}).join(', ');
-
   var titulo='RUTA '+nombreVeh+(vuelta>1?' ('+vuelta+'a vuelta)':'');
   var texto=titulo+' - '+fechaLabel+'\n\n';
-
-  var emojis=['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20'];
   grpArr.forEach(function(i,pos){
     var p=paradas[i];
-    var num=emojis[pos]||String(pos+1);
-    texto+=num+'. '+p.tipo+(p.hora&&p.hora.length===5?' - '+p.hora:'')+'\n';
-    if(p.numero) texto+='   #'+p.numero+'\n';
-    texto+='   '+( p.cliente||'')+'\n';
-    if(p.localizacion) texto+='   '+p.localizacion+'\n';
-    if(p.notas) texto+='   Notas: '+p.notas+'\n';
+    texto+=(pos+1)+'. '+p.tipo+'\n';
+    if(p.numero)texto+='   #'+p.numero+'\n';
+    texto+='   '+(p.cliente||'')+'\n';
+    if(p.localizacion)texto+='   '+p.localizacion+'\n';
+    if(p.notas)texto+='   Notas: '+p.notas+'\n';
     texto+='\n';
   });
-
-  var url='https://wa.me/?text='+encodeURIComponent(texto);
-  window.open(url,'_blank');
+  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank');
 }
 
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2000);}
@@ -604,7 +672,7 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 document.addEventListener('DOMContentLoaded',function(){
   initKP();
   document.getElementById('btn-rec').addEventListener('click',load);
-  document.getElementById('fab').addEventListener('click',function(){ if(ROL==='logistica') abrirModal(); });
+  document.getElementById('fab').addEventListener('click',function(){if(ROL==='logistica')abrirModal();});
   document.getElementById('mcls').addEventListener('click',cerrarModal);
   document.getElementById('btn-gm').addEventListener('click',guardarManual);
   document.getElementById('btn-hoy').addEventListener('click',function(){modo='hoy';this.classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
