@@ -184,6 +184,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="toast">OK</div>
 
+<!-- Modal conductores por vehículo -->
+<div id="modal-conductores" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:480px;padding:0 0 2rem;max-height:80vh;overflow-y:auto;">
+    <div style="padding:14px 16px;border-bottom:.5px solid #e2e2de;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;">
+      <h2 style="font-size:15px;font-weight:500;" id="modal-cond-titulo">Conductores</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="abrirModalGestionChoferes()" style="font-size:12px;color:#6b6a64;background:#f0f0ec;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;">✏️ Editar lista</button>
+        <button onclick="cerrarModalConductores()" style="background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;">✕</button>
+      </div>
+    </div>
+    <div style="padding:14px 16px;">
+      <p style="font-size:12px;color:#6b6a64;margin-bottom:10px;">Selecciona uno o varios conductores para este vehículo y vuelta:</p>
+      <div id="modal-cond-checks" class="vehs-checks" style="flex-direction:column;"></div>
+      <button onclick="guardarConductoresModal()" style="width:100%;padding:12px;font-size:14px;font-weight:500;background:#1a1a18;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:14px;">Guardar conductores</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal gestión lista de choferes -->
+<div id="modal-choferes" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:380px;padding:1.5rem;margin:1rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2 style="font-size:15px;font-weight:500;">Lista de choferes</h2>
+      <button onclick="cerrarModalGestionChoferes()" style="background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;">✕</button>
+    </div>
+    <div id="lista-choferes-editable" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;max-height:50vh;overflow-y:auto;"></div>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="nuevo-chofer-input" placeholder="Nombre nuevo chofer..." style="flex:1;padding:8px 12px;font-size:13px;border:.5px solid #e2e2de;border-radius:8px;">
+      <button onclick="agregarChofer()" style="padding:8px 14px;font-size:13px;background:#1a1a18;color:#fff;border:none;border-radius:8px;cursor:pointer;">Añadir</button>
+    </div>
+    <button onclick="guardarListaChoferes()" style="width:100%;padding:10px;font-size:13px;font-weight:500;background:#1D9E75;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:12px;">Guardar lista</button>
+  </div>
+</div>
+
 <script>
 var PINES_CONFIG={
   '2000':{rol:'logistica'},
@@ -192,6 +226,9 @@ var PINES_CONFIG={
 var ROL='';
 var VEHS=['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
 var pin='', modo='hoy', paradas=[];
+// Conductores: lista global editable y asignaciones por vehículo+vuelta+día
+var CHOFERES=['Leo Haro','Juan Ríos','Jorge Cuesta','Rubén','Carlos','Jesús','Cristian','José Enríquez'];
+var asignacionesConductores={}; // clave: "fecha_vehiculo_vuelta" → [nombres]
 
 // ── PIN ──
 function initKP(){
@@ -228,15 +265,54 @@ function load(){
   document.getElementById('body').innerHTML='<div class="load">Cargando paradas...</div>';
   document.getElementById('hstats').textContent='';
   var r=rango();
-  fetch('/api/rutas?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now())
-    .then(function(res){return res.json();})
-    .then(function(data){
-      if(data.error){document.getElementById('body').innerHTML='<div class="load">Error: '+data.error+'</div>';return;}
-      paradas=data.paradas||[];
-      if(data.vehiculos)VEHS=data.vehiculos;
-      render();
-    })
-    .catch(function(){document.getElementById('body').innerHTML='<div class="load">Error de conexion</div>';});
+  var urlParadas='/api/rutas?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
+  var urlConductores='/api/rutas/conductores?desde='+r.desde+'&hasta='+r.hasta+'&t='+Date.now();
+
+  Promise.all([
+    fetch(urlParadas).then(function(res){return res.json();}),
+    fetch(urlConductores).then(function(res){return res.json();}).catch(function(){return{};})
+  ]).then(function(resultados){
+    var data=resultados[0];
+    var dataCond=resultados[1];
+
+    if(data.error){document.getElementById('body').innerHTML='<div class="load">Error: '+data.error+'</div>';return;}
+    paradas=data.paradas||[];
+    if(data.vehiculos)VEHS=data.vehiculos;
+
+    // Cargar choferes y asignaciones
+    if(dataCond.choferes&&dataCond.choferes.length>0) CHOFERES=dataCond.choferes;
+    asignacionesConductores={};
+    (dataCond.asignaciones||[]).forEach(function(a){
+      var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
+      asignacionesConductores[clave]=a.conductores||[];
+    });
+
+    render();
+  }).catch(function(){document.getElementById('body').innerHTML='<div class="load">Error de conexion</div>';});
+}
+
+// CAMBIO: obtener conductor específico de un vehículo concreto
+// conductor puede ser: string (formato antiguo), u objeto {VOLKSWAGEN: "Luis", RENAULT: "Juan"}
+function getConductorDeVeh(p, veh){
+  if(!p.conductor)return'';
+  if(typeof p.conductor==='string'){
+    // formato antiguo: un solo conductor para todos
+    return p.conductor;
+  }
+  if(typeof p.conductor==='object'){
+    return p.conductor[veh]||'';
+  }
+  return'';
+}
+
+// Obtener todos los conductores de una parada como texto legible
+function getConductoresTexto(p){
+  if(!p.conductor)return'';
+  if(typeof p.conductor==='string')return p.conductor;
+  if(typeof p.conductor==='object'){
+    return Object.values(p.conductor).filter(Boolean).filter(function(v,i,a){return a.indexOf(v)===i;}).join(' / ');
+  }
+  return'';
 }
 
 // ── CAMBIO 2: Obtener lista de vehículos asignados a una parada (puede ser string o array) ──
@@ -316,19 +392,29 @@ function render(){
 function renderGrupo(g){
   var SIN='__sin__';
   var esSin=g.veh===SIN;
-  // CAMBIO 3: sin número de paradas
   var titulo=esSin?'Sin vehiculo asignado':(g.veh+(g.vuelta>1?' — '+g.vuelta+'ª vuelta':''));
-  var conductores=[];
-  g.items.forEach(function(i){if(paradas[i].conductor&&conductores.indexOf(paradas[i].conductor)===-1)conductores.push(paradas[i].conductor);});
-  var conductorGrupo=conductores.join(' / ');
+
+  // Obtener conductores asignados a este vehículo+vuelta para las fechas de las paradas
+  var fechasGrupo={};
+  g.items.forEach(function(i){if(paradas[i].fecha)fechasGrupo[paradas[i].fecha]=1;});
+  var fechasPrincipales=Object.keys(fechasGrupo).sort();
+  var fechaPrincipal=fechasPrincipales[0]||'';
+  var condsClave=fechaPrincipal+'_'+g.veh+'_'+g.vuelta;
+  var conductoresAsignados=asignacionesConductores[condsClave]||[];
+  var conductorTexto=conductoresAsignados.join(' · ')||'';
 
   var html='<div class="grupo" data-gkey="'+g.gkey+'">';
-  html+='<div class="grupo-hdr'+(esSin?' sin':'')+'"><div class="grupo-hdr-left"><span>'+titulo+'</span></div>';
-  // CAMBIO 5: conductor más grande y visible (ya en CSS, aquí sin cambios de estructura)
-  if(conductorGrupo)html+='<span class="grupo-conductor">'+conductorGrupo+'</span>';
+  html+='<div class="grupo-hdr'+(esSin?' sin':'')+'"><div class="grupo-hdr-left">';
+  html+='<span>'+titulo+'</span>';
+  // Mostrar conductores asignados
+  if(conductorTexto) html+='<span class="grupo-conductor">'+conductorTexto+'</span>';
+  html+='</div>';
+  // Botón asignar conductores (solo logística, solo grupos con vehículo)
+  if(ROL==='logistica'&&!esSin&&fechaPrincipal){
+    html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+g.gkey+'\',\''+fechaPrincipal+'\')" title="Asignar conductores">👤 Conductores</button>';
+  }
   if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">📤 WhatsApp</button>';
   html+='</div>';
-  // CAMBIO 4: columna Nº independiente; CAMBIO 6: sin hora en cabecera Fecha
   html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
   g.items.forEach(function(idx){html+=renderFila(idx,g.gkey);});
   html+='</tbody></table></div>';
@@ -380,13 +466,21 @@ function renderFila(idx,gkey){
     VEHS.forEach(function(v){
       var chk=vehsActuales.indexOf(v)!==-1?' checked':'';
       var sel=vehsActuales.indexOf(v)!==-1?' seleccionado':'';
-      html+='<label class="veh-check-lbl'+sel+'" id="lbl-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'"><input type="checkbox" value="'+v+'"'+chk+' onchange="toggleVehCheck(this)"> '+v+'</label>';
+      html+='<label class="veh-check-lbl'+sel+'" id="lbl-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'"><input type="checkbox" value="'+v+'"'+chk+' onchange="toggleVehCheck(this,\''+key+'\')"> '+v+'</label>';
+    });
+    html+='</div></div>';
+    // CAMBIO A: un campo de conductor por vehículo asignado
+    html+='<div class="det-campo" style="grid-column:1/-1"><label>Conductores por vehículo</label>';
+    html+='<div id="conductores-'+key+'" style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">';
+    // Mostrar campos para los vehículos actualmente seleccionados
+    vehsActuales.forEach(function(v){
+      var condVal=getConductorDeVeh(p,v);
+      html+='<div style="display:flex;align-items:center;gap:8px;" id="cond-row-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'"><span style="font-size:12px;color:#6b6a64;min-width:110px;">'+v+'</span><input type="text" class="cond-veh-input" data-veh="'+v+'" id="dc-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'" value="'+condVal+'" placeholder="Conductor..." style="flex:1;padding:6px 9px;font-size:13px;border:.5px solid #e2e2de;border-radius:7px;"></div>';
     });
     html+='</div></div>';
     html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">';
     for(var vv=1;vv<=4;vv++)html+='<option value="'+vv+'"'+((parseInt(p.vuelta)||1)===vv?' selected':'')+'>'+vv+'ª</option>';
     html+='</select></div>';
-    html+='<div class="det-campo"><label>Conductor</label><input type="text" id="dc-'+key+'" value="'+(p.conductor||'')+'" placeholder="Nombre conductor"></div>';
   }
   html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
   html+='</div><div class="det-acts">';
@@ -397,11 +491,28 @@ function renderFila(idx,gkey){
   return html;
 }
 
-// CAMBIO 2: actualizar estilo del label al marcar/desmarcar checkbox
-function toggleVehCheck(chk){
+// CAMBIO 2: actualizar estilo del label y añadir/quitar campo conductor al marcar/desmarcar
+function toggleVehCheck(chk, key){
   var lbl=chk.closest('.veh-check-lbl');
-  if(chk.checked)lbl.classList.add('seleccionado');
-  else lbl.classList.remove('seleccionado');
+  var veh=chk.value;
+  var vehId=veh.replace(/[^a-zA-Z0-9]/g,'');
+  if(chk.checked){
+    lbl.classList.add('seleccionado');
+    // Añadir campo conductor para este vehículo
+    var cont=document.getElementById('conductores-'+key);
+    if(cont&&!document.getElementById('cond-row-'+key+'-'+vehId)){
+      var div=document.createElement('div');
+      div.style.cssText='display:flex;align-items:center;gap:8px;';
+      div.id='cond-row-'+key+'-'+vehId;
+      div.innerHTML='<span style="font-size:12px;color:#6b6a64;min-width:110px;">'+veh+'</span><input type="text" class="cond-veh-input" data-veh="'+veh+'" id="dc-'+key+'-'+vehId+'" placeholder="Conductor..." style="flex:1;padding:6px 9px;font-size:13px;border:.5px solid #e2e2de;border-radius:7px;">';
+      cont.appendChild(div);
+    }
+  } else {
+    lbl.classList.remove('seleccionado');
+    // Quitar campo conductor de este vehículo
+    var row=document.getElementById('cond-row-'+key+'-'+vehId);
+    if(row)row.remove();
+  }
 }
 
 function formatFechaCorta(iso){
@@ -550,7 +661,7 @@ function guardarGrupoBackground(arr){
   arr.forEach(function(i,pos){paradas[i].orden=pos;});
   render();
   var saves=arr.map(function(i,pos){
-    return apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||'',notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos});
+    return apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||{},notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos});
   });
   Promise.all(saves).catch(function(){toast('Error guardando — recarga para verificar');});
 }
@@ -572,7 +683,19 @@ function guardarDetalle(btn){
 
   var elCond=document.getElementById('dc-'+key);
   var elVuel=document.getElementById('vuel-'+key);
-  var conductor=elCond?elCond.value:(paradas[idx].conductor||'');
+  // CAMBIO A: recoger conductor como objeto {veh: conductor}
+  var conductorObj={};
+  var contCond=document.getElementById('conductores-'+key);
+  if(contCond){
+    contCond.querySelectorAll('input.cond-veh-input').forEach(function(inp){
+      var v=inp.getAttribute('data-veh');
+      if(v&&inp.value)conductorObj[v]=inp.value;
+    });
+  } else if(elCond){
+    // fallback formato antiguo
+    conductorObj['_all']=elCond.value;
+  }
+  var conductor=Object.keys(conductorObj).length>0?conductorObj:(paradas[idx].conductor||{});
   var notas=document.getElementById('dn-'+key).value;
   var vuelta=elVuel?(parseInt(elVuel.value)||1):(parseInt(paradas[idx].vuelta)||1);
 
@@ -637,6 +760,114 @@ function guardarManual(){
   if(!body.fecha){alert('La fecha es obligatoria');return;}
   var btn=document.getElementById('btn-gm');btn.textContent='Guardando...';btn.disabled=true;
   apiPost(body).then(function(){cerrarModal();toast('Parada anadida');load();btn.textContent='Guardar parada';btn.disabled=false;}).catch(function(){btn.textContent='Error';btn.disabled=false;});
+}
+
+// ── MODAL CONDUCTORES POR VEHÍCULO ──
+var modalCondGkey=null, modalCondFecha=null, modalCondVeh=null, modalCondVuelta=null;
+
+function abrirModalConductores(gkey, fecha){
+  var partes=gkey.split('_v');
+  modalCondGkey=gkey;
+  modalCondFecha=fecha;
+  modalCondVeh=partes[0];
+  modalCondVuelta=parseInt(partes[1])||1;
+
+  var clave=fecha+'_'+modalCondVeh+'_'+modalCondVuelta;
+  var seleccionados=asignacionesConductores[clave]||[];
+
+  document.getElementById('modal-cond-titulo').textContent='Conductores — '+modalCondVeh+(modalCondVuelta>1?' ('+modalCondVuelta+'ª vuelta)':'');
+
+  var cont=document.getElementById('modal-cond-checks');
+  cont.innerHTML='';
+  CHOFERES.forEach(function(nombre){
+    var sel=seleccionados.indexOf(nombre)!==-1;
+    var lbl=document.createElement('label');
+    lbl.className='veh-check-lbl'+(sel?' seleccionado':'');
+    lbl.innerHTML='<input type="checkbox" value="'+nombre+'"'+(sel?' checked':'')+' onchange="toggleVehCheck(this,\'\')"> '+nombre;
+    cont.appendChild(lbl);
+  });
+
+  var modal=document.getElementById('modal-conductores');
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+}
+
+function cerrarModalConductores(){
+  document.getElementById('modal-conductores').style.display='none';
+  document.body.style.overflow='';
+}
+
+function guardarConductoresModal(){
+  var cont=document.getElementById('modal-cond-checks');
+  var seleccionados=[];
+  cont.querySelectorAll('input[type=checkbox]:checked').forEach(function(chk){seleccionados.push(chk.value);});
+
+  var clave=modalCondFecha+'_'+modalCondVeh+'_'+modalCondVuelta;
+  asignacionesConductores[clave]=seleccionados;
+
+  // Guardar en Sheets
+  fetch('/api/rutas/conductores',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      token:'ORUMx2026RutasPublic',
+      action:'set_conductores',
+      fecha:modalCondFecha,
+      vehiculo:modalCondVeh,
+      vuelta:modalCondVuelta,
+      conductores:seleccionados
+    })
+  }).then(function(){toast('Conductores guardados');}).catch(function(){toast('Error al guardar');});
+
+  cerrarModalConductores();
+  render(); // rerenderizar para mostrar en el encabezado
+}
+
+// ── MODAL GESTIÓN LISTA DE CHOFERES ──
+function abrirModalGestionChoferes(){
+  var lista=document.getElementById('lista-choferes-editable');
+  lista.innerHTML='';
+  CHOFERES.forEach(function(nombre,idx){
+    var div=document.createElement('div');
+    div.style.cssText='display:flex;align-items:center;gap:8px;';
+    div.innerHTML='<span style="flex:1;font-size:13px;">'+nombre+'</span>'+
+      '<button onclick="eliminarChofer('+idx+')" style="background:#fff;border:.5px solid #F09595;color:#A32D2D;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;">Quitar</button>';
+    lista.appendChild(div);
+  });
+  document.getElementById('nuevo-chofer-input').value='';
+  document.getElementById('modal-choferes').style.display='flex';
+}
+
+function cerrarModalGestionChoferes(){
+  document.getElementById('modal-choferes').style.display='none';
+}
+
+function agregarChofer(){
+  var input=document.getElementById('nuevo-chofer-input');
+  var nombre=input.value.trim();
+  if(!nombre)return;
+  if(CHOFERES.indexOf(nombre)!==-1){toast('Ya existe en la lista');return;}
+  CHOFERES.push(nombre);
+  input.value='';
+  abrirModalGestionChoferes(); // refrescar la lista
+}
+
+function eliminarChofer(idx){
+  CHOFERES.splice(idx,1);
+  abrirModalGestionChoferes(); // refrescar la lista
+}
+
+function guardarListaChoferes(){
+  fetch('/api/rutas/conductores',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      token:'ORUMx2026RutasPublic',
+      action:'set_choferes',
+      choferes:CHOFERES
+    })
+  }).then(function(){toast('Lista de choferes guardada');}).catch(function(){toast('Error al guardar');});
+  cerrarModalGestionChoferes();
 }
 
 function enviarWhatsApp(gkey){
