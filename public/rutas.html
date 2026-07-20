@@ -185,7 +185,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <div><label>Direccion</label><input type="text" id="m-dir" placeholder="Calle, ciudad..."></div>
       <div class="form-row"><div><label>Fecha</label><input type="date" id="m-fecha"></div></div>
       <div><label>Vehiculos</label><div id="m-vehs-checks" class="vehs-checks"></div></div>
-      <div><label>Conductor</label><input type="text" id="m-cond" placeholder="Nombre conductor"></div>
       <div><label>Notas</label><textarea id="m-notas" placeholder="Notas..."></textarea></div>
       <button class="btn-gm" id="btn-gm">Guardar parada</button>
     </div>
@@ -328,9 +327,20 @@ function getConductoresTexto(p){
 // ── CAMBIO 2: Obtener lista de vehículos asignados a una parada (puede ser string o array) ──
 function getVehsParada(p){
   if(!p.vehiculo)return[];
+  if(typeof p.vehiculo==='string'){
+    // Limpiar el formato Java corrupto si llega
+    if(p.vehiculo.indexOf('[Ljava')===0||p.vehiculo.indexOf('[L')===0)return[];
+    return p.vehiculo.split(',').map(function(v){return v.trim();}).filter(Boolean);
+  }
   if(Array.isArray(p.vehiculo))return p.vehiculo.filter(Boolean);
-  // soporte para formato antiguo: string separado por comas
-  return p.vehiculo.split(',').map(function(v){return v.trim();}).filter(Boolean);
+  return[];
+}
+
+// Convierte array de vehículos a string separado por comas (Apps Script lo guarda correctamente así)
+function vehsAString(vehs){
+  if(!vehs||vehs.length===0)return'';
+  if(Array.isArray(vehs))return vehs.filter(Boolean).join(',');
+  return String(vehs);
 }
 
 // ── RENDER ──
@@ -339,7 +349,6 @@ function render(){
   document.getElementById('hstats').textContent=paradas.length+' paradas - '+conVeh+' asignadas';
 
   var SIN='__sin__';
-  // CAMBIO 2: cada parada puede aparecer en múltiples grupos (uno por vehículo asignado)
   var grupos={};
 
   paradas.forEach(function(p,i){
@@ -366,32 +375,81 @@ function render(){
     });
   });
 
+  // OPCIÓN C: detectar paradas compartidas (varios vehículos)
+  var idsCompartidos=new Set();
+  paradas.forEach(function(p){if(getVehsParada(p).length>1)idsCompartidos.add(p.clave||p.numero);});
+
   var esSemana=(modo==='semana');
   var html='';
+
+  // Asegurar que todos los vehículos tienen su grupo (aunque estén vacíos)
+  VEHS.forEach(function(v){
+    var gkey=v+'_v1';
+    if(!grupos[gkey])grupos[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
+  });
+
+  var renderDia=function(fecha,gruposDia){
+    // 1. Sección COMPARTIDOS (proyectos en varios vehículos)
+    var itemsCompartidos=[];
+    Object.keys(gruposDia).filter(function(gk){return gk!==SIN;}).forEach(function(gk){
+      gruposDia[gk].items.forEach(function(i){
+        if(getVehsParada(paradas[i]).length>1){
+          var yaEsta=itemsCompartidos.indexOf(i)!==-1;
+          if(!yaEsta)itemsCompartidos.push(i);
+        }
+      });
+    });
+    if(itemsCompartidos.length>0){
+      html+='<div class="grupo" data-gkey="__compartidos__">';
+      html+='<div class="grupo-hdr" style="background:#7A5C00;"><div class="grupo-hdr-left"><span>🔄 Varios vehículos ('+itemsCompartidos.length+')</span></div></div>';
+      html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
+      itemsCompartidos.forEach(function(idx){html+=renderFila(idx,'__compartidos__');});
+      html+='</tbody></table></div>';
+    }
+
+    // 2. Grupos de vehículos (incluyendo vacíos para arrastrar)
+    var claves=Object.keys(gruposDia).filter(function(gk){return gk!==SIN;}).sort();
+    // Añadir grupos vacíos de vehículos que no tienen paradas ese día
+    VEHS.forEach(function(v){
+      var gkey=v+'_v1';
+      if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
+      if(claves.indexOf(gkey)===-1)claves.push(gkey);
+    });
+    claves.sort().forEach(function(gk){html+=renderGrupo(gruposDia[gk]);});
+
+    // 3. Sin vehículo asignado al final
+    var gSin=gruposDia[SIN];
+    if(gSin&&gSin.items.length>0)html+=renderGrupo(gSin);
+  };
 
   if(esSemana){
     var dias={};
     paradas.forEach(function(p){if(p.fecha)dias[p.fecha]=1;});
     var diasArr=Object.keys(dias).sort();
-
     diasArr.forEach(function(fecha){
       html+='<div class="dia-sep">'+formatDiaLargo(fecha)+'</div>';
       var gruposDia={};
       Object.keys(grupos).forEach(function(gk){
         var itemsDia=grupos[gk].items.filter(function(i){return paradas[i].fecha===fecha;});
-        if(itemsDia.length>0){
-          if(!gruposDia[gk])gruposDia[gk]={veh:grupos[gk].veh,vuelta:grupos[gk].vuelta,gkey:gk,items:[]};
-          gruposDia[gk].items=gruposDia[gk].items.concat(itemsDia);
+        if(itemsDia.length>0||gk!==SIN){
+          gruposDia[gk]={veh:grupos[gk].veh,vuelta:grupos[gk].vuelta,gkey:gk,items:itemsDia};
         }
       });
-      var gSin=gruposDia[SIN];
-      Object.keys(gruposDia).filter(function(gk){return gk!==SIN;}).sort().forEach(function(gk){html+=renderGrupo(gruposDia[gk]);});
-      if(gSin)html+=renderGrupo(gSin);
+      // Asegurar grupos vacíos de vehículos para este día
+      VEHS.forEach(function(v){
+        var gkey=v+'_v1';
+        if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
+      });
+      renderDia(fecha,gruposDia);
     });
   } else {
-    var gSin=grupos[SIN];
-    Object.keys(grupos).filter(function(gk){return gk!==SIN;}).sort().forEach(function(gk){html+=renderGrupo(grupos[gk]);});
-    if(gSin)html+=renderGrupo(gSin);
+    var gruposDia={};
+    Object.keys(grupos).forEach(function(gk){gruposDia[gk]=grupos[gk];});
+    VEHS.forEach(function(v){
+      var gkey=v+'_v1';
+      if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
+    });
+    renderDia('hoy',gruposDia);
   }
 
   if(!html)html='<div class="load">No hay paradas en este periodo</div>';
@@ -470,21 +528,11 @@ function renderFila(idx,gkey){
   html+='<tr class="fila-det" id="det-'+key+'"><td colspan="10">';
   html+='<div class="det-grid">';
   if(ROL==='logistica'){
-    // CAMBIO 2: checkboxes de vehículos múltiples en lugar de select
     html+='<div class="det-campo" style="grid-column:1/-1"><label>Vehiculos asignados</label><div class="vehs-checks" id="vch-'+key+'">';
     VEHS.forEach(function(v){
       var chk=vehsActuales.indexOf(v)!==-1?' checked':'';
       var sel=vehsActuales.indexOf(v)!==-1?' seleccionado':'';
       html+='<label class="veh-check-lbl'+sel+'" id="lbl-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'"><input type="checkbox" value="'+v+'"'+chk+' onchange="toggleVehCheck(this,\''+key+'\')"> '+v+'</label>';
-    });
-    html+='</div></div>';
-    // CAMBIO A: un campo de conductor por vehículo asignado
-    html+='<div class="det-campo" style="grid-column:1/-1"><label>Conductores por vehículo</label>';
-    html+='<div id="conductores-'+key+'" style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">';
-    // Mostrar campos para los vehículos actualmente seleccionados
-    vehsActuales.forEach(function(v){
-      var condVal=getConductorDeVeh(p,v);
-      html+='<div style="display:flex;align-items:center;gap:8px;" id="cond-row-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'"><span style="font-size:12px;color:#6b6a64;min-width:110px;">'+v+'</span><input type="text" class="cond-veh-input" data-veh="'+v+'" id="dc-'+key+'-'+v.replace(/[^a-zA-Z0-9]/g,'')+'" value="'+condVal+'" placeholder="Conductor..." style="flex:1;padding:6px 9px;font-size:13px;border:.5px solid #e2e2de;border-radius:7px;"></div>';
     });
     html+='</div></div>';
     html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">';
@@ -669,8 +717,8 @@ function moverAGrupo(srcIdx, srcGkey, destGkey, destIdx, insertarAntes) {
   }
 
   render();
-  // Guardar en backend
-  apiPost({action:'set_asignacion',clave:p.clave,proyecto_id:p.proyecto_id,tipo:p.tipo,fecha:p.fecha,vehiculo:p.vehiculo,conductor:p.conductor||{},notas:p.notas||'',vuelta:p.vuelta||1,orden:p.orden||0})
+  // Guardar en backend — siempre como string, nunca como array
+  apiPost({action:'set_asignacion',clave:p.clave,proyecto_id:p.proyecto_id,tipo:p.tipo,fecha:p.fecha,vehiculo:vehsAString(p.vehiculo),conductor:p.conductor||{},notas:p.notas||'',vuelta:p.vuelta||1,orden:p.orden||0})
     .then(function(){toast('Movido');})
     .catch(function(){toast('Error al guardar movimiento');});
 }
@@ -679,7 +727,7 @@ function moverAGrupo(srcIdx, srcGkey, destGkey, destIdx, insertarAntes) {
 function moverEnGrupo(srcIdx,destIdx,srcGkey,destGkey,insertarAntes){
   var SIN='__sin__';
 
-  // Si cambia de grupo, actualizar vehículo
+  // Si cambia de grupo, REEMPLAZAR vehículo (no añadir — para multi-vehículo usar el detalle)
   if(srcGkey!==destGkey){
     if(destGkey===SIN){
       paradas[srcIdx].vehiculo=[];
@@ -688,13 +736,7 @@ function moverEnGrupo(srcIdx,destIdx,srcGkey,destGkey,insertarAntes){
       var partes=destGkey.split('_v');
       var vehDestino=partes[0];
       var vueltaDestino=parseInt(partes[1])||1;
-      var vehsActuales=getVehsParada(paradas[srcIdx]);
-      if(srcGkey===SIN){
-        vehsActuales=[vehDestino];
-      } else {
-        if(vehsActuales.indexOf(vehDestino)===-1) vehsActuales.push(vehDestino);
-      }
-      paradas[srcIdx].vehiculo=vehsActuales;
+      paradas[srcIdx].vehiculo=[vehDestino];
       paradas[srcIdx].vuelta=vueltaDestino;
     }
   }
@@ -743,7 +785,7 @@ function guardarGrupoBackground(arr){
   arr.forEach(function(i,pos){paradas[i].orden=pos;});
   render();
   var saves=arr.map(function(i,pos){
-    return apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:paradas[i].vehiculo,conductor:paradas[i].conductor||{},notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos});
+    return apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:vehsAString(paradas[i].vehiculo),conductor:paradas[i].conductor||{},notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:pos});
   });
   Promise.all(saves).catch(function(){toast('Error guardando — recarga para verificar');});
 }
@@ -754,7 +796,7 @@ function guardarDetalle(btn){
   var pData; try{pData=JSON.parse(decodeURIComponent(pRaw));}catch(e){return;}
   var idx=pData.idx;
 
-  // CAMBIO 2: recoger todos los checkboxes marcados
+  // Recoger vehículos seleccionados
   var vehsSeleccionados=[];
   var container=document.getElementById('vch-'+key);
   if(container){
@@ -763,27 +805,16 @@ function guardarDetalle(btn){
     vehsSeleccionados=getVehsParada(paradas[idx]);
   }
 
-  var elCond=document.getElementById('dc-'+key);
   var elVuel=document.getElementById('vuel-'+key);
-  // CAMBIO A: recoger conductor como objeto {veh: conductor}
-  var conductorObj={};
-  var contCond=document.getElementById('conductores-'+key);
-  if(contCond){
-    contCond.querySelectorAll('input.cond-veh-input').forEach(function(inp){
-      var v=inp.getAttribute('data-veh');
-      if(v&&inp.value)conductorObj[v]=inp.value;
-    });
-  } else if(elCond){
-    // fallback formato antiguo
-    conductorObj['_all']=elCond.value;
-  }
-  var conductor=Object.keys(conductorObj).length>0?conductorObj:(paradas[idx].conductor||{});
   var notas=document.getElementById('dn-'+key).value;
   var vuelta=elVuel?(parseInt(elVuel.value)||1):(parseInt(paradas[idx].vuelta)||1);
+  // Conductor se gestiona por vehículo desde el modal de conductores, no desde aquí
+  var conductor=paradas[idx].conductor||{};
 
   btn.textContent='...'; btn.disabled=true;
 
-  var body={action:'set_asignacion',clave:pData.clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:vehsSeleccionados,conductor:conductor,notas:notas,vuelta:vuelta,orden:paradas[idx].orden||0};
+  // Siempre enviar vehículo como string separado por comas (evita [Ljava.lang.Object])
+  var body={action:'set_asignacion',clave:pData.clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:vehsAString(vehsSeleccionados),conductor:conductor,notas:notas,vuelta:vuelta,orden:paradas[idx].orden||0};
   if(pData.es_manual){body.action='update_manual';body.id=pData.id_manual;}
 
   apiPost(body).then(function(){
@@ -837,7 +868,7 @@ function guardarManual(){
   var vehs=[];
   var cont=document.getElementById('m-vehs-checks');
   if(cont)cont.querySelectorAll('input[type=checkbox]:checked').forEach(function(chk){vehs.push(chk.value);});
-  var body={action:'add_manual',tipo:document.getElementById('m-tipo').value,descripcion:document.getElementById('m-desc').value,direccion:document.getElementById('m-dir').value,fecha:document.getElementById('m-fecha').value,vehiculo:vehs,conductor:document.getElementById('m-cond').value,notas:document.getElementById('m-notas').value};
+  var body={action:'add_manual',tipo:document.getElementById('m-tipo').value,descripcion:document.getElementById('m-desc').value,direccion:document.getElementById('m-dir').value,fecha:document.getElementById('m-fecha').value,vehiculo:vehsAString(vehs),notas:document.getElementById('m-notas').value};
   if(!body.descripcion){alert('La descripcion es obligatoria');return;}
   if(!body.fecha){alert('La fecha es obligatoria');return;}
   var btn=document.getElementById('btn-gm');btn.textContent='Guardando...';btn.disabled=true;
