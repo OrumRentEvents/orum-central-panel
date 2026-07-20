@@ -47,9 +47,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .grupo-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#1a1a18;color:#fff;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;}
 .grupo-hdr.sin{background:#7a7a72;}
 .grupo-hdr-left{display:flex;align-items:center;gap:8px;}
-/* CAMBIO 5: conductor más grande y visible */
-.grupo-conductor{font-size:13px;font-weight:600;color:#fff;}
-.btn-wa{background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.3);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;margin-left:8px;}
+/* conductor centrado en el header */
+.grupo-conductor{font-size:13px;font-weight:600;color:#fff;position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;}
+.grupo-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#1a1a18;color:#fff;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;position:relative;}
+.grupo-hdr.sin{background:#7a7a72;}
+.grupo-hdr-left{display:flex;align-items:center;gap:8px;}
+.grupo-hdr-right{display:flex;align-items:center;gap:6px;}
+.btn-wa{background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.3);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;}
+/* fila compartida (proyecto con varios vehículos) */
+.fila.compartida{background:#FFF8E6 !important;border-left:3px solid #E8A020 !important;}
+.fila.compartida:hover{background:#FFF3D6 !important;}
+/* zona drop entre grupos */
+.grupo-drop-zone{height:6px;border-radius:4px;margin:2px 0;transition:all .15s;}
+.grupo-drop-zone.drag-over-zone{background:#1D9E75;height:14px;}
 
 /* TABLA */
 .tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;}
@@ -404,17 +414,15 @@ function renderGrupo(g){
   var conductorTexto=conductoresAsignados.join(' · ')||'';
 
   var html='<div class="grupo" data-gkey="'+g.gkey+'">';
-  html+='<div class="grupo-hdr'+(esSin?' sin':'')+'"><div class="grupo-hdr-left">';
-  html+='<span>'+titulo+'</span>';
-  // Mostrar conductores asignados
+  html+='<div class="grupo-hdr'+(esSin?' sin':'')+'">';
+  html+='<div class="grupo-hdr-left"><span>'+titulo+'</span></div>';
   if(conductorTexto) html+='<span class="grupo-conductor">'+conductorTexto+'</span>';
-  html+='</div>';
-  // Botón asignar conductores (solo logística, solo grupos con vehículo)
+  html+='<div class="grupo-hdr-right">';
   if(ROL==='logistica'&&!esSin&&fechaPrincipal){
-    html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+g.gkey+'\',\''+fechaPrincipal+'\')" title="Asignar conductores">👤 Conductores</button>';
+    html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+g.gkey+'\',\''+fechaPrincipal+'\')" title="Asignar conductores">&#128100; Conductores</button>';
   }
-  if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">📤 WhatsApp</button>';
-  html+='</div>';
+  if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">&#128228; WhatsApp</button>';
+  html+='</div></div>';
   html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
   g.items.forEach(function(idx){html+=renderFila(idx,g.gkey);});
   html+='</tbody></table></div>';
@@ -441,9 +449,10 @@ function renderFila(idx,gkey){
   var vehCelda=ROL==='logistica'?vehTexto:vehTexto;
 
   var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||'',gkey:gkey}));
+  var esCompartida = vehsActuales.length > 1;
   var dragAttr=ROL==='logistica'?' draggable="true"':'';
 
-  var html='<tr class="fila" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
+  var html='<tr class="fila'+(esCompartida?' compartida':'')+'" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
   html+='<td class="td-drag">'+(ROL==='logistica'?'⠿':'')+'</td>';
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
@@ -562,7 +571,7 @@ function bindEvents(){
     btn.addEventListener('click',function(){eliminarManual(btn.getAttribute('data-id'));});
   });
 
-  // CAMBIO 1: Drag & drop corregido — inserción en posición exacta
+  // ── CAMBIO 3: Drag & drop entre grupos ──
   var dragSrcIdx=null, dragSrcGkey=null;
 
   document.querySelectorAll('.fila[draggable=true]').forEach(function(fila){
@@ -575,17 +584,18 @@ function bindEvents(){
     fila.addEventListener('dragend',function(){
       fila.style.opacity='';
       document.querySelectorAll('.fila').forEach(function(f){
-        f.classList.remove('drag-over-top','drag-over-bottom','drag-over');
+        f.classList.remove('drag-over-top','drag-over-bottom');
+      });
+      document.querySelectorAll('.grupo-drop-zone').forEach(function(z){
+        z.classList.remove('drag-over-zone');
       });
     });
     fila.addEventListener('dragover',function(e){
       e.preventDefault();
       document.querySelectorAll('.fila').forEach(function(f){f.classList.remove('drag-over-top','drag-over-bottom');});
-      // Detectar si el cursor está en la mitad superior o inferior de la fila
       var rect=fila.getBoundingClientRect();
-      var mitad=rect.top+rect.height/2;
-      if(e.clientY<mitad){fila.classList.add('drag-over-top');fila.classList.remove('drag-over-bottom');}
-      else{fila.classList.add('drag-over-bottom');fila.classList.remove('drag-over-top');}
+      if(e.clientY<rect.top+rect.height/2) fila.classList.add('drag-over-top');
+      else fila.classList.add('drag-over-bottom');
     });
     fila.addEventListener('dragleave',function(){
       fila.classList.remove('drag-over-top','drag-over-bottom');
@@ -594,27 +604,99 @@ function bindEvents(){
       e.preventDefault();
       fila.classList.remove('drag-over-top','drag-over-bottom');
       var destIdx=parseInt(fila.getAttribute('data-idx'));
+      var destGkey=fila.getAttribute('data-gkey');
       if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
-      // Detectar posición (antes o después del destino)
       var rect=fila.getBoundingClientRect();
       var insertarAntes=(e.clientY<rect.top+rect.height/2);
-      moverEnGrupo(dragSrcIdx,destIdx,dragSrcGkey,fila.getAttribute('data-gkey'),insertarAntes);
+      moverEnGrupo(dragSrcIdx,destIdx,dragSrcGkey,destGkey,insertarAntes);
     });
   });
+
+  // Zonas de drop en encabezados de grupo (para soltar en grupo vacío o cambiar de grupo)
+  document.querySelectorAll('.grupo-hdr').forEach(function(hdr){
+    hdr.addEventListener('dragover',function(e){
+      e.preventDefault();
+      hdr.style.outline='2px solid #1D9E75';
+    });
+    hdr.addEventListener('dragleave',function(){
+      hdr.style.outline='';
+    });
+    hdr.addEventListener('drop',function(e){
+      e.preventDefault();
+      hdr.style.outline='';
+      if(dragSrcIdx===null)return;
+      var destGkey=hdr.closest('.grupo').getAttribute('data-gkey');
+      // Soltar en el encabezado = añadir al final de ese grupo
+      var itemsGrupo=[];
+      document.querySelectorAll('.fila[data-gkey="'+destGkey+'"]').forEach(function(f){
+        itemsGrupo.push(parseInt(f.getAttribute('data-idx')));
+      });
+      if(itemsGrupo.length===0){
+        // Grupo vacío: mover directamente
+        moverAGrupo(dragSrcIdx, dragSrcGkey, destGkey, -1, false);
+      } else {
+        var ultimoIdx=itemsGrupo[itemsGrupo.length-1];
+        moverEnGrupo(dragSrcIdx,ultimoIdx,dragSrcGkey,destGkey,false);
+      }
+    });
+  });
+}
+
+// CAMBIO 3: mover parada a un grupo distinto (cambia vehículo asignado)
+function moverAGrupo(srcIdx, srcGkey, destGkey, destIdx, insertarAntes) {
+  var SIN='__sin__';
+  var p=paradas[srcIdx];
+
+  if(destGkey===SIN){
+    // Quitar todos los vehículos → pasar a sin vehículo
+    p.vehiculo=[];
+    p.vuelta=1;
+  } else {
+    var partes=destGkey.split('_v');
+    var vehDestino=partes[0];
+    var vueltaDestino=parseInt(partes[1])||1;
+    // Si ya tenía vehículos, añadir el nuevo (multi-vehículo)
+    // Si se arrastra desde SIN o desde un grupo concreto solo, reemplazar
+    if(srcGkey===SIN){
+      p.vehiculo=[vehDestino];
+    } else {
+      // Añadir el vehículo destino si no lo tiene ya
+      var vehsActuales=getVehsParada(p);
+      if(vehsActuales.indexOf(vehDestino)===-1) vehsActuales.push(vehDestino);
+      p.vehiculo=vehsActuales;
+    }
+    p.vuelta=vueltaDestino;
+  }
+
+  render();
+  // Guardar en backend
+  apiPost({action:'set_asignacion',clave:p.clave,proyecto_id:p.proyecto_id,tipo:p.tipo,fecha:p.fecha,vehiculo:p.vehiculo,conductor:p.conductor||{},notas:p.notas||'',vuelta:p.vuelta||1,orden:p.orden||0})
+    .then(function(){toast('Movido');})
+    .catch(function(){toast('Error al guardar movimiento');});
 }
 
 // CAMBIO 1: función de movimiento corregida — inserción en posición exacta
 function moverEnGrupo(srcIdx,destIdx,srcGkey,destGkey,insertarAntes){
   var SIN='__sin__';
-  // Si cambia de grupo, actualizar vehículo de la parada origen
-  if(srcGkey!==destGkey&&destGkey!==SIN){
-    var partes=destGkey.split('_v');
-    var vehDestino=partes[0];
-    var vueltaDestino=parseInt(partes[1])||1;
-    var vehsActuales=getVehsParada(paradas[srcIdx]);
-    if(vehsActuales.indexOf(vehDestino)===-1)vehsActuales.push(vehDestino);
-    paradas[srcIdx].vehiculo=vehsActuales;
-    paradas[srcIdx].vuelta=vueltaDestino;
+
+  // Si cambia de grupo, actualizar vehículo
+  if(srcGkey!==destGkey){
+    if(destGkey===SIN){
+      paradas[srcIdx].vehiculo=[];
+      paradas[srcIdx].vuelta=1;
+    } else {
+      var partes=destGkey.split('_v');
+      var vehDestino=partes[0];
+      var vueltaDestino=parseInt(partes[1])||1;
+      var vehsActuales=getVehsParada(paradas[srcIdx]);
+      if(srcGkey===SIN){
+        vehsActuales=[vehDestino];
+      } else {
+        if(vehsActuales.indexOf(vehDestino)===-1) vehsActuales.push(vehDestino);
+      }
+      paradas[srcIdx].vehiculo=vehsActuales;
+      paradas[srcIdx].vuelta=vueltaDestino;
+    }
   }
 
   // Obtener grupo destino (puede ser el mismo o diferente)
