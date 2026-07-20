@@ -403,8 +403,17 @@ function render(){
       });
       var tituloCompartidos=vehsEnCompartidos.sort().join(' · ');
       var fechaComp=document.getElementById('fpicker').value||hoy();
+      // Conductor de cada vehículo compartido
+      var conductoresComp=[];
+      vehsEnCompartidos.sort().forEach(function(v){
+        var clave=fechaComp+'_'+v+'_1';
+        var conds=asignacionesConductores[clave]||[];
+        if(conds.length>0)conductoresComp=conductoresComp.concat(conds);
+      });
+      conductoresComp=conductoresComp.filter(function(c,i,a){return a.indexOf(c)===i;}); // únicos
       html+='<div class="grupo-hdr" style="background:#7A5C00;position:relative;">';
       html+='<div class="grupo-hdr-left"><span>🔄 '+tituloCompartidos+'</span></div>';
+      if(conductoresComp.length>0) html+='<span class="grupo-conductor">'+conductoresComp.join(' · ')+'</span>';
       html+='<div class="grupo-hdr-right">';
       if(ROL==='logistica'){
         // Un botón de conductores por vehículo compartido
@@ -903,8 +912,7 @@ function initVehs(){
 }
 function abrirModal(){
   document.getElementById('m-fecha').value=document.getElementById('fpicker').value||hoy();
-  ['m-desc','m-dir','m-cond','m-notas'].forEach(function(id){document.getElementById(id).value='';});
-  // Desmarcar todos los checkboxes
+  ['m-desc','m-dir','m-notas'].forEach(function(id){document.getElementById(id).value='';});
   var cont=document.getElementById('m-vehs-checks');
   if(cont)cont.querySelectorAll('input[type=checkbox]').forEach(function(chk){chk.checked=false;chk.closest('.veh-check-lbl').classList.remove('seleccionado');});
   document.getElementById('modal').classList.add('open');
