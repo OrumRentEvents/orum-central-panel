@@ -461,7 +461,9 @@ function render(){
     });
   } else {
     var gruposDia={};
-    Object.keys(grupos).forEach(function(gk){gruposDia[gk]=grupos[gk];});
+    Object.keys(grupos).forEach(function(gk){
+      gruposDia[gk]={veh:grupos[gk].veh,vuelta:grupos[gk].vuelta,gkey:grupos[gk].gkey,items:grupos[gk].items.slice()};
+    });
     VEHS.forEach(function(v){
       var gkey=v+'_v1';
       if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
