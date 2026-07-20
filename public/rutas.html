@@ -485,7 +485,8 @@ function renderGrupo(g){
   var fechasGrupo={};
   g.items.forEach(function(i){if(paradas[i].fecha)fechasGrupo[paradas[i].fecha]=1;});
   var fechasPrincipales=Object.keys(fechasGrupo).sort();
-  var fechaPrincipal=fechasPrincipales[0]||'';
+  // Si el grupo está vacío, usar la fecha del selector para poder asignar conductores igualmente
+  var fechaPrincipal=fechasPrincipales[0]||(document.getElementById('fpicker').value||hoy());
   var condsClave=fechaPrincipal+'_'+g.veh+'_'+g.vuelta;
   var conductoresAsignados=asignacionesConductores[condsClave]||[];
   var conductorTexto=conductoresAsignados.join(' · ')||'';
@@ -495,7 +496,7 @@ function renderGrupo(g){
   html+='<div class="grupo-hdr-left"><span>'+titulo+'</span></div>';
   if(conductorTexto) html+='<span class="grupo-conductor">'+conductorTexto+'</span>';
   html+='<div class="grupo-hdr-right">';
-  if(ROL==='logistica'&&!esSin&&fechaPrincipal){
+  if(ROL==='logistica'&&!esSin){
     html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+g.gkey+'\',\''+fechaPrincipal+'\')" title="Asignar conductores">&#128100; Conductores</button>';
   }
   if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">&#128228; WhatsApp</button>';
