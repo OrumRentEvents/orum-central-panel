@@ -401,21 +401,38 @@ function render(){
     });
     if(itemsCompartidos.length>0){
       html+='<div class="grupo" data-gkey="__compartidos__">';
-      html+='<div class="grupo-hdr" style="background:#7A5C00;"><div class="grupo-hdr-left"><span>🔄 Varios vehículos ('+itemsCompartidos.length+')</span></div></div>';
+      // Calcular los vehículos únicos que aparecen en las paradas compartidas
+      var vehsEnCompartidos=[];
+      itemsCompartidos.forEach(function(i){
+        getVehsParada(paradas[i]).forEach(function(v){
+          if(vehsEnCompartidos.indexOf(v)===-1)vehsEnCompartidos.push(v);
+        });
+      });
+      var tituloCompartidos=vehsEnCompartidos.sort().join(' · ');
+      html+='<div class="grupo-hdr" style="background:#7A5C00;"><div class="grupo-hdr-left"><span>🔄 '+tituloCompartidos+'</span></div></div>';
       html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
       itemsCompartidos.forEach(function(idx){html+=renderFila(idx,'__compartidos__');});
       html+='</tbody></table></div>';
     }
 
     // 2. Grupos de vehículos (incluyendo vacíos para arrastrar)
+    // Excluir de cada grupo individual las paradas que ya aparecen en "Compartidos"
+    var idsCompartidosSet=new Set(itemsCompartidos);
     var claves=Object.keys(gruposDia).filter(function(gk){return gk!==SIN;}).sort();
-    // Añadir grupos vacíos de vehículos que no tienen paradas ese día
     VEHS.forEach(function(v){
       var gkey=v+'_v1';
       if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
       if(claves.indexOf(gkey)===-1)claves.push(gkey);
     });
-    claves.sort().forEach(function(gk){html+=renderGrupo(gruposDia[gk]);});
+    claves.sort().forEach(function(gk){
+      var grupoFiltrado={
+        veh:gruposDia[gk].veh,
+        vuelta:gruposDia[gk].vuelta,
+        gkey:gruposDia[gk].gkey,
+        items:gruposDia[gk].items.filter(function(i){return !idsCompartidosSet.has(i);})
+      };
+      html+=renderGrupo(grupoFiltrado);
+    });
 
     // 3. Sin vehículo asignado al final
     var gSin=gruposDia[SIN];
@@ -444,7 +461,9 @@ function render(){
     });
   } else {
     var gruposDia={};
-    Object.keys(grupos).forEach(function(gk){gruposDia[gk]=grupos[gk];});
+    Object.keys(grupos).forEach(function(gk){
+      gruposDia[gk]={veh:grupos[gk].veh,vuelta:grupos[gk].vuelta,gkey:grupos[gk].gkey,items:grupos[gk].items.slice()};
+    });
     VEHS.forEach(function(v){
       var gkey=v+'_v1';
       if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
@@ -598,6 +617,44 @@ function copiarNum(el,num){
 
 // ── EVENTOS ──
 function bindEvents(){
+  // ── AUTO-SCROLL durante drag ──
+  // Cuando el cursor se acerca al borde superior/inferior de la ventana
+  // mientras se arrastra, la página se desplaza automáticamente.
+  var autoScrollRAF=null;
+  var autoScrollSpeed=0;
+  var SCROLL_ZONE=80; // px desde el borde donde empieza el scroll
+  var SCROLL_MAX=18;  // px por frame máximo
+
+  function autoScrollLoop(){
+    if(autoScrollSpeed!==0){
+      window.scrollBy(0,autoScrollSpeed);
+      autoScrollRAF=requestAnimationFrame(autoScrollLoop);
+    }
+  }
+
+  document.addEventListener('dragover',function(e){
+    var y=e.clientY;
+    var h=window.innerHeight;
+    if(y<SCROLL_ZONE){
+      autoScrollSpeed=-Math.round(SCROLL_MAX*(1-(y/SCROLL_ZONE)));
+    } else if(y>h-SCROLL_ZONE){
+      autoScrollSpeed=Math.round(SCROLL_MAX*(1-((h-y)/SCROLL_ZONE)));
+    } else {
+      autoScrollSpeed=0;
+    }
+    if(autoScrollSpeed!==0&&!autoScrollRAF){
+      autoScrollRAF=requestAnimationFrame(autoScrollLoop);
+    } else if(autoScrollSpeed===0&&autoScrollRAF){
+      cancelAnimationFrame(autoScrollRAF);
+      autoScrollRAF=null;
+    }
+  });
+
+  document.addEventListener('dragend',function(){
+    autoScrollSpeed=0;
+    if(autoScrollRAF){cancelAnimationFrame(autoScrollRAF);autoScrollRAF=null;}
+  });
+
   // Expand fila
   document.querySelectorAll('.fila').forEach(function(fila){
     fila.addEventListener('click',function(e){
