@@ -382,12 +382,6 @@ function render(){
   var esSemana=(modo==='semana');
   var html='';
 
-  // Asegurar que todos los vehículos tienen su grupo (aunque estén vacíos)
-  VEHS.forEach(function(v){
-    var gkey=v+'_v1';
-    if(!grupos[gkey])grupos[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
-  });
-
   var renderDia=function(fecha,gruposDia){
     // 1. Sección COMPARTIDOS (proyectos en varios vehículos)
     var itemsCompartidos=[];
@@ -401,7 +395,6 @@ function render(){
     });
     if(itemsCompartidos.length>0){
       html+='<div class="grupo" data-gkey="__compartidos__">';
-      // Calcular los vehículos únicos que aparecen en las paradas compartidas
       var vehsEnCompartidos=[];
       itemsCompartidos.forEach(function(i){
         getVehsParada(paradas[i]).forEach(function(v){
@@ -409,29 +402,34 @@ function render(){
         });
       });
       var tituloCompartidos=vehsEnCompartidos.sort().join(' · ');
-      html+='<div class="grupo-hdr" style="background:#7A5C00;"><div class="grupo-hdr-left"><span>🔄 '+tituloCompartidos+'</span></div></div>';
+      var fechaComp=document.getElementById('fpicker').value||hoy();
+      html+='<div class="grupo-hdr" style="background:#7A5C00;position:relative;">';
+      html+='<div class="grupo-hdr-left"><span>🔄 '+tituloCompartidos+'</span></div>';
+      html+='<div class="grupo-hdr-right">';
+      if(ROL==='logistica'){
+        // Un botón de conductores por vehículo compartido
+        vehsEnCompartidos.sort().forEach(function(v){
+          var gkeyComp=v+'_v1';
+          html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+gkeyComp+'\',\''+fechaComp+'\')" title="Conductores '+v+'">&#128100; '+v+'</button>';
+        });
+      }
+      html+='</div></div>';
       html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
       itemsCompartidos.forEach(function(idx){html+=renderFila(idx,'__compartidos__');});
       html+='</tbody></table></div>';
     }
 
-    // 2. Grupos de vehículos (incluyendo vacíos para arrastrar)
-    // Excluir de cada grupo individual las paradas que ya aparecen en "Compartidos"
+    // 2. Grupos de vehículos — excluir compartidos, solo mostrar los que tienen paradas
     var idsCompartidosSet=new Set(itemsCompartidos);
     var claves=Object.keys(gruposDia).filter(function(gk){return gk!==SIN;}).sort();
-    VEHS.forEach(function(v){
-      var gkey=v+'_v1';
-      if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
-      if(claves.indexOf(gkey)===-1)claves.push(gkey);
-    });
-    claves.sort().forEach(function(gk){
+    claves.forEach(function(gk){
       var grupoFiltrado={
         veh:gruposDia[gk].veh,
         vuelta:gruposDia[gk].vuelta,
         gkey:gruposDia[gk].gkey,
         items:gruposDia[gk].items.filter(function(i){return !idsCompartidosSet.has(i);})
       };
-      html+=renderGrupo(grupoFiltrado);
+      if(grupoFiltrado.items.length>0) html+=renderGrupo(grupoFiltrado);
     });
 
     // 3. Sin vehículo asignado al final
@@ -448,14 +446,9 @@ function render(){
       var gruposDia={};
       Object.keys(grupos).forEach(function(gk){
         var itemsDia=grupos[gk].items.filter(function(i){return paradas[i].fecha===fecha;});
-        if(itemsDia.length>0||gk!==SIN){
+        if(itemsDia.length>0||gk===SIN){
           gruposDia[gk]={veh:grupos[gk].veh,vuelta:grupos[gk].vuelta,gkey:gk,items:itemsDia};
         }
-      });
-      // Asegurar grupos vacíos de vehículos para este día
-      VEHS.forEach(function(v){
-        var gkey=v+'_v1';
-        if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
       });
       renderDia(fecha,gruposDia);
     });
@@ -463,10 +456,6 @@ function render(){
     var gruposDia={};
     Object.keys(grupos).forEach(function(gk){
       gruposDia[gk]={veh:grupos[gk].veh,vuelta:grupos[gk].vuelta,gkey:grupos[gk].gkey,items:grupos[gk].items.slice()};
-    });
-    VEHS.forEach(function(v){
-      var gkey=v+'_v1';
-      if(!gruposDia[gkey])gruposDia[gkey]={veh:v,vuelta:1,gkey:gkey,items:[]};
     });
     renderDia('hoy',gruposDia);
   }
