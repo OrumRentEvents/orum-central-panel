@@ -64,10 +64,11 @@ async function llamarRutasScript(action, extraParams = {}, method = 'GET', body 
     const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
     return resp.json();
   } else {
+    // El POST usa el token de RutasPublic, no el de Stats
     const resp = await fetch(RUTAS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: RUTAS_SCRIPT_TOKEN, action, ...body })
+      body: JSON.stringify({ token: 'ORUMx2026RutasPublic', action, ...body })
     });
     return resp.json();
   }
