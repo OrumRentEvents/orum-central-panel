@@ -39,59 +39,71 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .load{text-align:center;padding:3rem;color:#6b6a64;font-size:14px;}
 
 /* DIA SEPARADOR */
-.dia-sep{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#6b6a64;padding:14px 4px 6px;margin-top:4px;}
+.dia-sep{font-size:13px;font-weight:700;color:#1a1a18;padding:16px 2px 8px;margin-top:6px;border-bottom:2px solid #1a1a18;margin-bottom:10px;letter-spacing:.2px;}
 .dia-sep:first-child{padding-top:4px;}
 
 /* GRUPO */
-.grupo{margin-bottom:10px;}
-.grupo-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#1a1a18;color:#fff;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;}
-.grupo-hdr.sin{background:#7a7a72;}
-.grupo-hdr-left{display:flex;align-items:center;gap:8px;}
-/* conductor centrado en el header */
-.grupo-conductor{font-size:13px;font-weight:600;color:#fff;position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;}
-.grupo-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#1a1a18;color:#fff;border-radius:8px 8px 0 0;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;position:relative;}
+.grupo{margin-bottom:12px;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+.grupo-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#1a1a18;color:#fff;font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;position:relative;}
 .grupo-hdr.sin{background:#7a7a72;}
 .grupo-hdr-left{display:flex;align-items:center;gap:8px;}
 .grupo-hdr-right{display:flex;align-items:center;gap:6px;}
-.btn-wa{background:rgba(255,255,255,.15);border:.5px solid rgba(255,255,255,.3);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;}
-/* fila compartida (proyecto con varios vehículos) */
-.fila.compartida{background:#FFF8E6 !important;border-left:3px solid #E8A020 !important;}
-.fila.compartida:hover{background:#FFF3D6 !important;}
-/* zona drop entre grupos */
+.grupo-conductor{font-size:12px;font-weight:600;color:#fff;position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;opacity:.9;}
+.btn-wa{background:rgba(255,255,255,.12);border:.5px solid rgba(255,255,255,.25);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+.btn-wa:hover{background:rgba(255,255,255,.22);}
+/* fila compartida */
+.fila.compartida{background:#FFFBEF !important;border-left:3px solid #E8A020 !important;}
+.fila.compartida:hover{background:#FFF7E0 !important;}
+/* zona drop */
 .grupo-drop-zone{height:6px;border-radius:4px;margin:2px 0;transition:all .15s;}
 .grupo-drop-zone.drag-over-zone{background:#1D9E75;height:14px;}
 
 /* TABLA — columnas con ancho fijo para que no se muevan */
 .tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;table-layout:fixed;}
-.tbl thead th{padding:6px 10px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#7a7a72;background:#f5f5f0;border-bottom:.5px solid #e2e2de;text-align:left;white-space:nowrap;overflow:hidden;}
-/* Anchos fijos de columna */
-.tbl colgroup col:nth-child(1){width:28px;}   /* drag */
-.tbl colgroup col:nth-child(2){width:80px;}   /* tipo */
-.tbl colgroup col:nth-child(3){width:72px;}   /* fecha */
-.tbl colgroup col:nth-child(4){width:72px;}   /* nº */
-.tbl colgroup col:nth-child(5){width:18%;}    /* cliente */
-.tbl colgroup col:nth-child(6){width:22%;}    /* ubicacion */
-.tbl colgroup col:nth-child(7){width:95px;}   /* estado */
-.tbl colgroup col:nth-child(8){width:120px;}  /* vehiculo */
-.tbl colgroup col:nth-child(9){width:auto;}   /* notas */
-.tbl colgroup col:nth-child(10){width:20px;}  /* expand */
-/* Notas: ancho fijo, sin ensanchar */
-.td-notas{color:#6b6a64;font-size:12px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;}
-
-/* Filas: blanco limpio como siempre */
+.tbl thead th{padding:5px 8px;font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#9a988f;background:#f7f6f2;border-bottom:.5px solid #e2e2de;text-align:left;white-space:nowrap;overflow:hidden;}
 .fila{border-bottom:.5px solid #f0f0ea;transition:background .1s;}
 .fila:last-child{border-bottom:none;}
 .fila:hover{background:#fafaf6;}
 .fila.exp{background:#fafaf6;}
-.be{font-size:10px;padding:2px 6px;border-radius:10px;white-space:nowrap;}
-.be-ok{background:#E1F5EE;color:#0F6E56;}
-.be-cf{background:#E6F1FB;color:#185FA5;}
-/* Fila compartida */
-.fila.compartida{background:#FFF8E6 !important;border-left:3px solid #E8A020 !important;}
-.fila.compartida:hover{background:#FFF3D6 !important;}
+.fila.drag-over-top{border-top:2px solid #1D9E75 !important;}
+.fila.drag-over-bottom{border-bottom:2px solid #1D9E75 !important;}
+.fila[draggable=true]{cursor:grab;}
+.fila[draggable=true]:active{cursor:grabbing;}
+.fila td{padding:6px 8px;font-size:12px;vertical-align:middle;}
+.fila.compartida{background:#FFFBEF !important;border-left:3px solid #E8A020 !important;}
+.fila.compartida:hover{background:#FFF7E0 !important;}
 
-/* SEPARADOR DE DÍA en vista semana */
-.dia-sep{font-size:15px;font-weight:700;color:#1a1a18;padding:18px 4px 8px;margin-top:8px;border-bottom:2px solid #1a1a18;margin-bottom:8px;letter-spacing:.3px;}
+/* Anchos de columna */
+.td-drag{width:20px;text-align:center;color:#d0d0ca;font-size:12px;cursor:grab;}
+.td-tipo{width:78px;}
+.td-fecha{width:68px;white-space:nowrap;color:#9a988f;font-size:11px;}
+.td-num{width:72px;}
+.num-proy{font-size:13px;font-weight:700;color:#1a1a18;cursor:pointer;padding:2px 5px;border-radius:5px;display:inline-block;}
+.num-proy:hover{background:#f0f0ea;}
+.num-proy.copiado{color:#1D9E75;}
+.td-cli{font-size:12px;font-weight:500;color:#1a1a18;}
+.td-loc{color:#6b6a64;font-size:11px;}
+.a-maps{font-size:10px;background:#E6F1FB;color:#185FA5;border:none;border-radius:4px;padding:1px 5px;cursor:pointer;text-decoration:none;white-space:nowrap;margin-left:3px;}
+.td-est{width:90px;}
+.td-veh{width:110px;font-size:11px;color:#4a4944;}
+.td-notas{font-size:11px;color:#9a988f;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;}
+.td-exp{width:18px;text-align:center;color:#ccc;font-size:10px;}
+
+/* Badges tipo */
+.badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;letter-spacing:.4px;white-space:nowrap;text-transform:uppercase;}
+.b-entrega{background:#D6F5E3;color:#0A6640;}
+.b-recogida{background:#FDEBD0;color:#8B4A00;}
+.b-otro{background:#E6F1FB;color:#185FA5;}
+.b-manual{background:#EEEDFE;color:#3C3489;}
+.b-compra{background:#FFF3E0;color:#8B4513;}
+.b-taller{background:#FCE4EC;color:#880E4F;}
+
+/* Badges estado */
+.be{font-size:9px;font-weight:600;padding:2px 7px;border-radius:8px;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px;}
+.be-ok{background:#D6F5E3;color:#0A6640;}
+.be-cf{background:#E6F1FB;color:#185FA5;}
+
+/* DETALLE EXPAND */
 .fila-det{display:none;background:#f5f5f0;}
 .fila-det.open{display:table-row;}
 .fila-det td{padding:10px 12px;border-bottom:.5px solid #e2e2de;}
