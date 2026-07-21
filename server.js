@@ -620,11 +620,20 @@ app.post('/api/rutas/conductores', async (req, res) => {
   }
   try {
     const { action, ...resto } = req.body;
+    console.log('POST /api/rutas/conductores — action:', action, '| body:', JSON.stringify(req.body));
     if (action !== 'set_conductores' && action !== 'set_choferes') {
       return res.status(400).json({ error: 'Accion no reconocida' });
     }
     if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
-    const data = await llamarRutasScript(action, {}, 'POST', resto);
+    const payload = { token: 'ORUMx2026RutasPublic', action, ...resto };
+    console.log('Enviando a Apps Script:', JSON.stringify(payload));
+    const resp = await fetch(RUTAS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    console.log('Respuesta Apps Script:', JSON.stringify(data));
     res.json(data);
   } catch (err) {
     console.error('Error en POST /api/rutas/conductores:', err);
