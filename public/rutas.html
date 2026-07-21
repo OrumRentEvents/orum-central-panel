@@ -61,49 +61,41 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .grupo-drop-zone{height:6px;border-radius:4px;margin:2px 0;transition:all .15s;}
 .grupo-drop-zone.drag-over-zone{background:#1D9E75;height:14px;}
 
-/* TABLA */
-.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;}
-.tbl thead th{padding:6px 10px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#7a7a72;background:#f5f5f0;border-bottom:.5px solid #e2e2de;text-align:left;white-space:nowrap;}
-.fila{border-bottom:.5px solid #f0f0ea;transition:background .1s;}
-.fila:last-child{border-bottom:none;}
-.fila:hover{background:#fafaf6;}
-.fila.exp{background:#fafaf6;}
-/* CAMBIO 1: indicador visual posición drag */
-.fila.drag-over-top{border-top:3px solid #1D9E75 !important;}
-.fila.drag-over-bottom{border-bottom:3px solid #1D9E75 !important;}
-.fila.drag-over{background:#E1F5EE;}
-.fila[draggable=true]{cursor:grab;}
-.fila[draggable=true]:active{cursor:grabbing;}
-.fila td{padding:7px 10px;font-size:13px;vertical-align:middle;}
-.td-drag{width:20px;text-align:center;color:#ccc;font-size:14px;cursor:grab;}
-.td-tipo{width:75px;}
-.badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;}
-.b-entrega{background:#E1F5EE;color:#0F6E56;}
-.b-recogida{background:#FAEEDA;color:#854F0B;}
-.b-otro{background:#E6F1FB;color:#185FA5;}
-.b-manual{background:#EEEDFE;color:#3C3489;}
-.b-compra{background:#FFF3E0;color:#8B4513;}
-.b-taller{background:#FCE4EC;color:#880E4F;}
-/* CAMBIO 4: columna número proyecto */
-.td-num{width:80px;}
-.num-proy{font-size:15px;font-weight:700;color:#1a1a18;cursor:pointer;padding:3px 6px;border-radius:6px;display:inline-block;}
-.num-proy:hover{background:#f0f0ea;}
-.num-proy.copiado{color:#1D9E75;}
-.td-fecha{width:70px;white-space:nowrap;color:#6b6a64;font-size:12px;}
-.td-cli{min-width:150px;}
-.cli-nom{font-weight:500;font-size:13px;}
-.td-loc{color:#6b6a64;font-size:12px;max-width:200px;}
-.a-maps{font-size:10px;background:#E6F1FB;color:#185FA5;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;text-decoration:none;white-space:nowrap;margin-left:4px;}
-.td-est{width:85px;}
-.be{font-size:10px;padding:2px 6px;border-radius:10px;white-space:nowrap;}
-.be-ok{background:#E1F5EE;color:#0F6E56;}
-.be-cf{background:#E6F1FB;color:#185FA5;}
-.td-veh{width:140px;}
-.td-veh select{width:100%;padding:4px 6px;font-size:12px;border:.5px solid #e2e2de;border-radius:6px;background:#fff;color:#1a1a18;cursor:pointer;}
-.td-notas{color:#6b6a64;font-size:12px;font-style:italic;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.td-exp{width:20px;text-align:center;color:#ccc;font-size:11px;}
+/* TABLA — columnas con ancho fijo para que no se muevan */
+.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;table-layout:fixed;}
+.tbl thead th{padding:6px 10px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#7a7a72;background:#f5f5f0;border-bottom:.5px solid #e2e2de;text-align:left;white-space:nowrap;overflow:hidden;}
+/* Anchos fijos de columna */
+.tbl colgroup col:nth-child(1){width:28px;}   /* drag */
+.tbl colgroup col:nth-child(2){width:80px;}   /* tipo */
+.tbl colgroup col:nth-child(3){width:72px;}   /* fecha */
+.tbl colgroup col:nth-child(4){width:72px;}   /* nº */
+.tbl colgroup col:nth-child(5){width:18%;}    /* cliente */
+.tbl colgroup col:nth-child(6){width:22%;}    /* ubicacion */
+.tbl colgroup col:nth-child(7){width:95px;}   /* estado */
+.tbl colgroup col:nth-child(8){width:120px;}  /* vehiculo */
+.tbl colgroup col:nth-child(9){width:auto;}   /* notas */
+.tbl colgroup col:nth-child(10){width:20px;}  /* expand */
+/* Notas: ancho fijo, sin ensanchar */
+.td-notas{color:#6b6a64;font-size:12px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;}
 
-/* DETALLE EXPAND */
+/* Filas: color completo según tipo */
+.fila.tipo-entrega{background:#E8F5E9;}
+.fila.tipo-entrega:hover{background:#D8EDD9;}
+.fila.tipo-recogida{background:#FFF3E0;}
+.fila.tipo-recogida:hover{background:#FFE9CC;}
+.fila.tipo-otro,.fila.tipo-manual,.fila.tipo-compra,.fila.tipo-taller{background:#fff;}
+.fila.tipo-otro:hover,.fila.tipo-manual:hover,.fila.tipo-compra:hover,.fila.tipo-taller:hover{background:#fafaf6;}
+/* Estado badge combinado con color de fila */
+.fila.tipo-entrega .be-ok{background:#B2DFDB;color:#00695C;}
+.fila.tipo-entrega .be-cf{background:#C8E6C9;color:#1B5E20;}
+.fila.tipo-recogida .be-ok{background:#FFD180;color:#7B3F00;}
+.fila.tipo-recogida .be-cf{background:#FFCC80;color:#E65100;}
+/* Fila compartida encima de colores de tipo */
+.fila.compartida{background:#FFF8E6 !important;border-left:3px solid #E8A020 !important;}
+.fila.compartida:hover{background:#FFF3D6 !important;}
+
+/* SEPARADOR DE DÍA en vista semana */
+.dia-sep{font-size:15px;font-weight:700;color:#1a1a18;padding:18px 4px 8px;margin-top:8px;border-bottom:2px solid #1a1a18;margin-bottom:8px;letter-spacing:.3px;}
 .fila-det{display:none;background:#f5f5f0;}
 .fila-det.open{display:table-row;}
 .fila-det td{padding:10px 12px;border-bottom:.5px solid #e2e2de;}
@@ -423,7 +415,7 @@ function render(){
         });
       }
       html+='</div></div>';
-      html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
+      html+='<table class="tbl"><colgroup><col><col><col><col><col><col><col><col><col><col></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
       itemsCompartidos.forEach(function(idx){html+=renderFila(idx,'__compartidos__');});
       html+='</tbody></table></div>';
     }
@@ -499,7 +491,7 @@ function renderGrupo(g){
   }
   if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">&#128228; WhatsApp</button>';
   html+='</div></div>';
-  html+='<table class="tbl"><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
+  html+='<table class="tbl"><colgroup><col><col><col><col><col><col><col><col><col><col></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
   g.items.forEach(function(idx){html+=renderFila(idx,g.gkey);});
   html+='</tbody></table></div>';
   return html;
@@ -526,9 +518,10 @@ function renderFila(idx,gkey){
 
   var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||'',gkey:gkey}));
   var esCompartida = vehsActuales.length > 1;
+  var tipoClase = p.es_manual ? 'tipo-manual' : ('tipo-'+tipo);
   var dragAttr=ROL==='logistica'?' draggable="true"':'';
 
-  var html='<tr class="fila'+(esCompartida?' compartida':'')+'" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
+  var html='<tr class="fila '+tipoClase+(esCompartida?' compartida':'')+'" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
   html+='<td class="td-drag">'+(ROL==='logistica'?'⠿':'')+'</td>';
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
@@ -1042,17 +1035,37 @@ function enviarWhatsApp(gkey){
   var SIN='__sin__';
   var grupos=getGrupos();
   var grpArr=(grupos[gkey]||[]).slice();
-  grpArr.sort(function(a,b){return(paradas[a].orden||0)-(paradas[b].orden||0);});
   if(!grpArr.length){toast('Sin paradas en este grupo');return;}
+
   var partes=gkey.split('_v');
   var nombreVeh=partes[0];
   var vuelta=parseInt(partes[1])||1;
+
+  // Filtrar solo las paradas del día actualmente visible
+  // En modo "hoy" = fecha del picker; en modo "semana" = todas las fechas del grupo
+  var fechaFiltro = modo==='hoy' ? (document.getElementById('fpicker').value||hoy()) : null;
+  if(fechaFiltro){
+    grpArr=grpArr.filter(function(i){return paradas[i].fecha===fechaFiltro;});
+  }
+  // Excluir paradas compartidas (varios vehículos) — ya están en su sección propia
+  grpArr=grpArr.filter(function(i){return getVehsParada(paradas[i]).length===1;});
+
+  grpArr.sort(function(a,b){return(paradas[a].orden||0)-(paradas[b].orden||0);});
+
+  if(!grpArr.length){toast('Sin paradas en este grupo para hoy');return;}
+
   var fechas={};
   grpArr.forEach(function(i){if(paradas[i].fecha)fechas[paradas[i].fecha]=1;});
   var fechasArr=Object.keys(fechas).sort();
   var fechaLabel=fechasArr.map(function(f){return formatDiaLargo(f);}).join(', ');
-  var titulo='RUTA '+nombreVeh+(vuelta>1?' ('+vuelta+'a vuelta)':'');
-  var texto=titulo+' - '+fechaLabel+'\n\n';
+
+  // Añadir conductor si está asignado
+  var condsClave=(fechasArr[0]||'')+'_'+nombreVeh+'_'+vuelta;
+  var conductores=asignacionesConductores[condsClave]||[];
+  var condStr=conductores.length>0?('\nConductor: '+conductores.join(', ')):'';
+
+  var titulo='RUTA '+nombreVeh+(vuelta>1?' ('+vuelta+'ª vuelta)':'');
+  var texto=titulo+' - '+fechaLabel+condStr+'\n\n';
   grpArr.forEach(function(i,pos){
     var p=paradas[i];
     texto+=(pos+1)+'. '+p.tipo+'\n';
