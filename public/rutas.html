@@ -1074,7 +1074,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('fab').addEventListener('click',function(){if(ROL==='logistica')abrirModal();});
   document.getElementById('mcls').addEventListener('click',cerrarModal);
   document.getElementById('btn-gm').addEventListener('click',guardarManual);
-  document.getElementById('btn-hoy').addEventListener('click',function(){modo='hoy';this.classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
+  document.getElementById('btn-hoy').addEventListener('click',function(){modo='hoy';document.getElementById('fpicker').value=hoy();this.classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
   document.getElementById('btn-sem').addEventListener('click',function(){modo='semana';this.classList.add('on');document.getElementById('btn-hoy').classList.remove('on');load();});
   document.getElementById('fpicker').addEventListener('change',function(){modo='hoy';document.getElementById('btn-hoy').classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
   document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)cerrarModal();});
