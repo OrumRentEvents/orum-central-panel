@@ -78,18 +78,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* Notas: ancho fijo, sin ensanchar */
 .td-notas{color:#6b6a64;font-size:12px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;}
 
-/* Filas: color completo según tipo */
-.fila.tipo-entrega{background:#E8F5E9;}
-.fila.tipo-entrega:hover{background:#D8EDD9;}
-.fila.tipo-recogida{background:#FFF3E0;}
-.fila.tipo-recogida:hover{background:#FFE9CC;}
+/* Filas: color sutil según tipo — solo un toque de color, no invasivo */
+.fila.tipo-entrega{background:#F4FBF5;}
+.fila.tipo-entrega:hover{background:#E8F5E9;}
+.fila.tipo-recogida{background:#FFFAF4;}
+.fila.tipo-recogida:hover{background:#FFF3E0;}
 .fila.tipo-otro,.fila.tipo-manual,.fila.tipo-compra,.fila.tipo-taller{background:#fff;}
 .fila.tipo-otro:hover,.fila.tipo-manual:hover,.fila.tipo-compra:hover,.fila.tipo-taller:hover{background:#fafaf6;}
-/* Estado badge combinado con color de fila */
-.fila.tipo-entrega .be-ok{background:#B2DFDB;color:#00695C;}
-.fila.tipo-entrega .be-cf{background:#C8E6C9;color:#1B5E20;}
-.fila.tipo-recogida .be-ok{background:#FFD180;color:#7B3F00;}
-.fila.tipo-recogida .be-cf{background:#FFCC80;color:#E65100;}
+/* Estado badge — mantener colores originales */
+.be{font-size:10px;padding:2px 6px;border-radius:10px;white-space:nowrap;}
+.be-ok{background:#E1F5EE;color:#0F6E56;}
+.be-cf{background:#E6F1FB;color:#185FA5;}
 /* Fila compartida encima de colores de tipo */
 .fila.compartida{background:#FFF8E6 !important;border-left:3px solid #E8A020 !important;}
 .fila.compartida:hover{background:#FFF3D6 !important;}
