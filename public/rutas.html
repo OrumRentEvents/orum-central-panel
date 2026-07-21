@@ -275,7 +275,7 @@ function load(){
   document.getElementById('hstats').textContent='';
   var r=rango();
   var urlParadas='/api/rutas?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
-  var urlConductores='/api/rutas/conductores?desde='+r.desde+'&hasta='+r.hasta+'&t='+Date.now();
+  var urlConductores='/api/rutas/conductores?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
 
   Promise.all([
     fetch(urlParadas).then(function(res){return res.json();}),
