@@ -54,9 +54,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* fila compartida */
 .fila.compartida{background:#FFFBEF !important;border-left:3px solid #E8A020 !important;}
 .fila.compartida:hover{background:#FFF7E0 !important;}
+/* fila con incidencia — prioridad visual sobre compartida */
+.fila.inc{background:#FFF3F2 !important;border-left:3px solid #D9534F !important;}
+.fila.inc:hover{background:#FFE8E6 !important;}
 /* zona drop */
 .grupo-drop-zone{height:6px;border-radius:4px;margin:2px 0;transition:all .15s;}
 .grupo-drop-zone.drag-over-zone{background:#1D9E75;height:14px;}
+
+/* Badge estado de vehiculo (EN RUTA / FINALIZADO) */
+.veh-estado{font-size:9px;font-weight:700;padding:3px 8px;border-radius:8px;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap;background:rgba(255,255,255,.15);color:rgba(255,255,255,.65);}
+.veh-estado.en-ruta{background:#FFF3CD;color:#8A6D00;}
+.veh-estado.finalizado{background:#D6F5E3;color:#0A6640;}
+.veh-estado.clicable{cursor:pointer;}
+.veh-estado.clicable:hover{opacity:.82;}
 
 /* TABLA — columnas con ancho fijo para que no se muevan */
 .tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;table-layout:fixed;}
@@ -69,25 +79,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fila.drag-over-bottom{border-bottom:2px solid #1D9E75 !important;}
 .fila[draggable=true]{cursor:grab;}
 .fila[draggable=true]:active{cursor:grabbing;}
-.fila td{padding:6px 8px;font-size:12px;vertical-align:middle;}
-.fila.compartida{background:#FFFBEF !important;border-left:3px solid #E8A020 !important;}
-.fila.compartida:hover{background:#FFF7E0 !important;}
+.fila td{padding:6px 6px;font-size:12px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;}
 
-/* Anchos de columna */
-.td-drag{width:20px;text-align:center;color:#d0d0ca;font-size:12px;cursor:grab;}
-.td-tipo{width:78px;}
-.td-fecha{width:68px;white-space:nowrap;color:#9a988f;font-size:11px;}
-.td-num{width:72px;}
+/* Anchos de columna — ver colgroup en cada tabla para el reparto real (table-layout:fixed) */
+.td-drag{text-align:center;color:#d0d0ca;font-size:12px;cursor:grab;}
+.td-tipo{white-space:nowrap;}
+.td-fecha{white-space:nowrap;color:#9a988f;font-size:11px;}
+.td-num{white-space:nowrap;}
 .num-proy{font-size:13px;font-weight:700;color:#1a1a18;cursor:pointer;padding:2px 5px;border-radius:5px;display:inline-block;}
 .num-proy:hover{background:#f0f0ea;}
 .num-proy.copiado{color:#1D9E75;}
-.td-cli{font-size:12px;font-weight:500;color:#1a1a18;}
-.td-loc{color:#6b6a64;font-size:11px;}
+.btn-material{background:#EEEDFE;color:#3C3489;border:none;border-radius:4px;padding:1px 5px;cursor:pointer;font-size:10px;margin-left:2px;}
+.td-cli{font-size:12px;font-weight:500;color:#1a1a18;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.td-loc{color:#6b6a64;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .a-maps{font-size:10px;background:#E6F1FB;color:#185FA5;border:none;border-radius:4px;padding:1px 5px;cursor:pointer;text-decoration:none;white-space:nowrap;margin-left:3px;}
-.td-est{width:90px;}
-.td-veh{width:110px;font-size:11px;color:#4a4944;}
-.td-notas{font-size:11px;color:#9a988f;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;}
-.td-exp{width:18px;text-align:center;color:#ccc;font-size:10px;}
+.td-est{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.td-veh{font-size:11px;color:#4a4944;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.td-chk{text-align:center;}
+.td-notas{font-size:11px;color:#9a988f;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.td-exp{text-align:center;color:#ccc;font-size:10px;}
+
+/* Puntos de estado preparado / cargado / incidencia */
+.chk-dots{display:flex;gap:3px;align-items:center;justify-content:center;}
+.chk-dot{width:8px;height:8px;border-radius:50%;background:#e2e2de;flex-shrink:0;}
+.chk-dot.on-prep{background:#378ADD;}
+.chk-dot.on-carg{background:#1D9E75;}
+.chk-dot.on-inc{background:#D9534F;}
 
 /* Badges tipo */
 .badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:8px;letter-spacing:.4px;white-space:nowrap;text-transform:uppercase;}
@@ -117,6 +134,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .btn-g.ok{background:#1D9E75;}
 .btn-g.del{background:#fff;color:#A32D2D;border:.5px solid #F09595;}
 .msg-ok{font-size:12px;color:#1D9E75;}
+
+/* Checks preparado / cargado / incidencia en el detalle */
+.det-check-row{display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+.det-check-lbl{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
+.det-check-lbl input[type=checkbox]{width:15px;height:15px;cursor:pointer;}
 
 /* CAMBIO 2: checkboxes vehículos múltiples */
 .vehs-checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
@@ -227,6 +249,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
 </div>
 
+<!-- Modal material del proyecto -->
+<div id="modal-material" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:0 0 2rem;max-height:80vh;overflow-y:auto;">
+    <div style="padding:14px 16px;border-bottom:.5px solid #e2e2de;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;">
+      <h2 style="font-size:15px;font-weight:500;" id="modal-material-titulo">Material</h2>
+      <button onclick="cerrarModalMaterial()" style="background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:14px 16px;" id="modal-material-body">
+      <div class="load">Cargando...</div>
+    </div>
+  </div>
+</div>
+
 <script>
 var PINES_CONFIG={
   '2000':{rol:'logistica'},
@@ -238,6 +273,10 @@ var pin='', modo='hoy', paradas=[];
 // Conductores: lista global editable y asignaciones por vehículo+vuelta+día
 var CHOFERES=['Adrian Cuesta','Antonio Jimenez','Carlos Maldonado','Jesus Aguilera','Jesus Calero','Joaquin','Jorge Cuesta','Jose Enriquez','Jose Ortiz','Juan Rios','Leo Ferreyra','Leo Haro','Nourdin','Rafa Perez','Ruben Romo','Sergio Gonzalez','Wilson'];
 var asignacionesConductores={}; // clave: "fecha_vehiculo_vuelta" → [nombres]
+// Estado del vehiculo (EN RUTA / FINALIZADO) por vehiculo+vuelta+dia — solo editable con PIN 2000
+var estadosVehiculo={}; // clave: "fecha_vehiculo_vuelta" → 'EN RUTA' | 'FINALIZADO' | ''
+// Estado de cada parada: preparado / cargado / incidencia
+var estadosParada={}; // clave: p.clave (o "manual_<id>") → {preparado,cargado,incidencia,incidencia_texto}
 
 // ── PIN ──
 function initKP(){
@@ -276,13 +315,19 @@ function load(){
   var r=rango();
   var urlParadas='/api/rutas?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
   var urlConductores='/api/rutas/conductores?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
+  var urlEstadoVeh='/api/rutas/estado-vehiculos?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
+  var urlEstadosParada='/api/rutas/estados-parada?token=ORUMx2026RutasPublic&t='+Date.now();
 
   Promise.all([
     fetch(urlParadas).then(function(res){return res.json();}),
-    fetch(urlConductores).then(function(res){return res.json();}).catch(function(){return{};})
+    fetch(urlConductores).then(function(res){return res.json();}).catch(function(){return{};}),
+    fetch(urlEstadoVeh).then(function(res){return res.json();}).catch(function(){return{};}),
+    fetch(urlEstadosParada).then(function(res){return res.json();}).catch(function(){return{};})
   ]).then(function(resultados){
     var data=resultados[0];
     var dataCond=resultados[1];
+    var dataEstadoVeh=resultados[2];
+    var dataEstadosParada=resultados[3];
 
     if(data.error){document.getElementById('body').innerHTML='<div class="load">Error: '+data.error+'</div>';return;}
     paradas=data.paradas||[];
@@ -294,6 +339,19 @@ function load(){
     (dataCond.asignaciones||[]).forEach(function(a){
       var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
       asignacionesConductores[clave]=a.conductores||[];
+    });
+
+    // Cargar estado de vehiculos (EN RUTA / FINALIZADO)
+    estadosVehiculo={};
+    (dataEstadoVeh.estados||[]).forEach(function(a){
+      var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
+      estadosVehiculo[clave]=a.estado||'';
+    });
+
+    // Cargar estados de parada (preparado/cargado/incidencia)
+    estadosParada={};
+    (dataEstadosParada.estados||[]).forEach(function(a){
+      estadosParada[a.clave]={preparado:!!a.preparado,cargado:!!a.cargado,incidencia:!!a.incidencia,incidencia_texto:a.incidencia_texto||''};
     });
 
     render();
@@ -341,6 +399,12 @@ function vehsAString(vehs){
   if(!vehs||vehs.length===0)return'';
   if(Array.isArray(vehs))return vehs.filter(Boolean).join(',');
   return String(vehs);
+}
+
+// Clave estable de una parada, usada para guardar su estado (preparado/cargado/incidencia).
+// Las paradas manuales no siempre traen p.clave, asi que usamos su id_manual como respaldo.
+function claveParada(p){
+  return p.clave || ('manual_'+(p.id_manual||''));
 }
 
 // ── RENDER ──
@@ -423,7 +487,7 @@ function render(){
         });
       }
       html+='</div></div>';
-      html+='<table class="tbl"><colgroup><col><col><col><col><col><col><col><col><col><col></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
+      html+='<table class="tbl"><colgroup><col style="width:3%"><col style="width:7%"><col style="width:6%"><col style="width:6%"><col style="width:20%"><col style="width:19%"><col style="width:8%"><col style="width:9%"><col style="width:6%"><col style="width:12%"><col style="width:4%"></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th></th><th>Notas</th><th></th></tr></thead><tbody>';
       itemsCompartidos.forEach(function(idx){html+=renderFila(idx,'__compartidos__');});
       html+='</tbody></table></div>';
     }
@@ -489,9 +553,23 @@ function renderGrupo(g){
   var conductoresAsignados=asignacionesConductores[condsClave]||[];
   var conductorTexto=conductoresAsignados.join(' · ')||'';
 
+  // Badge de estado del vehiculo (EN RUTA / FINALIZADO) — junto al nombre del vehiculo
+  var estadoBadgeHtml='';
+  if(!esSin){
+    var estadoVehClave=fechaPrincipal+'_'+g.veh+'_'+g.vuelta;
+    var estadoVehActual=estadosVehiculo[estadoVehClave]||'';
+    if(estadoVehActual||ROL==='logistica'){
+      var claseEstado=estadoVehActual==='EN RUTA'?'en-ruta':(estadoVehActual==='FINALIZADO'?'finalizado':'');
+      var esClicable=ROL==='logistica';
+      var onclickAttr=esClicable?' onclick="toggleEstadoVehiculo(\''+g.veh+'\','+g.vuelta+',\''+fechaPrincipal+'\')"':'';
+      var etiqueta=estadoVehActual||'Marcar estado';
+      estadoBadgeHtml='<span class="veh-estado '+claseEstado+(esClicable?' clicable':'')+'"'+onclickAttr+' title="'+(esClicable?'Clic para cambiar estado':'')+'">'+etiqueta+'</span>';
+    }
+  }
+
   var html='<div class="grupo" data-gkey="'+g.gkey+'">';
   html+='<div class="grupo-hdr'+(esSin?' sin':'')+'">';
-  html+='<div class="grupo-hdr-left"><span>'+titulo+'</span></div>';
+  html+='<div class="grupo-hdr-left"><span>'+titulo+'</span>'+estadoBadgeHtml+'</div>';
   if(conductorTexto) html+='<span class="grupo-conductor">'+conductorTexto+'</span>';
   html+='<div class="grupo-hdr-right">';
   if(ROL==='logistica'&&!esSin){
@@ -499,7 +577,7 @@ function renderGrupo(g){
   }
   if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">&#128228; WhatsApp</button>';
   html+='</div></div>';
-  html+='<table class="tbl"><colgroup><col><col><col><col><col><col><col><col><col><col></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th>Notas</th><th></th></tr></thead><tbody>';
+  html+='<table class="tbl"><colgroup><col style="width:3%"><col style="width:7%"><col style="width:6%"><col style="width:6%"><col style="width:20%"><col style="width:19%"><col style="width:8%"><col style="width:9%"><col style="width:6%"><col style="width:12%"><col style="width:4%"></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th>Vehiculo(s)</th><th></th><th>Notas</th><th></th></tr></thead><tbody>';
   g.items.forEach(function(idx){html+=renderFila(idx,g.gkey);});
   html+='</tbody></table></div>';
   return html;
@@ -518,33 +596,49 @@ function renderFila(idx,gkey){
   var fechaH=p.fecha?formatFechaCorta(p.fecha):'';
   // CAMBIO 4: número de proyecto
   var numH=p.numero?('<span class="num-proy" onclick="copiarNum(this,\''+p.numero+'\')" title="Clic para copiar">#'+p.numero+'</span>'):'<span style="color:#ccc">—</span>';
+  var materialBtn=p.proyecto_id?('<button class="btn-material" onclick="event.stopPropagation();abrirModalMaterial(\''+p.proyecto_id+'\',\''+(p.numero||'')+'\')" title="Ver material del proyecto">&#128230;</button>'):'';
   // CAMBIO 2: mostrar vehículos asignados (puede ser múltiple)
   var vehsActuales=getVehsParada(p);
   var vehTexto=vehsActuales.length>0?vehsActuales.join(', '):'<span style="color:#ccc">—</span>';
   // En logística, inline sigue siendo simple (el detalle tiene los checkboxes)
   var vehCelda=ROL==='logistica'?vehTexto:vehTexto;
 
+  // Estado de la parada: preparado / cargado / incidencia
+  var claveEst=claveParada(p);
+  var estParada=estadosParada[claveEst]||{preparado:false,cargado:false,incidencia:false,incidencia_texto:''};
+  var tituloChk=[];
+  if(estParada.preparado)tituloChk.push('Preparado');
+  if(estParada.cargado)tituloChk.push('Cargado');
+  if(estParada.incidencia)tituloChk.push('Incidencia'+(estParada.incidencia_texto?': '+estParada.incidencia_texto:''));
+  var chkHtml='<div class="chk-dots" title="'+tituloChk.join(' · ')+'">'+
+    '<span class="chk-dot'+(estParada.preparado?' on-prep':'')+'"></span>'+
+    '<span class="chk-dot'+(estParada.cargado?' on-carg':'')+'"></span>'+
+    '<span class="chk-dot'+(estParada.incidencia?' on-inc':'')+'"></span>'+
+    '</div>';
+
   var pEnc=encodeURIComponent(JSON.stringify({idx:idx,clave:p.clave,es_manual:p.es_manual,id_manual:p.id_manual||'',gkey:gkey}));
   var esCompartida = vehsActuales.length > 1;
   var tipoClase = p.es_manual ? 'tipo-manual' : ('tipo-'+tipo);
   var dragAttr=ROL==='logistica'?' draggable="true"':'';
+  var claseFila='fila '+tipoClase+(esCompartida?' compartida':'')+(estParada.incidencia?' inc':'');
 
-  var html='<tr class="fila '+tipoClase+(esCompartida?' compartida':'')+'" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
+  var html='<tr class="'+claseFila+'" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
   html+='<td class="td-drag">'+(ROL==='logistica'?'⠿':'')+'</td>';
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
   // CAMBIO 4: columna número independiente
-  html+='<td class="td-num">'+numH+'</td>';
+  html+='<td class="td-num">'+numH+materialBtn+'</td>';
   html+='<td class="td-cli"><div class="cli-nom">'+(p.cliente||'—')+'</div></td>';
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-veh">'+vehCelda+'</td>';
+  html+='<td class="td-chk">'+chkHtml+'</td>';
   html+='<td class="td-notas">'+(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
 
   // Fila detalle expandible
-  html+='<tr class="fila-det" id="det-'+key+'"><td colspan="10">';
+  html+='<tr class="fila-det" id="det-'+key+'"><td colspan="11">';
   html+='<div class="det-grid">';
   if(ROL==='logistica'){
     html+='<div class="det-campo" style="grid-column:1/-1"><label>Vehiculos asignados</label><div class="vehs-checks" id="vch-'+key+'">';
@@ -557,6 +651,12 @@ function renderFila(idx,gkey){
     html+='<div class="det-campo"><label>Vuelta</label><select id="vuel-'+key+'" class="vuelta-sel">';
     for(var vv=1;vv<=4;vv++)html+='<option value="'+vv+'"'+((parseInt(p.vuelta)||1)===vv?' selected':'')+'>'+vv+'ª</option>';
     html+='</select></div>';
+    html+='<div class="det-campo" style="grid-column:1/-1"><label>Estado del material</label><div class="det-check-row">';
+    html+='<label class="det-check-lbl"><input type="checkbox" id="chk-prep-'+key+'"'+(estParada.preparado?' checked':'')+'> Preparado</label>';
+    html+='<label class="det-check-lbl"><input type="checkbox" id="chk-carg-'+key+'"'+(estParada.cargado?' checked':'')+'> Cargado</label>';
+    html+='<label class="det-check-lbl"><input type="checkbox" id="chk-inc-'+key+'" onchange="toggleIncidenciaCampo(this,\''+key+'\')"'+(estParada.incidencia?' checked':'')+'> Incidencia</label>';
+    html+='</div></div>';
+    html+='<div class="det-campo" style="grid-column:1/-1;display:'+(estParada.incidencia?'block':'none')+';" id="inc-campo-'+key+'"><label>Descripcion de la incidencia</label><textarea id="chk-inctxt-'+key+'" placeholder="Que ha ocurrido...">'+(estParada.incidencia_texto||'')+'</textarea></div>';
   }
   html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
   html+='</div><div class="det-acts">';
@@ -589,6 +689,12 @@ function toggleVehCheck(chk, key){
     var row=document.getElementById('cond-row-'+key+'-'+vehId);
     if(row)row.remove();
   }
+}
+
+// Muestra/oculta el textarea de descripcion de incidencia segun el checkbox
+function toggleIncidenciaCampo(chk,key){
+  var campo=document.getElementById('inc-campo-'+key);
+  if(campo)campo.style.display=chk.checked?'block':'none';
 }
 
 function formatFechaCorta(iso){
@@ -658,7 +764,7 @@ function bindEvents(){
   // Expand fila
   document.querySelectorAll('.fila').forEach(function(fila){
     fila.addEventListener('click',function(e){
-      if(e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.num-proy'))return;
+      if(e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.num-proy')||e.target.closest('.btn-material'))return;
       var idx=fila.getAttribute('data-idx');
       var gkey=(fila.getAttribute('data-gkey')||'').replace(/[^a-zA-Z0-9]/g,'');
       var det=document.getElementById('det-p'+idx+'_'+gkey);
@@ -868,17 +974,41 @@ function guardarDetalle(btn){
   // Conductor se gestiona por vehículo desde el modal de conductores, no desde aquí
   var conductor=paradas[idx].conductor||{};
 
+  // Estado de la parada: preparado / cargado / incidencia (solo logistica tiene estos campos en el DOM)
+  var chkPrep=document.getElementById('chk-prep-'+key);
+  var chkCarg=document.getElementById('chk-carg-'+key);
+  var chkInc=document.getElementById('chk-inc-'+key);
+  var chkIncTxt=document.getElementById('chk-inctxt-'+key);
+  var claveEst=claveParada(paradas[idx]);
+  var estadoParadaBody=chkPrep?{
+    clave:claveEst,
+    preparado:chkPrep.checked,
+    cargado:chkCarg?chkCarg.checked:false,
+    incidencia:chkInc?chkInc.checked:false,
+    incidencia_texto:chkIncTxt?chkIncTxt.value:''
+  }:null;
+
   btn.textContent='...'; btn.disabled=true;
 
   // Siempre enviar vehículo como string separado por comas (evita [Ljava.lang.Object])
   var body={action:'set_asignacion',clave:pData.clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:vehsAString(vehsSeleccionados),conductor:conductor,notas:notas,vuelta:vuelta,orden:paradas[idx].orden||0};
   if(pData.es_manual){body.action='update_manual';body.id=pData.id_manual;}
 
-  apiPost(body).then(function(){
+  var promesas=[apiPost(body)];
+  if(estadoParadaBody){
+    promesas.push(fetch('/api/rutas/estados-parada',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(Object.assign({token:'ORUMx2026RutasPublic'},estadoParadaBody))
+    }).then(function(r){return r.json();}));
+  }
+
+  Promise.all(promesas).then(function(){
     paradas[idx].vehiculo=vehsSeleccionados;
     paradas[idx].conductor=conductor;
     paradas[idx].notas=notas;
     paradas[idx].vuelta=vuelta;
+    if(estadoParadaBody) estadosParada[claveEst]=estadoParadaBody;
     btn.textContent='Guardado';btn.classList.add('ok');
     var msg=document.getElementById('msg-'+key);if(msg)msg.textContent='Guardado';
     toast('Guardado');
@@ -1037,6 +1167,56 @@ function guardarListaChoferes(){
     })
   }).then(function(){toast('Lista de choferes guardada');}).catch(function(){toast('Error al guardar');});
   cerrarModalGestionChoferes();
+}
+
+// ── MODAL MATERIAL DEL PROYECTO ──
+function abrirModalMaterial(proyectoId, numero){
+  document.getElementById('modal-material-titulo').textContent='Material'+(numero?' — Proyecto #'+numero:'');
+  var body=document.getElementById('modal-material-body');
+  body.innerHTML='<div class="load">Cargando...</div>';
+  document.getElementById('modal-material').style.display='flex';
+  document.body.style.overflow='hidden';
+  fetch('/api/rutas/material?proyecto_id='+encodeURIComponent(proyectoId)+'&token=ORUMx2026RutasPublic&t='+Date.now())
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data.error||!data.material){body.innerHTML='<div class="load">Error al cargar material</div>';return;}
+      if(data.material.length===0){body.innerHTML='<div class="load">Sin material registrado</div>';return;}
+      var porFamilia={};
+      data.material.forEach(function(m){
+        var f=m.familia||'Sin familia';
+        if(!porFamilia[f])porFamilia[f]=[];
+        porFamilia[f].push(m);
+      });
+      var html='';
+      Object.keys(porFamilia).sort().forEach(function(f){
+        html+='<div style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b6a64;margin-bottom:6px;">'+f+'</div>';
+        porFamilia[f].forEach(function(m){
+          html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:.5px solid #f0f0ea;font-size:13px;"><span>'+(m.articulo||'')+'</span><span style="font-weight:600;">'+(m.cantidad||0)+'</span></div>';
+        });
+        html+='</div>';
+      });
+      body.innerHTML=html;
+    })
+    .catch(function(){body.innerHTML='<div class="load">Error de conexion</div>';});
+}
+function cerrarModalMaterial(){
+  document.getElementById('modal-material').style.display='none';
+  document.body.style.overflow='';
+}
+
+// ── ESTADO DE VEHÍCULO: EN RUTA / FINALIZADO — solo logistica (PIN 2000) ──
+function toggleEstadoVehiculo(veh, vuelta, fecha){
+  if(ROL!=='logistica')return;
+  var clave=fecha+'_'+veh+'_'+vuelta;
+  var actual=estadosVehiculo[clave]||'';
+  var siguiente=actual===''?'EN RUTA':(actual==='EN RUTA'?'FINALIZADO':'');
+  estadosVehiculo[clave]=siguiente;
+  render();
+  fetch('/api/rutas/estado-vehiculos',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({token:'ORUMx2026RutasPublic',fecha:fecha,vehiculo:veh,vuelta:vuelta,estado:siguiente})
+  }).then(function(){toast(siguiente?('Estado: '+siguiente):'Estado borrado');}).catch(function(){toast('Error al guardar estado');});
 }
 
 function enviarWhatsApp(gkey){
