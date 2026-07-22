@@ -79,6 +79,17 @@ function requiereLogin(req, res, next) {
   next();
 }
 
+// ── Auditoría de Rutas: registra quién hizo qué en la pestaña HISTORIAL_RUTAS ──
+// Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
+function logHistorialRutas(usuario, accion, detalle) {
+  if (!RUTAS_SCRIPT_URL) return;
+  fetch(RUTAS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: 'ORUMx2026RutasPublic', action: 'log_historial', usuario: usuario || 'Desconocido', accion, detalle: JSON.stringify(detalle || {}) })
+  }).catch(() => {});
+}
+
 // ================================================================
 // RUTAS DE AUTENTICACIÓN
 // ================================================================
@@ -583,10 +594,16 @@ app.post('/api/rutas/manual', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : 'Logistica';
+    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
     const body = { ...req.body, token: 'ORUMx2026RutasWrite', usuario };
     const resp = await fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    res.json(await resp.json());
+    const data = await resp.json();
+    logHistorialRutas(usuario, req.body.action || 'set_asignacion', {
+      clave: req.body.clave, id: req.body.id, proyecto_id: req.body.proyecto_id, tipo: req.body.tipo,
+      fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, notas: req.body.notas,
+      descripcion: req.body.descripcion, direccion: req.body.direccion
+    });
+    res.json(data);
   } catch (err) {
     console.error('Error en /api/rutas/manual:', err);
     res.status(500).json({ error: err.message });
@@ -634,6 +651,8 @@ app.post('/api/rutas/conductores', async (req, res) => {
     });
     const data = await resp.json();
     console.log('Respuesta Apps Script:', JSON.stringify(data));
+    const usuarioLog = resto.usuario || (req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : 'Logistica');
+    logHistorialRutas(usuarioLog, action, resto);
     res.json(data);
   } catch (err) {
     console.error('Error en POST /api/rutas/conductores:', err);
@@ -659,7 +678,7 @@ app.get('/api/rutas/estado-vehiculos', async (req, res) => {
   }
 });
 
-// POST /api/rutas/estado-vehiculos — el frontend solo lo llama con PIN 2000 (logística)
+// POST /api/rutas/estado-vehiculos — el frontend solo lo llama con un PIN de rol logistica
 app.post('/api/rutas/estado-vehiculos', async (req, res) => {
   if (req.body.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
     return res.status(401).json({ error: 'No autorizado' });
@@ -669,7 +688,9 @@ app.post('/api/rutas/estado-vehiculos', async (req, res) => {
     if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
     const payload = { token: 'ORUMx2026RutasPublic', action: 'set_estado_vehiculo', fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, estado: req.body.estado, usuario };
     const resp = await fetch(RUTAS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    res.json(await resp.json());
+    const data = await resp.json();
+    logHistorialRutas(usuario, 'set_estado_vehiculo', { fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, estado: req.body.estado });
+    res.json(data);
   } catch (err) {
     console.error('Error en POST /api/rutas/estado-vehiculos:', err);
     res.status(500).json({ error: err.message });
@@ -701,7 +722,9 @@ app.post('/api/rutas/estados-parada', async (req, res) => {
     if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
     const payload = { token: 'ORUMx2026RutasPublic', action: 'set_estado_parada', clave: req.body.clave, preparado: req.body.preparado, cargado: req.body.cargado, incidencia: req.body.incidencia, incidencia_texto: req.body.incidencia_texto, usuario };
     const resp = await fetch(RUTAS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    res.json(await resp.json());
+    const data = await resp.json();
+    logHistorialRutas(usuario, 'set_estado_parada', { clave: req.body.clave, preparado: req.body.preparado, cargado: req.body.cargado, incidencia: req.body.incidencia, incidencia_texto: req.body.incidencia_texto });
+    res.json(data);
   } catch (err) {
     console.error('Error en POST /api/rutas/estados-parada:', err);
     res.status(500).json({ error: err.message });
