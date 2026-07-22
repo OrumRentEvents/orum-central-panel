@@ -641,6 +641,91 @@ app.post('/api/rutas/conductores', async (req, res) => {
   }
 });
 
+// ── ESTADO DE VEHÍCULO: EN RUTA / FINALIZADO por vehiculo+vuelta+día ──
+// GET /api/rutas/estado-vehiculos?desde=2026-07-13&hasta=2026-07-13
+app.get('/api/rutas/estado-vehiculos', async (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const { desde, hasta } = req.query;
+    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true, estados: [] });
+    const params = new URLSearchParams({ token: RUTAS_SCRIPT_TOKEN, action: 'get_estado_vehiculos', desde: desde || '', hasta: hasta || '' });
+    const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
+    res.json(await resp.json());
+  } catch (err) {
+    console.error('Error en GET /api/rutas/estado-vehiculos:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/rutas/estado-vehiculos — el frontend solo lo llama con PIN 2000 (logística)
+app.post('/api/rutas/estado-vehiculos', async (req, res) => {
+  if (req.body.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
+    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
+    const payload = { token: 'ORUMx2026RutasPublic', action: 'set_estado_vehiculo', fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, estado: req.body.estado, usuario };
+    const resp = await fetch(RUTAS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    res.json(await resp.json());
+  } catch (err) {
+    console.error('Error en POST /api/rutas/estado-vehiculos:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── ESTADOS DE PARADA: preparado / cargado / incidencia ──
+app.get('/api/rutas/estados-parada', async (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true, estados: [] });
+    const params = new URLSearchParams({ token: RUTAS_SCRIPT_TOKEN, action: 'get_estados_parada' });
+    const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
+    res.json(await resp.json());
+  } catch (err) {
+    console.error('Error en GET /api/rutas/estados-parada:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/rutas/estados-parada', async (req, res) => {
+  if (req.body.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
+    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
+    const payload = { token: 'ORUMx2026RutasPublic', action: 'set_estado_parada', clave: req.body.clave, preparado: req.body.preparado, cargado: req.body.cargado, incidencia: req.body.incidencia, incidencia_texto: req.body.incidencia_texto, usuario };
+    const resp = await fetch(RUTAS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    res.json(await resp.json());
+  } catch (err) {
+    console.error('Error en POST /api/rutas/estados-parada:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── MATERIAL DE UN PROYECTO (para el detalle en Rutas) ──
+// GET /api/rutas/material?proyecto_id=1234
+app.get('/api/rutas/material', async (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const proyectoId = String(req.query.proyecto_id || '');
+    if (!proyectoId) return res.status(400).json({ error: 'Falta proyecto_id' });
+    const equipmentResp = await llamarOrumCentral('equipment');
+    const equipment = (equipmentResp.data || []).filter(e => String(e.proyecto_id) === proyectoId);
+    res.json({ ok: true, material: equipment });
+  } catch (err) {
+    console.error('Error en GET /api/rutas/material:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ================================================================
 // FACTURAS PROVEEDORES
 // ================================================================
