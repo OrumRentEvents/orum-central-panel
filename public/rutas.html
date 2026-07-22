@@ -186,7 +186,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="app" style="display:none;">
   <div class="hdr">
-    <div class="hdr-top"><h1>ORUM Rutas</h1><button class="btn-s" id="btn-rec">Recargar</button></div>
+    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><button class="btn-s" id="btn-rec">Recargar</button></div>
     <div class="hdr-nav">
       <button class="btn-s on" id="btn-hoy">Hoy</button>
       <button class="btn-s" id="btn-sem">Esta semana</button>
@@ -264,17 +264,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 
 <script>
+// PIN individual por persona. rol 'logistica' puede editar todo; 'comercial' solo notas.
 var PINES_CONFIG={
-  '2000':{rol:'logistica'},
-  '3000':{rol:'comercial'}
+  '1986':{rol:'logistica',nombre:'Sergio'},
+  '1415':{rol:'logistica',nombre:'Leo Haro'},
+  '7879':{rol:'logistica',nombre:'Jesus Aguilera'},
+  '9696':{rol:'logistica',nombre:'Rafa Perez'},
+  '5252':{rol:'comercial',nombre:'Marina Rodriguez'},
+  '6363':{rol:'comercial',nombre:'Danilo Castellano'},
+  '4142':{rol:'comercial',nombre:'Lucas Salido'}
 };
 var ROL='';
+var NOMBRE_USUARIO=''; // nombre de la persona conectada, segun su PIN — se envia con cada accion para el historial
 var VEHS=['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW'];
 var pin='', modo='hoy', paradas=[];
 // Conductores: lista global editable y asignaciones por vehículo+vuelta+día
 var CHOFERES=['Adrian Cuesta','Antonio Jimenez','Carlos Maldonado','Jesus Aguilera','Jesus Calero','Joaquin','Jorge Cuesta','Jose Enriquez','Jose Ortiz','Juan Rios','Leo Ferreyra','Leo Haro','Nourdin','Rafa Perez','Ruben Romo','Sergio Gonzalez','Wilson'];
 var asignacionesConductores={}; // clave: "fecha_vehiculo_vuelta" → [nombres]
-// Estado del vehiculo (EN RUTA / FINALIZADO) por vehiculo+vuelta+dia — solo editable con PIN 2000
+// Estado del vehiculo (EN RUTA / FINALIZADO) por vehiculo+vuelta+dia — solo editable por rol logistica
 var estadosVehiculo={}; // clave: "fecha_vehiculo_vuelta" → 'EN RUTA' | 'FINALIZADO' | ''
 // Estado de cada parada: preparado / cargado / incidencia
 var estadosParada={}; // clave: p.clave (o "manual_<id>") → {preparado,cargado,incidencia,incidencia_texto}
@@ -297,6 +304,9 @@ function pinCheck(){
   var cfg=PINES_CONFIG[pin];
   if(!cfg){document.getElementById('pin-err').textContent='PIN incorrecto';dots(true);setTimeout(function(){pin='';dots(false);document.getElementById('pin-err').textContent='';},800);return;}
   ROL=cfg.rol;
+  NOMBRE_USUARIO=cfg.nombre||'';
+  var elUsuario=document.getElementById('hdr-usuario');
+  if(elUsuario)elUsuario.textContent=NOMBRE_USUARIO?(' · '+NOMBRE_USUARIO):'';
   document.getElementById('pin-screen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('fab').style.display='flex';
@@ -1000,7 +1010,7 @@ function guardarDetalle(btn){
     promesas.push(fetch('/api/rutas/estados-parada',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(Object.assign({token:'ORUMx2026RutasPublic'},estadoParadaBody))
+      body:JSON.stringify(Object.assign({token:'ORUMx2026RutasPublic',usuario:NOMBRE_USUARIO},estadoParadaBody))
     }).then(function(r){return r.json();}));
   }
 
@@ -1024,7 +1034,7 @@ function eliminarManual(id){
 
 // ── API ──
 function apiPost(body){
-  return fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},body,{clientToken:'ORUMx2026RutasPublic'}))}).then(function(r){return r.json();});
+  return fetch('/api/rutas/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},body,{clientToken:'ORUMx2026RutasPublic',usuario:NOMBRE_USUARIO}))}).then(function(r){return r.json();});
 }
 
 // ── MODAL MANUAL ──
@@ -1115,7 +1125,8 @@ function guardarConductoresModal(){
       fecha:modalCondFecha,
       vehiculo:modalCondVeh,
       vuelta:modalCondVuelta,
-      conductores:seleccionados
+      conductores:seleccionados,
+      usuario:NOMBRE_USUARIO
     })
   }).then(function(){toast('Conductores guardados');}).catch(function(){toast('Error al guardar');});
 
@@ -1164,7 +1175,8 @@ function guardarListaChoferes(){
     body:JSON.stringify({
       token:'ORUMx2026RutasPublic',
       action:'set_choferes',
-      choferes:CHOFERES
+      choferes:CHOFERES,
+      usuario:NOMBRE_USUARIO
     })
   }).then(function(){toast('Lista de choferes guardada');}).catch(function(){toast('Error al guardar');});
   cerrarModalGestionChoferes();
@@ -1205,7 +1217,7 @@ function cerrarModalMaterial(){
   document.body.style.overflow='';
 }
 
-// ── ESTADO DE VEHÍCULO: EN RUTA / FINALIZADO — solo logistica (PIN 2000) ──
+// ── ESTADO DE VEHÍCULO: EN RUTA / FINALIZADO — solo rol logistica ──
 function toggleEstadoVehiculo(veh, vuelta, fecha){
   if(ROL!=='logistica')return;
   var clave=fecha+'_'+veh+'_'+vuelta;
@@ -1216,7 +1228,7 @@ function toggleEstadoVehiculo(veh, vuelta, fecha){
   fetch('/api/rutas/estado-vehiculos',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token:'ORUMx2026RutasPublic',fecha:fecha,vehiculo:veh,vuelta:vuelta,estado:siguiente})
+    body:JSON.stringify({token:'ORUMx2026RutasPublic',fecha:fecha,vehiculo:veh,vuelta:vuelta,estado:siguiente,usuario:NOMBRE_USUARIO})
   }).then(function(){toast(siguiente?('Estado: '+siguiente):'Estado borrado');}).catch(function(){toast('Error al guardar estado');});
 }
 
