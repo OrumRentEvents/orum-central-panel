@@ -903,6 +903,302 @@ app.post('/api/facturas-proveedores/reparto', requiereLogin, async (req, res) =>
 });
 
 // ================================================================
+// INFORME MENSUAL — ventas por semana ISO, real vs 2025, objetivo +20%
+// ================================================================
+
+// Ventas reales semanales de 2025 (semana ISO -> € facturados), usadas como base del objetivo 2026 (+20%)
+const VENTAS_2025_SEMANAL = {
+  1: 1558.94, 2: 2570.28, 3: 6221.8, 4: 6977.33, 5: 5412.8, 6: 4705.14, 7: 4070.7, 8: 2221.95,
+  9: 2875.5, 10: 9890.0, 11: 2166.05, 12: 13783.16, 13: 14708.33, 14: 24337.35, 15: 5455.0, 16: 25400.77,
+  17: 27792.95, 18: 36785.05, 19: 50888.39, 20: 45380.61, 21: 59440.08, 22: 55878.79, 23: 57477.44,
+  24: 43258.23, 25: 57017.17, 26: 43041.15, 27: 51025.71, 28: 47679.71, 29: 31976.47, 30: 47509.53,
+  31: 44264.3, 32: 35956.07, 33: 38735.9, 34: 33600.6, 35: 31724.23, 36: 59414.68, 37: 43971.66,
+  38: 56860.26, 39: 82401.57, 40: 49584.61, 41: 42001.45, 42: 34606.64, 43: 12685.05, 44: 6773.78,
+  45: 20416.86, 46: 11236.66, 47: 39931.67, 48: 9662.77, 49: 7195.3, 50: 8233.27, 51: 5127.82,
+  52: 11496.28, 53: 46223.27
+};
+const CRECIMIENTO_OBJETIVO_INFORME = 0.20;
+const ESTADOS_PIPELINE_NOMBRE = ['pending', 'concept', 'inquiry'].map(normalizarTexto);
+const MESES_ES_INFORME = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+function round2(n) { return Math.round((n || 0) * 100) / 100; }
+
+function fechaISO(d) { return new Date(d).toISOString().slice(0, 10); }
+
+function formatRangoFechas(lunes, domingo) {
+  const f = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return `${f(lunes)} – ${f(domingo)}`;
+}
+
+function isoWeekNumber(fecha) {
+  const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function isoWeeksInMonth(mes, anio) {
+  const primerDia = new Date(anio, mes - 1, 1);
+  const ultimoDia = new Date(anio, mes, 0);
+  const semanas = [];
+  let cursor = lunesDeLaSemana(primerDia);
+  while (cursor <= ultimoDia) {
+    const lunes = new Date(cursor);
+    const domingo = new Date(cursor); domingo.setDate(domingo.getDate() + 6);
+    semanas.push({ isoWeek: isoWeekNumber(lunes), lunes, domingo });
+    cursor = new Date(cursor); cursor.setDate(cursor.getDate() + 7);
+  }
+  return semanas;
+}
+
+function valorFinalProyecto(p) {
+  const esPNC = p.es_abrebotellas === 'SI' || p.es_abrebotellas === true;
+  const valorSinIva = parseFloat(p.valor) || 0;
+  return esPNC ? valorSinIva : Math.round(valorSinIva * 1.21 * 100) / 100;
+}
+
+async function construirReporteMes(mes, anio) {
+  const proyectosResp = await llamarOrumCentral('proyectos');
+  const todos = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI');
+  const hoy = inicioDelDia(new Date());
+  const semanasDef = isoWeeksInMonth(mes, anio);
+
+  const semanas = semanasDef.map(w => {
+    const enSemana = todos.filter(p => {
+      const f = parsearFechaDDMMYYYY(p.entrega_fecha);
+      return f && f >= w.lunes && f <= w.domingo;
+    });
+    const confirmados = enSemana.filter(p => !ESTADOS_EXCLUIR_NOMBRE.includes(normalizarTexto(p.estado)));
+    const pipeline = enSemana.filter(p => ESTADOS_PIPELINE_NOMBRE.includes(normalizarTexto(p.estado)));
+
+    let rentman = 0, pnc = 0, marina = 0, danilo = 0, lucas = 0, pncMarina = 0, pncDanilo = 0;
+    confirmados.forEach(p => {
+      const esPNC = p.es_abrebotellas === 'SI' || p.es_abrebotellas === true;
+      const valorFinal = valorFinalProyecto(p);
+      if (esPNC) pnc += valorFinal; else rentman += valorFinal;
+      const com = normalizarTexto(p.comercial || '');
+      if (com.indexOf('marina') !== -1) { marina += valorFinal; if (esPNC) pncMarina += valorFinal; }
+      else if (com.indexOf('danilo') !== -1) { danilo += valorFinal; if (esPNC) pncDanilo += valorFinal; }
+      else if (com.indexOf('lucas') !== -1) { lucas += valorFinal; }
+    });
+    const pipelineTotal = pipeline.reduce((s, p) => s + valorFinalProyecto(p), 0);
+    const total = rentman + pnc;
+
+    return {
+      isoWeek: w.isoWeek,
+      lunes: fechaISO(w.lunes),
+      domingo: fechaISO(w.domingo),
+      label2026: formatRangoFechas(w.lunes, w.domingo),
+      cerrada: w.domingo < hoy,
+      y2025: VENTAS_2025_SEMANAL[w.isoWeek] || 0,
+      real: {
+        rentman: round2(rentman), pnc: round2(pnc), total: round2(total),
+        pipeline: round2(pipelineTotal),
+        marina: round2(marina), danilo: round2(danilo), lucas: round2(lucas),
+        pncMarina: round2(pncMarina), pncDanilo: round2(pncDanilo)
+      }
+    };
+  });
+
+  return { mes, anio, semanas, generado: new Date().toISOString() };
+}
+
+function fmtEuroInforme(v) {
+  return (v || 0).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
+}
+function fmtPctInforme(v) {
+  return (v >= 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+}
+
+function renderReporteMesHTML(data) {
+  const { mes, anio, semanas } = data;
+  let totRentman = 0, totPnc = 0, totTotal = 0, totPipeline = 0, totObjetivo = 0;
+  let totMarina = 0, totDanilo = 0, totLucas = 0;
+
+  const filas = semanas.map((s, i) => {
+    const objetivo = round2(s.y2025 * (1 + CRECIMIENTO_OBJETIVO_INFORME));
+    const falta = round2(objetivo - s.real.total);
+    const pctObj = objetivo > 0 ? ((s.real.total / objetivo) - 1) * 100 : 0;
+    const pct2025 = s.y2025 > 0 ? ((s.real.total / s.y2025) - 1) * 100 : 0;
+    totRentman += s.real.rentman; totPnc += s.real.pnc; totTotal += s.real.total;
+    totPipeline += s.real.pipeline; totObjetivo += objetivo;
+    totMarina += s.real.marina; totDanilo += s.real.danilo; totLucas += s.real.lucas;
+
+    const badgeBg = !s.cerrada ? '#FFF3DC' : (pctObj >= 0 ? '#EAF3DE' : '#FCEBEB');
+    const badgeColor = !s.cerrada ? '#7A4A00' : (pctObj >= 0 ? '#2E6B0A' : '#A32D2D');
+
+    return `<tr style="background:${i % 2 === 0 ? '#FAFAF8' : '#FFFFFF'}">
+      <td style="padding:10px 14px;font-weight:700">S${s.isoWeek}</td>
+      <td style="padding:10px 14px;color:#555;font-size:12px">${s.label2026}</td>
+      <td style="padding:10px 14px;text-align:right;color:#555">${s.y2025 > 0 ? fmtEuroInforme(s.y2025) : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;color:#555">${objetivo > 0 ? fmtEuroInforme(objetivo) : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;font-weight:700">${fmtEuroInforme(s.real.total)}${!s.cerrada ? ' *' : ''}</td>
+      <td style="padding:10px 14px;text-align:right;color:#444">${s.real.rentman > 0 ? fmtEuroInforme(s.real.rentman) : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;color:#178a5e">${s.real.pnc > 0 ? fmtEuroInforme(s.real.pnc) : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;background:#FBF3E4;font-weight:700;color:#8a6d1e">${s.real.pipeline > 0 ? fmtEuroInforme(s.real.pipeline) : '—'}</td>
+      <td style="padding:10px 14px;text-align:center"><span style="padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600;background:${badgeBg};color:${badgeColor}">${objetivo > 0 ? fmtPctInforme(pctObj) : '—'}</span></td>
+      <td style="padding:10px 14px;text-align:center"><span style="padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600;background:${badgeBg};color:${badgeColor}">${s.y2025 > 0 ? fmtPctInforme(pct2025) : '—'}</span></td>
+      <td style="padding:10px 14px;text-align:right;color:${falta > 0 ? '#A32D2D' : '#2E6B0A'}">${objetivo > 0 ? fmtEuroInforme(Math.abs(falta)) : '—'}</td>
+      <td style="padding:10px 14px;color:#777;font-size:12px">${s.cerrada ? 'Cerrada' : 'En curso'}</td>
+    </tr>`;
+  }).join('');
+
+  const filasComercial = semanas.map((s, i) => {
+    const otros = round2(s.real.total - s.real.marina - s.real.danilo - s.real.lucas);
+    const pctM = s.real.total > 0 ? Math.round(s.real.marina / s.real.total * 100) : 0;
+    const pctD = s.real.total > 0 ? Math.round(s.real.danilo / s.real.total * 100) : 0;
+    const pctL = s.real.total > 0 ? Math.round(s.real.lucas / s.real.total * 100) : 0;
+    return `<tr style="background:${i % 2 === 0 ? '#FAFAF8' : '#FFFFFF'}">
+      <td style="padding:10px 14px;font-weight:700">S${s.isoWeek}</td>
+      <td style="padding:10px 14px;color:#555;font-size:12px">${s.label2026}</td>
+      <td style="padding:10px 14px;text-align:right;color:#2563a8;font-weight:${s.real.marina > 0 ? 700 : 400}">${fmtEuroInforme(s.real.marina)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#2e7d52;font-weight:${s.real.danilo > 0 ? 700 : 400}">${fmtEuroInforme(s.real.danilo)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#8e44ad;font-weight:${s.real.lucas > 0 ? 700 : 400}">${fmtEuroInforme(s.real.lucas)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#999">${otros > 0 ? fmtEuroInforme(otros) : '—'}</td>
+      <td style="padding:10px 14px;text-align:right;font-weight:700">${fmtEuroInforme(s.real.total)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#2563a8">${pctM}%</td>
+      <td style="padding:10px 14px;text-align:right;color:#2e7d52">${pctD}%</td>
+      <td style="padding:10px 14px;text-align:right;color:#8e44ad">${pctL}%</td>
+    </tr>`;
+  }).join('');
+
+  const total2025 = semanas.reduce((s, w) => s + w.y2025, 0);
+  const totFalta = round2(totObjetivo - totTotal);
+  const pctVsObjetivo = totObjetivo > 0 ? ((totTotal / totObjetivo) - 1) * 100 : 0;
+  const pctVs2025Val = total2025 > 0 ? ((totTotal / total2025) - 1) * 100 : 0;
+  const enPresupPct = totObjetivo > 0 ? Math.round(totPipeline / totObjetivo * 100) : 0;
+  const totalMarinaPct = totTotal > 0 ? Math.round(totMarina / totTotal * 100) : 0;
+  const totalDaniloPct = totTotal > 0 ? Math.round(totDanilo / totTotal * 100) : 0;
+  const totalLucasPct = totTotal > 0 ? Math.round(totLucas / totTotal * 100) : 0;
+  const totalOtros = round2(totTotal - totMarina - totDanilo - totLucas);
+
+  const mesesBtns = MESES_ES_INFORME.slice(1).map((nombre, idx) => {
+    const m = idx + 1;
+    const activo = m === mes;
+    return `<a href="/api/reporte-mes?mes=${m}&a%C3%B1o=${anio}" style="text-decoration:none;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:${activo ? 700 : 400};background:${activo ? '#1a1a1a' : 'transparent'};color:${activo ? '#fff' : '#666'};margin-right:4px;display:inline-block">${nombre}</a>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>ORUM Rent &amp; Events · ${MESES_ES_INFORME[mes]} ${anio}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'DM Sans',-apple-system,Helvetica,Arial,sans-serif; background:#fff; color:#1a1a1a; padding:32px 40px; }
+  .btn-print { position:fixed; top:24px; right:32px; background:#1a1a1a; color:#fff; border:none; padding:10px 20px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; }
+  h1 { font-size:26px; font-weight:700; }
+  .subtitle { color:#777; font-size:13px; margin-top:4px; }
+  .mesnav { background:#f5f4f1; padding:14px 20px; border-radius:6px; margin:24px 0; display:flex; align-items:center; flex-wrap:wrap; gap:2px; }
+  .mesnav-label { font-size:11px; letter-spacing:1px; color:#999; margin-right:10px; }
+  .kpis { display:flex; border:1px solid #eee; border-radius:6px; overflow:hidden; margin-bottom:28px; }
+  .kpi { flex:1; padding:18px 20px; border-right:1px solid #eee; }
+  .kpi:last-child { border-right:none; }
+  .kpi.highlight { background:#FBF3E4; }
+  .kpi-label { font-size:10px; letter-spacing:1px; color:#999; text-transform:uppercase; }
+  .kpi-val { font-size:24px; font-weight:700; margin-top:6px; }
+  .kpi-sub { font-size:11px; color:#999; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:28px; }
+  thead tr { background:#1a1a1a; color:#fff; }
+  th { padding:10px 14px; text-align:left; font-size:11px; letter-spacing:0.5px; font-weight:600; }
+  tfoot tr { background:#eee; font-weight:700; border-top:2px solid #1a1a1a; }
+  h2 { font-size:16px; margin-bottom:2px; }
+  .h2sub { font-size:12px; color:#999; margin-bottom:12px; }
+  .footnote { font-size:11px; color:#999; margin-top:8px; }
+  @media print { .btn-print { display:none; } .mesnav { display:none; } }
+</style></head>
+<body>
+  <button class="btn-print" onclick="window.print()">Imprimir / PDF</button>
+  <h1>ORUM Rent &amp; Events · ${MESES_ES_INFORME[mes]} ${anio}</h1>
+  <div class="subtitle">Real vs 2025 · Objetivo +20% · Desglose por comercial</div>
+  <div class="mesnav"><span class="mesnav-label">MES:</span>${mesesBtns}</div>
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-label">Real acumulado</div>
+      <div class="kpi-val">${fmtEuroInforme(totTotal)}</div>
+      <div class="kpi-sub">Normal: ${fmtEuroInforme(totRentman)} · PNC: ${fmtEuroInforme(totPnc)}</div>
+    </div>
+    <div class="kpi highlight">
+      <div class="kpi-label">En presupuesto</div>
+      <div class="kpi-val" style="color:#8a6d1e">${fmtEuroInforme(totPipeline)}</div>
+      <div class="kpi-sub">pendiente de cerrar</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Objetivo (+20%)</div>
+      <div class="kpi-val">${fmtEuroInforme(totObjetivo)}</div>
+      <div class="kpi-sub">vs 2025</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Pendiente objetivo</div>
+      <div class="kpi-val" style="color:${totFalta > 0 ? '#A32D2D' : '#2E6B0A'}">${fmtEuroInforme(Math.abs(totFalta))}</div>
+      <div class="kpi-sub">pipeline cubre ${enPresupPct}%</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Vs 2025</div>
+      <div class="kpi-val" style="color:${pctVs2025Val >= 0 ? '#2E6B0A' : '#A32D2D'}">${fmtPctInforme(pctVs2025Val)}</div>
+      <div class="kpi-sub">acumulado cerradas</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>SEM</th><th>PERÍODO</th><th style="text-align:right">2025</th><th style="text-align:right">OBJETIVO 2026</th>
+      <th style="text-align:right">REAL / PREV.</th><th style="text-align:right;color:#ccc">· Normal</th><th style="text-align:right;color:#8be0bd">· PNC</th><th style="text-align:right;background:#8a6d1e">EN PRESUPUESTO</th>
+      <th style="text-align:center">% OBJ.</th><th style="text-align:center">% 2025</th>
+      <th style="text-align:right">FALTA</th><th>ESTADO</th>
+    </tr></thead>
+    <tbody>${filas}</tbody>
+    <tfoot><tr>
+      <td colspan="2" style="padding:10px 14px">TOTAL</td>
+      <td style="padding:10px 14px;text-align:right">${fmtEuroInforme(total2025)}</td>
+      <td style="padding:10px 14px;text-align:right">${fmtEuroInforme(totObjetivo)}</td>
+      <td style="padding:10px 14px;text-align:right">${fmtEuroInforme(totTotal)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#555">${fmtEuroInforme(totRentman)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#178a5e">${fmtEuroInforme(totPnc)}</td>
+      <td style="padding:10px 14px;text-align:right">${fmtEuroInforme(totPipeline)}</td>
+      <td style="padding:10px 14px;text-align:center">${totObjetivo > 0 ? fmtPctInforme(pctVsObjetivo) : '—'}</td>
+      <td style="padding:10px 14px;text-align:center">${total2025 > 0 ? fmtPctInforme(pctVs2025Val) : '—'}</td>
+      <td style="padding:10px 14px;text-align:right">${fmtEuroInforme(Math.abs(totFalta))}</td>
+      <td></td>
+    </tr></tfoot>
+  </table>
+  <h2>Desglose por comercial</h2>
+  <div class="h2sub">Importe neto por semana según gestor asignado en Rentman</div>
+  <table>
+    <thead><tr>
+      <th>SEM</th><th>PERÍODO</th><th style="text-align:right">Marina R.</th><th style="text-align:right">Danilo C.</th>
+      <th style="text-align:right">Lucas S.</th><th style="text-align:right">Otros</th><th style="text-align:right">TOTAL</th>
+      <th style="text-align:right">% Marina</th><th style="text-align:right">% Danilo</th><th style="text-align:right">% Lucas</th>
+    </tr></thead>
+    <tbody>${filasComercial}</tbody>
+    <tfoot><tr>
+      <td colspan="2" style="padding:10px 14px">TOTAL</td>
+      <td style="padding:10px 14px;text-align:right;color:#2563a8">${fmtEuroInforme(totMarina)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#2e7d52">${fmtEuroInforme(totDanilo)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#8e44ad">${fmtEuroInforme(totLucas)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#999">${fmtEuroInforme(totalOtros)}</td>
+      <td style="padding:10px 14px;text-align:right">${fmtEuroInforme(totTotal)}</td>
+      <td style="padding:10px 14px;text-align:right;color:#2563a8">${totalMarinaPct}%</td>
+      <td style="padding:10px 14px;text-align:right;color:#2e7d52">${totalDaniloPct}%</td>
+      <td style="padding:10px 14px;text-align:right;color:#8e44ad">${totalLucasPct}%</td>
+    </tr></tfoot>
+  </table>
+  <div class="footnote">* Semanas en curso — datos en tiempo real desde Rentman · Objetivo = 2025 +20% · Generado: ${new Date().toLocaleString('es-ES')}</div>
+</body></html>`;
+}
+
+app.get('/api/reporte-mes', requiereLogin, async (req, res) => {
+  try {
+    const mes = parseInt(req.query.mes, 10) || (new Date().getMonth() + 1);
+    const anio = parseInt(req.query['año'] || req.query.anio, 10) || new Date().getFullYear();
+    const data = await construirReporteMes(mes, anio);
+    if (req.query.json === '1') return res.json(data);
+    res.send(renderReporteMesHTML(data));
+  } catch (err) {
+    console.error('Error en /api/reporte-mes:', err);
+    res.status(500).send('<pre>Error generando informe: ' + err.message + '</pre>');
+  }
+});
+
+// ================================================================
 // PÁGINA PRINCIPAL
 // ================================================================
 
