@@ -11,7 +11,6 @@
     background: #ffffff;
     color: #1a1a18;
   }
-
   #login-screen {
     display: flex;
     align-items: center;
@@ -41,43 +40,35 @@
   }
   .login-box button:hover { background: #333; }
   .login-error { color: #A32D2D; font-size: 13px; margin-top: 10px; display: none; }
-
   #app-screen { display: none; min-height: 100vh; }
   .app-layout { display: flex; min-height: 100vh; }
-
   .sidebar { width: 220px; background: #f7f6f2; border-right: 0.5px solid #e2e2de; padding: 1.25rem 0; flex-shrink: 0; }
   .sidebar-header { padding: 0 1.25rem 1rem; border-bottom: 0.5px solid #e2e2de; margin-bottom: 0.5rem; }
   .sidebar-header .org-name { font-weight: 500; font-size: 15px; }
   .sidebar-header .user-name { font-size: 12px; color: #6b6a64; margin-top: 2px; }
-
   .nav-group-title { padding: 1rem 1.25rem 0.25rem; font-size: 11px; color: #9a988f; text-transform: uppercase; letter-spacing: 0.03em; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 1.25rem; font-size: 13px; color: #4a4944; cursor: pointer; border-left: 2px solid transparent; }
   .nav-item:hover { background: #efeee9; }
   .nav-item.active { background: #e6f1fb; border-left-color: #378ADD; color: #0C447C; font-weight: 500; }
-
   .logout-button {
     margin: 1.5rem 1.25rem 0; padding: 8px 12px; font-size: 13px;
     border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #4a4944; cursor: pointer;
     width: calc(100% - 2.5rem);
   }
-
   .main-content { flex: 1; padding: 1.5rem 1.75rem; min-width: 0; }
   .main-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
   .main-header h1 { font-size: 22px; font-weight: 500; }
   .last-update { font-size: 12px; color: #6b6a64; display: flex; align-items: center; gap: 6px; }
   .last-update .dot { width: 7px; height: 7px; border-radius: 50%; background: #27500A; flex-shrink: 0; }
   .last-update.stale .dot { background: #854F0B; }
-
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; padding: 8px 4px; color: #6b6a64; font-weight: 400; border-bottom: 0.5px solid #e2e2de; }
   td { padding: 9px 4px; border-bottom: 0.5px solid #e2e2de; }
-
   .badge { font-size: 12px; padding: 3px 9px; border-radius: 8px; display: inline-block; }
   .badge-success { background: #EAF3DE; color: #27500A; }
   .badge-warning { background: #FAEEDA; color: #854F0B; }
   .badge-danger { background: #FCEBEB; color: #A32D2D; }
   .badge-neutral { background: #f0efe9; color: #6b6a64; }
-
   .search-box { position: relative; }
   .search-box input {
     width: 220px; padding: 6px 12px 6px 32px; font-size: 13px;
@@ -86,15 +77,12 @@
   .search-box::before {
     content: "🔍"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: 0.5;
   }
-
   .loading-text { color: #9a988f; font-size: 13px; padding: 2rem 0; }
-
   select { padding: 6px 10px; border: 0.5px solid #e2e2de; border-radius: 8px; font-size: 13px; background: #fff; color: #1a1a18; }
   .pnc-filtro-btn { font-size:13px; padding:6px 14px; border-radius:8px; background:#fff; color:#4a4944; border:0.5px solid #e2e2de; cursor:pointer; }
 </style>
 </head>
 <body>
-
 <div id="login-screen">
   <div class="login-box">
     <h1>ORUM Central</h1>
@@ -109,7 +97,6 @@
     </form>
   </div>
 </div>
-
 <div id="app-screen">
   <div class="app-layout">
     <div class="sidebar">
@@ -120,7 +107,6 @@
       <div id="nav-container"></div>
       <button class="logout-button" id="logout-btn">Cerrar sesión</button>
     </div>
-
     <div class="main-content">
       <div class="main-header">
         <h1 id="content-title">Proyectos</h1>
@@ -135,17 +121,14 @@
     </div>
   </div>
 </div>
-
 <script>
 let usuarioActual = null;
-
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const usuario = document.getElementById('usuario').value.trim();
   const password = document.getElementById('password').value;
   const errorEl = document.getElementById('login-error');
   errorEl.style.display = 'none';
-
   try {
     const resp = await fetch('/api/login', {
       method: 'POST',
@@ -153,13 +136,11 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       body: JSON.stringify({ usuario, password })
     });
     const data = await resp.json();
-
     if (!resp.ok) {
       errorEl.textContent = data.error || 'Error al iniciar sesión';
       errorEl.style.display = 'block';
       return;
     }
-
     usuarioActual = data.usuario;
     mostrarApp();
   } catch (err) {
@@ -167,12 +148,10 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     errorEl.style.display = 'block';
   }
 });
-
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
   location.reload();
 });
-
 async function comprobarSesion() {
   try {
     const resp = await fetch('/api/sesion');
@@ -183,7 +162,6 @@ async function comprobarSesion() {
     }
   } catch (err) {}
 }
-
 function mostrarApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
@@ -191,23 +169,19 @@ function mostrarApp() {
   construirMenu();
   cargarProyectos();
 }
-
 function construirMenu() {
   const nav = document.getElementById('nav-container');
   nav.innerHTML = '';
-
   const grupoTitle = document.createElement('div');
   grupoTitle.className = 'nav-group-title';
   grupoTitle.textContent = usuarioActual.rol;
   nav.appendChild(grupoTitle);
-
   const itemProyectos = document.createElement('div');
   itemProyectos.className = 'nav-item active';
   itemProyectos.id = 'menu-item-proyectos';
   itemProyectos.textContent = '📁 Proyectos';
   itemProyectos.onclick = () => { marcarMenuActivo('menu-item-proyectos'); cargarProyectos(); };
   nav.appendChild(itemProyectos);
-
   const itemFinanciero = document.createElement('div');
   itemFinanciero.className = 'nav-item';
   itemFinanciero.style.fontWeight = '500';
@@ -215,10 +189,8 @@ function construirMenu() {
   itemFinanciero.textContent = '💶 Financiero';
   itemFinanciero.onclick = () => { marcarMenuActivo('menu-item-fin-resumen'); cargarFinancieroResumen(); };
   nav.appendChild(itemFinanciero);
-
   const submenu = document.createElement('div');
   submenu.style.paddingLeft = '1.25rem';
-
   const subitems = [
     { id: 'fin-resumen', label: 'Resumen', activo: true, onClick: () => cargarFinancieroResumen() },
     { id: 'fin-control-pagos', label: 'Control de pagos', activo: true, onClick: () => cargarFinanciero() },
@@ -226,7 +198,6 @@ function construirMenu() {
     { id: 'fin-historico', label: 'Histórico mensual', activo: false },
     { id: 'fin-auditoria', label: 'Auditoría / Alertas', activo: true, onClick: () => cargarFinancieroAuditoria() },
   ];
-
   subitems.forEach(item => {
     const el = document.createElement('div');
     el.id = 'menu-item-' + item.id;
@@ -235,9 +206,19 @@ function construirMenu() {
     if (item.activo) { el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); }; }
     submenu.appendChild(el);
   });
-
   nav.appendChild(submenu);
-
+  const itemInformeMensual = document.createElement('div');
+  itemInformeMensual.className = 'nav-item';
+  itemInformeMensual.style.fontWeight = '500';
+  itemInformeMensual.style.cursor = 'pointer';
+  itemInformeMensual.textContent = '📊 Informe Mensual';
+  itemInformeMensual.onclick = () => {
+    const hoy = new Date();
+    const mes = hoy.getMonth() + 1;
+    const anio = hoy.getFullYear();
+    window.open('/api/reporte-mes?mes=' + mes + '&año=' + anio, '_blank');
+  };
+  nav.appendChild(itemInformeMensual);
   const itemLogistica = document.createElement('div');
   itemLogistica.className = 'nav-item';
   itemLogistica.style.fontWeight = '500';
@@ -245,16 +226,13 @@ function construirMenu() {
   itemLogistica.textContent = '🧺 Logística';
   itemLogistica.onclick = () => { marcarMenuActivo('menu-item-prep-lavanderia'); cargarPreparacion('lavanderia'); };
   nav.appendChild(itemLogistica);
-
   const submenuPrep = document.createElement('div');
   submenuPrep.style.paddingLeft = '1.25rem';
-
   const subitemsPrep = [
     { id: 'prep-lavanderia', label: 'Lavandería', vista: 'lavanderia' },
     { id: 'prep-office', label: 'Office', vista: 'office' },
     { id: 'prep-almacen', label: 'Almacén', vista: 'almacen' },
   ];
-
   subitemsPrep.forEach(item => {
     const el = document.createElement('div');
     el.id = 'menu-item-' + item.id;
@@ -263,9 +241,7 @@ function construirMenu() {
     el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); cargarPreparacion(item.vista); };
     submenuPrep.appendChild(el);
   });
-
   nav.appendChild(submenuPrep);
-
   const itemFacturas = document.createElement('div');
   itemFacturas.className = 'nav-item';
   itemFacturas.style.fontWeight = '500';
@@ -273,15 +249,12 @@ function construirMenu() {
   itemFacturas.textContent = '🧾 Facturas Proveedores';
   itemFacturas.onclick = () => { marcarMenuActivo('menu-item-fact-listado'); cargarFacturasProveedores(); };
   nav.appendChild(itemFacturas);
-
   const submenuFacturas = document.createElement('div');
   submenuFacturas.style.paddingLeft = '1.25rem';
-
   const subitemsFacturas = [
     { id: 'fact-listado', label: 'Listado', onClick: () => cargarFacturasProveedores() },
     { id: 'fact-config', label: 'Configurar proveedores', onClick: () => cargarConfiguracionProveedores() },
   ];
-
   subitemsFacturas.forEach(item => {
     const el = document.createElement('div');
     el.id = 'menu-item-' + item.id;
@@ -290,10 +263,8 @@ function construirMenu() {
     el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
     submenuFacturas.appendChild(el);
   });
-
   nav.appendChild(submenuFacturas);
 }
-
 function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('[id^="menu-item-fin-"], [id^="menu-item-prep-"], [id^="menu-item-fact-"]').forEach(el => {
@@ -313,44 +284,35 @@ function marcarMenuActivo(idActivo) {
     el.classList.add('active');
   }
 }
-
 let financieroDataGlobal = null;
 let pestanaFinancieroActiva = 'proyectos';
-
 async function cargarFinancieroResumen() {
   document.getElementById('content-title').textContent = 'Financiero · Resumen';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
-
   try {
     if (!financieroDataGlobal) {
       const resp = await fetch('/api/financiero');
       financieroDataGlobal = await resp.json();
     }
     const data = financieroDataGlobal;
-
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
-
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarResumenFinanciero(data);
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 function pintarResumenFinanciero(data) {
   const body = document.getElementById('content-body');
   const k = data.kpis;
-
   const filasFormaPago = k.desglose_forma_pago
     .sort((a, b) => b.total - a.total)
     .map(d => `<div style="display:flex; justify-content:space-between;"><span style="color:#4a4944;">${ETIQUETAS_FORMA_PAGO[d.forma_pago] || d.forma_pago}</span><b>${euros(d.total)}</b></div>`)
     .join('');
-
   const filasComercial = data.desglose_comercial
     .map(d => `<div style="display:flex; justify-content:space-between;"><span style="color:#4a4944;">${d.comercial}</span><b>${euros(d.total)}</b></div>`)
     .join('');
-
   let html = `
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1rem;">
       <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
@@ -370,7 +332,6 @@ function pintarResumenFinanciero(data) {
         <p style="font-size:22px; font-weight:500; color:#501313; margin:0;">${euros(k.total_vencidas)}</p>
       </div>
     </div>
-
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem;">
       <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
         <p style="font-size:13px; color:#6b6a64; margin:0 0 8px;">Por forma de pago</p>
@@ -389,7 +350,6 @@ function pintarResumenFinanciero(data) {
         </div>
       </div>
     </div>
-
     <p style="font-size: 13px; font-weight: 500; color: #1a1a18; margin: 0 0 10px;">Top 20 clientes con pendiente de cobro</p>
     <table>
       <thead>
@@ -402,11 +362,9 @@ function pintarResumenFinanciero(data) {
       </thead>
       <tbody>
   `;
-
   if (data.top_clientes_pendientes.length === 0) {
     html += '<tr><td colspan="4" style="padding:1.5rem 4px; color:#9a988f;">No hay pendientes de cobro.</td></tr>';
   }
-
   data.top_clientes_pendientes.forEach(c => {
     html += `
       <tr>
@@ -417,11 +375,9 @@ function pintarResumenFinanciero(data) {
       </tr>
     `;
   });
-
   html += '</tbody></table>';
   body.innerHTML = html;
 }
-
 function irAControlPagosConFiltro(tipo) {
   marcarMenuActivo('menu-item-fin-control-pagos');
   cargarFinanciero().then(() => {
@@ -433,33 +389,27 @@ function irAControlPagosConFiltro(tipo) {
     }
   });
 }
-
 async function cargarFinancieroVencidas() {
   document.getElementById('content-title').textContent = 'Financiero · Vencidas y morosidad';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
-
   try {
     if (!financieroDataGlobal) {
       const resp = await fetch('/api/financiero');
       financieroDataGlobal = await resp.json();
     }
     const data = financieroDataGlobal;
-
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
-
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarVencidas(data);
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 function pintarVencidas(data) {
   const body = document.getElementById('content-body');
   const vencidas = data.facturas_vencidas;
   const totalVencido = vencidas.reduce((sum, f) => sum + (parseFloat(f.pendiente_cobro) || 0), 0);
-
   let html = `
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:1.5rem;">
       <div style="background:#FCEBEB; border-radius:8px; padding:1rem;">
@@ -475,13 +425,11 @@ function pintarVencidas(data) {
         <p style="font-size:22px; font-weight:500; margin:0;">${vencidas.length > 0 ? vencidas[0].dias_retraso + ' días' : '—'}</p>
       </div>
     </div>
-
     <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-vencidas" placeholder="Buscar cliente o nº factura..." oninput="aplicarFiltroVencidas()">
       </div>
     </div>
-
     <table>
       <thead>
         <tr>
@@ -496,12 +444,10 @@ function pintarVencidas(data) {
       <tbody id="tabla-vencidas-body"></tbody>
     </table>
   `;
-
   body.innerHTML = html;
   window.vencidasDataActual = vencidas;
   renderTablaVencidas(vencidas);
 }
-
 function aplicarFiltroVencidas() {
   const busqueda = document.getElementById('buscador-vencidas').value.toLowerCase();
   let filtradas = window.vencidasDataActual;
@@ -513,14 +459,12 @@ function aplicarFiltroVencidas() {
   }
   renderTablaVencidas(filtradas);
 }
-
 function renderTablaVencidas(lista) {
   const tbody = document.getElementById('tabla-vencidas-body');
   if (lista.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay facturas vencidas con este filtro.</td></tr>';
     return;
   }
-
   tbody.innerHTML = lista.map(f => {
     const colorDias = f.dias_retraso > 30 ? '#A32D2D' : '#854F0B';
     return `
@@ -535,38 +479,31 @@ function renderTablaVencidas(lista) {
     `;
   }).join('');
 }
-
 async function cargarFinancieroAuditoria() {
   document.getElementById('content-title').textContent = 'Financiero · Auditoría / Alertas';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
-
   try {
     if (!financieroDataGlobal) {
       const resp = await fetch('/api/financiero');
       financieroDataGlobal = await resp.json();
     }
     const data = financieroDataGlobal;
-
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
-
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarAuditoria(data);
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 let ordenAuditoria = {
   'sin-registro': { campo: 'numero_factura', asc: false },
   'pnc': { campo: 'numero', asc: false },
   'pend-facturar': { campo: 'numero', asc: false }
 };
-
 function pintarAuditoria(data) {
   const body = document.getElementById('content-body');
   const a = data.auditoria;
-
   let html = `
     <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
       <div id="tab-aud-sin-registro" onclick="cambiarPestanaAuditoria('sin-registro')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
@@ -580,37 +517,30 @@ function pintarAuditoria(data) {
     </div>
     <div id="auditoria-tabla"></div>
   `;
-
   body.innerHTML = html;
   window.auditoriaDataGlobal = a;
   cambiarPestanaAuditoria('sin-registro');
 }
-
 function cambiarPestanaAuditoria(pestana) {
   window.pestanaAuditoriaActiva = pestana;
   const a = window.auditoriaDataGlobal;
-
   document.getElementById('tab-aud-sin-registro').textContent = `Sin registro en Caja (${a.facturas_sin_registro.length})`;
   document.getElementById('tab-aud-sin-registro').style.cssText += estiloTab(pestana === 'sin-registro');
   document.getElementById('tab-aud-pnc').textContent = `PNC no cuadran (${a.pnc_no_cuadran.length})`;
   document.getElementById('tab-aud-pnc').style.cssText += estiloTab(pestana === 'pnc');
   document.getElementById('tab-aud-pend-facturar').textContent = `Pendientes de facturar (${a.proyectos_pendientes_facturar.length})`;
   document.getElementById('tab-aud-pend-facturar').style.cssText += estiloTab(pestana === 'pend-facturar');
-
   document.getElementById('buscador-auditoria').value = '';
   aplicarFiltroAuditoria();
 }
-
 function aplicarFiltroAuditoria() {
   const pestana = window.pestanaAuditoriaActiva;
   const a = window.auditoriaDataGlobal;
   const busqueda = document.getElementById('buscador-auditoria').value.toLowerCase();
-
   let lista;
   if (pestana === 'sin-registro') lista = a.facturas_sin_registro;
   else if (pestana === 'pnc') lista = a.pnc_no_cuadran;
   else lista = a.proyectos_pendientes_facturar;
-
   if (busqueda) {
     lista = lista.filter(item => {
       const cliente = (item.cliente || '').toLowerCase();
@@ -618,27 +548,22 @@ function aplicarFiltroAuditoria() {
       return cliente.includes(busqueda) || numero.includes(busqueda);
     });
   }
-
   renderTablaAuditoria(pestana, lista);
 }
-
 function cambiarOrdenAuditoria(campo) {
   const orden = ordenAuditoria[window.pestanaAuditoriaActiva];
   if (orden.campo === campo) orden.asc = !orden.asc;
   else { orden.campo = campo; orden.asc = true; }
   aplicarFiltroAuditoria();
 }
-
 function flechaOrdenAuditoria(campo) {
   const orden = ordenAuditoria[window.pestanaAuditoriaActiva];
   if (orden.campo !== campo) return '';
   return orden.asc ? ' ▲' : ' ▼';
 }
-
 function renderTablaAuditoria(pestana, listaOriginal) {
   const cont = document.getElementById('auditoria-tabla');
   const lista = ordenarLista(listaOriginal, ordenAuditoria[pestana]);
-
   if (pestana === 'sin-registro') {
     cont.innerHTML = `
       <table>
@@ -723,25 +648,20 @@ function renderTablaAuditoria(pestana, listaOriginal) {
     `;
   }
 }
-
 const TITULOS_PREP = { lavanderia: 'Lavandería', office: 'Office', almacen: 'Almacén' };
 let preparacionDataGlobal = {};
 let preparacionVistaActiva = null;
 let preparacionPestanaActiva = 'proyecto';
-
 async function cargarPreparacion(vista) {
   preparacionVistaActiva = vista;
   preparacionPestanaActiva = 'proyecto';
   document.getElementById('content-title').textContent = 'Logística · ' + TITULOS_PREP[vista];
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando...</p>';
-
   try {
     const resp = await fetch('/api/preparacion?vista=' + vista);
     const data = await resp.json();
-
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
-
     preparacionDataGlobal[vista] = data;
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarPreparacion(vista);
@@ -749,11 +669,9 @@ async function cargarPreparacion(vista) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 function pintarPreparacion(vista) {
   const data = preparacionDataGlobal[vista];
   const body = document.getElementById('content-body');
-
   const barrasResumen = data.resumen_periodos.map(r => {
     const pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
     return `
@@ -766,34 +684,27 @@ function pintarPreparacion(vista) {
       </div>
     `;
   }).join('');
-
   const tabsExtra = vista === 'almacen' ? `
       <div id="tab-prep-servicios" onclick="cambiarPestanaPreparacion('servicios')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Servicios</div>
       <div id="tab-prep-logistica" onclick="cambiarPestanaPreparacion('logistica')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Logística</div>
   ` : '';
-
   let html = `
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:1.25rem;">${barrasResumen}</div>
-
     <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
       <div id="tab-prep-proyecto" onclick="cambiarPestanaPreparacion('proyecto')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Por proyecto</div>
       <div id="tab-prep-material" onclick="cambiarPestanaPreparacion('material')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Por material</div>
       ${tabsExtra}
     </div>
-
     <div id="prep-filtros" style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-prep" placeholder="Buscar cliente o nº proyecto..." oninput="aplicarFiltroPreparacion()">
       </div>
     </div>
-
     <div id="prep-contenido"></div>
   `;
-
   body.innerHTML = html;
   cambiarPestanaPreparacion(preparacionPestanaActiva);
 }
-
 function cambiarPestanaPreparacion(pestana) {
   preparacionPestanaActiva = pestana;
   document.getElementById('tab-prep-proyecto').style.cssText += estiloTab(pestana === 'proyecto');
@@ -802,22 +713,18 @@ function cambiarPestanaPreparacion(pestana) {
   const tabLogistica = document.getElementById('tab-prep-logistica');
   if (tabServicios) tabServicios.style.cssText += estiloTab(pestana === 'servicios');
   if (tabLogistica) tabLogistica.style.cssText += estiloTab(pestana === 'logistica');
-
   const filtros = document.getElementById('prep-filtros');
   filtros.style.display = (pestana === 'servicios' || pestana === 'logistica') ? 'none' : 'flex';
   if (document.getElementById('buscador-prep')) document.getElementById('buscador-prep').value = '';
-
   if (pestana === 'proyecto') renderPreparacionPorProyecto();
   else if (pestana === 'material') renderPreparacionPorMaterial();
   else if (pestana === 'servicios') renderPreparacionServicios();
   else if (pestana === 'logistica') renderPreparacionLogistica();
 }
-
 function aplicarFiltroPreparacion() {
   if (preparacionPestanaActiva === 'proyecto') renderPreparacionPorProyecto();
   else if (preparacionPestanaActiva === 'material') renderPreparacionPorMaterial();
 }
-
 function copiarAlPortapapeles(texto, elemento) {
   navigator.clipboard.writeText(String(texto)).then(() => {
     if (elemento) {
@@ -831,17 +738,14 @@ function copiarAlPortapapeles(texto, elemento) {
     }
   }).catch(() => {});
 }
-
 function renderPreparacionPorProyecto() {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const busqueda = (document.getElementById('buscador-prep').value || '').toLowerCase();
   const cont = document.getElementById('prep-contenido');
-
   const coincide = (item) => {
     if (!busqueda) return true;
     return (item.cliente || '').toLowerCase().includes(busqueda) || String(item.numero || '').includes(busqueda);
   };
-
   let html = '';
   data.orden_periodos.forEach(periodo => {
     const grupo = data.por_proyecto[periodo];
@@ -849,7 +753,6 @@ function renderPreparacionPorProyecto() {
     const confirmados = grupo.confirmado.filter(coincide);
     const preparados = grupo.preparado.filter(coincide);
     if (confirmados.length === 0 && preparados.length === 0 && busqueda) return;
-
     html += `
       <div style="margin-bottom:1.5rem;">
         <p style="font-size:14px; font-weight:500; color:#1a1a18; margin:0 0 8px;">${periodo}</p>
@@ -866,10 +769,8 @@ function renderPreparacionPorProyecto() {
       </div>
     `;
   });
-
   cont.innerHTML = html || '<p style="color:#9a988f; font-size:13px;">Sin resultados.</p>';
 }
-
 function renderTarjetasProyectosPrep(lista, tipoColor) {
   if (lista.length === 0) return '<p style="font-size:12px; color:#9a988f; margin:0;">Ninguno</p>';
   const badgeClase = tipoColor === 'success' ? 'badge-success' : 'badge-warning';
@@ -884,11 +785,9 @@ function renderTarjetasProyectosPrep(lista, tipoColor) {
     </div>
   `).join('');
 }
-
 function abrirDetalleProyectoPrep(proyectoId, numero) {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const lineas = [];
-
   data.por_material.forEach(familiaObj => {
     familiaObj.articulos.forEach(a => {
       a.detalle.forEach(d => {
@@ -898,7 +797,6 @@ function abrirDetalleProyectoPrep(proyectoId, numero) {
       });
     });
   });
-
   let filas = lineas.map(l => `
     <tr>
       <td style="padding:6px 8px; color:#6b6a64; font-size:12px;">${l.familia}</td>
@@ -906,16 +804,13 @@ function abrirDetalleProyectoPrep(proyectoId, numero) {
       <td style="padding:6px 8px; text-align:right; font-weight:500; font-size:13px;">${l.cantidad} uds</td>
     </tr>
   `).join('');
-
   if (lineas.length === 0) {
     filas = '<tr><td colspan="3" style="padding:1rem; color:#9a988f; font-size:13px;">Sin material de esta categoría para este proyecto.</td></tr>';
   }
-
   const overlay = document.createElement('div');
   overlay.id = 'modal-detalle-prep';
   overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:1000; display:flex; align-items:center; justify-content:center;';
   overlay.onclick = (e) => { if (e.target === overlay) cerrarDetalleProyectoPrep(); };
-
   overlay.innerHTML = `
     <div style="background:#fff; border-radius:12px; padding:1.5rem; width:480px; max-width:90vw; max-height:80vh; overflow:auto;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
@@ -934,15 +829,12 @@ function abrirDetalleProyectoPrep(proyectoId, numero) {
       </table>
     </div>
   `;
-
   document.body.appendChild(overlay);
 }
-
 function cerrarDetalleProyectoPrep() {
   const modal = document.getElementById('modal-detalle-prep');
   if (modal) modal.remove();
 }
-
 function colorPeriodo(periodo) {
   if (periodo === 'HOY') return { bg: '#FCEBEB', color: '#A32D2D' };
   if (periodo === 'MAÑANA') return { bg: '#FAEEDA', color: '#854F0B' };
@@ -950,12 +842,10 @@ function colorPeriodo(periodo) {
   if (periodo === 'ESTA SEMANA') return { bg: '#FAEEDA', color: '#854F0B' };
   return { bg: '#f7f6f2', color: '#6b6a64' };
 }
-
 function renderPreparacionPorMaterial() {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const busqueda = (document.getElementById('buscador-prep').value || '').toLowerCase();
   const cont = document.getElementById('prep-contenido');
-
   let html = '';
   data.por_material.forEach(familiaObj => {
     const articulosFiltrados = familiaObj.articulos.filter(a => {
@@ -964,9 +854,7 @@ function renderPreparacionPorMaterial() {
       return a.detalle.some(d => (d.cliente || '').toLowerCase().includes(busqueda) || String(d.proyecto_numero || '').includes(busqueda));
     });
     if (articulosFiltrados.length === 0) return;
-
     const idFamilia = 'fam-' + familiaObj.familia.replace(/[^a-zA-Z0-9]/g, '');
-
     html += `
       <div style="margin-bottom:8px; border:0.5px solid #e2e2de; border-radius:8px; overflow:hidden;">
         <div onclick="toggleFamiliaPrep('${idFamilia}')" style="background:#f7f6f2; padding:0.7rem 1rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
@@ -1008,25 +896,20 @@ function renderPreparacionPorMaterial() {
       </div>
     `;
   });
-
   cont.innerHTML = html || '<p style="color:#9a988f; font-size:13px;">Sin resultados.</p>';
 }
-
 function toggleFamiliaPrep(id) {
   const el = document.getElementById(id);
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
-
 function renderPreparacionServicios() {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const cont = document.getElementById('prep-contenido');
   const servicios = data.servicios;
-
   if (!servicios || (servicios.por_cliente.length === 0 && servicios.por_tipo.length === 0)) {
     cont.innerHTML = '<p style="color:#9a988f; font-size:13px;">No hay servicios adicionales en los próximos 14 días.</p>';
     return;
   }
-
   const renderItems = (items) => items.map(s => `
     <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px;">
       <div style="display:flex; justify-content:space-between;">
@@ -1037,21 +920,18 @@ function renderPreparacionServicios() {
       <div style="color:#6b6a64; margin-top:2px;">${s.servicio} <span style="color:#9a988f;">× ${s.cantidad}</span></div>
     </div>
   `).join('');
-
   const colCliente = servicios.por_cliente.map(grupo => `
     <div style="margin-bottom:10px;">
       <p style="font-size:13px; font-weight:500; margin:0 0 6px;">${grupo.cliente}</p>
       ${renderItems(grupo.items)}
     </div>
   `).join('');
-
   const colTipo = servicios.por_tipo.map(grupo => `
     <div style="margin-bottom:10px;">
       <p style="font-size:13px; font-weight:500; margin:0 0 6px;">${grupo.tipo}</p>
       ${renderItems(grupo.items)}
     </div>
   `).join('');
-
   cont.innerHTML = `
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
       <div>
@@ -1065,14 +945,11 @@ function renderPreparacionServicios() {
     </div>
   `;
 }
-
 function renderPreparacionLogistica() {
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const cont = document.getElementById('prep-contenido');
   const logistica = data.logistica;
-
   if (!logistica) { cont.innerHTML = '<p style="color:#9a988f; font-size:13px;">Sin datos.</p>'; return; }
-
   const renderProyectos = (lista) => {
     if (lista.length === 0) return '<p style="color:#9a988f; font-size:13px;">Ninguno en los próximos 14 días.</p>';
     return lista.map(p => `
@@ -1086,7 +963,6 @@ function renderPreparacionLogistica() {
       </div>
     `).join('');
   };
-
   cont.innerHTML = `
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
       <div>
@@ -1100,33 +976,27 @@ function renderPreparacionLogistica() {
     </div>
   `;
 }
-
 async function cargarFinanciero() {
   document.getElementById('content-title').textContent = 'Financiero · Control de pagos';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cruzando datos...</p>';
-
   try {
     if (!financieroDataGlobal) {
       const resp = await fetch('/api/financiero');
       financieroDataGlobal = await resp.json();
     }
     const data = financieroDataGlobal;
-
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
-
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarFinanciero();
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 function euros(valor) {
   const n = parseFloat(valor) || 0;
   return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
-
 const ETIQUETAS_FORMA_PAGO = {
   'transferencia': 'Transferencia',
   'efectivo-marbella': 'Efectivo Marbella',
@@ -1134,12 +1004,10 @@ const ETIQUETAS_FORMA_PAGO = {
   'tpv-marbella': 'TPV Marbella',
   'tpv-monda': 'TPV Monda'
 };
-
 function pintarFinanciero() {
   const data = financieroDataGlobal;
   const body = document.getElementById('content-body');
   const k = data.kpis;
-
   let html = `
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1rem;">
       <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
@@ -1159,7 +1027,6 @@ function pintarFinanciero() {
         <p style="font-size:22px; font-weight:500; color:#501313; margin:0;">${euros(k.total_vencidas)}</p>
       </div>
     </div>
-
     <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin-bottom:1.5rem;">
       <div style="background:#FCEBEB; border:0.5px solid #F3C9C9; border-radius:8px; padding:0.85rem 1rem; display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="filtrarSoloSinRegistro()">
         <span style="font-size:18px;">⚠️</span>
@@ -1176,27 +1043,22 @@ function pintarFinanciero() {
         </div>
       </div>
     </div>
-
     <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
       <div id="tab-proyectos-fin" onclick="cambiarPestanaFinanciero('proyectos')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-facturas" onclick="cambiarPestanaFinanciero('facturas')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-pnc" onclick="cambiarPestanaFinanciero('pnc')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
     </div>
-
     <div id="financiero-filtros"></div>
     <div id="financiero-tabla"></div>
   `;
-
   body.innerHTML = html;
   cambiarPestanaFinanciero(pestanaFinancieroActiva);
 }
-
 function estiloTab(activa) {
   return activa
     ? 'font-weight:500; color:#0C447C; border-bottom:2px solid #378ADD;'
     : 'color:#6b6a64; border-bottom:2px solid transparent;';
 }
-
 function cambiarPestanaFinanciero(pestana) {
   pestanaFinancieroActiva = pestana;
   document.getElementById('tab-proyectos-fin').textContent = 'Proyectos';
@@ -1205,12 +1067,10 @@ function cambiarPestanaFinanciero(pestana) {
   document.getElementById('tab-facturas').style.cssText += estiloTab(pestana === 'facturas');
   document.getElementById('tab-pnc').textContent = 'PNC (No confirmados)';
   document.getElementById('tab-pnc').style.cssText += estiloTab(pestana === 'pnc');
-
   if (pestana === 'proyectos') pintarFiltrosYTablaProyectos();
   else if (pestana === 'facturas') pintarFiltrosYTablaFacturas();
   else pintarFiltrosYTablaPNC();
 }
-
 function filtrarSoloSinRegistro() {
   cambiarPestanaFinanciero('facturas');
   setTimeout(() => {
@@ -1218,16 +1078,13 @@ function filtrarSoloSinRegistro() {
     if (sel) { sel.value = 'sin-registro'; aplicarFiltrosFacturas(); }
   }, 0);
 }
-
 function filtrarSoloNoCuadranPNC() {
   setTimeout(() => {
     const btn = document.getElementById('btn-pnc-no-cuadran');
     if (btn) btn.click();
   }, 0);
 }
-
 window.estadosSeleccionados = {};
-
 function htmlFiltroEstados(idDropdown, todosLosEstados, onChangeFn) {
   if (!window.estadosSeleccionados[idDropdown]) {
     window.estadosSeleccionados[idDropdown] = new Set();
@@ -1240,7 +1097,6 @@ function htmlFiltroEstados(idDropdown, todosLosEstados, onChangeFn) {
       ${estado}
     </label>
   `).join('');
-
   return `
     <div style="position:relative; display:inline-block;">
       <button onclick="toggleDropdownEstados('${idDropdown}')" style="font-size:13px; padding:6px 14px; border-radius:8px; border:0.5px solid #e2e2de; background:#fff; color:#4a4944; cursor:pointer;">
@@ -1252,7 +1108,6 @@ function htmlFiltroEstados(idDropdown, todosLosEstados, onChangeFn) {
     </div>
   `;
 }
-
 function toggleDropdownEstados(idDropdown) {
   document.querySelectorAll('[id^="dropdown-"]').forEach(el => {
     if (el.id !== 'dropdown-' + idDropdown) el.style.display = 'none';
@@ -1260,25 +1115,21 @@ function toggleDropdownEstados(idDropdown) {
   const el = document.getElementById('dropdown-' + idDropdown);
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
-
 function toggleEstadoFiltro(idDropdown, estado, onChangeFn) {
   const set = window.estadosSeleccionados[idDropdown];
   if (set.has(estado)) set.delete(estado);
   else set.add(estado);
   window[onChangeFn]();
 }
-
 document.addEventListener('click', (e) => {
   if (!e.target.closest('[id^="dropdown-"]') && !e.target.closest('button[onclick^="toggleDropdownEstados"]')) {
     document.querySelectorAll('[id^="dropdown-"]').forEach(el => el.style.display = 'none');
   }
 });
-
 function pintarFiltrosYTablaFacturas() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_facturas.map(f => f.comercial).filter(Boolean))].sort();
   const estados = [...new Set(data.cruce_facturas.map(f => f.estado_proyecto).filter(Boolean))].sort();
-
   document.getElementById('financiero-filtros').innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
       <select id="filtro-forma-pago" onchange="aplicarFiltrosFacturas()" style="width:auto; font-size:13px;">
@@ -1305,44 +1156,34 @@ function pintarFiltrosYTablaFacturas() {
       </div>
     </div>
   `;
-
   renderTablaFacturas(data.cruce_facturas);
 }
-
 function aplicarFiltrosFacturas() {
   const data = financieroDataGlobal;
   const formaPago = document.getElementById('filtro-forma-pago').value;
   const comercial = document.getElementById('filtro-comercial').value;
   const estado = document.getElementById('filtro-estado').value;
   const busqueda = document.getElementById('buscador-facturas').value.toLowerCase();
-
   let filtradas = data.cruce_facturas;
-
   if (formaPago === 'sin-registro') filtradas = filtradas.filter(f => f.sin_registro_caja);
   else if (formaPago) filtradas = filtradas.filter(f => f.forma_pago_real === formaPago);
-
   if (comercial) filtradas = filtradas.filter(f => f.comercial === comercial);
   if (estado === 'pagada') filtradas = filtradas.filter(f => f.esta_pagada === 'SI');
   if (estado === 'pendiente') filtradas = filtradas.filter(f => f.esta_pagada !== 'SI');
-
   if (busqueda) {
     filtradas = filtradas.filter(f =>
       (f.cliente || '').toLowerCase().includes(busqueda) ||
       String(f.numero_factura || '').includes(busqueda)
     );
   }
-
   const estadosFiltro = window.estadosSeleccionados['facturas'];
   if (estadosFiltro && estadosFiltro.size > 0) {
     filtradas = filtradas.filter(f => estadosFiltro.has(f.estado_proyecto));
   }
-
   renderTablaFacturas(filtradas);
 }
-
 let ordenFacturas = { campo: 'numero_factura', asc: false };
 let ordenPNC = { campo: 'numero', asc: false };
-
 function ordenarLista(lista, orden) {
   const copia = [...lista];
   copia.sort((a, b) => {
@@ -1360,14 +1201,12 @@ function ordenarLista(lista, orden) {
   });
   return copia;
 }
-
 function parsearFechaDDMMYYYY(str) {
   if (!str) return new Date(0);
   const partes = String(str).split('/');
   if (partes.length !== 3) return new Date(0);
   return new Date(partes[2], partes[1] - 1, partes[0]);
 }
-
 function cambiarOrden(tabla, campo) {
   const orden = tabla === 'facturas' ? ordenFacturas : ordenPNC;
   if (orden.campo === campo) orden.asc = !orden.asc;
@@ -1375,13 +1214,11 @@ function cambiarOrden(tabla, campo) {
   if (tabla === 'facturas') aplicarFiltrosFacturas();
   else aplicarFiltrosPNC();
 }
-
 function flechaOrden(tabla, campo) {
   const orden = tabla === 'facturas' ? ordenFacturas : ordenPNC;
   if (orden.campo !== campo) return '';
   return orden.asc ? ' ▲' : ' ▼';
 }
-
 function renderTablaFacturas(lista) {
   const ordenada = ordenarLista(lista, ordenFacturas);
   let html = `
@@ -1402,11 +1239,9 @@ function renderTablaFacturas(lista) {
       </thead>
       <tbody>
   `;
-
   if (ordenada.length === 0) {
     html += '<tr><td colspan="10" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
-
   ordenada.forEach(f => {
     const badgeEstado = f.esta_pagada === 'SI'
       ? '<span class="badge badge-success">Pagada</span>'
@@ -1419,7 +1254,6 @@ function renderTablaFacturas(lista) {
     const badgeCuadra = f.cuadra_con_cobro
       ? '<span class="badge badge-success">Cuadra</span>'
       : '<span class="badge badge-danger">No cuadra</span>';
-
     html += `
       <tr>
         <td>${f.numero_factura}</td>
@@ -1435,18 +1269,14 @@ function renderTablaFacturas(lista) {
       </tr>
     `;
   });
-
   html += '</tbody></table>';
   document.getElementById('financiero-tabla').innerHTML = html;
 }
-
 let ordenProyectosFin = { campo: 'numero', asc: false };
-
 function pintarFiltrosYTablaProyectos() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_proyectos.map(p => p.comercial).filter(Boolean))].sort();
   const estados = [...new Set(data.cruce_proyectos.map(p => p.estado).filter(Boolean))].sort();
-
   document.getElementById('financiero-filtros').innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
       <button id="btn-proy-todos" onclick="filtrarProyectosFin('todos')" class="pnc-filtro-btn">Todos</button>
@@ -1462,18 +1292,15 @@ function pintarFiltrosYTablaProyectos() {
       </div>
     </div>
   `;
-
   window.filtroProyectosFinActivo = 'todos';
   renderTablaProyectosFin(data.cruce_proyectos);
   actualizarEstiloBotonesProyectosFin();
 }
-
 function filtrarProyectosFin(modo) {
   window.filtroProyectosFinActivo = modo;
   actualizarEstiloBotonesProyectosFin();
   aplicarFiltrosProyectosFin();
 }
-
 function actualizarEstiloBotonesProyectosFin() {
   const activo = window.filtroProyectosFinActivo;
   const estilo = (esActivo) => 'font-size:13px; padding:6px 14px; border-radius:8px; ' + (esActivo
@@ -1483,14 +1310,11 @@ function actualizarEstiloBotonesProyectosFin() {
   document.getElementById('btn-proy-pend-facturar').style.cssText = estilo(activo === 'pend-facturar');
   document.getElementById('btn-proy-pend-cobrar').style.cssText = estilo(activo === 'pend-cobrar');
 }
-
 function aplicarFiltrosProyectosFin() {
   const data = financieroDataGlobal;
   const comercial = document.getElementById('filtro-proy-comercial').value;
   const busqueda = document.getElementById('buscador-proy-fin').value.toLowerCase();
-
   let filtrados = data.cruce_proyectos;
-
   if (window.filtroProyectosFinActivo === 'pend-facturar') filtrados = filtrados.filter(p => Math.abs(p.pendiente_facturar) >= 0.05);
   if (window.filtroProyectosFinActivo === 'pend-cobrar') filtrados = filtrados.filter(p => Math.abs(p.pendiente_cobrar) >= 0.05);
   if (comercial) filtrados = filtrados.filter(p => p.comercial === comercial);
@@ -1500,15 +1324,12 @@ function aplicarFiltrosProyectosFin() {
       String(p.numero || '').includes(busqueda)
     );
   }
-
   const estadosFiltro = window.estadosSeleccionados['proyectos'];
   if (estadosFiltro && estadosFiltro.size > 0) {
     filtrados = filtrados.filter(p => estadosFiltro.has(p.estado));
   }
-
   renderTablaProyectosFin(filtrados);
 }
-
 function renderTablaProyectosFin(lista) {
   const ordenada = ordenarLista(lista, ordenProyectosFin);
   let html = `
@@ -1531,11 +1352,9 @@ function renderTablaProyectosFin(lista) {
       </thead>
       <tbody>
   `;
-
   if (ordenada.length === 0) {
     html += '<tr><td colspan="12" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
-
   ordenada.forEach(p => {
     const colorPendFacturar = Math.abs(p.pendiente_facturar) >= 0.05 ? '#854F0B' : '#9a988f';
     const colorPendCobrar = Math.abs(p.pendiente_cobrar) >= 0.05 ? '#A32D2D' : '#9a988f';
@@ -1547,7 +1366,6 @@ function renderTablaProyectosFin(lista) {
       if (fp === 'Rectificativa') return '<span class="badge badge-neutral" style="font-size:11px;">Rectificativa</span>';
       return ETIQUETAS_FORMA_PAGO[fp] || fp;
     }).join(', ') || '<span style="color:#9a988f;">—</span>';
-
     html += `
       <tr>
         <td>${p.numero}${badgePNC}</td>
@@ -1565,27 +1383,22 @@ function renderTablaProyectosFin(lista) {
       </tr>
     `;
   });
-
   html += '</tbody></table>';
   document.getElementById('financiero-tabla').innerHTML = html;
 }
-
 function cambiarOrdenProyectosFin(campo) {
   if (ordenProyectosFin.campo === campo) ordenProyectosFin.asc = !ordenProyectosFin.asc;
   else { ordenProyectosFin.campo = campo; ordenProyectosFin.asc = true; }
   aplicarFiltrosProyectosFin();
 }
-
 function flechaOrdenProyectosFin(campo) {
   if (ordenProyectosFin.campo !== campo) return '';
   return ordenProyectosFin.asc ? ' ▲' : ' ▼';
 }
-
 function pintarFiltrosYTablaPNC() {
   const data = financieroDataGlobal;
   const comerciales = [...new Set(data.cruce_pnc.map(p => p.comercial).filter(Boolean))].sort();
   const estados = [...new Set(data.cruce_pnc.map(p => p.estado).filter(Boolean))].sort();
-
   document.getElementById('financiero-filtros').innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:1rem; flex-wrap:wrap; align-items:center;">
       <button id="btn-pnc-todos" onclick="filtrarPNC('todos')" class="pnc-filtro-btn">Todos</button>
@@ -1600,18 +1413,15 @@ function pintarFiltrosYTablaPNC() {
       </div>
     </div>
   `;
-
   window.filtroPNCActivo = 'todos';
   renderTablaPNC(data.cruce_pnc);
   actualizarEstiloBotonesPNC();
 }
-
 function filtrarPNC(modo) {
   window.filtroPNCActivo = modo;
   actualizarEstiloBotonesPNC();
   aplicarFiltrosPNC();
 }
-
 function actualizarEstiloBotonesPNC() {
   const activo = window.filtroPNCActivo;
   document.getElementById('btn-pnc-todos').style.cssText =
@@ -1623,14 +1433,11 @@ function actualizarEstiloBotonesPNC() {
       ? 'background:#e6f1fb; color:#0C447C; border:0.5px solid #B5D4F4;'
       : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;');
 }
-
 function aplicarFiltrosPNC() {
   const data = financieroDataGlobal;
   const comercial = document.getElementById('filtro-pnc-comercial').value;
   const busqueda = document.getElementById('buscador-pnc').value.toLowerCase();
-
   let filtrados = data.cruce_pnc;
-
   if (window.filtroPNCActivo === 'no-cuadran') filtrados = filtrados.filter(p => !p.cuadra);
   if (comercial) filtrados = filtrados.filter(p => p.comercial === comercial);
   if (busqueda) {
@@ -1639,15 +1446,12 @@ function aplicarFiltrosPNC() {
       String(p.numero || '').includes(busqueda)
     );
   }
-
   const estadosFiltro = window.estadosSeleccionados['pnc'];
   if (estadosFiltro && estadosFiltro.size > 0) {
     filtrados = filtrados.filter(p => estadosFiltro.has(p.estado));
   }
-
   renderTablaPNC(filtrados);
 }
-
 function renderTablaPNC(lista) {
   const ordenada = ordenarLista(lista, ordenPNC);
   let html = `
@@ -1666,17 +1470,14 @@ function renderTablaPNC(lista) {
       </thead>
       <tbody>
   `;
-
   if (ordenada.length === 0) {
     html += '<tr><td colspan="8" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
-
   ordenada.forEach(p => {
     const badge = p.cuadra
       ? '<span class="badge badge-success">Cuadra</span>'
       : '<span class="badge badge-danger">No cuadra</span>';
     const colorDif = p.cuadra ? '#27500A' : '#A32D2D';
-
     html += `
       <tr>
         <td>${p.numero}</td>
@@ -1690,29 +1491,22 @@ function renderTablaPNC(lista) {
       </tr>
     `;
   });
-
   html += '</tbody></table>';
   document.getElementById('financiero-tabla').innerHTML = html;
 }
-
 // ================================================================
 // FACTURAS PROVEEDORES
 // ================================================================
-
 let facturasProveedoresDataGlobal = null;
 let facturasFiltroDepartamentoActivo = null;
-
 async function cargarFacturasProveedores() {
   document.getElementById('content-title').textContent = 'Facturas Proveedores · Listado';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando facturas...</p>';
-
   try {
     const resp = await fetch('/api/facturas-proveedores');
     const data = await resp.json();
-
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
-
     facturasProveedoresDataGlobal = data;
     facturasFiltroDepartamentoActivo = null;
     pintarFacturasProveedores();
@@ -1720,18 +1514,15 @@ async function cargarFacturasProveedores() {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 async function sincronizarFacturasProveedores() {
   const btn = document.getElementById('btn-sync-facturas');
   const estadoSync = document.getElementById('estado-sync-facturas');
   btn.disabled = true;
   btn.textContent = '⏳ Sincronizando...';
   estadoSync.textContent = '';
-
   try {
     const resp = await fetch('/api/facturas-proveedores/sincronizar?anio=2026', { method: 'POST' });
     const data = await resp.json();
-
     if (data.error) {
       estadoSync.textContent = 'Error: ' + data.error;
       estadoSync.style.color = '#A32D2D';
@@ -1749,17 +1540,14 @@ async function sincronizarFacturasProveedores() {
     btn.textContent = '🔄 Actualizar facturas';
   }
 }
-
 function pintarFacturasProveedores() {
   const body = document.getElementById('content-body');
   const data = facturasProveedoresDataGlobal;
   const facturas = data.facturas;
-
   const totalBase = facturas.reduce((sum, f) => sum + (parseFloat(f.importeBase) || 0), 0);
   const totalIva = facturas.reduce((sum, f) => sum + (parseFloat(f.iva) || 0), 0);
   const nBaja = facturas.filter(f => f.confianza === 'baja').length;
   const nMedia = facturas.filter(f => f.confianza === 'media').length;
-
   const chipsDepartamento = data.resumen_departamentos.map(d => {
     const activo = facturasFiltroDepartamentoActivo === d.departamento;
     return `
@@ -1770,7 +1558,6 @@ function pintarFacturasProveedores() {
       </div>
     `;
   }).join('');
-
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
       <div style="display:flex; gap:12px; align-items:center;">
@@ -1778,7 +1565,6 @@ function pintarFacturasProveedores() {
         <span id="estado-sync-facturas" style="font-size:12px;"></span>
       </div>
     </div>
-
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.25rem;">
       <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
         <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Total base (sin IVA)</p>
@@ -1797,13 +1583,11 @@ function pintarFacturasProveedores() {
         <p style="font-size:22px; font-weight:500; margin:0; color:${(nBaja + nMedia) > 0 ? '#412402' : '#1a1a18'};">${nBaja + nMedia}</p>
       </div>
     </div>
-
     <p style="font-size:13px; font-weight:500; color:#1a1a18; margin:0 0 8px;">Por departamento (base sin IVA) — haz clic para filtrar</p>
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:1.25rem;">
       ${chipsDepartamento}
       ${facturasFiltroDepartamentoActivo ? `<div onclick="filtrarFacturasPorDepartamento(null)" style="cursor:pointer; display:flex; align-items:center; padding:0.75rem 1rem; font-size:13px; color:#6b6a64;">✕ Quitar filtro</div>` : ''}
     </div>
-
     <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center; flex-wrap:wrap;">
       <select id="filtro-fact-proveedor" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
         <option value="">Proveedor: Todos</option>
@@ -1819,27 +1603,21 @@ function pintarFacturasProveedores() {
         <input type="text" id="buscador-fact-proveedores" placeholder="Buscar proveedor o nº factura..." oninput="aplicarFiltrosFacturasProveedores()">
       </div>
     </div>
-
     <div id="tabla-facturas-proveedores"></div>
   `;
-
   body.innerHTML = html;
   renderTablaFacturasProveedores(facturas);
 }
-
 function filtrarFacturasPorDepartamento(departamento) {
   facturasFiltroDepartamentoActivo = departamento;
   pintarFacturasProveedores();
 }
-
 function aplicarFiltrosFacturasProveedores() {
   const data = facturasProveedoresDataGlobal;
   const proveedor = document.getElementById('filtro-fact-proveedor').value;
   const confianza = document.getElementById('filtro-fact-confianza').value;
   const busqueda = document.getElementById('buscador-fact-proveedores').value.toLowerCase();
-
   let filtradas = data.facturas;
-
   if (facturasFiltroDepartamentoActivo) {
     filtradas = filtradas.filter(f => f.desglose_departamentos.some(d => d.departamento === facturasFiltroDepartamentoActivo));
   }
@@ -1851,13 +1629,10 @@ function aplicarFiltrosFacturasProveedores() {
       String(f.numeroFactura || '').toLowerCase().includes(busqueda)
     );
   }
-
   renderTablaFacturasProveedores(filtradas);
 }
-
 function renderTablaFacturasProveedores(lista) {
   const cont = document.getElementById('tabla-facturas-proveedores');
-
   let html = `
     <table>
       <thead>
@@ -1874,22 +1649,18 @@ function renderTablaFacturasProveedores(lista) {
       </thead>
       <tbody>
   `;
-
   if (lista.length === 0) {
     html += '<tr><td colspan="8" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
-
   lista.forEach(f => {
     const badgeConfianza = f.confianza === 'alta'
       ? '<span class="badge badge-success">Alta</span>'
       : f.confianza === 'media'
         ? '<span class="badge badge-warning">Media</span>'
         : '<span class="badge badge-danger">Baja</span>';
-
     const departamentosHtml = f.desglose_departamentos.map(d =>
       `<span class="badge badge-neutral" style="font-size:11px;" title="${euros(d.importe)}">${d.departamento}${d.porcentaje < 100 ? ' ' + d.porcentaje + '%' : ''}</span>`
     ).join(' ');
-
     html += `
       <tr>
         <td>${f.proveedor || ''}</td>
@@ -1903,20 +1674,15 @@ function renderTablaFacturasProveedores(lista) {
       </tr>
     `;
   });
-
   html += '</tbody></table>';
   cont.innerHTML = html;
 }
-
 const DEPARTAMENTOS_ORUM = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Otros Gastos'];
-
 let configProveedoresGlobal = { proveedores: [], reparto: [] };
-
 async function cargarConfiguracionProveedores() {
   document.getElementById('content-title').textContent = 'Facturas Proveedores · Configurar proveedores';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando configuración...</p>';
-
   try {
     const [respProveedores, respReparto] = await Promise.all([
       fetch('/api/facturas-proveedores/proveedores'),
@@ -1924,31 +1690,24 @@ async function cargarConfiguracionProveedores() {
     ]);
     const dataProveedores = await respProveedores.json();
     const dataReparto = await respReparto.json();
-
     if (dataProveedores.error) { body.innerHTML = '<p class="loading-text">Error: ' + dataProveedores.error + '</p>'; return; }
     if (dataReparto.error) { body.innerHTML = '<p class="loading-text">Error: ' + dataReparto.error + '</p>'; return; }
-
     configProveedoresGlobal.proveedores = dataProveedores.proveedores || [];
     configProveedoresGlobal.reparto = dataReparto.reparto || [];
-
     pintarConfiguracionProveedores();
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 function pintarConfiguracionProveedores() {
   const body = document.getElementById('content-body');
   const proveedores = configProveedoresGlobal.proveedores;
   const reparto = configProveedoresGlobal.reparto;
-
   const filasHtml = proveedores.map(prov => {
     const reglasProveedor = reparto.filter(r => r.proveedor === prov);
     const filasIniciales = reglasProveedor.length > 0 ? reglasProveedor : [{ departamento: '', porcentaje: 100 }];
     const idProv = 'prov-' + prov.replace(/[^a-zA-Z0-9]/g, '');
-
     const filasDepartamento = filasIniciales.map((r, idx) => filaDepartamentoHtml(idProv, idx, r.departamento, r.porcentaje)).join('');
-
     return `
       <div style="border:0.5px solid #e2e2de; border-radius:8px; padding:1rem; margin-bottom:10px;" id="card-${idProv}">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -1962,7 +1721,6 @@ function pintarConfiguracionProveedores() {
       </div>
     `;
   }).join('');
-
   body.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
       <p style="font-size:13px; color:#6b6a64; margin:0;">Define para cada proveedor a qué departamento(s) va su gasto. Si se reparte entre varios, los porcentajes deben sumar 100%.</p>
@@ -1973,13 +1731,11 @@ function pintarConfiguracionProveedores() {
     </div>
     <div>${filasHtml || '<p style="color:#9a988f; font-size:13px;">Aún no hay proveedores registrados. Sincroniza facturas primero desde el Listado.</p>'}</div>
   `;
-
   proveedores.forEach(prov => {
     const idProv = 'prov-' + prov.replace(/[^a-zA-Z0-9]/g, '');
     actualizarSumaPorcentajes(idProv);
   });
 }
-
 function filaDepartamentoHtml(idProv, idx, departamentoActual, porcentajeActual) {
   const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === departamentoActual ? 'selected' : ''}>${d}</option>`).join('');
   return `
@@ -1994,7 +1750,6 @@ function filaDepartamentoHtml(idProv, idx, departamentoActual, porcentajeActual)
     </div>
   `;
 }
-
 function anadirFilaDepartamento(idProv) {
   const cont = document.getElementById('filas-' + idProv);
   const idx = cont.children.length;
@@ -2003,7 +1758,6 @@ function anadirFilaDepartamento(idProv) {
   cont.appendChild(div.firstElementChild);
   actualizarSumaPorcentajes(idProv);
 }
-
 function quitarFilaDepartamento(idProv, elementoX) {
   const fila = elementoX.closest('.fila-dep');
   const cont = document.getElementById('filas-' + idProv);
@@ -2012,30 +1766,25 @@ function quitarFilaDepartamento(idProv, elementoX) {
     actualizarSumaPorcentajes(idProv);
   }
 }
-
 function actualizarSumaPorcentajes(idProv) {
   const cont = document.getElementById('filas-' + idProv);
   if (!cont) return;
   const inputs = cont.querySelectorAll('.input-porcentaje');
   let suma = 0;
   inputs.forEach(i => { suma += parseFloat(i.value) || 0; });
-
   const span = document.getElementById('suma-' + idProv);
   span.textContent = suma + '% del total';
   span.style.color = suma === 100 ? '#27500A' : '#A32D2D';
 }
-
 async function guardarConfiguracionProveedores() {
   const proveedores = configProveedoresGlobal.proveedores;
   const filasParaGuardar = [];
   let hayErrores = false;
-
   proveedores.forEach(prov => {
     const idProv = 'prov-' + prov.replace(/[^a-zA-Z0-9]/g, '');
     const cont = document.getElementById('filas-' + idProv);
     const filas = cont.querySelectorAll('.fila-dep');
     let suma = 0;
-
     filas.forEach(fila => {
       const departamento = fila.querySelector('.select-departamento').value;
       const porcentaje = parseFloat(fila.querySelector('.input-porcentaje').value) || 0;
@@ -2044,21 +1793,16 @@ async function guardarConfiguracionProveedores() {
         suma += porcentaje;
       }
     });
-
     if (suma !== 0 && suma !== 100) hayErrores = true;
   });
-
   const estado = document.getElementById('estado-guardar-reparto');
-
   if (hayErrores) {
     estado.textContent = '⚠️ Hay proveedores cuyos porcentajes no suman 100%. Revísalos antes de guardar.';
     estado.style.color = '#A32D2D';
     return;
   }
-
   estado.textContent = 'Guardando...';
   estado.style.color = '#6b6a64';
-
   try {
     const resp = await fetch('/api/facturas-proveedores/reparto', {
       method: 'POST',
@@ -2066,7 +1810,6 @@ async function guardarConfiguracionProveedores() {
       body: JSON.stringify({ reparto: filasParaGuardar })
     });
     const data = await resp.json();
-
     if (data.error) {
       estado.textContent = 'Error: ' + data.error;
       estado.style.color = '#A32D2D';
@@ -2080,25 +1823,20 @@ async function guardarConfiguracionProveedores() {
     estado.style.color = '#A32D2D';
   }
 }
-
 async function cargarProyectos() {
   document.getElementById('content-title').textContent = 'Proyectos';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando proyectos...</p>';
-
   try {
     const resp = await fetch('/api/proyectos');
     const data = await resp.json();
-
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
-
     actualizarIndicadorFecha(data.ultima_actualizacion);
     pintarTablaProyectos(data.data);
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-
 function actualizarIndicadorFecha(fecha) {
   const textEl = document.getElementById('last-update-text');
   const indicatorEl = document.getElementById('last-update-indicator');
@@ -2108,22 +1846,18 @@ function actualizarIndicadorFecha(fecha) {
     return;
   }
   textEl.textContent = 'Actualizado ' + fecha;
-
   const [fechaParte, horaParte] = fecha.split(' ');
   const [dia, mes, anio] = fechaParte.split('/');
   const fechaObj = new Date(anio, mes - 1, dia, ...horaParte.split(':'));
   const diffHoras = (new Date() - fechaObj) / (1000 * 60 * 60);
   indicatorEl.classList.toggle('stale', diffHoras > 2);
 }
-
 function pintarTablaProyectos(proyectos) {
   const body = document.getElementById('content-body');
-
   if (!proyectos || proyectos.length === 0) {
     body.innerHTML = '<p class="loading-text">No hay proyectos para mostrar.</p>';
     return;
   }
-
   let html = `
     <div style="margin-bottom: 1rem;" class="search-box">
       <input type="text" id="buscador-proyectos" placeholder="Buscar cliente o proyecto...">
@@ -2140,12 +1874,9 @@ function pintarTablaProyectos(proyectos) {
       </thead>
       <tbody id="tabla-proyectos-body">
   `;
-
   proyectos.forEach(p => { html += filaProyecto(p); });
-
   html += '</tbody></table>';
   body.innerHTML = html;
-
   document.getElementById('buscador-proyectos').addEventListener('input', (e) => {
     const filtro = e.target.value.toLowerCase();
     const filtrados = proyectos.filter(p =>
@@ -2155,7 +1886,6 @@ function pintarTablaProyectos(proyectos) {
     document.getElementById('tabla-proyectos-body').innerHTML = filtrados.map(filaProyecto).join('');
   });
 }
-
 function filaProyecto(p) {
   const badgeClass = badgeParaEstado(p.estado);
   return `
@@ -2168,18 +1898,15 @@ function filaProyecto(p) {
     </tr>
   `;
 }
-
 function badgeParaEstado(estado) {
   if (estado === 'Canceled') return 'badge-danger';
   if (estado === 'Pending' || estado === 'Concept') return 'badge-warning';
   return 'badge-success';
 }
-
 function formatearEuros(valor) {
   const n = parseFloat(valor) || 0;
   return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
-
 comprobarSesion();
 </script>
 </body>
