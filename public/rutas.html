@@ -1285,7 +1285,7 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 document.addEventListener('DOMContentLoaded',function(){
   initKP();
   document.getElementById('btn-rec').addEventListener('click',load);
-  document.getElementById('fab').addEventListener('click',function(){if(ROL==='logistica')abrirModal();});
+  document.getElementById('fab').addEventListener('click',function(){if(ROL==='logistica'||ROL==='comercial')abrirModal();});
   document.getElementById('mcls').addEventListener('click',cerrarModal);
   document.getElementById('btn-gm').addEventListener('click',guardarManual);
   document.getElementById('btn-hoy').addEventListener('click',function(){modo='hoy';document.getElementById('fpicker').value=hoy();this.classList.add('on');document.getElementById('btn-sem').classList.remove('on');load();});
