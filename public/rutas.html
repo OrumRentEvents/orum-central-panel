@@ -57,6 +57,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .grupo-hdr-left{display:flex;align-items:center;gap:8px;}
 .grupo-hdr-right{display:flex;align-items:center;gap:6px;}
 .grupo-conductor{font-size:12px;font-weight:600;color:#fff;position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;opacity:.9;}
+.grupo-conductor-inline{font-size:12px;font-weight:600;color:#fff;white-space:nowrap;opacity:.9;margin:0 10px;}
 .btn-wa{background:rgba(255,255,255,.12);border:.5px solid rgba(255,255,255,.25);color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;}
 .btn-wa:hover{background:rgba(255,255,255,.22);}
 /* fila compartida */
@@ -576,7 +577,7 @@ function render(){
         });
       });
       var tituloCompartidos=vehsEnCompartidos.sort().join(' · ');
-      var fechaComp=document.getElementById('fpicker').value||hoy();
+      var fechaComp=esSemana?fecha:(document.getElementById('fpicker').value||hoy());
       // Conductor de cada vehículo compartido
       var conductoresComp=[];
       vehsEnCompartidos.sort().forEach(function(v){
@@ -585,18 +586,23 @@ function render(){
         if(conds.length>0)conductoresComp=conductoresComp.concat(conds);
       });
       conductoresComp=conductoresComp.filter(function(c,i,a){return a.indexOf(c)===i;}); // únicos
-      html+='<div class="grupo-hdr" style="background:#7A5C00;position:relative;">';
-      html+='<div class="grupo-hdr-left"><span>🔄 '+tituloCompartidos+'</span></div>';
-      if(conductoresComp.length>0) html+='<span class="grupo-conductor">'+conductoresComp.join(' · ')+'</span>';
+      html+='<div class="grupo-hdr" style="background:#7A5C00;flex-wrap:wrap;row-gap:6px;">';
+      var hdrLeftComp='<span>🔄</span>';
+      vehsEnCompartidos.sort().forEach(function(v){
+        var claveEstComp=fechaComp+'_'+v+'_1';
+        var estActualComp=estadosVehiculo[claveEstComp]||'';
+        var claseComp=estActualComp==='EN RUTA'?'en-ruta':(estActualComp==='FINALIZADO'?'finalizado':'');
+        var esClicableComp=(ROL==='logistica');
+        var onclickAttrComp=esClicableComp?' onclick="toggleEstadoVehiculo(\''+v+'\',1,\''+fechaComp+'\')"':'';
+        var badgeComp=(estActualComp||esClicableComp)?'<span class="veh-estado'+(esClicableComp?' clicable':'')+' '+claseComp+'"'+onclickAttrComp+' title="'+(esClicableComp?v+': clic para cambiar estado':'')+'">'+(estActualComp||'Marcar estado')+'</span>':'';
+        hdrLeftComp+='<span style="display:inline-flex;align-items:center;gap:6px;">'+v+badgeComp+'</span>';
+      });
+      html+='<div class="grupo-hdr-left">'+hdrLeftComp+'</div>';
+      if(conductoresComp.length>0) html+='<span class="grupo-conductor-inline">'+conductoresComp.join(' · ')+'</span>';
       html+='<div class="grupo-hdr-right">';
       if(ROL==='logistica'){
-        // Un botón de conductores + estado por vehículo compartido
         vehsEnCompartidos.sort().forEach(function(v){
           var gkeyComp=v+'_v1';
-          var claveEstComp=fechaComp+'_'+v+'_1';
-          var estActualComp=estadosVehiculo[claveEstComp]||'';
-          var claseComp=estActualComp==='EN RUTA'?'en-ruta':(estActualComp==='FINALIZADO'?'finalizado':'');
-          html+='<span class="veh-estado clicable '+claseComp+'" onclick="toggleEstadoVehiculo(\''+v+'\',1,\''+fechaComp+'\')" title="'+v+': clic para cambiar estado">'+(estActualComp||v)+'</span>';
           html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+gkeyComp+'\',\''+fechaComp+'\')" title="Conductores '+v+'">&#128100; '+v+'</button>';
         });
       }
