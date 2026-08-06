@@ -592,47 +592,48 @@ function render(){
       });
     });
     if(itemsCompartidos.length>0){
-      html+='<div class="grupo" data-gkey="__compartidos__">';
-      var vehsEnCompartidos=[];
-      itemsCompartidos.forEach(function(i){
-        getVehsParada(paradas[i]).forEach(function(v){
-          if(vehsEnCompartidos.indexOf(v)===-1)vehsEnCompartidos.push(v);
-        });
-      });
-      var tituloCompartidos=vehsEnCompartidos.sort().join(' · ');
       var fechaComp=esSemana?fecha:(document.getElementById('fpicker').value||hoy());
-      // Conductor de cada vehículo compartido
-      var conductoresComp=[];
-      vehsEnCompartidos.sort().forEach(function(v){
-        var clave=fechaComp+'_'+v+'_1';
-        var conds=asignacionesConductores[clave]||[];
-        if(conds.length>0)conductoresComp=conductoresComp.concat(conds);
+      // Agrupar por la combinación exacta de vehiculos de cada parada — cada combinacion distinta es su propio bloque
+      var combos={};
+      var ordenCombos=[];
+      itemsCompartidos.forEach(function(i){
+        var vehs=getVehsParada(paradas[i]).slice().sort();
+        var comboKey=vehs.join('+');
+        if(!combos[comboKey]){combos[comboKey]={vehs:vehs,items:[]};ordenCombos.push(comboKey);}
+        combos[comboKey].items.push(i);
       });
-      conductoresComp=conductoresComp.filter(function(c,i,a){return a.indexOf(c)===i;}); // únicos
-      html+='<div class="grupo-hdr" style="background:#7A5C00;flex-wrap:wrap;row-gap:6px;">';
-      var hdrLeftComp='<span>🔄</span>';
-      vehsEnCompartidos.sort().forEach(function(v){
-        var claveEstComp=fechaComp+'_'+v+'_1';
-        var estActualComp=estadosVehiculo[claveEstComp]||'';
-        var claseComp=estActualComp==='EN RUTA'?'en-ruta':(estActualComp==='FINALIZADO'?'finalizado':'');
-        var esClicableComp=(ROL==='logistica');
-        var onclickAttrComp=esClicableComp?' onclick="toggleEstadoVehiculo(\''+v+'\',1,\''+fechaComp+'\')"':'';
-        var badgeComp=(estActualComp||esClicableComp)?'<span class="veh-estado'+(esClicableComp?' clicable':'')+' '+claseComp+'"'+onclickAttrComp+' title="'+(esClicableComp?v+': clic para cambiar estado':'')+'">'+(estActualComp||'Marcar estado')+'</span>':'';
-        hdrLeftComp+='<span style="display:inline-flex;align-items:center;gap:6px;">'+v+badgeComp+'</span>';
-      });
-      html+='<div class="grupo-hdr-left">'+hdrLeftComp+'</div>';
-      if(conductoresComp.length>0) html+='<span class="grupo-conductor-inline">'+conductoresComp.join(' · ')+'</span>';
-      html+='<div class="grupo-hdr-right">';
-      if(ROL==='logistica'){
-        vehsEnCompartidos.sort().forEach(function(v){
-          var gkeyComp=v+'_v1';
-          html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+gkeyComp+'\',\''+fechaComp+'\')" title="Conductores '+v+'">&#128100; '+v+'</button>';
+      ordenCombos.forEach(function(comboKey){
+        var combo=combos[comboKey];
+        var vehsEnCompartidos=combo.vehs;
+        html+='<div class="grupo" data-gkey="__compartidos_'+comboKey+'__">';
+        html+='<div class="grupo-hdr" style="background:#7A5C00;flex-wrap:wrap;row-gap:6px;">';
+        var hdrLeftComp='<span>🔄</span>';
+        vehsEnCompartidos.forEach(function(v){
+          var claveEstComp=fechaComp+'_'+v+'_1';
+          var estActualComp=estadosVehiculo[claveEstComp]||'';
+          var claseComp=estActualComp==='EN RUTA'?'en-ruta':(estActualComp==='FINALIZADO'?'finalizado':'');
+          var esClicableComp=(ROL==='logistica');
+          var onclickAttrComp=esClicableComp?' onclick="toggleEstadoVehiculo(\''+v+'\',1,\''+fechaComp+'\')"':'';
+          var badgeComp=(estActualComp||esClicableComp)?'<span class="veh-estado'+(esClicableComp?' clicable':'')+' '+claseComp+'"'+onclickAttrComp+' title="'+(esClicableComp?v+': clic para cambiar estado':'')+'">'+(estActualComp||'Marcar estado')+'</span>':'';
+          var claveCondComp=fechaComp+'_'+v+'_1';
+          var condsComp=asignacionesConductores[claveCondComp]||[];
+          var condTxtComp=condsComp.length>0?'<span style="font-size:10px;font-weight:400;opacity:.85;text-transform:none;letter-spacing:0;">'+condsComp.join(', ')+'</span>':'';
+          hdrLeftComp+='<span style="display:inline-flex;flex-direction:column;gap:2px;line-height:1.3;">'+
+            '<span style="display:inline-flex;align-items:center;gap:6px;">'+v+badgeComp+'</span>'+condTxtComp+'</span>';
         });
-      }
-      html+='</div></div>';
-      html+='<table class="tbl"><colgroup><col style="width:3%"><col style="width:7%"><col style="width:6%"><col style="width:9%"><col style="width:19%"><col style="width:18%"><col style="width:8%"><col style="width:6%"><col style="width:20%"><col style="width:4%"></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th></th><th>Notas</th><th></th></tr></thead><tbody>';
-      itemsCompartidos.forEach(function(idx){html+=renderFila(idx,'__compartidos__');});
-      html+='</tbody></table></div>';
+        html+='<div class="grupo-hdr-left">'+hdrLeftComp+'</div>';
+        html+='<div class="grupo-hdr-right">';
+        if(ROL==='logistica'){
+          vehsEnCompartidos.forEach(function(v){
+            var gkeyComp=v+'_v1';
+            html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+gkeyComp+'\',\''+fechaComp+'\')" title="Conductores '+v+'">&#128100; '+v+'</button>';
+          });
+        }
+        html+='</div></div>';
+        html+='<table class="tbl"><colgroup><col style="width:3%"><col style="width:7%"><col style="width:6%"><col style="width:9%"><col style="width:19%"><col style="width:18%"><col style="width:8%"><col style="width:6%"><col style="width:20%"><col style="width:4%"></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th></th><th>Notas</th><th></th></tr></thead><tbody>';
+        combo.items.forEach(function(idx){html+=renderFila(idx,'__compartidos_'+comboKey+'__');});
+        html+='</tbody></table></div>';
+      });
     }
 
     // 2. Grupos de vehículos — excluir compartidos, solo mostrar los que tienen paradas
