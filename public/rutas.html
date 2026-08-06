@@ -176,6 +176,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .btn-gm{width:100%;padding:12px;font-size:14px;font-weight:500;background:#1a1a18;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:4px;}
 
+/* HISTORIAL */
+.hist-toolbar{padding:12px 16px;border-bottom:.5px solid #e2e2de;display:flex;flex-direction:column;gap:8px;background:#fff;}
+.hist-toolbar input[type=text]{width:100%;padding:9px 11px;font-size:13px;border:.5px solid #e2e2de;border-radius:8px;background:#f7f6f2;color:#1a1a18;}
+.hist-filtros{display:flex;gap:8px;flex-wrap:wrap;}
+.hist-filtros select{flex:1;min-width:140px;padding:8px 9px;font-size:12px;border:.5px solid #e2e2de;border-radius:7px;background:#fff;color:#1a1a18;}
+.hist-count{font-size:11px;color:#9a988f;padding:10px 16px 0;}
+.hist-list{padding:8px 16px 4px;display:flex;flex-direction:column;gap:8px;}
+.hist-card{border:.5px solid #e2e2de;border-radius:10px;padding:11px 13px;background:#fff;}
+.hist-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.hist-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:8px;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap;}
+.hist-fecha{font-size:11px;color:#9a988f;white-space:nowrap;}
+.hist-user{font-size:12.5px;font-weight:600;color:#1a1a18;margin-bottom:6px;}
+.hist-detail{font-size:12.5px;color:#4a4944;line-height:1.6;white-space:normal;word-break:break-word;}
+.hist-detail b{color:#1a1a18;font-weight:600;}
+
 /* TOAST */
 #toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a18;color:#fff;font-size:13px;padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300;white-space:nowrap;}
 #toast.show{opacity:1;}
@@ -291,12 +306,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <!-- Modal historial de cambios (solo Sergio Rosillo) -->
 <div id="modal-historial" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;">
-  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;padding:0 0 2rem;max-height:88vh;overflow-y:auto;">
-    <div style="padding:14px 16px;border-bottom:.5px solid #e2e2de;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:780px;padding:0 0 2rem;max-height:92vh;overflow-y:auto;">
+    <div style="padding:14px 16px;border-bottom:.5px solid #e2e2de;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:2;">
       <h2 style="font-size:15px;font-weight:500;">Historial de cambios</h2>
       <button onclick="cerrarModalHistorial()" style="background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;">✕</button>
     </div>
-    <div style="padding:14px 16px;" id="modal-historial-body"><div class="load">Cargando...</div></div>
+    <div class="hist-toolbar">
+      <input type="text" id="hist-buscar" placeholder="Buscar por usuario, vehiculo, nota, conductor...">
+      <div class="hist-filtros">
+        <select id="hist-filtro-accion"><option value="">Todas las acciones</option></select>
+        <select id="hist-filtro-usuario"><option value="">Todos los usuarios</option></select>
+      </div>
+    </div>
+    <div class="hist-count" id="hist-count"></div>
+    <div id="modal-historial-body"><div class="load">Cargando...</div></div>
   </div>
 </div>
 
@@ -1432,26 +1455,109 @@ function aplicarCambioVehiculoGrupo(nuevoVeh){
 }
 
 // ── HISTORIAL DE CAMBIOS (solo Sergio) ──
+var historialRaw=[];
+var ACCION_LABELS_HIST={
+  set_conductores:{label:'Cambio de conductor',color:'#185FA5',bg:'#E6F1FB'},
+  set_choferes:{label:'Lista de choferes',color:'#8B4A00',bg:'#FDEBD0'},
+  set_estado_vehiculo:{label:'Estado de ruta',color:'#0A6640',bg:'#D6F5E3'},
+  set_estado_parada:{label:'Estado de parada',color:'#0A6640',bg:'#D6F5E3'},
+  add_manual:{label:'Parada manual añadida',color:'#3C3489',bg:'#EEEDFE'},
+  update_manual:{label:'Parada manual editada',color:'#8B4A00',bg:'#FDEBD0'},
+  del_manual:{label:'Parada manual eliminada',color:'#A32D2D',bg:'#FBE3E1'},
+  set_asignacion:{label:'Asignación de parada',color:'#1a1a18',bg:'#f0f0ea'},
+  init:{label:'Inicialización',color:'#6b6a64',bg:'#f0f0ea'}
+};
+function accionInfoHistorial(accion,det){
+  if(accion==='set_asignacion'&&det){
+    var tieneVeh=!!det.vehiculo, tieneNota=!!det.notas;
+    if(tieneVeh&&!tieneNota)return{label:'Selección de vehiculo',color:'#185FA5',bg:'#E6F1FB'};
+    if(tieneNota&&!tieneVeh)return{label:'Nota añadida',color:'#8B4A00',bg:'#FDEBD0'};
+  }
+  return ACCION_LABELS_HIST[accion]||{label:accion?accion.replace(/_/g,' '):'Accion',color:'#6b6a64',bg:'#f0f0ea'};
+}
+function detalleTextoHistorial(accion,det){
+  if(!det||typeof det!=='object')return '';
+  var partes=[];
+  function add(lbl,val){if(val!==undefined&&val!==null&&val!==''&&val!==false)partes.push('<b>'+lbl+':</b> '+(Array.isArray(val)?val.join(', '):val));}
+  if(accion==='set_conductores'){
+    add('Vehiculo',det.vehiculo); add('Vuelta',det.vuelta); add('Fecha',det.fecha); add('Conductores',det.conductores);
+  } else if(accion==='set_choferes'){
+    add('Choferes',det.choferes);
+  } else if(accion==='set_estado_vehiculo'){
+    add('Vehiculo',det.vehiculo); add('Vuelta',det.vuelta); add('Fecha',det.fecha); add('Estado',det.estado||'Sin estado');
+  } else if(accion==='set_estado_parada'){
+    add('Parada',det.clave);
+    add('Preparado',det.preparado===true?'Si':(det.preparado===false?'No':undefined));
+    add('Cargado',det.cargado===true?'Si':(det.cargado===false?'No':undefined));
+    add('Incidencia',det.incidencia===true?'Si':(det.incidencia===false?'No':undefined));
+    add('Detalle incidencia',det.incidencia_texto);
+  } else {
+    add('Tipo',det.tipo); add('Fecha',det.fecha); add('Vehiculo',det.vehiculo); add('Vuelta',det.vuelta);
+    add('Notas',det.notas); add('Descripcion',det.descripcion); add('Direccion',det.direccion);
+    add('Clave',det.clave); add('Id',det.id); add('Proyecto',det.proyecto_id);
+  }
+  if(partes.length===0){Object.keys(det).forEach(function(k){add(k,det[k]);});}
+  return partes.join(' &nbsp;·&nbsp; ');
+}
 function abrirModalHistorial(){
   document.getElementById('modal-historial').style.display='flex';
   document.body.style.overflow='hidden';
   var body=document.getElementById('modal-historial-body');
   body.innerHTML='<div class="load">Cargando...</div>';
+  document.getElementById('hist-count').textContent='';
+  document.getElementById('hist-buscar').value='';
   fetch('/api/rutas/historial?token=ORUMx2026RutasPublic&limit=200&t='+Date.now())
     .then(function(r){return r.json();})
     .then(function(data){
       if(data.error||!data.historial){body.innerHTML='<div class="load">Error al cargar historial</div>';return;}
-      if(data.historial.length===0){body.innerHTML='<div class="load">Sin cambios registrados todavia</div>';return;}
-      var html='<table class="tbl"><thead><tr><th>Fecha</th><th>Usuario</th><th>Accion</th><th>Detalle</th></tr></thead><tbody>';
-      data.historial.forEach(function(h){
-        var detalle=h.detalle;
-        try{var obj=JSON.parse(detalle);detalle=JSON.stringify(obj);}catch(e){}
-        html+='<tr><td class="td-fecha">'+(h.ts||'')+'</td><td class="td-cli">'+(h.usuario||'')+'</td><td class="td-tipo">'+(h.accion||'')+'</td><td class="td-notas" style="white-space:normal;">'+detalle+'</td></tr>';
+      historialRaw=data.historial.map(function(h){
+        var det={};
+        try{det=JSON.parse(h.detalle);}catch(e){det={};}
+        return{ts:h.ts||'',usuario:h.usuario||'',accion:h.accion||'',det:det};
       });
-      html+='</tbody></table>';
-      body.innerHTML=html;
+      var selAccion=document.getElementById('hist-filtro-accion');
+      var accionesVistas={};
+      historialRaw.forEach(function(h){accionesVistas[h.accion]=accionInfoHistorial(h.accion,h.det).label;});
+      selAccion.innerHTML='<option value="">Todas las acciones</option>'+Object.keys(accionesVistas).sort().map(function(a){return '<option value="'+a+'">'+accionesVistas[a]+'</option>';}).join('');
+      var selUsuario=document.getElementById('hist-filtro-usuario');
+      var usuariosVistos=[];
+      historialRaw.forEach(function(h){if(h.usuario&&usuariosVistos.indexOf(h.usuario)===-1)usuariosVistos.push(h.usuario);});
+      selUsuario.innerHTML='<option value="">Todos los usuarios</option>'+usuariosVistos.sort().map(function(u){return '<option value="'+u+'">'+u+'</option>';}).join('');
+      renderHistorial();
     })
     .catch(function(){body.innerHTML='<div class="load">Error de conexion</div>';});
+}
+function renderHistorial(){
+  var body=document.getElementById('modal-historial-body');
+  var cont=document.getElementById('hist-count');
+  if(historialRaw.length===0){body.innerHTML='<div class="load">Sin cambios registrados todavia</div>';cont.textContent='';return;}
+  var texto=(document.getElementById('hist-buscar').value||'').toLowerCase().trim();
+  var filtroAccion=document.getElementById('hist-filtro-accion').value;
+  var filtroUsuario=document.getElementById('hist-filtro-usuario').value;
+  var filtrados=historialRaw.filter(function(h){
+    if(filtroAccion&&h.accion!==filtroAccion)return false;
+    if(filtroUsuario&&h.usuario!==filtroUsuario)return false;
+    if(texto){
+      var info=accionInfoHistorial(h.accion,h.det);
+      var hay=(h.usuario+' '+h.accion+' '+info.label+' '+JSON.stringify(h.det)).toLowerCase();
+      if(hay.indexOf(texto)===-1)return false;
+    }
+    return true;
+  });
+  cont.textContent=filtrados.length+' de '+historialRaw.length+' cambios';
+  if(filtrados.length===0){body.innerHTML='<div class="load">Sin resultados para este filtro</div>';return;}
+  var html='<div class="hist-list">';
+  filtrados.forEach(function(h){
+    var info=accionInfoHistorial(h.accion,h.det);
+    var detTxt=detalleTextoHistorial(h.accion,h.det);
+    html+='<div class="hist-card">';
+    html+='<div class="hist-card-top"><span class="hist-badge" style="background:'+info.bg+';color:'+info.color+';">'+info.label+'</span><span class="hist-fecha">'+h.ts+'</span></div>';
+    html+='<div class="hist-user">'+h.usuario+'</div>';
+    if(detTxt)html+='<div class="hist-detail">'+detTxt+'</div>';
+    html+='</div>';
+  });
+  html+='</div>';
+  body.innerHTML=html;
 }
 function cerrarModalHistorial(){
   document.getElementById('modal-historial').style.display='none';
@@ -1474,6 +1580,9 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('fpicker').addEventListener('change',function(){modo='hoy';document.getElementById('msel').value='';marcarBotonPeriodoActivo('btn-hoy');load();});
   document.getElementById('buscador').addEventListener('input',render);
   document.getElementById('btn-historial').addEventListener('click',abrirModalHistorial);
+  document.getElementById('hist-buscar').addEventListener('input',renderHistorial);
+  document.getElementById('hist-filtro-accion').addEventListener('change',renderHistorial);
+  document.getElementById('hist-filtro-usuario').addEventListener('change',renderHistorial);
   document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)cerrarModal();});
   document.getElementById('modal-cambiar-veh').addEventListener('click',function(e){if(e.target===this)cerrarModalCambiarVeh();});
   document.getElementById('modal-historial').addEventListener('click',function(e){if(e.target===this)cerrarModalHistorial();});
