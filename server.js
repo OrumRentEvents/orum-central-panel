@@ -713,6 +713,22 @@ app.get('/api/rutas/estados-parada', async (req, res) => {
   }
 });
 
+// ── HISTORIAL DE CAMBIOS — solo lectura, usado por la pestaña "Historial" (Sergio) ──
+app.get('/api/rutas/historial', async (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true, historial: [] });
+    const params = new URLSearchParams({ token: RUTAS_SCRIPT_TOKEN, action: 'get_historial_rutas', limit: req.query.limit || '200' });
+    const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
+    res.json(await resp.json());
+  } catch (err) {
+    console.error('Error en GET /api/rutas/historial:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/rutas/estados-parada', async (req, res) => {
   if (req.body.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
     return res.status(401).json({ error: 'No autorizado' });
