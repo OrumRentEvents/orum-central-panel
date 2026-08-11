@@ -610,6 +610,23 @@ app.post('/api/rutas/manual', async (req, res) => {
   }
 });
 
+app.post('/api/rutas/backup-hoy', async (req, res) => {
+  if (req.body.clientToken !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
+    const body = { token: 'ORUMx2026RutasWrite', action: 'generar_backup_hoy', fecha: req.body.fecha || '', usuario };
+    const resp = await fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await resp.json();
+    logHistorialRutas(usuario, 'generar_backup_hoy', { fecha: req.body.fecha || '' });
+    res.json(data);
+  } catch (err) {
+    console.error('Error en /api/rutas/backup-hoy:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── CONDUCTORES: asignación por vehículo+vuelta+día ──
 // GET /api/rutas/conductores?desde=2026-07-13&hasta=2026-07-13
 app.get('/api/rutas/conductores', async (req, res) => {
