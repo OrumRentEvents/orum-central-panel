@@ -210,7 +210,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="app" style="display:none;">
   <div class="hdr">
-    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
+    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-backup" style="display:none;" title="Genera una hoja en Sheets con la ruta de hoy, por si falla la web">Generar backup</button><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
     <div class="hdr-nav">
       <button class="btn-s on" id="btn-hoy">Hoy</button>
       <button class="btn-s" id="btn-sem">Esta semana</button>
@@ -379,6 +379,9 @@ function pinCheck(){
   document.getElementById('fab').style.display='flex';
   if(NOMBRE_USUARIO===NOMBRE_HISTORIAL_PERMITIDO){
     document.getElementById('btn-historial').style.display='inline-block';
+  }
+  if(ROL==='logistica'){
+    document.getElementById('btn-backup').style.display='inline-block';
   }
   initVehs(); initSelectorMes(); setHoy(); load();
 }
@@ -785,7 +788,7 @@ function renderFila(idx,gkey){
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
-  html+='<td class="td-notas" title="'+String(p.notas||'').replace(/"/g,'&quot;')+'">'+(p.notas||'')+'</td>';
+  html+='<td class="td-notas" title="'+(p.notas||'').replace(/"/g,'&quot;')+'">'+(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
 
@@ -1455,6 +1458,24 @@ function aplicarCambioVehiculoGrupo(nuevoVeh){
   cerrarModalCambiarVeh();
 }
 
+// ── BACKUP: genera la hoja "RUTA HOY" en Sheets, por si falla la web ──
+function generarBackupHoy(btn){
+  if(btn){btn.disabled=true;btn.textContent='Generando...';}
+  var fecha=document.getElementById('fpicker').value||hoy();
+  fetch('/api/rutas/backup-hoy',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({clientToken:'ORUMx2026RutasPublic',fecha:fecha,usuario:NOMBRE_USUARIO})
+  })
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data&&data.error){toast('Error: '+data.error);}
+      else{toast('Backup generado — hoja "RUTA HOY" en Sheets');}
+    })
+    .catch(function(){toast('Error al generar backup');})
+    .finally(function(){if(btn){btn.disabled=false;btn.textContent='Generar backup';}});
+}
+
 // ── HISTORIAL DE CAMBIOS (solo Sergio) ──
 var historialRaw=[];
 var ACCION_LABELS_HIST={
@@ -1466,7 +1487,8 @@ var ACCION_LABELS_HIST={
   update_manual:{label:'Parada manual editada',color:'#8B4A00',bg:'#FDEBD0'},
   del_manual:{label:'Parada manual eliminada',color:'#A32D2D',bg:'#FBE3E1'},
   set_asignacion:{label:'Asignación de parada',color:'#1a1a18',bg:'#f0f0ea'},
-  init:{label:'Inicialización',color:'#6b6a64',bg:'#f0f0ea'}
+  init:{label:'Inicialización',color:'#6b6a64',bg:'#f0f0ea'},
+  generar_backup_hoy:{label:'Backup generado',color:'#0A6640',bg:'#D6F5E3'}
 };
 function accionInfoHistorial(accion,det){
   if(accion==='set_asignacion'&&det){
@@ -1580,6 +1602,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('msel').addEventListener('change',function(){if(!this.value)return;modo='mes';marcarBotonPeriodoActivo('');load();});
   document.getElementById('fpicker').addEventListener('change',function(){modo='hoy';document.getElementById('msel').value='';marcarBotonPeriodoActivo('btn-hoy');load();});
   document.getElementById('buscador').addEventListener('input',render);
+  document.getElementById('btn-backup').addEventListener('click',function(){generarBackupHoy(this);});
   document.getElementById('btn-historial').addEventListener('click',abrirModalHistorial);
   document.getElementById('hist-buscar').addEventListener('input',renderHistorial);
   document.getElementById('hist-filtro-accion').addEventListener('change',renderHistorial);
