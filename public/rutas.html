@@ -210,7 +210,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="app" style="display:none;">
   <div class="hdr">
-    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-backup" style="display:none;" title="Genera una hoja en Sheets con la ruta de hoy, por si falla la web">Generar backup</button><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
+    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-backup" style="display:none;" title="Genera en Sheets la ruta de hoy + los 6 dias siguientes, por si falla la web">Generar backup</button><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
     <div class="hdr-nav">
       <button class="btn-s on" id="btn-hoy">Hoy</button>
       <button class="btn-s" id="btn-sem">Esta semana</button>
@@ -788,7 +788,7 @@ function renderFila(idx,gkey){
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
-  html+='<td class="td-notas" title="'+String(p.notas||'').replace(/"/g,'&quot;')+'">'+(p.notas||'')+'</td>';
+  html+='<td class="td-notas" title="'+(p.notas||'').replace(/"/g,'&quot;')+'">'+(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
 
