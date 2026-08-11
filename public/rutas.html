@@ -788,7 +788,7 @@ function renderFila(idx,gkey){
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
-  html+='<td class="td-notas" title="'+(p.notas||'').replace(/"/g,'&quot;')+'">'+(p.notas||'')+'</td>';
+  html+='<td class="td-notas" title="'+String(p.notas||'').replace(/"/g,'&quot;')+'">'+(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
 
