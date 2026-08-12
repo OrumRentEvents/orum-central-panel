@@ -324,6 +324,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 
 <script>
+// Registro temporal para el botón WhatsApp de grupos combinados (vehiculos+items del combo activo en el render actual)
+var compartidosWaData={};
+
 // PIN individual por persona. rol 'logistica' puede editar todo; 'comercial' solo notas.
 var PINES_CONFIG={
   '1986':{rol:'logistica',nombre:'Sergio'},
@@ -608,6 +611,8 @@ function render(){
       ordenCombos.forEach(function(comboKey){
         var combo=combos[comboKey];
         var vehsEnCompartidos=combo.vehs;
+        var waKey=comboKey+'__'+fechaComp;
+        compartidosWaData[waKey]={vehs:vehsEnCompartidos,items:combo.items.slice(),fecha:fechaComp};
         html+='<div class="grupo" data-gkey="__compartidos_'+comboKey+'__">';
         html+='<div class="grupo-hdr" style="background:#7A5C00;flex-wrap:wrap;row-gap:6px;">';
         var hdrLeftComp='<span>🔄</span>';
@@ -632,6 +637,7 @@ function render(){
             html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+gkeyComp+'\',\''+fechaComp+'\')" title="Conductores '+v+'">&#128100; '+v+'</button>';
           });
         }
+        html+='<button class="btn-wa" onclick="enviarWhatsAppCompartido(\''+waKey+'\')" title="Enviar ruta por WhatsApp">&#128228; WhatsApp</button>';
         html+='</div></div>';
         html+='<table class="tbl"><colgroup><col style="width:3%"><col style="width:7%"><col style="width:6%"><col style="width:9%"><col style="width:19%"><col style="width:18%"><col style="width:8%"><col style="width:6%"><col style="width:20%"><col style="width:4%"></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th></th><th>Notas</th><th></th></tr></thead><tbody>';
         combo.items.forEach(function(idx){html+=renderFila(idx,'__compartidos_'+comboKey+'__');});
@@ -647,7 +653,8 @@ function render(){
       var aNave=va==='NAVE MONDA', bNave=vb==='NAVE MONDA';
       if(aNave&&!bNave)return 1;
       if(bNave&&!aNave)return -1;
-      return va.localeCompare(vb);
+      if(va!==vb)return va.localeCompare(vb);
+      return (gruposDia[a].vuelta||1)-(gruposDia[b].vuelta||1);
     });
     claves.forEach(function(gk){
       var grupoFiltrado={
@@ -788,7 +795,7 @@ function renderFila(idx,gkey){
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
-  html+='<td class="td-notas" title="'+String(p.notas||'').replace(/"/g,'&quot;')+'">'+(p.notas||'')+'</td>';
+  html+='<td class="td-notas" title="'+String(p.notas||'').replace(/"/g,'&quot;')+'">'+String(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
 
@@ -813,7 +820,7 @@ function renderFila(idx,gkey){
     html+='</div></div>';
     html+='<div class="det-campo" style="grid-column:1/-1;display:'+(estParada.incidencia?'block':'none')+';" id="inc-campo-'+key+'"><label>Descripcion de la incidencia</label><textarea id="chk-inctxt-'+key+'" placeholder="Que ha ocurrido...">'+(estParada.incidencia_texto||'')+'</textarea></div>';
   }
-  html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+(p.notas||'')+'</textarea></div>';
+  html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+String(p.notas||'')+'</textarea></div>';
   html+='</div><div class="det-acts">';
   html+='<button class="btn-g btn-save" data-key="'+key+'" data-p="'+pEnc+'">Guardar</button>';
   if(p.es_manual)html+='<button class="btn-g del btn-del" data-id="'+p.id_manual+'">Eliminar</button>';
@@ -1418,7 +1425,41 @@ function enviarWhatsApp(gkey){
     texto+='   '+(p.cliente||'')+'\n';
     if(p.localizacion)texto+='   '+p.localizacion+'\n';
     if(p.google_maps_url)texto+='   📍 '+p.google_maps_url+'\n';
-    if(p.notas)texto+='   Notas: '+p.notas+'\n';
+    if(p.notas)texto+='   Notas: '+String(p.notas)+'\n';
+    texto+='\n';
+  });
+  window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank');
+}
+
+// ── WHATSAPP para un grupo de vehiculos COMBINADOS (paradas compartidas) ──
+function enviarWhatsAppCompartido(waKey){
+  var datos=compartidosWaData[waKey];
+  if(!datos||!datos.items||!datos.items.length){toast('Sin paradas en este grupo');return;}
+
+  var vehsArr=datos.vehs, itemsIdx=datos.items.slice(), fechaComp=datos.fecha;
+
+  var condLines=vehsArr.map(function(v){
+    var clave=fechaComp+'_'+v+'_1';
+    var conds=asignacionesConductores[clave]||[];
+    return conds.length>0?(v+': '+conds.join(', ')):null;
+  }).filter(Boolean);
+  var condStr=condLines.length>0?('\n'+condLines.join('\n')):'';
+
+  var fechas={};
+  itemsIdx.forEach(function(i){if(paradas[i].fecha)fechas[paradas[i].fecha]=1;});
+  var fechaLabel=Object.keys(fechas).sort().map(function(f){return formatDiaLargo(f);}).join(', ');
+
+  var titulo='RUTA '+vehsArr.join(' · ');
+  var texto=titulo+' - '+fechaLabel+condStr+'\n\n';
+  itemsIdx.sort(function(a,b){return(paradas[a].orden||0)-(paradas[b].orden||0);});
+  itemsIdx.forEach(function(i,pos){
+    var p=paradas[i];
+    texto+=(pos+1)+'. '+p.tipo+'\n';
+    if(p.numero)texto+='   #'+p.numero+'\n';
+    texto+='   '+(p.cliente||'')+'\n';
+    if(p.localizacion)texto+='   '+p.localizacion+'\n';
+    if(p.google_maps_url)texto+='   📍 '+p.google_maps_url+'\n';
+    if(p.notas)texto+='   Notas: '+String(p.notas)+'\n';
     texto+='\n';
   });
   window.open('https://wa.me/?text='+encodeURIComponent(texto),'_blank');
