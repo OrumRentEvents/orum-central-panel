@@ -4,89 +4,149 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ORUM Central</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --black: #1a1a1a;
+    --gray-100: #f7f6f3;
+    --gray-200: #eeecea;
+    --gray-300: #dddbd7;
+    --gray-400: #999794;
+    --gray-500: #666462;
+    --accent: #b8956a;
+    --accent-dark: #8a6d1e;
+    --accent-light: #e8d5b0;
+    --green: #2e7d52;
+    --red: #c0392b;
+    --orange: #c0620a;
+    --bg-main: #f2f0ec;
+    --bg-sidebar: #ffffff;
+    --border: #e0ddd9;
+    --text-primary: #1a1a1a;
+    --text-secondary: #555351;
+    --text-muted: #888582;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: #ffffff;
-    color: #1a1a18;
+    color: var(--text-primary);
   }
   #login-screen {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    background: #f7f6f2;
+    background: var(--bg-main);
+    position: relative;
+  }
+  #login-screen::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(184,149,106,0.10) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 50%, rgba(184,149,106,0.06) 0%, transparent 60%);
   }
   .login-box {
+    position: relative;
     background: #ffffff;
-    border: 0.5px solid #e2e2de;
-    border-radius: 12px;
-    padding: 2.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3rem 2.5rem;
     width: 100%;
-    max-width: 360px;
+    max-width: 380px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
   }
-  .login-box h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
-  .login-box p.subtitle { font-size: 13px; color: #6b6a64; margin-bottom: 1.5rem; }
-  .login-box label { display: block; font-size: 12px; color: #6b6a64; margin-bottom: 4px; margin-top: 12px; }
+  .login-box .crown { display:block; text-align:center; font-size:30px; margin-bottom:10px; }
+  .login-box h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 34px; font-weight: 900; letter-spacing: 7px;
+    margin-bottom: 6px; text-align: center; text-transform: uppercase;
+  }
+  .login-box p.subtitle {
+    font-size: 11px; color: var(--accent-dark); margin-bottom: 2.25rem; text-align: center;
+    text-transform: uppercase; letter-spacing: 3px; font-weight: 600;
+  }
+  .login-box label {
+    display: block; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--gray-500); margin-bottom: 6px; margin-top: 18px; font-weight: 500;
+  }
   .login-box input {
-    width: 100%; padding: 9px 12px; font-size: 14px;
-    border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18;
+    width: 100%; padding: 11px 14px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 2px; background: var(--gray-100); color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
   }
-  .login-box input:focus { outline: none; border-color: #378ADD; }
+  .login-box input:focus { outline: none; border-color: var(--accent); background: #fff; }
   .login-box button {
-    width: 100%; margin-top: 1.5rem; padding: 10px; font-size: 14px; font-weight: 500;
-    background: #1a1a18; color: #fff; border: none; border-radius: 8px; cursor: pointer;
+    width: 100%; margin-top: 2rem; padding: 13px; font-size: 12px; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    background: var(--black); color: #fff; border: none; border-radius: 2px; cursor: pointer;
+    transition: background 0.2s;
   }
-  .login-box button:hover { background: #333; }
-  .login-error { color: #A32D2D; font-size: 13px; margin-top: 10px; display: none; }
+  .login-box button:hover { background: var(--accent); color: var(--black); }
+  .login-error { color: var(--red); font-size: 13px; margin-top: 14px; display: none; text-align: center; }
   #app-screen { display: none; min-height: 100vh; }
   .app-layout { display: flex; min-height: 100vh; }
-  .sidebar { width: 220px; background: #f7f6f2; border-right: 0.5px solid #e2e2de; padding: 1.25rem 0; flex-shrink: 0; }
-  .sidebar-header { padding: 0 1.25rem 1rem; border-bottom: 0.5px solid #e2e2de; margin-bottom: 0.5rem; }
-  .sidebar-header .org-name { font-weight: 500; font-size: 15px; }
-  .sidebar-header .user-name { font-size: 12px; color: #6b6a64; margin-top: 2px; }
-  .nav-group-title { padding: 1rem 1.25rem 0.25rem; font-size: 11px; color: #9a988f; text-transform: uppercase; letter-spacing: 0.03em; }
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 1.25rem; font-size: 13px; color: #4a4944; cursor: pointer; border-left: 2px solid transparent; }
-  .nav-item:hover { background: #efeee9; }
-  .nav-item.active { background: #e6f1fb; border-left-color: #378ADD; color: #0C447C; font-weight: 500; }
-  .logout-button {
-    margin: 1.5rem 1.25rem 0; padding: 8px 12px; font-size: 13px;
-    border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #4a4944; cursor: pointer;
-    width: calc(100% - 2.5rem);
+  .sidebar { width: 230px; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 1.5rem 0; flex-shrink: 0; }
+  .sidebar-header { padding: 0 1.5rem 1.25rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+  .sidebar-header .org-name {
+    font-family: 'Playfair Display', serif; font-weight: 900; font-size: 20px; letter-spacing: 3px; text-transform: uppercase;
   }
-  .main-content { flex: 1; padding: 1.5rem 1.75rem; min-width: 0; }
-  .main-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
-  .main-header h1 { font-size: 22px; font-weight: 500; }
-  .last-update { font-size: 12px; color: #6b6a64; display: flex; align-items: center; gap: 6px; }
-  .last-update .dot { width: 7px; height: 7px; border-radius: 50%; background: #27500A; flex-shrink: 0; }
-  .last-update.stale .dot { background: #854F0B; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; padding: 8px 4px; color: #6b6a64; font-weight: 400; border-bottom: 0.5px solid #e2e2de; }
-  td { padding: 9px 4px; border-bottom: 0.5px solid #e2e2de; }
-  .badge { font-size: 12px; padding: 3px 9px; border-radius: 8px; display: inline-block; }
+  .sidebar-header .org-name .crown-mini { margin-right: 6px; }
+  .sidebar-header .user-name { font-size: 11px; color: var(--text-muted); margin-top: 4px; letter-spacing: 0.5px; }
+  .nav-group-title {
+    padding: 1.1rem 1.5rem 0.4rem; font-size: 10px; color: var(--gray-400);
+    text-transform: uppercase; letter-spacing: 2px; font-weight: 600;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 1.5rem; font-size: 13px;
+    color: var(--text-secondary); cursor: pointer; border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover { background: var(--gray-100); color: var(--text-primary); }
+  .nav-item.active { background: var(--accent-light); border-left-color: var(--accent); color: var(--accent-dark); font-weight: 600; }
+  .logout-button {
+    margin: 1.75rem 1.5rem 0; padding: 9px 12px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    border: 1px solid var(--border); border-radius: 2px; background: #fff; color: var(--gray-500); cursor: pointer;
+    width: calc(100% - 3rem); transition: all 0.2s;
+  }
+  .logout-button:hover { border-color: var(--red); color: var(--red); }
+  .main-content { flex: 1; padding: 2rem 2.25rem; min-width: 0; background: var(--bg-main); }
+  .main-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+  .main-header h1 { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.5px; }
+  .last-update { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; letter-spacing: 0.5px; }
+  .last-update .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .last-update.stale .dot { background: var(--orange); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
+  th {
+    text-align: left; padding: 10px 12px; color: var(--gray-500); font-weight: 600; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); background: var(--gray-100);
+  }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--gray-200); }
+  .badge { font-size: 11px; padding: 3px 10px; border-radius: 2px; display: inline-block; font-weight: 600; letter-spacing: 0.3px; }
   .badge-success { background: #EAF3DE; color: #27500A; }
   .badge-warning { background: #FAEEDA; color: #854F0B; }
   .badge-danger { background: #FCEBEB; color: #A32D2D; }
-  .badge-neutral { background: #f0efe9; color: #6b6a64; }
+  .badge-neutral { background: var(--gray-200); color: var(--gray-500); }
   .search-box { position: relative; }
   .search-box input {
-    width: 220px; padding: 6px 12px 6px 32px; font-size: 13px;
-    border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18;
+    width: 220px; padding: 7px 12px 7px 32px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 2px; background: #fff; color: var(--text-primary);
   }
   .search-box::before {
     content: "🔍"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: 0.5;
   }
-  .loading-text { color: #9a988f; font-size: 13px; padding: 2rem 0; }
-  select { padding: 6px 10px; border: 0.5px solid #e2e2de; border-radius: 8px; font-size: 13px; background: #fff; color: #1a1a18; }
-  .pnc-filtro-btn { font-size:13px; padding:6px 14px; border-radius:8px; background:#fff; color:#4a4944; border:0.5px solid #e2e2de; cursor:pointer; }
+  .loading-text { color: var(--gray-400); font-size: 13px; padding: 2rem 0; }
+  select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 2px; font-size: 13px; background: #fff; color: var(--text-primary); }
+  .pnc-filtro-btn { font-size:13px; padding:6px 14px; border-radius:2px; background:#fff; color:var(--text-secondary); border:1px solid var(--border); cursor:pointer; }
 </style>
 </head>
 <body>
 <div id="login-screen">
   <div class="login-box">
+    <span class="crown">👑</span>
     <h1>ORUM Central</h1>
-    <p class="subtitle">Accede con tu usuario y contraseña</p>
+    <p class="subtitle">Rent &amp; Events</p>
     <form id="login-form">
       <label for="usuario">Usuario</label>
       <input type="text" id="usuario" autocomplete="username" required>
@@ -101,7 +161,7 @@
   <div class="app-layout">
     <div class="sidebar">
       <div class="sidebar-header">
-        <div class="org-name">ORUM Central</div>
+        <div class="org-name"><span class="crown-mini">👑</span>ORUM Central</div>
         <div class="user-name" id="sidebar-user-name"></div>
       </div>
       <div id="nav-container"></div>
@@ -169,6 +229,55 @@ function mostrarApp() {
   construirMenu();
   cargarProyectos();
 }
+function renderProximamente(nombre) {
+  document.getElementById('content-title').textContent = nombre;
+  document.getElementById('last-update-text').textContent = 'Sin datos';
+  document.getElementById('last-update-indicator').classList.add('stale');
+  document.getElementById('content-body').innerHTML = `
+    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:3rem; text-align:center;">
+      <div style="font-size:32px; margin-bottom:12px;">🚧</div>
+      <p style="font-size:15px; color:#1a1a18; margin-bottom:6px; font-weight:500;">Todavía no conectado</p>
+      <p style="font-size:13px; color:#9a988f;">Esta sección se irá activando en próximas fases, en cuanto tenga su fuente de datos.</p>
+    </div>
+  `;
+}
+const MENU = [
+  { id: 'proyectos', icon: '📁', label: 'Proyectos', onClick: () => cargarProyectos() },
+  { id: 'fin', icon: '💶', label: 'Financiero', submenu: [
+      { id: 'fin-resumen', label: 'Resumen', onClick: () => cargarFinancieroResumen() },
+      { id: 'fin-control-pagos', label: 'Control de pagos', onClick: () => cargarFinanciero() },
+      { id: 'fin-vencidas', label: 'Vencidas y morosidad', onClick: () => cargarFinancieroVencidas() },
+      { id: 'fin-historico', label: 'Histórico mensual', onClick: () => renderProximamente('Financiero · Histórico mensual') },
+      { id: 'fin-auditoria', label: 'Auditoría / Alertas', onClick: () => cargarFinancieroAuditoria() },
+      { id: 'fin-rentabilidad', label: 'Rentabilidad', onClick: () => renderProximamente('Financiero · Rentabilidad') },
+      { id: 'fin-evolucion', label: 'Evolución', onClick: () => renderProximamente('Financiero · Evolución') },
+  ]},
+  { id: 'comercial', icon: '⭐', label: 'Comercial', submenu: [
+      { id: 'com-resumen', label: 'Resumen equipo', onClick: () => renderProximamente('Comercial · Resumen equipo') },
+      { id: 'com-proyectos', label: 'Proyectos', onClick: () => renderProximamente('Comercial · Proyectos') },
+      { id: 'com-fianzas', label: 'Fianzas', onClick: () => renderProximamente('Fianzas') },
+      { id: 'com-comisiones', label: 'Comisiones', onClick: () => renderProximamente('Comisiones') },
+  ]},
+  { id: 'informe', icon: '📊', label: 'Informe Mensual', especial: true, onClick: () => {
+      const hoy = new Date();
+      window.open('/api/reporte-mes?mes=' + (hoy.getMonth() + 1) + '&año=' + hoy.getFullYear(), '_blank');
+  }},
+  { id: 'log', icon: '🧺', label: 'Logística', submenu: [
+      { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
+      { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
+      { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
+      { id: 'log-rutas', label: 'Rutas & Conductores', onClick: () => renderProximamente('Rutas & Conductores') },
+      { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
+  ]},
+  { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
+  { id: 'mantenimiento', icon: '🔧', label: 'Mantenimiento', onClick: () => renderProximamente('Mantenimiento') },
+  { id: 'caja', icon: '💰', label: 'Caja', onClick: () => renderProximamente('Caja') },
+  { id: 'fact', icon: '🧾', label: 'Facturas Proveedores', submenu: [
+      { id: 'fact-listado', label: 'Listado', onClick: () => cargarFacturasProveedores() },
+      { id: 'fact-config', label: 'Configurar proveedores', onClick: () => cargarConfiguracionProveedores() },
+  ]},
+  { id: 'muelle', icon: '🚛', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
+];
 function construirMenu() {
   const nav = document.getElementById('nav-container');
   nav.innerHTML = '';
@@ -176,109 +285,52 @@ function construirMenu() {
   grupoTitle.className = 'nav-group-title';
   grupoTitle.textContent = usuarioActual.rol;
   nav.appendChild(grupoTitle);
-  const itemProyectos = document.createElement('div');
-  itemProyectos.className = 'nav-item active';
-  itemProyectos.id = 'menu-item-proyectos';
-  itemProyectos.textContent = '📁 Proyectos';
-  itemProyectos.onclick = () => { marcarMenuActivo('menu-item-proyectos'); cargarProyectos(); };
-  nav.appendChild(itemProyectos);
-  const itemFinanciero = document.createElement('div');
-  itemFinanciero.className = 'nav-item';
-  itemFinanciero.style.fontWeight = '500';
-  itemFinanciero.style.cursor = 'pointer';
-  itemFinanciero.textContent = '💶 Financiero';
-  itemFinanciero.onclick = () => { marcarMenuActivo('menu-item-fin-resumen'); cargarFinancieroResumen(); };
-  nav.appendChild(itemFinanciero);
-  const submenu = document.createElement('div');
-  submenu.style.paddingLeft = '1.25rem';
-  const subitems = [
-    { id: 'fin-resumen', label: 'Resumen', activo: true, onClick: () => cargarFinancieroResumen() },
-    { id: 'fin-control-pagos', label: 'Control de pagos', activo: true, onClick: () => cargarFinanciero() },
-    { id: 'fin-vencidas', label: 'Vencidas y morosidad', activo: true, onClick: () => cargarFinancieroVencidas() },
-    { id: 'fin-historico', label: 'Histórico mensual', activo: false },
-    { id: 'fin-auditoria', label: 'Auditoría / Alertas', activo: true, onClick: () => cargarFinancieroAuditoria() },
-  ];
-  subitems.forEach(item => {
-    const el = document.createElement('div');
-    el.id = 'menu-item-' + item.id;
-    el.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:' + (item.activo ? 'pointer' : 'default') + '; color:' + (item.activo ? '#4a4944' : '#b8b6ad') + ';';
-    el.textContent = item.label;
-    if (item.activo) { el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); }; }
-    submenu.appendChild(el);
+  MENU.forEach(item => {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'nav-item';
+    itemEl.id = 'menu-item-' + item.id;
+    itemEl.style.fontWeight = '500';
+    itemEl.style.cursor = 'pointer';
+    itemEl.textContent = item.icon + ' ' + item.label;
+    if (item.especial) {
+      itemEl.onclick = item.onClick;
+    } else if (item.submenu) {
+      itemEl.onclick = () => { const first = item.submenu[0]; marcarMenuActivo('menu-item-' + first.id); first.onClick(); };
+    } else {
+      itemEl.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
+    }
+    nav.appendChild(itemEl);
+    if (item.submenu) {
+      const submenuEl = document.createElement('div');
+      submenuEl.style.paddingLeft = '1.25rem';
+      item.submenu.forEach(sub => {
+        const subEl = document.createElement('div');
+        subEl.className = 'nav-subitem';
+        subEl.id = 'menu-item-' + sub.id;
+        subEl.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:var(--text-secondary);';
+        subEl.textContent = sub.label;
+        subEl.onclick = () => { marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); };
+        submenuEl.appendChild(subEl);
+      });
+      nav.appendChild(submenuEl);
+    }
   });
-  nav.appendChild(submenu);
-  const itemInformeMensual = document.createElement('div');
-  itemInformeMensual.className = 'nav-item';
-  itemInformeMensual.style.fontWeight = '500';
-  itemInformeMensual.style.cursor = 'pointer';
-  itemInformeMensual.textContent = '📊 Informe Mensual';
-  itemInformeMensual.onclick = () => {
-    const hoy = new Date();
-    const mes = hoy.getMonth() + 1;
-    const anio = hoy.getFullYear();
-    window.open('/api/reporte-mes?mes=' + mes + '&año=' + anio, '_blank');
-  };
-  nav.appendChild(itemInformeMensual);
-  const itemLogistica = document.createElement('div');
-  itemLogistica.className = 'nav-item';
-  itemLogistica.style.fontWeight = '500';
-  itemLogistica.style.cursor = 'pointer';
-  itemLogistica.textContent = '🧺 Logística';
-  itemLogistica.onclick = () => { marcarMenuActivo('menu-item-prep-lavanderia'); cargarPreparacion('lavanderia'); };
-  nav.appendChild(itemLogistica);
-  const submenuPrep = document.createElement('div');
-  submenuPrep.style.paddingLeft = '1.25rem';
-  const subitemsPrep = [
-    { id: 'prep-lavanderia', label: 'Lavandería', vista: 'lavanderia' },
-    { id: 'prep-office', label: 'Office', vista: 'office' },
-    { id: 'prep-almacen', label: 'Almacén', vista: 'almacen' },
-  ];
-  subitemsPrep.forEach(item => {
-    const el = document.createElement('div');
-    el.id = 'menu-item-' + item.id;
-    el.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:#4a4944;';
-    el.textContent = item.label;
-    el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); cargarPreparacion(item.vista); };
-    submenuPrep.appendChild(el);
-  });
-  nav.appendChild(submenuPrep);
-  const itemFacturas = document.createElement('div');
-  itemFacturas.className = 'nav-item';
-  itemFacturas.style.fontWeight = '500';
-  itemFacturas.style.cursor = 'pointer';
-  itemFacturas.textContent = '🧾 Facturas Proveedores';
-  itemFacturas.onclick = () => { marcarMenuActivo('menu-item-fact-listado'); cargarFacturasProveedores(); };
-  nav.appendChild(itemFacturas);
-  const submenuFacturas = document.createElement('div');
-  submenuFacturas.style.paddingLeft = '1.25rem';
-  const subitemsFacturas = [
-    { id: 'fact-listado', label: 'Listado', onClick: () => cargarFacturasProveedores() },
-    { id: 'fact-config', label: 'Configurar proveedores', onClick: () => cargarConfiguracionProveedores() },
-  ];
-  subitemsFacturas.forEach(item => {
-    const el = document.createElement('div');
-    el.id = 'menu-item-' + item.id;
-    el.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:#4a4944;';
-    el.textContent = item.label;
-    el.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
-    submenuFacturas.appendChild(el);
-  });
-  nav.appendChild(submenuFacturas);
+  marcarMenuActivo('menu-item-proyectos');
 }
 function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('[id^="menu-item-fin-"], [id^="menu-item-prep-"], [id^="menu-item-fact-"]').forEach(el => {
+  document.querySelectorAll('.nav-subitem').forEach(el => {
     el.style.background = 'transparent';
     el.style.borderLeft = '2px solid transparent';
-    el.style.color = '#4a4944';
+    el.style.color = 'var(--text-secondary)';
     el.style.fontWeight = 'normal';
   });
   const el = document.getElementById(idActivo);
   if (!el) return;
-  if (el.id.startsWith('menu-item-fin-') || el.id.startsWith('menu-item-prep-') || el.id.startsWith('menu-item-fact-')) {
-    el.style.background = '#e6f1fb';
-    el.style.borderLeft = '2px solid #378ADD';
-    el.style.color = '#0C447C';
+  if (el.classList.contains('nav-subitem')) {
+    el.style.background = '#f3ead9';
+    el.style.borderLeft = '2px solid #b8956a';
+    el.style.color = '#8a6d1e';
     el.style.fontWeight = '500';
   } else {
     el.classList.add('active');
@@ -1056,7 +1108,7 @@ function pintarFinanciero() {
 }
 function estiloTab(activa) {
   return activa
-    ? 'font-weight:500; color:#0C447C; border-bottom:2px solid #378ADD;'
+    ? 'font-weight:500; color:#8a6d1e; border-bottom:2px solid #b8956a;'
     : 'color:#6b6a64; border-bottom:2px solid transparent;';
 }
 function cambiarPestanaFinanciero(pestana) {
@@ -1304,7 +1356,7 @@ function filtrarProyectosFin(modo) {
 function actualizarEstiloBotonesProyectosFin() {
   const activo = window.filtroProyectosFinActivo;
   const estilo = (esActivo) => 'font-size:13px; padding:6px 14px; border-radius:8px; ' + (esActivo
-    ? 'background:#e6f1fb; color:#0C447C; border:0.5px solid #B5D4F4;'
+    ? 'background:#f3ead9; color:#8a6d1e; border:0.5px solid #e0cba6;'
     : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;');
   document.getElementById('btn-proy-todos').style.cssText = estilo(activo === 'todos');
   document.getElementById('btn-proy-pend-facturar').style.cssText = estilo(activo === 'pend-facturar');
@@ -1426,11 +1478,11 @@ function actualizarEstiloBotonesPNC() {
   const activo = window.filtroPNCActivo;
   document.getElementById('btn-pnc-todos').style.cssText =
     'font-size:13px; padding:6px 14px; border-radius:8px; ' + (activo === 'todos'
-      ? 'background:#e6f1fb; color:#0C447C; border:0.5px solid #B5D4F4;'
+      ? 'background:#f3ead9; color:#8a6d1e; border:0.5px solid #e0cba6;'
       : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;');
   document.getElementById('btn-pnc-no-cuadran').style.cssText =
     'font-size:13px; padding:6px 14px; border-radius:8px; ' + (activo === 'no-cuadran'
-      ? 'background:#e6f1fb; color:#0C447C; border:0.5px solid #B5D4F4;'
+      ? 'background:#f3ead9; color:#8a6d1e; border:0.5px solid #e0cba6;'
       : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;');
 }
 function aplicarFiltrosPNC() {
@@ -1552,9 +1604,9 @@ function pintarFacturasProveedores() {
     const activo = facturasFiltroDepartamentoActivo === d.departamento;
     return `
       <div onclick="filtrarFacturasPorDepartamento('${d.departamento.replace(/'/g, "\\'")}')"
-        style="cursor:pointer; background:${activo ? '#e6f1fb' : '#f7f6f2'}; border:0.5px solid ${activo ? '#B5D4F4' : '#e2e2de'}; border-radius:8px; padding:0.75rem 1rem; min-width:150px;">
-        <p style="font-size:12px; color:${activo ? '#0C447C' : '#6b6a64'}; margin:0 0 4px;">${d.departamento}</p>
-        <p style="font-size:17px; font-weight:500; margin:0; color:${activo ? '#0C447C' : '#1a1a18'};">${euros(d.total)}</p>
+        style="cursor:pointer; background:${activo ? '#f3ead9' : '#f7f6f2'}; border:0.5px solid ${activo ? '#e0cba6' : '#e2e2de'}; border-radius:8px; padding:0.75rem 1rem; min-width:150px;">
+        <p style="font-size:12px; color:${activo ? '#8a6d1e' : '#6b6a64'}; margin:0 0 4px;">${d.departamento}</p>
+        <p style="font-size:17px; font-weight:500; margin:0; color:${activo ? '#8a6d1e' : '#1a1a18'};">${euros(d.total)}</p>
       </div>
     `;
   }).join('');
@@ -1911,3 +1963,4 @@ comprobarSesion();
 </script>
 </body>
 </html>
+
