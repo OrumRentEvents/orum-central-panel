@@ -121,7 +121,9 @@
   th {
     text-align: left; padding: 10px 12px; color: var(--gray-500); font-weight: 600; font-size: 10px;
     text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); background: var(--gray-100);
+    position: sticky; top: 0; z-index: 3; box-shadow: 0 1px 0 var(--border);
   }
+  th[onclick]:hover { color: var(--accent-dark); background: var(--gray-200); }
   td { padding: 11px 12px; border-bottom: 1px solid var(--gray-200); }
   .badge { font-size: 11px; padding: 3px 10px; border-radius: 2px; display: inline-block; font-weight: 600; letter-spacing: 0.3px; }
   .badge-success { background: #EAF3DE; color: #27500A; }
@@ -403,21 +405,40 @@ function pintarResumenFinanciero(data) {
       </div>
     </div>
     <p style="font-size: 13px; font-weight: 500; color: #1a1a18; margin: 0 0 10px;">Top 20 clientes con pendiente de cobro</p>
+    <div id="top-clientes-tabla"></div>
+  `;
+  body.innerHTML = html;
+  window.topClientesDataActual = data.top_clientes_pendientes;
+  renderTablaTopClientes(window.topClientesDataActual);
+}
+let ordenTopClientes = { campo: 'pendiente', asc: false };
+function cambiarOrdenTopClientes(campo) {
+  if (ordenTopClientes.campo === campo) ordenTopClientes.asc = !ordenTopClientes.asc;
+  else { ordenTopClientes.campo = campo; ordenTopClientes.asc = true; }
+  renderTablaTopClientes(window.topClientesDataActual);
+}
+function flechaOrdenTopClientes(campo) {
+  if (ordenTopClientes.campo !== campo) return '';
+  return ordenTopClientes.asc ? ' ▲' : ' ▼';
+}
+function renderTablaTopClientes(listaOriginal) {
+  const lista = ordenarLista(listaOriginal || [], ordenTopClientes);
+  let html = `
     <table>
       <thead>
         <tr>
-          <th>Cliente</th>
-          <th>Comercial</th>
-          <th>Proyectos</th>
-          <th style="text-align:right;">Pendiente</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenTopClientes('cliente')">Cliente${flechaOrdenTopClientes('cliente')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenTopClientes('comercial')">Comercial${flechaOrdenTopClientes('comercial')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenTopClientes('proyectos')">Proyectos${flechaOrdenTopClientes('proyectos')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenTopClientes('pendiente')">Pendiente${flechaOrdenTopClientes('pendiente')}</th>
         </tr>
       </thead>
       <tbody>
   `;
-  if (data.top_clientes_pendientes.length === 0) {
+  if (lista.length === 0) {
     html += '<tr><td colspan="4" style="padding:1.5rem 4px; color:#9a988f;">No hay pendientes de cobro.</td></tr>';
   }
-  data.top_clientes_pendientes.forEach(c => {
+  lista.forEach(c => {
     html += `
       <tr>
         <td>${c.cliente}</td>
@@ -428,7 +449,7 @@ function pintarResumenFinanciero(data) {
     `;
   });
   html += '</tbody></table>';
-  body.innerHTML = html;
+  document.getElementById('top-clientes-tabla').innerHTML = html;
 }
 function irAControlPagosConFiltro(tipo) {
   marcarMenuActivo('menu-item-fin-control-pagos');
@@ -485,12 +506,12 @@ function pintarVencidas(data) {
     <table>
       <thead>
         <tr>
-          <th>Nº Factura</th>
-          <th>Fecha vencimiento</th>
-          <th style="text-align:right;">Días de retraso</th>
-          <th>Cliente</th>
-          <th>Comercial</th>
-          <th style="text-align:right;">Pendiente</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenVencidas('numero_factura')">Nº Factura${flechaOrdenVencidas('numero_factura')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenVencidas('fecha_vencimiento')">Fecha vencimiento${flechaOrdenVencidas('fecha_vencimiento')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenVencidas('dias_retraso')">Días de retraso${flechaOrdenVencidas('dias_retraso')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenVencidas('cliente')">Cliente${flechaOrdenVencidas('cliente')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenVencidas('comercial')">Comercial${flechaOrdenVencidas('comercial')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenVencidas('pendiente_cobro')">Pendiente${flechaOrdenVencidas('pendiente_cobro')}</th>
         </tr>
       </thead>
       <tbody id="tabla-vencidas-body"></tbody>
@@ -511,8 +532,19 @@ function aplicarFiltroVencidas() {
   }
   renderTablaVencidas(filtradas);
 }
-function renderTablaVencidas(lista) {
+let ordenVencidas = { campo: 'dias_retraso', asc: false };
+function cambiarOrdenVencidas(campo) {
+  if (ordenVencidas.campo === campo) ordenVencidas.asc = !ordenVencidas.asc;
+  else { ordenVencidas.campo = campo; ordenVencidas.asc = true; }
+  aplicarFiltroVencidas();
+}
+function flechaOrdenVencidas(campo) {
+  if (ordenVencidas.campo !== campo) return '';
+  return ordenVencidas.asc ? ' ▲' : ' ▼';
+}
+function renderTablaVencidas(listaOriginal) {
   const tbody = document.getElementById('tabla-vencidas-body');
+  const lista = ordenarLista(listaOriginal, ordenVencidas);
   if (lista.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay facturas vencidas con este filtro.</td></tr>';
     return;
@@ -1240,8 +1272,13 @@ function ordenarLista(lista, orden) {
   const copia = [...lista];
   copia.sort((a, b) => {
     let va = a[orden.campo], vb = b[orden.campo];
-    if (orden.campo.startsWith('fecha')) {
+    if (Array.isArray(va) || Array.isArray(vb)) {
+      va = (Array.isArray(va) ? va.join(', ') : (va || '')).toLowerCase();
+      vb = (Array.isArray(vb) ? vb.join(', ') : (vb || '')).toLowerCase();
+    } else if (orden.campo.startsWith('fecha')) {
       va = parsearFechaDDMMYYYY(va); vb = parsearFechaDDMMYYYY(vb);
+    } else if (typeof va === 'boolean' || typeof vb === 'boolean') {
+      va = va ? 1 : 0; vb = vb ? 1 : 0;
     } else if (typeof va === 'string') {
       va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
     } else {
@@ -1281,12 +1318,12 @@ function renderTablaFacturas(lista) {
           <th style="cursor:pointer;" onclick="cambiarOrden('facturas','fecha_entrega')">Fecha proyecto${flechaOrden('facturas','fecha_entrega')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrden('facturas','cliente')">Cliente${flechaOrden('facturas','cliente')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrden('facturas','comercial')">Comercial${flechaOrden('facturas','comercial')}</th>
-          <th>Estado proyecto</th>
+          <th style="cursor:pointer;" onclick="cambiarOrden('facturas','estado_proyecto')">Estado proyecto${flechaOrden('facturas','estado_proyecto')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrden('facturas','importe_con_iva')">Importe${flechaOrden('facturas','importe_con_iva')}</th>
-          <th style="text-align:right;">Cobrado</th>
-          <th>Estado factura</th>
-          <th>Forma de pago</th>
-          <th></th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrden('facturas','importe_cobrado_real')">Cobrado${flechaOrden('facturas','importe_cobrado_real')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrden('facturas','esta_pagada')">Estado factura${flechaOrden('facturas','esta_pagada')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrden('facturas','forma_pago')">Forma de pago${flechaOrden('facturas','forma_pago')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrden('facturas','cuadra_con_cobro')">Cuadra${flechaOrden('facturas','cuadra_con_cobro')}</th>
         </tr>
       </thead>
       <tbody>
@@ -1392,14 +1429,14 @@ function renderTablaProyectosFin(lista) {
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('fecha_entrega')">Fecha${flechaOrdenProyectosFin('fecha_entrega')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('cliente')">Cliente${flechaOrdenProyectosFin('cliente')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('comercial')">Comercial${flechaOrdenProyectosFin('comercial')}</th>
-          <th>Estado</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('estado')">Estado${flechaOrdenProyectosFin('estado')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('valor_proyecto_sin_iva')">Valor s/IVA${flechaOrdenProyectosFin('valor_proyecto_sin_iva')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('valor_proyecto')">Valor c/IVA${flechaOrdenProyectosFin('valor_proyecto')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('total_facturado')">Facturado${flechaOrdenProyectosFin('total_facturado')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('total_cobrado')">Cobrado${flechaOrdenProyectosFin('total_cobrado')}</th>
-          <th style="text-align:right;">Pend. facturar</th>
-          <th style="text-align:right;">Pend. cobrar</th>
-          <th>Forma de pago</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('pendiente_facturar')">Pend. facturar${flechaOrdenProyectosFin('pendiente_facturar')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectosFin('pendiente_cobrar')">Pend. cobrar${flechaOrdenProyectosFin('pendiente_cobrar')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectosFin('formas_pago')">Forma de pago${flechaOrdenProyectosFin('formas_pago')}</th>
         </tr>
       </thead>
       <tbody>
@@ -1517,7 +1554,7 @@ function renderTablaPNC(lista) {
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrden('pnc','valor_esperado')">Esperado${flechaOrden('pnc','valor_esperado')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrden('pnc','total_cobrado_formulario')">Cobrado${flechaOrden('pnc','total_cobrado_formulario')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrden('pnc','diferencia')">Diferencia${flechaOrden('pnc','diferencia')}</th>
-          <th></th>
+          <th style="cursor:pointer;" onclick="cambiarOrden('pnc','cuadra')">Cuadra${flechaOrden('pnc','cuadra')}</th>
         </tr>
       </thead>
       <tbody>
