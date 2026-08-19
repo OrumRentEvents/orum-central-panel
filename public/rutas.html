@@ -228,9 +228,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="modal">
   <div class="modal-box">
-    <div class="modal-hdr"><h2>Anadir parada manual</h2><button class="modal-cls" id="mcls">X</button></div>
+    <div class="modal-hdr"><h2 id="modal-title">Anadir parada manual</h2><button class="modal-cls" id="mcls">X</button></div>
     <div class="modal-form">
       <div><label>Tipo</label><select id="m-tipo"><option value="ENTREGA">Entrega</option><option value="RECOGIDA">Recogida</option><option value="COMPRA">Compra</option><option value="TALLER">Taller</option><option value="OTRO">Otro</option></select></div>
+      <div><label>Nº Proyecto (opcional)</label><input type="text" id="m-numero" placeholder="Ej: 1721"></div>
       <div><label>Descripcion</label><input type="text" id="m-desc" placeholder="Ej: Recoger manteles sucios Marbella"></div>
       <div><label>Direccion</label><input type="text" id="m-dir" placeholder="Calle, ciudad..."></div>
       <div class="form-row"><div><label>Fecha</label><input type="date" id="m-fecha"></div></div>
@@ -751,7 +752,7 @@ function renderFila(idx,gkey){
   var key='p'+idx+'_'+gkey.replace(/[^a-zA-Z0-9]/g,'');
   var tipo=(p.tipo||'OTRO').toLowerCase();
   var bc=p.es_manual?'b-manual':('b-'+tipo);
-  var bt=p.es_manual?'MANUAL':p.tipo;
+  var bt=p.tipo||'OTRO';
   var esOk=['returned','cargado','marbella','on location','controlado','preparado'].some(function(x){return(p.estado||'').toLowerCase().indexOf(x)!==-1;});
   var estH=p.estado?('<span class="be '+(esOk?'be-ok':'be-cf')+'">'+p.estado+'</span>'):'';
   var mapsH=p.google_maps_url?('<a href="'+p.google_maps_url+'" target="_blank" class="a-maps">Maps</a>'):'';
@@ -823,7 +824,7 @@ function renderFila(idx,gkey){
   html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+String(p.notas||'')+'</textarea></div>';
   html+='</div><div class="det-acts">';
   html+='<button class="btn-g btn-save" data-key="'+key+'" data-p="'+pEnc+'">Guardar</button>';
-  if(p.es_manual)html+='<button class="btn-g del btn-del" data-id="'+p.id_manual+'">Eliminar</button>';
+  if(p.es_manual)html+='<button class="btn-g btn-edit-manual" data-idx="'+idx+'">Editar</button><button class="btn-g del btn-del" data-id="'+p.id_manual+'">Eliminar</button>';
   html+='<span class="msg-ok" id="msg-'+key+'"></span>';
   html+='</div></td></tr>';
   return html;
@@ -942,6 +943,11 @@ function bindEvents(){
   // Eliminar manual
   document.querySelectorAll('.btn-del').forEach(function(btn){
     btn.addEventListener('click',function(){eliminarManual(btn.getAttribute('data-id'));});
+  });
+
+  // Editar manual
+  document.querySelectorAll('.btn-edit-manual').forEach(function(btn){
+    btn.addEventListener('click',function(){editarManual(parseInt(btn.getAttribute('data-idx')));});
   });
 
   // ── CAMBIO 3: Drag & drop entre grupos ──
@@ -1203,24 +1209,62 @@ function initVehs(){
     });
   }
 }
-function abrirModal(){
-  document.getElementById('m-fecha').value=document.getElementById('fpicker').value||hoy();
-  ['m-desc','m-dir','m-notas'].forEach(function(id){document.getElementById(id).value='';});
+var manualEditId=null;
+function abrirModal(p){
+  var esEdicion=!!(p&&p.es_manual);
+  manualEditId=esEdicion?p.id_manual:null;
+  var titulo=document.getElementById('modal-title');
+  if(titulo)titulo.textContent=esEdicion?'Editar parada manual':'Anadir parada manual';
+  var btnGm=document.getElementById('btn-gm');
+  if(btnGm)btnGm.textContent=esEdicion?'Guardar cambios':'Guardar parada';
+  if(esEdicion){
+    document.getElementById('m-tipo').value=p.tipo||'OTRO';
+    document.getElementById('m-numero').value=p.numero||'';
+    document.getElementById('m-desc').value=p.cliente||'';
+    document.getElementById('m-dir').value=p.localizacion||'';
+    document.getElementById('m-fecha').value=p.fecha||hoy();
+    document.getElementById('m-notas').value=p.notas||'';
+  }else{
+    document.getElementById('m-fecha').value=document.getElementById('fpicker').value||hoy();
+    ['m-desc','m-dir','m-notas','m-numero'].forEach(function(id){document.getElementById(id).value='';});
+  }
   var cont=document.getElementById('m-vehs-checks');
-  if(cont)cont.querySelectorAll('input[type=checkbox]').forEach(function(chk){chk.checked=false;chk.closest('.veh-check-lbl').classList.remove('seleccionado');});
+  if(cont){
+    var vehsSel=esEdicion?getVehsParada(p):[];
+    cont.querySelectorAll('input[type=checkbox]').forEach(function(chk){
+      var marcado=vehsSel.indexOf(chk.value)!==-1;
+      chk.checked=marcado;
+      chk.closest('.veh-check-lbl').classList.toggle('seleccionado',marcado);
+    });
+  }
   document.getElementById('modal').classList.add('open');
   document.body.style.overflow='hidden';
 }
-function cerrarModal(){document.getElementById('modal').classList.remove('open');document.body.style.overflow='';}
+function editarManual(idx){
+  var p=paradas[idx];
+  if(!p||!p.es_manual)return;
+  abrirModal(p);
+}
+function cerrarModal(){
+  document.getElementById('modal').classList.remove('open');
+  document.body.style.overflow='';
+  manualEditId=null;
+  var titulo=document.getElementById('modal-title');
+  if(titulo)titulo.textContent='Anadir parada manual';
+  var btnGm=document.getElementById('btn-gm');
+  if(btnGm)btnGm.textContent='Guardar parada';
+}
 function guardarManual(){
   var vehs=[];
   var cont=document.getElementById('m-vehs-checks');
   if(cont)cont.querySelectorAll('input[type=checkbox]:checked').forEach(function(chk){vehs.push(chk.value);});
-  var body={action:'add_manual',tipo:document.getElementById('m-tipo').value,descripcion:document.getElementById('m-desc').value,direccion:document.getElementById('m-dir').value,fecha:document.getElementById('m-fecha').value,vehiculo:vehsAString(vehs),notas:document.getElementById('m-notas').value};
+  var editando=!!manualEditId;
+  var body={action:editando?'update_manual':'add_manual',tipo:document.getElementById('m-tipo').value,numero:document.getElementById('m-numero').value,descripcion:document.getElementById('m-desc').value,direccion:document.getElementById('m-dir').value,fecha:document.getElementById('m-fecha').value,vehiculo:vehsAString(vehs),notas:document.getElementById('m-notas').value};
+  if(editando)body.id=manualEditId;
   if(!body.descripcion){alert('La descripcion es obligatoria');return;}
   if(!body.fecha){alert('La fecha es obligatoria');return;}
   var btn=document.getElementById('btn-gm');btn.textContent='Guardando...';btn.disabled=true;
-  apiPost(body).then(function(){cerrarModal();toast('Parada anadida');load();btn.textContent='Guardar parada';btn.disabled=false;}).catch(function(){btn.textContent='Error';btn.disabled=false;});
+  apiPost(body).then(function(){cerrarModal();toast(editando?'Parada actualizada':'Parada anadida');load();btn.textContent='Guardar parada';btn.disabled=false;}).catch(function(){btn.textContent='Error';btn.disabled=false;});
 }
 
 // ── MODAL CONDUCTORES POR VEHÍCULO ──
