@@ -601,7 +601,7 @@ app.post('/api/rutas/manual', async (req, res) => {
     logHistorialRutas(usuario, req.body.action || 'set_asignacion', {
       clave: req.body.clave, id: req.body.id, proyecto_id: req.body.proyecto_id, tipo: req.body.tipo,
       fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, notas: req.body.notas,
-      descripcion: req.body.descripcion, direccion: req.body.direccion
+      descripcion: req.body.descripcion, direccion: req.body.direccion, numero: req.body.numero
     });
     res.json(data);
   } catch (err) {
