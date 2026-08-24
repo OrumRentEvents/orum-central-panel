@@ -2122,6 +2122,52 @@ function leyendaDonut(segmentos) {
     </div>
   `).join('');
 }
+const NOMBRES_MES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+function evolucionMensualPresupuestos(presupuestos) {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mesActual = hoy.getMonth(); // 0-11
+  const meses = [];
+  for (let m = 0; m <= mesActual; m++) {
+    meses.push({ label: NOMBRES_MES[m], mes: m, emitidos: 0, aceptados: 0, cancelados: 0 });
+  }
+  presupuestos.forEach(p => {
+    if (!p.fecha_emision) return;
+    const partes = String(p.fecha_emision).split('/'); // dd/MM/yyyy
+    if (partes.length !== 3) return;
+    const mesPresu = parseInt(partes[1], 10) - 1;
+    const anioPresu = parseInt(partes[2], 10);
+    if (anioPresu !== anio || mesPresu < 0 || mesPresu > mesActual) return;
+    const bucket = meses[mesPresu];
+    bucket.emitidos++;
+    if (p.semaforo === 'ganado') bucket.aceptados++;
+    else if (p.semaforo === 'perdido') bucket.cancelados++;
+  });
+  return meses;
+}
+function graficoBarrasMensuales(meses) {
+  const alturaMax = 130;
+  const maxVal = Math.max(1, ...meses.flatMap(m => [m.emitidos, m.aceptados, m.cancelados]));
+  return `
+    <div style="display:flex; align-items:flex-end; gap:10px; height:${alturaMax + 26}px; overflow-x:auto;">
+      ${meses.map(m => `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; min-width:44px;">
+          <div style="display:flex; align-items:flex-end; gap:3px; height:${alturaMax}px;" title="${m.label}: ${m.emitidos} emitidos, ${m.aceptados} aceptados, ${m.cancelados} cancelados">
+            <div style="width:11px; background:#9a988f; height:${Math.max(2, Math.round(m.emitidos / maxVal * alturaMax))}px; border-radius:2px 2px 0 0;"></div>
+            <div style="width:11px; background:#4c8c1f; height:${Math.max(2, Math.round(m.aceptados / maxVal * alturaMax))}px; border-radius:2px 2px 0 0;"></div>
+            <div style="width:11px; background:#A32D2D; height:${Math.max(2, Math.round(m.cancelados / maxVal * alturaMax))}px; border-radius:2px 2px 0 0;"></div>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted);">${m.label}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="display:flex; gap:16px; margin-top:10px; font-size:12px; justify-content:center;">
+      <span><span style="display:inline-block;width:9px;height:9px;background:#9a988f;border-radius:2px;margin-right:5px;"></span>Emitidos</span>
+      <span><span style="display:inline-block;width:9px;height:9px;background:#4c8c1f;border-radius:2px;margin-right:5px;"></span>Aceptados</span>
+      <span><span style="display:inline-block;width:9px;height:9px;background:#A32D2D;border-radius:2px;margin-right:5px;"></span>Cancelados</span>
+    </div>
+  `;
+}
 function pintarResumenComercial(proyectos, presupuestos, leads) {
   const body = document.getElementById('content-body');
   const totalProyectos = proyectos.length;
@@ -2143,10 +2189,16 @@ function pintarResumenComercial(proyectos, presupuestos, leads) {
       ${kpiCard('Presupuestos pendientes de seguimiento', alertas.length)}
       ${kpiCard('Leads recibidos', leads.length)}
     </div>
-    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1.25rem; display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap;">
-      <div style="font-weight:600; width:100%;">Presupuestos por estado</div>
-      ${donutSVG(segmentosPresu)}
-      <div style="flex:1; min-width:140px;">${leyendaDonut(segmentosPresu)}</div>
+    <div style="display:flex; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;">
+      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:1; min-width:280px; display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap;">
+        <div style="font-weight:600; width:100%;">Presupuestos por estado</div>
+        ${donutSVG(segmentosPresu)}
+        <div style="flex:1; min-width:140px;">${leyendaDonut(segmentosPresu)}</div>
+      </div>
+      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:2; min-width:340px;">
+        <div style="font-weight:600; margin-bottom:8px;">Evolución mensual (desde enero)</div>
+        ${graficoBarrasMensuales(evolucionMensualPresupuestos(presupuestos))}
+      </div>
     </div>
   `;
   if (alertas.length > 0) {
