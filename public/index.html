@@ -2035,8 +2035,8 @@ function filaProyecto(p) {
       <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero || ''}', event)" title="Clic para copiar">${p.numero || ''}</td>
       <td>${p.cliente || ''}</td>
       <td>${p.comercial || ''}</td>
-      <td>${p.fecha_creacion || ''}</td>
-      <td>${p.evento_inicio || ''}</td>
+      <td>${(p.fecha_creacion || '').split(' ')[0]}</td>
+      <td>${(p.evento_inicio || '').split(' ')[0]}</td>
       <td><span class="badge ${badgeClass}">${p.estado || ''}</span></td>
       <td style="text-align:right;">${formatearEuros(p.valor)}</td>
     </tr>
