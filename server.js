@@ -38,12 +38,33 @@ app.use(session({
   }
 }));
 
+// Caché en memoria de las respuestas de ORUM CENTRAL (Apps Script). Apps
+// Script tarda varios segundos en leer hojas grandes (PROYECTOS ya tiene
+// 1750+ filas) — con esto, cualquier petición repetida en los siguientes
+// segundos (cambiar de pestaña, otro usuario pidiendo lo mismo) se sirve
+// al instante en vez de releer la hoja entera cada vez.
+const CACHE_ORUM_CENTRAL = new Map(); // action -> { data, timestamp }
+const CACHE_TTL_MS = 45 * 1000;
+
 async function llamarOrumCentral(action, extraParams = {}) {
+  // Solo cacheamos llamadas simples (sin parámetros extra) y nunca 'usuarios'
+  // (login/contraseñas: siempre al día, coste bajo por ser poco frecuente).
+  const cacheable = Object.keys(extraParams).length === 0 && action !== 'usuarios';
+  if (cacheable) {
+    const cacheado = CACHE_ORUM_CENTRAL.get(action);
+    if (cacheado && (Date.now() - cacheado.timestamp) < CACHE_TTL_MS) {
+      // Copia superficial: varias rutas hacen "resultado.data = resultado.data.filter(...)"
+      // — sin esto, esa reasignación mutaría el objeto cacheado para todo el mundo.
+      return { ...cacheado.data };
+    }
+  }
   const params = new URLSearchParams({ token: APPS_SCRIPT_TOKEN, action, ...extraParams });
   const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Apps Script respondió con status ${resp.status}`);
-  return resp.json();
+  const data = await resp.json();
+  if (cacheable && !data.error) CACHE_ORUM_CENTRAL.set(action, { data, timestamp: Date.now() });
+  return data;
 }
 
 async function llamarOrumCentralPost(body) {
