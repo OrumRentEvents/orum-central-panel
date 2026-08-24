@@ -130,6 +130,7 @@
   .badge-warning { background: #FAEEDA; color: #854F0B; }
   .badge-danger { background: #FCEBEB; color: #A32D2D; }
   .badge-neutral { background: var(--gray-200); color: var(--gray-500); }
+  .badge-dark { background: #2a2a2a; color: #ffffff; }
   .search-box { position: relative; }
   .search-box input {
     width: 220px; padding: 7px 12px 7px 32px; font-size: 13px;
@@ -257,6 +258,8 @@ const MENU = [
   { id: 'comercial', icon: '⭐', label: 'Comercial', submenu: [
       { id: 'com-resumen', label: 'Resumen equipo', onClick: () => renderProximamente('Comercial · Resumen equipo') },
       { id: 'com-proyectos', label: 'Proyectos', onClick: () => cargarProyectos() },
+      { id: 'com-presupuestos', label: 'Presupuestos', onClick: () => cargarPresupuestos() },
+      { id: 'com-leads', label: 'Leads', onClick: () => cargarLeads() },
       { id: 'com-fianzas', label: 'Fianzas', onClick: () => renderProximamente('Fianzas') },
       { id: 'com-comisiones', label: 'Comisiones', onClick: () => renderProximamente('Comisiones') },
   ]},
@@ -1277,7 +1280,7 @@ function ordenarLista(lista, orden) {
     if (Array.isArray(va) || Array.isArray(vb)) {
       va = (Array.isArray(va) ? va.join(', ') : (va || '')).toLowerCase();
       vb = (Array.isArray(vb) ? vb.join(', ') : (vb || '')).toLowerCase();
-    } else if (orden.campo.startsWith('fecha')) {
+    } else if (orden.campo.startsWith('fecha') || orden.campo.startsWith('evento')) {
       va = parsearFechaDDMMYYYY(va); vb = parsearFechaDDMMYYYY(vb);
     } else if (typeof va === 'boolean' || typeof vb === 'boolean') {
       va = va ? 1 : 0; vb = vb ? 1 : 0;
@@ -1294,7 +1297,8 @@ function ordenarLista(lista, orden) {
 }
 function parsearFechaDDMMYYYY(str) {
   if (!str) return new Date(0);
-  const partes = String(str).split('/');
+  const soloFecha = String(str).split(' ')[0]; // admite "dd/MM/yyyy" y "dd/MM/yyyy HH:mm"
+  const partes = soloFecha.split('/');
   if (partes.length !== 3) return new Date(0);
   return new Date(partes[2], partes[1] - 1, partes[0]);
 }
@@ -1943,24 +1947,49 @@ function actualizarIndicadorFecha(fecha) {
   const diffHoras = (new Date() - fechaObj) / (1000 * 60 * 60);
   indicatorEl.classList.toggle('stale', diffHoras > 2);
 }
+let ordenProyectos = { campo: 'numero', asc: false };
+function cambiarOrdenProyectos(campo, listaOriginal) {
+  if (ordenProyectos.campo === campo) ordenProyectos.asc = !ordenProyectos.asc;
+  else { ordenProyectos.campo = campo; ordenProyectos.asc = true; }
+  aplicarFiltrosProyectos(listaOriginal);
+}
+function flechaOrdenProyectos(campo) {
+  if (ordenProyectos.campo !== campo) return '';
+  return ordenProyectos.asc ? ' ▲' : ' ▼';
+}
 function pintarTablaProyectos(proyectos) {
   const body = document.getElementById('content-body');
   if (!proyectos || proyectos.length === 0) {
     body.innerHTML = '<p class="loading-text">No hay proyectos para mostrar.</p>';
     return;
   }
+  const estadosDisponibles = [...new Set(proyectos.map(p => p.estado).filter(Boolean))].sort();
   let html = `
-    <div style="margin-bottom: 1rem;" class="search-box">
-      <input type="text" id="buscador-proyectos" placeholder="Buscar cliente o proyecto...">
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom: 1rem; align-items:center;">
+      <div class="search-box" style="flex:1; min-width:200px;">
+        <input type="text" id="buscador-proyectos" placeholder="Buscar cliente o proyecto...">
+      </div>
+      <select id="filtro-estado-proyectos" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
+        <option value="">Estado: Todos</option>
+        ${estadosDisponibles.map(e => `<option value="${e}">${e}</option>`).join('')}
+      </select>
+      <label style="font-size:13px; color:var(--text-secondary);">Evento desde
+        <input type="date" id="filtro-fecha-desde-proyectos" style="padding:7px; border:1px solid var(--border); border-radius:4px;">
+      </label>
+      <label style="font-size:13px; color:var(--text-secondary);">hasta
+        <input type="date" id="filtro-fecha-hasta-proyectos" style="padding:7px; border:1px solid var(--border); border-radius:4px;">
+      </label>
     </div>
     <table>
       <thead>
         <tr>
-          <th>Nº</th>
-          <th>Cliente</th>
-          <th>Comercial</th>
-          <th>Estado</th>
-          <th style="text-align:right;">Importe</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('numero', proyectosOriginales)">Nº${flechaOrdenProyectos('numero')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('cliente', proyectosOriginales)">Cliente${flechaOrdenProyectos('cliente')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('comercial', proyectosOriginales)">Comercial${flechaOrdenProyectos('comercial')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('fecha_creacion', proyectosOriginales)">Fecha creación${flechaOrdenProyectos('fecha_creacion')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('evento_inicio', proyectosOriginales)">Fecha evento${flechaOrdenProyectos('evento_inicio')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('estado', proyectosOriginales)">Estado${flechaOrdenProyectos('estado')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenProyectos('valor', proyectosOriginales)">Importe${flechaOrdenProyectos('valor')}</th>
         </tr>
       </thead>
       <tbody id="tabla-proyectos-body">
@@ -1968,14 +1997,33 @@ function pintarTablaProyectos(proyectos) {
   proyectos.forEach(p => { html += filaProyecto(p); });
   html += '</tbody></table>';
   body.innerHTML = html;
-  document.getElementById('buscador-proyectos').addEventListener('input', (e) => {
-    const filtro = e.target.value.toLowerCase();
-    const filtrados = proyectos.filter(p =>
-      (p.cliente || '').toLowerCase().includes(filtro) ||
-      String(p.numero || '').includes(filtro)
-    );
-    document.getElementById('tabla-proyectos-body').innerHTML = filtrados.map(filaProyecto).join('');
+  window.proyectosOriginales = proyectos;
+  ['buscador-proyectos', 'filtro-estado-proyectos', 'filtro-fecha-desde-proyectos', 'filtro-fecha-hasta-proyectos'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => aplicarFiltrosProyectos(proyectos));
   });
+}
+function aplicarFiltrosProyectos(proyectos) {
+  const texto = (document.getElementById('buscador-proyectos').value || '').toLowerCase();
+  const estado = document.getElementById('filtro-estado-proyectos').value;
+  const desde = document.getElementById('filtro-fecha-desde-proyectos').value;
+  const hasta = document.getElementById('filtro-fecha-hasta-proyectos').value;
+  let filtrados = proyectos.filter(p => {
+    const coincideTexto = (p.cliente || '').toLowerCase().includes(texto) || String(p.numero || '').includes(texto);
+    const coincideEstado = !estado || p.estado === estado;
+    let coincideFecha = true;
+    if ((desde || hasta) && p.evento_inicio) {
+      const [fParte] = p.evento_inicio.split(' ');
+      const [d, m, a] = fParte.split('/');
+      const fechaEvento = `${a}-${m}-${d}`;
+      if (desde && fechaEvento < desde) coincideFecha = false;
+      if (hasta && fechaEvento > hasta) coincideFecha = false;
+    } else if (desde || hasta) {
+      coincideFecha = false;
+    }
+    return coincideTexto && coincideEstado && coincideFecha;
+  });
+  filtrados = ordenarLista(filtrados, ordenProyectos);
+  document.getElementById('tabla-proyectos-body').innerHTML = filtrados.map(filaProyecto).join('');
 }
 function filaProyecto(p) {
   const badgeClass = badgeParaEstado(p.estado);
@@ -1984,6 +2032,8 @@ function filaProyecto(p) {
       <td>${p.numero || ''}</td>
       <td>${p.cliente || ''}</td>
       <td>${p.comercial || ''}</td>
+      <td>${p.fecha_creacion || ''}</td>
+      <td>${p.evento_inicio || ''}</td>
       <td><span class="badge ${badgeClass}">${p.estado || ''}</span></td>
       <td style="text-align:right;">${formatearEuros(p.valor)}</td>
     </tr>
@@ -1998,6 +2048,239 @@ function formatearEuros(valor) {
   const n = parseFloat(valor) || 0;
   return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
+// ================================================================
+// COMERCIAL · PRESUPUESTOS
+// ================================================================
+async function cargarPresupuestos() {
+  document.getElementById('content-title').textContent = 'Comercial · Presupuestos';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando presupuestos...</p>';
+  try {
+    const resp = await fetch('/api/presupuestos');
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    actualizarIndicadorFecha(data.ultima_actualizacion);
+    pintarPresupuestos(data.data);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+let ordenPresupuestos = { campo: 'dias_restantes', asc: true };
+function cambiarOrdenPresupuestos(campo) {
+  if (ordenPresupuestos.campo === campo) ordenPresupuestos.asc = !ordenPresupuestos.asc;
+  else { ordenPresupuestos.campo = campo; ordenPresupuestos.asc = true; }
+  aplicarFiltrosPresupuestos(window.presupuestosOriginales);
+}
+function flechaOrdenPresupuestos(campo) {
+  if (ordenPresupuestos.campo !== campo) return '';
+  return ordenPresupuestos.asc ? ' ▲' : ' ▼';
+}
+function badgeSemaforo(semaforo) {
+  const mapa = { verde: '🟢', amarillo: '🟡', rojo: '🔴', negro: '⚫' };
+  return mapa[semaforo] || '';
+}
+function pintarPresupuestos(presupuestos) {
+  const body = document.getElementById('content-body');
+  window.presupuestosOriginales = presupuestos;
+  if (!presupuestos || presupuestos.length === 0) {
+    body.innerHTML = '<p class="loading-text">No hay presupuestos para mostrar.</p>';
+    return;
+  }
+  const verComercial = usuarioActual.rol !== 'Comercial';
+  const totalEmitidos = presupuestos.length;
+  const importePipeline = presupuestos.filter(p => p.estado !== 'Canceled').reduce((s, p) => s + (parseFloat(p.importe_con_iva) || 0), 0);
+  const confirmados = presupuestos.filter(p => p.estado === 'Confirmed').length;
+  const tasaConversion = totalEmitidos > 0 ? Math.round((confirmados / totalEmitidos) * 100) : 0;
+  const alertas = [...presupuestos].filter(p => ['rojo', 'amarillo', 'negro'].includes(p.semaforo))
+    .sort((a, b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999));
+  const estadosDisponibles = [...new Set(presupuestos.map(p => p.estado).filter(Boolean))].sort();
+
+  let html = `
+    <div style="display:flex; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;">
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-size:12px; color:var(--text-muted);">Presupuestos emitidos</div>
+        <div style="font-size:22px; font-weight:600;">${totalEmitidos}</div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-size:12px; color:var(--text-muted);">Importe en juego</div>
+        <div style="font-size:22px; font-weight:600;">${formatearEuros(importePipeline)}</div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-size:12px; color:var(--text-muted);">Tasa de conversión</div>
+        <div style="font-size:22px; font-weight:600;">${tasaConversion}%</div>
+      </div>
+    </div>
+  `;
+  if (alertas.length > 0) {
+    html += `<div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1.25rem;">
+      <div style="font-weight:600; margin-bottom:8px;">⏰ Seguimiento pendiente (${alertas.length})</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        ${alertas.map(p => `
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
+            <span>${badgeSemaforo(p.semaforo)} Proyecto ${p.numero_proyecto || ''} — ${p.cliente || ''}${verComercial ? ' (' + (p.comercial || '') + ')' : ''}</span>
+            <span>${p.dias_restantes < 0 ? 'Caducado hace ' + Math.abs(p.dias_restantes) + ' días' : p.dias_restantes + ' días restantes'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }
+  html += `
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem; align-items:center;">
+      <select id="filtro-estado-presupuestos" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
+        <option value="">Estado: Todos</option>
+        ${estadosDisponibles.map(e => `<option value="${e}">${e}</option>`).join('')}
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('numero_proyecto')">Nº proyecto${flechaOrdenPresupuestos('numero_proyecto')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('cliente')">Cliente${flechaOrdenPresupuestos('cliente')}</th>
+          ${verComercial ? `<th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('comercial')">Comercial${flechaOrdenPresupuestos('comercial')}</th>` : ''}
+          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('fecha_emision')">Emitido${flechaOrdenPresupuestos('fecha_emision')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('dias_restantes')">Caduca${flechaOrdenPresupuestos('dias_restantes')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('estado')">Estado${flechaOrdenPresupuestos('estado')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenPresupuestos('importe_con_iva')">Importe${flechaOrdenPresupuestos('importe_con_iva')}</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-presupuestos-body">${presupuestos.map(p => filaPresupuesto(p, verComercial)).join('')}</tbody>
+    </table>
+  `;
+  body.innerHTML = html;
+  document.getElementById('filtro-estado-presupuestos').addEventListener('input', () => aplicarFiltrosPresupuestos(presupuestos));
+}
+function aplicarFiltrosPresupuestos(presupuestos) {
+  const estado = document.getElementById('filtro-estado-presupuestos').value;
+  const verComercial = usuarioActual.rol !== 'Comercial';
+  let filtrados = presupuestos.filter(p => !estado || p.estado === estado);
+  filtrados = ordenarLista(filtrados, ordenPresupuestos);
+  document.getElementById('tabla-presupuestos-body').innerHTML = filtrados.map(p => filaPresupuesto(p, verComercial)).join('');
+}
+function filaPresupuesto(p, verComercial) {
+  const badgeClase = p.estado === 'Confirmed' ? 'badge-success' : p.estado === 'Canceled' ? 'badge-danger' : 'badge-warning';
+  const caduca = (p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : (p.dias_restantes < 0 ? 'Caducado' : p.dias_restantes + ' días');
+  return `
+    <tr>
+      <td>${p.numero_proyecto || ''}</td>
+      <td>${p.cliente || ''}</td>
+      ${verComercial ? `<td>${p.comercial || ''}</td>` : ''}
+      <td>${p.fecha_emision || ''}</td>
+      <td>${badgeSemaforo(p.semaforo)} ${caduca}</td>
+      <td><span class="badge ${badgeClase}">${p.estado || ''}</span></td>
+      <td style="text-align:right;">${formatearEuros(p.importe_con_iva)}</td>
+    </tr>
+  `;
+}
+
+// ================================================================
+// COMERCIAL · LEADS
+// ================================================================
+async function cargarLeads() {
+  document.getElementById('content-title').textContent = 'Comercial · Leads';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando leads...</p>';
+  try {
+    const resp = await fetch('/api/leads');
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    document.getElementById('last-update-text').textContent = 'Datos de marketing (hoja externa)';
+    document.getElementById('last-update-indicator').classList.remove('stale');
+    pintarLeads(data.data);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+let ordenLeads = { campo: 'fecha_lead', asc: false };
+function cambiarOrdenLeads(campo) {
+  if (ordenLeads.campo === campo) ordenLeads.asc = !ordenLeads.asc;
+  else { ordenLeads.campo = campo; ordenLeads.asc = true; }
+  aplicarFiltrosLeads(window.leadsOriginales);
+}
+function flechaOrdenLeads(campo) {
+  if (ordenLeads.campo !== campo) return '';
+  return ordenLeads.asc ? ' ▲' : ' ▼';
+}
+function pintarLeads(leads) {
+  const body = document.getElementById('content-body');
+  window.leadsOriginales = leads;
+  if (!leads || leads.length === 0) {
+    body.innerHTML = '<p class="loading-text">No hay leads para mostrar.</p>';
+    return;
+  }
+  const canalesDisponibles = [...new Set(leads.map(l => l.canal).filter(Boolean))].sort();
+  const conPresupuesto = leads.filter(l => l.no_presupuesto).length;
+  const conPedido = leads.filter(l => String(l.no_pedido).toLowerCase() === 'si' || String(l.no_pedido).toLowerCase() === 'sí').length;
+  let html = `
+    <div style="display:flex; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;">
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-size:12px; color:var(--text-muted);">Leads recibidos</div>
+        <div style="font-size:22px; font-weight:600;">${leads.length}</div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-size:12px; color:var(--text-muted);">Con presupuesto</div>
+        <div style="font-size:22px; font-weight:600;">${conPresupuesto} <span style="font-size:13px; color:var(--text-muted); font-weight:400;">(${Math.round(conPresupuesto / leads.length * 100)}%)</span></div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-size:12px; color:var(--text-muted);">Convertidos en pedido</div>
+        <div style="font-size:22px; font-weight:600;">${conPedido} <span style="font-size:13px; color:var(--text-muted); font-weight:400;">(${Math.round(conPedido / leads.length * 100)}%)</span></div>
+      </div>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem; align-items:center;">
+      <div class="search-box" style="flex:1; min-width:200px;">
+        <input type="text" id="buscador-leads" placeholder="Buscar nombre, email o teléfono...">
+      </div>
+      <select id="filtro-canal-leads" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
+        <option value="">Canal: Todos</option>
+        ${canalesDisponibles.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="cursor:pointer;" onclick="cambiarOrdenLeads('fecha_lead')">Fecha${flechaOrdenLeads('fecha_lead')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenLeads('canal')">Canal${flechaOrdenLeads('canal')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenLeads('nombre')">Nombre${flechaOrdenLeads('nombre')}</th>
+          <th>Contacto</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenLeads('estado')">Estado${flechaOrdenLeads('estado')}</th>
+          <th>Nº presupuesto</th>
+          <th>Pedido</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-leads-body">${leads.map(filaLead).join('')}</tbody>
+    </table>
+  `;
+  body.innerHTML = html;
+  ['buscador-leads', 'filtro-canal-leads'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => aplicarFiltrosLeads(leads));
+  });
+}
+function aplicarFiltrosLeads(leads) {
+  const texto = (document.getElementById('buscador-leads').value || '').toLowerCase();
+  const canal = document.getElementById('filtro-canal-leads').value;
+  let filtrados = leads.filter(l => {
+    const coincideTexto = (l.nombre || '').toLowerCase().includes(texto) || (l.email || '').toLowerCase().includes(texto) || String(l.telefono || '').includes(texto);
+    const coincideCanal = !canal || l.canal === canal;
+    return coincideTexto && coincideCanal;
+  });
+  filtrados = ordenarLista(filtrados, ordenLeads);
+  document.getElementById('tabla-leads-body').innerHTML = filtrados.map(filaLead).join('');
+}
+function filaLead(l) {
+  const esPedido = String(l.no_pedido).toLowerCase() === 'si' || String(l.no_pedido).toLowerCase() === 'sí';
+  const pedidoBadge = esPedido ? '<span class="badge badge-success">Sí</span>' : (l.no_presupuesto ? '<span class="badge badge-warning">No</span>' : '<span class="badge badge-neutral">—</span>');
+  return `
+    <tr>
+      <td>${l.fecha_lead || ''}</td>
+      <td>${l.canal || ''}</td>
+      <td>${l.nombre || ''}</td>
+      <td style="font-size:12px;">${l.telefono || ''}${l.email ? '<br>' + l.email : ''}</td>
+      <td>${l.estado || ''}</td>
+      <td>${l.no_presupuesto || ''}</td>
+      <td>${pedidoBadge}</td>
+    </tr>
+  `;
+}
+
 comprobarSesion();
 </script>
 </body>

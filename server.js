@@ -161,6 +161,48 @@ app.get('/api/proyectos', requiereLogin, async (req, res) => {
   }
 });
 
+app.get('/api/presupuestos', requiereLogin, async (req, res) => {
+  try {
+    const resultado = await llamarOrumCentral('presupuestos');
+    const { rol, comercial_filtro } = req.session.usuario;
+    if (rol === 'Comercial' && comercial_filtro) {
+      resultado.data = resultado.data.filter(p => p.comercial === comercial_filtro);
+    }
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    resultado.data = resultado.data.map(p => {
+      const fechaCaducidad = parsearFechaDDMMYYYY(p.fecha_caducidad);
+      let diasRestantes = null;
+      let semaforo = 'gris';
+      if (fechaCaducidad) {
+        diasRestantes = Math.round((fechaCaducidad - hoy) / (1000 * 60 * 60 * 24));
+        if (['Confirmed', 'Canceled'].includes(p.estado)) semaforo = 'cerrado';
+        else if (diasRestantes < 0) semaforo = 'negro';
+        else if (diasRestantes <= 3) semaforo = 'rojo';
+        else if (diasRestantes <= 7) semaforo = 'amarillo';
+        else semaforo = 'verde';
+      }
+      return { ...p, dias_restantes: diasRestantes, semaforo };
+    });
+    res.json(resultado);
+  } catch (err) {
+    console.error('Error obteniendo presupuestos:', err);
+    res.status(500).json({ error: 'Error al obtener presupuestos desde ORUM CENTRAL' });
+  }
+});
+
+// Leads: sin filtro por comercial_filtro (la hoja de marketing no asigna
+// comercial por fila) — visibles para cualquier usuario logueado, incluido
+// rol Comercial, ya que forman parte de su propio apartado.
+app.get('/api/leads', requiereLogin, async (req, res) => {
+  try {
+    const resultado = await llamarOrumCentral('leads');
+    res.json(resultado);
+  } catch (err) {
+    console.error('Error obteniendo leads:', err);
+    res.status(500).json({ error: 'Error al obtener leads desde ORUM CENTRAL' });
+  }
+});
+
 app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const [proyectosResp, facturasResp, cajaResp] = await Promise.all([
