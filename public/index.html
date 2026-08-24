@@ -131,6 +131,8 @@
   .badge-danger { background: #FCEBEB; color: #A32D2D; }
   .badge-neutral { background: var(--gray-200); color: var(--gray-500); }
   .badge-dark { background: #2a2a2a; color: #ffffff; }
+  .celda-copiable { cursor: pointer; }
+  .celda-copiable:hover { text-decoration: underline; }
   .search-box { position: relative; }
   .search-box input {
     width: 220px; padding: 7px 12px 7px 32px; font-size: 13px;
@@ -2030,7 +2032,7 @@ function filaProyecto(p) {
   const badgeClass = badgeParaEstado(p.estado);
   return `
     <tr>
-      <td>${p.numero || ''}</td>
+      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero || ''}', event)" title="Clic para copiar">${p.numero || ''}</td>
       <td>${p.cliente || ''}</td>
       <td>${p.comercial || ''}</td>
       <td>${p.fecha_creacion || ''}</td>
@@ -2048,6 +2050,22 @@ function badgeParaEstado(estado) {
 function formatearEuros(valor) {
   const n = parseFloat(valor) || 0;
   return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
+}
+function copiarAlPortapapeles(texto, ev) {
+  if (ev) ev.stopPropagation();
+  if (!texto) return;
+  navigator.clipboard.writeText(String(texto)).then(() => mostrarToastCopiado(ev)).catch(() => {});
+}
+function mostrarToastCopiado(ev) {
+  const toast = document.createElement('div');
+  toast.textContent = '✓ Copiado';
+  toast.style.cssText = 'position:fixed; padding:5px 10px; background:#1a1a18; color:#fff; border-radius:4px; font-size:12px; z-index:9999; pointer-events:none; transition:opacity 0.3s;';
+  const x = (ev && ev.clientX) ? ev.clientX + 8 : window.innerWidth / 2;
+  const y = (ev && ev.clientY) ? ev.clientY - 28 : 20;
+  toast.style.left = x + 'px';
+  toast.style.top = y + 'px';
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 700);
 }
 
 // ================================================================
@@ -2148,6 +2166,7 @@ function badgeSemaforo(semaforo) {
 function pintarPresupuestos(presupuestos) {
   const body = document.getElementById('content-body');
   window.presupuestosOriginales = presupuestos;
+  grupoPresupuestos = null;
   if (!presupuestos || presupuestos.length === 0) {
     body.innerHTML = '<p class="loading-text">No hay presupuestos para mostrar.</p>';
     return;
@@ -2159,8 +2178,11 @@ function pintarPresupuestos(presupuestos) {
   const importePipeline = presupuestos.filter(p => ['verde', 'amarillo', 'rojo', 'negro'].includes(p.semaforo))
     .reduce((s, p) => s + (parseFloat(p.importe_con_iva) || 0), 0);
   const ganados = presupuestos.filter(p => p.semaforo === 'ganado').length;
-  const decididos = presupuestos.filter(p => ['ganado', 'perdido'].includes(p.semaforo)).length;
+  const perdidos = presupuestos.filter(p => p.semaforo === 'perdido').length;
+  const decididos = ganados + perdidos;
   const tasaConversion = decididos > 0 ? Math.round((ganados / decididos) * 100) : 0;
+  const pendientes = presupuestos.filter(p => ['verde', 'amarillo', 'rojo'].includes(p.semaforo));
+  const caducados = presupuestos.filter(p => p.semaforo === 'negro');
   const alertas = [...presupuestos].filter(p => ['rojo', 'amarillo', 'negro'].includes(p.semaforo))
     .sort((a, b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999));
   const estadosDisponibles = [...new Set(presupuestos.map(p => p.estado).filter(Boolean))].sort();
@@ -2178,6 +2200,18 @@ function pintarPresupuestos(presupuestos) {
       <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
         <div style="font-size:12px; color:var(--text-muted);">Tasa de conversión</div>
         <div style="font-size:22px; font-weight:600;">${tasaConversion}%</div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid ${grupoPresupuestos === 'pendientes' ? 'var(--accent, #1a1a18)' : 'var(--border)'}; border-width:${grupoPresupuestos === 'pendientes' ? '2px' : '1px'}; border-radius:4px; padding:1rem; cursor:pointer;" onclick="filtrarPresupuestosPorGrupo('pendientes')">
+        <div style="font-size:12px; color:var(--text-muted);">Pendientes</div>
+        <div style="font-size:22px; font-weight:600;">${pendientes.length}</div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid ${grupoPresupuestos === 'caducados' ? 'var(--accent, #1a1a18)' : 'var(--border)'}; border-width:${grupoPresupuestos === 'caducados' ? '2px' : '1px'}; border-radius:4px; padding:1rem; cursor:pointer;" onclick="filtrarPresupuestosPorGrupo('caducados')">
+        <div style="font-size:12px; color:var(--text-muted);">Caducados</div>
+        <div style="font-size:22px; font-weight:600;">${caducados.length}</div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-size:12px; color:var(--text-muted);">Ganados / Perdidos</div>
+        <div style="font-size:22px; font-weight:600;">${ganados} / ${perdidos}</div>
       </div>
     </div>
   `;
@@ -2219,10 +2253,17 @@ function pintarPresupuestos(presupuestos) {
   body.innerHTML = html;
   document.getElementById('filtro-estado-presupuestos').addEventListener('input', () => aplicarFiltrosPresupuestos(presupuestos));
 }
+let grupoPresupuestos = null; // null | 'pendientes' | 'caducados'
+function filtrarPresupuestosPorGrupo(grupo) {
+  grupoPresupuestos = (grupoPresupuestos === grupo) ? null : grupo; // pulsar 2 veces quita el filtro
+  aplicarFiltrosPresupuestos(window.presupuestosOriginales);
+}
 function aplicarFiltrosPresupuestos(presupuestos) {
   const estado = document.getElementById('filtro-estado-presupuestos').value;
   const verComercial = usuarioActual.rol !== 'Comercial';
   let filtrados = presupuestos.filter(p => !estado || p.estado === estado);
+  if (grupoPresupuestos === 'pendientes') filtrados = filtrados.filter(p => ['verde', 'amarillo', 'rojo'].includes(p.semaforo));
+  else if (grupoPresupuestos === 'caducados') filtrados = filtrados.filter(p => p.semaforo === 'negro');
   filtrados = ordenarLista(filtrados, ordenPresupuestos);
   document.getElementById('tabla-presupuestos-body').innerHTML = filtrados.map(p => filaPresupuesto(p, verComercial)).join('');
 }
@@ -2232,7 +2273,7 @@ function filaPresupuesto(p, verComercial) {
   const caduca = yaDecidido ? '—' : ((p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : (p.dias_restantes < 0 ? 'Caducado' : p.dias_restantes + ' días'));
   return `
     <tr>
-      <td>${p.numero_proyecto || ''}</td>
+      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">${p.numero_proyecto || ''}</td>
       <td>${p.cliente || ''}</td>
       ${verComercial ? `<td>${p.comercial || ''}</td>` : ''}
       <td>${p.fecha_emision || ''}</td>
