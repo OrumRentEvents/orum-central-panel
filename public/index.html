@@ -2088,9 +2088,13 @@ function pintarPresupuestos(presupuestos) {
   }
   const verComercial = usuarioActual.rol !== 'Comercial';
   const totalEmitidos = presupuestos.length;
-  const importePipeline = presupuestos.filter(p => p.estado !== 'Canceled').reduce((s, p) => s + (parseFloat(p.importe_con_iva) || 0), 0);
-  const confirmados = presupuestos.filter(p => p.estado === 'Confirmed').length;
-  const tasaConversion = totalEmitidos > 0 ? Math.round((confirmados / totalEmitidos) * 100) : 0;
+  // "En juego" = solo lo que todavía está por decidir (verde/amarillo/rojo/negro).
+  // Lo ganado ya no es pipeline, es facturación cerrada; lo perdido no cuenta.
+  const importePipeline = presupuestos.filter(p => ['verde', 'amarillo', 'rojo', 'negro'].includes(p.semaforo))
+    .reduce((s, p) => s + (parseFloat(p.importe_con_iva) || 0), 0);
+  const ganados = presupuestos.filter(p => p.semaforo === 'ganado').length;
+  const decididos = presupuestos.filter(p => ['ganado', 'perdido'].includes(p.semaforo)).length;
+  const tasaConversion = decididos > 0 ? Math.round((ganados / decididos) * 100) : 0;
   const alertas = [...presupuestos].filter(p => ['rojo', 'amarillo', 'negro'].includes(p.semaforo))
     .sort((a, b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999));
   const estadosDisponibles = [...new Set(presupuestos.map(p => p.estado).filter(Boolean))].sort();
@@ -2157,8 +2161,9 @@ function aplicarFiltrosPresupuestos(presupuestos) {
   document.getElementById('tabla-presupuestos-body').innerHTML = filtrados.map(p => filaPresupuesto(p, verComercial)).join('');
 }
 function filaPresupuesto(p, verComercial) {
-  const badgeClase = p.estado === 'Confirmed' ? 'badge-success' : p.estado === 'Canceled' ? 'badge-danger' : 'badge-warning';
-  const caduca = (p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : (p.dias_restantes < 0 ? 'Caducado' : p.dias_restantes + ' días');
+  const badgeClase = p.semaforo === 'ganado' ? 'badge-success' : p.semaforo === 'perdido' ? 'badge-danger' : 'badge-warning';
+  const yaDecidido = p.semaforo === 'ganado' || p.semaforo === 'perdido';
+  const caduca = yaDecidido ? '—' : ((p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : (p.dias_restantes < 0 ? 'Caducado' : p.dias_restantes + ' días'));
   return `
     <tr>
       <td>${p.numero_proyecto || ''}</td>

@@ -173,9 +173,15 @@ app.get('/api/presupuestos', requiereLogin, async (req, res) => {
       const fechaCaducidad = parsearFechaDDMMYYYY(p.fecha_caducidad);
       let diasRestantes = null;
       let semaforo = 'gris';
+      // "Todavía sin decidir" = mismos 3 estados que ya usa Financiero
+      // (ESTADOS_PIPELINE_NOMBRE). Cualquier otro estado (Confirmed,
+      // Canceled, y las fases logísticas post-confirmación: Returned,
+      // Cargado, On location, Controlado, Preparado...) ya está resuelto
+      // y no debe seguir marcado como "caducado sin confirmar".
+      const enPipeline = ESTADOS_PIPELINE_NOMBRE.includes(normalizarTexto(p.estado));
       if (fechaCaducidad) {
         diasRestantes = Math.round((fechaCaducidad - hoy) / (1000 * 60 * 60 * 24));
-        if (['Confirmed', 'Canceled'].includes(p.estado)) semaforo = 'cerrado';
+        if (!enPipeline) semaforo = normalizarTexto(p.estado) === 'canceled' ? 'perdido' : 'ganado';
         else if (diasRestantes < 0) semaforo = 'negro';
         else if (diasRestantes <= 3) semaforo = 'rojo';
         else if (diasRestantes <= 7) semaforo = 'amarillo';
