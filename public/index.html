@@ -2176,7 +2176,7 @@ function pintarPresupuestos(presupuestos) {
   // "En juego" = solo lo que todavía está por decidir (verde/amarillo/rojo/negro).
   // Lo ganado ya no es pipeline, es facturación cerrada; lo perdido no cuenta.
   const importePipeline = presupuestos.filter(p => ['verde', 'amarillo', 'rojo', 'negro'].includes(p.semaforo))
-    .reduce((s, p) => s + (parseFloat(p.importe_con_iva) || 0), 0);
+    .reduce((s, p) => s + (parseFloat(p.importe_sin_iva) || 0), 0);
   const ganados = presupuestos.filter(p => p.semaforo === 'ganado').length;
   const perdidos = presupuestos.filter(p => p.semaforo === 'perdido').length;
   const decididos = ganados + perdidos;
@@ -2244,7 +2244,7 @@ function pintarPresupuestos(presupuestos) {
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('fecha_emision')">Emitido${flechaOrdenPresupuestos('fecha_emision')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('dias_restantes')">Caduca${flechaOrdenPresupuestos('dias_restantes')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('estado')">Estado${flechaOrdenPresupuestos('estado')}</th>
-          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenPresupuestos('importe_con_iva')">Importe${flechaOrdenPresupuestos('importe_con_iva')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenPresupuestos('importe_sin_iva')">Importe${flechaOrdenPresupuestos('importe_sin_iva')}</th>
         </tr>
       </thead>
       <tbody id="tabla-presupuestos-body">${presupuestos.map(p => filaPresupuesto(p, verComercial)).join('')}</tbody>
@@ -2279,7 +2279,7 @@ function filaPresupuesto(p, verComercial) {
       <td>${p.fecha_emision || ''}</td>
       <td>${badgeSemaforo(p.semaforo)} ${caduca}</td>
       <td><span class="badge ${badgeClase}">${p.estado || ''}</span></td>
-      <td style="text-align:right;">${formatearEuros(p.importe_con_iva)}</td>
+      <td style="text-align:right;">${formatearEuros(p.importe_sin_iva)}</td>
     </tr>
   `;
 }
