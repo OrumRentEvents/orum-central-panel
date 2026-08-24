@@ -2410,13 +2410,20 @@ function pintarLeads(leads) {
     return;
   }
   const canalesDisponibles = [...new Set(leads.map(l => l.canal).filter(Boolean))].sort();
+  const estadosDisponiblesLeads = [...new Set(leads.map(l => l.estado).filter(Boolean))].sort();
   const conPresupuesto = leads.filter(l => l.no_presupuesto).length;
+  const sinPresupuesto = leads.filter(l => !l.no_presupuesto)
+    .sort((a, b) => (parsearFechaDDMMYYYY(b.fecha_lead) || 0) - (parsearFechaDDMMYYYY(a.fecha_lead) || 0));
   const conPedido = leads.filter(l => String(l.no_pedido).toLowerCase() === 'si' || String(l.no_pedido).toLowerCase() === 'sí').length;
   let html = `
     <div style="display:flex; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;">
       <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
         <div style="font-size:12px; color:var(--text-muted);">Leads recibidos</div>
         <div style="font-size:22px; font-weight:600;">${leads.length}</div>
+      </div>
+      <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; cursor:pointer;" onclick="filtrarLeadsPorGrupo('sin_presupuesto')">
+        <div style="font-size:12px; color:var(--text-muted);">Sin presupuesto todavía</div>
+        <div style="font-size:22px; font-weight:600;">${sinPresupuesto.length}</div>
       </div>
       <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
         <div style="font-size:12px; color:var(--text-muted);">Con presupuesto</div>
@@ -2427,6 +2434,19 @@ function pintarLeads(leads) {
         <div style="font-size:22px; font-weight:600;">${conPedido} <span style="font-size:13px; color:var(--text-muted); font-weight:400;">(${Math.round(conPedido / leads.length * 100)}%)</span></div>
       </div>
     </div>
+    ${sinPresupuesto.length > 0 ? `
+    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1.25rem;">
+      <div style="font-weight:600; margin-bottom:8px; cursor:pointer;" onclick="filtrarLeadsPorGrupo('sin_presupuesto')">📋 Sin presupuesto todavía (${sinPresupuesto.length}) →</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        ${sinPresupuesto.slice(0, 8).map(l => `
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
+            <span>${l.nombre || '(sin nombre)'} — ${l.canal || ''}</span>
+            <span style="color:var(--text-muted);">${l.fecha_lead || ''}</span>
+          </div>
+        `).join('')}
+      </div>
+      ${sinPresupuesto.length > 8 ? `<div style="font-size:12px; color:var(--text-muted); margin-top:8px;">+ ${sinPresupuesto.length - 8} más</div>` : ''}
+    </div>` : ''}
     <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem; align-items:center;">
       <div class="search-box" style="flex:1; min-width:200px;">
         <input type="text" id="buscador-leads" placeholder="Buscar nombre, email o teléfono...">
@@ -2434,6 +2454,10 @@ function pintarLeads(leads) {
       <select id="filtro-canal-leads" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
         <option value="">Canal: Todos</option>
         ${canalesDisponibles.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <select id="filtro-estado-leads" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
+        <option value="">Estado: Todos</option>
+        ${estadosDisponiblesLeads.map(e => `<option value="${e}">${e}</option>`).join('')}
       </select>
     </div>
     <table>
@@ -2452,18 +2476,27 @@ function pintarLeads(leads) {
     </table>
   `;
   body.innerHTML = html;
-  ['buscador-leads', 'filtro-canal-leads'].forEach(id => {
+  grupoLeads = null;
+  ['buscador-leads', 'filtro-canal-leads', 'filtro-estado-leads'].forEach(id => {
     document.getElementById(id).addEventListener('input', () => aplicarFiltrosLeads(leads));
   });
+}
+let grupoLeads = null; // null | 'sin_presupuesto'
+function filtrarLeadsPorGrupo(grupo) {
+  grupoLeads = (grupoLeads === grupo) ? null : grupo;
+  aplicarFiltrosLeads(window.leadsOriginales);
 }
 function aplicarFiltrosLeads(leads) {
   const texto = (document.getElementById('buscador-leads').value || '').toLowerCase();
   const canal = document.getElementById('filtro-canal-leads').value;
+  const estado = document.getElementById('filtro-estado-leads').value;
   let filtrados = leads.filter(l => {
     const coincideTexto = (l.nombre || '').toLowerCase().includes(texto) || (l.email || '').toLowerCase().includes(texto) || String(l.telefono || '').includes(texto);
     const coincideCanal = !canal || l.canal === canal;
-    return coincideTexto && coincideCanal;
+    const coincideEstado = !estado || l.estado === estado;
+    return coincideTexto && coincideCanal && coincideEstado;
   });
+  if (grupoLeads === 'sin_presupuesto') filtrados = filtrados.filter(l => !l.no_presupuesto);
   filtrados = ordenarLista(filtrados, ordenLeads);
   document.getElementById('tabla-leads-body').innerHTML = filtrados.map(filaLead).join('');
 }
