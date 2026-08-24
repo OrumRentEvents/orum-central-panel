@@ -230,7 +230,8 @@ function mostrarApp() {
   document.getElementById('app-screen').style.display = 'block';
   document.getElementById('sidebar-user-name').textContent = usuarioActual.nombre;
   construirMenu();
-  cargarProyectos();
+  if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
+  else cargarProyectos();
 }
 function renderProximamente(nombre) {
   document.getElementById('content-title').textContent = nombre;
@@ -256,7 +257,7 @@ const MENU = [
       { id: 'fin-evolucion', label: 'Evolución', onClick: () => renderProximamente('Financiero · Evolución') },
   ]},
   { id: 'comercial', icon: '⭐', label: 'Comercial', submenu: [
-      { id: 'com-resumen', label: 'Resumen equipo', onClick: () => renderProximamente('Comercial · Resumen equipo') },
+      { id: 'com-resumen', label: 'Resumen', onClick: () => cargarResumenComercial() },
       { id: 'com-proyectos', label: 'Proyectos', onClick: () => cargarProyectos() },
       { id: 'com-presupuestos', label: 'Presupuestos', onClick: () => cargarPresupuestos() },
       { id: 'com-leads', label: 'Leads', onClick: () => cargarLeads() },
@@ -322,7 +323,7 @@ function construirMenu() {
       nav.appendChild(submenuEl);
     }
   });
-  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-proyectos' : 'menu-item-proyectos');
+  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : 'menu-item-proyectos');
 }
 function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -2048,6 +2049,71 @@ function formatearEuros(valor) {
   const n = parseFloat(valor) || 0;
   return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
+
+// ================================================================
+// COMERCIAL · RESUMEN (pantalla de entrada al pinchar en ⭐ Comercial)
+// ================================================================
+function kpiCard(etiqueta, valor) {
+  return `
+    <div style="flex:1; min-width:160px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+      <div style="font-size:12px; color:var(--text-muted);">${etiqueta}</div>
+      <div style="font-size:22px; font-weight:600;">${valor}</div>
+    </div>
+  `;
+}
+async function cargarResumenComercial() {
+  document.getElementById('content-title').textContent = 'Comercial · Resumen';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando resumen...</p>';
+  try {
+    const [rProy, rPresu, rLeads] = await Promise.all([
+      fetch('/api/proyectos').then(r => r.json()),
+      fetch('/api/presupuestos').then(r => r.json()),
+      fetch('/api/leads').then(r => r.json())
+    ]);
+    if (rProy.error || rPresu.error) { body.innerHTML = '<p class="loading-text">Error: ' + (rProy.error || rPresu.error) + '</p>'; return; }
+    actualizarIndicadorFecha(rProy.ultima_actualizacion);
+    pintarResumenComercial(rProy.data || [], rPresu.data || [], rLeads.data || []);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+function pintarResumenComercial(proyectos, presupuestos, leads) {
+  const body = document.getElementById('content-body');
+  const totalProyectos = proyectos.length;
+  const importeGanado = proyectos.filter(p => p.estado !== 'Canceled').reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
+  const alertas = presupuestos.filter(p => ['rojo', 'amarillo', 'negro'].includes(p.semaforo))
+    .sort((a, b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999));
+
+  let html = `
+    <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      ${kpiCard('Proyectos', totalProyectos)}
+      ${kpiCard('Importe total', formatearEuros(importeGanado))}
+      ${kpiCard('Presupuestos pendientes de seguimiento', alertas.length)}
+      ${kpiCard('Leads recibidos', leads.length)}
+    </div>
+  `;
+  if (alertas.length > 0) {
+    html += `
+      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+        <div style="font-weight:600; margin-bottom:8px; cursor:pointer;" onclick="marcarMenuActivo('menu-item-com-presupuestos'); cargarPresupuestos();">⏰ Seguimiento pendiente (${alertas.length}) →</div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          ${alertas.slice(0, 8).map(p => `
+            <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
+              <span>${badgeSemaforo(p.semaforo)} Proyecto ${p.numero_proyecto || ''} — ${p.cliente || ''}</span>
+              <span>${p.dias_restantes < 0 ? 'Caducado hace ' + Math.abs(p.dias_restantes) + ' días' : p.dias_restantes + ' días restantes'}</span>
+            </div>
+          `).join('')}
+        </div>
+        ${alertas.length > 8 ? `<div style="font-size:12px; color:var(--text-muted); margin-top:8px;">+ ${alertas.length - 8} más — ver en Presupuestos</div>` : ''}
+      </div>
+    `;
+  } else {
+    html += `<div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1.5rem; text-align:center; color:var(--text-muted); font-size:13px;">Sin presupuestos pendientes de seguimiento ahora mismo 🎉</div>`;
+  }
+  body.innerHTML = html;
+}
+
 // ================================================================
 // COMERCIAL · PRESUPUESTOS
 // ================================================================
