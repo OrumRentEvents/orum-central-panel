@@ -2096,6 +2096,32 @@ async function cargarResumenComercial() {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
+function donutSVG(segmentos, size) {
+  size = size || 140;
+  const total = segmentos.reduce((s, x) => s + x.valor, 0);
+  const r = size / 2 - 14, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
+  if (total === 0) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="18"/></svg>`;
+  }
+  let acc = 0;
+  const arcos = segmentos.filter(s => s.valor > 0).map(s => {
+    const frac = s.valor / total;
+    const dash = frac * circ;
+    const offset = -acc * circ;
+    acc += frac;
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="18" stroke-dasharray="${dash} ${circ - dash}" stroke-dashoffset="${offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+  }).join('');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${arcos}<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="22" font-weight="600" fill="#1a1a18">${total}</text></svg>`;
+}
+function leyendaDonut(segmentos) {
+  return segmentos.map(s => `
+    <div style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px;">
+      <span style="width:10px; height:10px; border-radius:50%; background:${s.color}; flex-shrink:0;"></span>
+      <span style="flex:1; color:var(--text-secondary);">${s.etiqueta}</span>
+      <span style="font-weight:600;">${s.valor}</span>
+    </div>
+  `).join('');
+}
 function pintarResumenComercial(proyectos, presupuestos, leads) {
   const body = document.getElementById('content-body');
   const totalProyectos = proyectos.length;
@@ -2103,12 +2129,24 @@ function pintarResumenComercial(proyectos, presupuestos, leads) {
   const alertas = presupuestos.filter(p => ['rojo', 'amarillo', 'negro'].includes(p.semaforo))
     .sort((a, b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999));
 
+  const segmentosPresu = [
+    { etiqueta: 'Ganados', valor: presupuestos.filter(p => p.semaforo === 'ganado').length, color: '#4c8c1f' },
+    { etiqueta: 'Perdidos', valor: presupuestos.filter(p => p.semaforo === 'perdido').length, color: '#A32D2D' },
+    { etiqueta: 'En curso', valor: presupuestos.filter(p => ['verde', 'amarillo', 'rojo'].includes(p.semaforo)).length, color: '#C77D0B' },
+    { etiqueta: 'Caducados', valor: presupuestos.filter(p => p.semaforo === 'negro').length, color: '#2a2a2a' }
+  ];
+
   let html = `
     <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
       ${kpiCard('Proyectos', totalProyectos)}
       ${kpiCard('Importe total', formatearEuros(importeGanado))}
       ${kpiCard('Presupuestos pendientes de seguimiento', alertas.length)}
       ${kpiCard('Leads recibidos', leads.length)}
+    </div>
+    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1.25rem; display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap;">
+      <div style="font-weight:600; width:100%;">Presupuestos por estado</div>
+      ${donutSVG(segmentosPresu)}
+      <div style="flex:1; min-width:140px;">${leyendaDonut(segmentosPresu)}</div>
     </div>
   `;
   if (alertas.length > 0) {
