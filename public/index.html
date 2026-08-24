@@ -256,7 +256,7 @@ const MENU = [
   ]},
   { id: 'comercial', icon: '⭐', label: 'Comercial', submenu: [
       { id: 'com-resumen', label: 'Resumen equipo', onClick: () => renderProximamente('Comercial · Resumen equipo') },
-      { id: 'com-proyectos', label: 'Proyectos', onClick: () => renderProximamente('Comercial · Proyectos') },
+      { id: 'com-proyectos', label: 'Proyectos', onClick: () => cargarProyectos() },
       { id: 'com-fianzas', label: 'Fianzas', onClick: () => renderProximamente('Fianzas') },
       { id: 'com-comisiones', label: 'Comisiones', onClick: () => renderProximamente('Comisiones') },
   ]},
@@ -287,7 +287,9 @@ function construirMenu() {
   grupoTitle.className = 'nav-group-title';
   grupoTitle.textContent = usuarioActual.rol;
   nav.appendChild(grupoTitle);
-  MENU.forEach(item => {
+  // Rol Comercial: solo ve el apartado Comercial, nada más del menú.
+  const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial') : MENU;
+  menuVisible.forEach(item => {
     const itemEl = document.createElement('div');
     itemEl.className = 'nav-item';
     itemEl.id = 'menu-item-' + item.id;
@@ -317,7 +319,7 @@ function construirMenu() {
       nav.appendChild(submenuEl);
     }
   });
-  marcarMenuActivo('menu-item-proyectos');
+  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-proyectos' : 'menu-item-proyectos');
 }
 function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));

@@ -79,6 +79,15 @@ function requiereLogin(req, res, next) {
   next();
 }
 
+// El rol Comercial solo puede ver su propio apartado (Proyectos, ya filtrado por
+// comercial_filtro). Cualquier otro endpoint de datos queda bloqueado en el
+// backend, no solo escondido en el menú — así una llamada directa a la URL
+// tampoco expone datos de otros departamentos. Usar tras requiereLogin.
+function bloquearComercial(req, res, next) {
+  if (req.session.usuario.rol === 'Comercial') return res.status(403).json({ error: 'No autorizado para este apartado' });
+  next();
+}
+
 // ── Auditoría de Rutas: registra quién hizo qué en la pestaña HISTORIAL_RUTAS ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
 function logHistorialRutas(usuario, accion, detalle) {
@@ -152,7 +161,7 @@ app.get('/api/proyectos', requiereLogin, async (req, res) => {
   }
 });
 
-app.get('/api/financiero', requiereLogin, async (req, res) => {
+app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const [proyectosResp, facturasResp, cajaResp] = await Promise.all([
       llamarOrumCentral('proyectos'),
@@ -536,7 +545,7 @@ async function construirRespuestaPreparacion(vista) {
   return respuesta;
 }
 
-app.get('/api/preparacion', requiereLogin, async (req, res) => {
+app.get('/api/preparacion', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const vista = req.query.vista || 'almacen';
     res.json(await construirRespuestaPreparacion(vista));
@@ -830,7 +839,7 @@ Si la factura no desglosa IVA (por ejemplo recargo de equivalencia, régimen esp
   return extraido;
 }
 
-app.post('/api/facturas-proveedores/sincronizar', requiereLogin, async (req, res) => {
+app.post('/api/facturas-proveedores/sincronizar', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const anio = req.query.anio || '2026';
     const paramsLista = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listaPendientes', anio });
@@ -866,7 +875,7 @@ app.post('/api/facturas-proveedores/sincronizar', requiereLogin, async (req, res
   }
 });
 
-app.get('/api/facturas-proveedores', requiereLogin, async (req, res) => {
+app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
     const paramsReparto = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
@@ -905,7 +914,7 @@ app.get('/api/facturas-proveedores', requiereLogin, async (req, res) => {
   }
 });
 
-app.get('/api/facturas-proveedores/proveedores', requiereLogin, async (req, res) => {
+app.get('/api/facturas-proveedores/proveedores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'proveedores' });
     const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
@@ -915,7 +924,7 @@ app.get('/api/facturas-proveedores/proveedores', requiereLogin, async (req, res)
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/facturas-proveedores/reparto', requiereLogin, async (req, res) => {
+app.get('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
     const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
@@ -925,7 +934,7 @@ app.get('/api/facturas-proveedores/reparto', requiereLogin, async (req, res) => 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/facturas-proveedores/reparto', requiereLogin, async (req, res) => {
+app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const reparto = req.body.reparto || [];
     const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'guardarReparto', reparto }) });
@@ -1218,7 +1227,7 @@ function renderReporteMesHTML(data) {
 </body></html>`;
 }
 
-app.get('/api/reporte-mes', requiereLogin, async (req, res) => {
+app.get('/api/reporte-mes', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const mes = parseInt(req.query.mes, 10) || (new Date().getMonth() + 1);
     const anio = parseInt(req.query['año'] || req.query.anio, 10) || new Date().getFullYear();
