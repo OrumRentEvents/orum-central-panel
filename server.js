@@ -258,7 +258,14 @@ app.get('/api/proyectos', requiereLogin, async (req, res) => {
 
 app.get('/api/presupuestos', requiereLogin, async (req, res) => {
   try {
-    const resultado = await llamarOrumCentral('presupuestos');
+    const [resultado, proyectosResp] = await Promise.all([
+      llamarOrumCentral('presupuestos'),
+      llamarOrumCentral('proyectos')
+    ]);
+    // La hoja PRESUPUESTOS no guarda la fecha del evento (solo vive en
+    // PROYECTOS) - se cruza aquí por proyecto_id para no duplicar el dato.
+    const eventoPorProyecto = {};
+    (proyectosResp.data || []).forEach(pr => { eventoPorProyecto[String(pr.id)] = pr.evento_inicio; });
     const { rol, comercial_filtro } = req.session.usuario;
     if (rol === 'Comercial' && comercial_filtro) {
       resultado.data = resultado.data.filter(p => p.comercial === comercial_filtro);
@@ -282,7 +289,7 @@ app.get('/api/presupuestos', requiereLogin, async (req, res) => {
         else if (diasRestantes <= 7) semaforo = 'amarillo';
         else semaforo = 'verde';
       }
-      return { ...p, dias_restantes: diasRestantes, semaforo };
+      return { ...p, dias_restantes: diasRestantes, semaforo, evento_inicio: eventoPorProyecto[String(p.proyecto_id)] || '' };
     });
     res.json(resultado);
   } catch (err) {

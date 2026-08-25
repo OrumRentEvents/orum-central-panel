@@ -2422,8 +2422,9 @@ function pintarPresupuestos(presupuestos) {
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('numero_proyecto')">Nº proyecto${flechaOrdenPresupuestos('numero_proyecto')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('cliente')">Cliente${flechaOrdenPresupuestos('cliente')}</th>
           ${verComercial ? `<th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('comercial')">Comercial${flechaOrdenPresupuestos('comercial')}</th>` : ''}
-          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('fecha_emision')">Emitido${flechaOrdenPresupuestos('fecha_emision')}</th>
-          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('dias_restantes')">Caduca${flechaOrdenPresupuestos('dias_restantes')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('fecha_emision')">Creado${flechaOrdenPresupuestos('fecha_emision')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('evento_inicio')">Fecha evento${flechaOrdenPresupuestos('evento_inicio')}</th>
+          <th style="cursor:pointer; width:56px;" onclick="cambiarOrdenPresupuestos('dias_restantes')" title="Días para caducar (negativo = ya caducado)">Caduca${flechaOrdenPresupuestos('dias_restantes')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('estado')">Estado${flechaOrdenPresupuestos('estado')}</th>
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenPresupuestos('importe_sin_iva')">Importe${flechaOrdenPresupuestos('importe_sin_iva')}</th>
         </tr>
@@ -2451,15 +2452,16 @@ function aplicarFiltrosPresupuestos(presupuestos) {
 function filaPresupuesto(p, verComercial) {
   const badgeClase = p.semaforo === 'ganado' ? 'badge-success' : p.semaforo === 'perdido' ? 'badge-danger' : 'badge-warning';
   const yaDecidido = p.semaforo === 'ganado' || p.semaforo === 'perdido';
-  const caduca = yaDecidido ? '—' : ((p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : (p.dias_restantes < 0 ? 'Caducado' : p.dias_restantes + ' días'));
+  const caduca = yaDecidido ? '—' : ((p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : p.dias_restantes);
   return `
     <tr>
       <td style="text-align:center; width:28px;">${p.proyecto_id ? `<button class="btn-material" onclick="abrirModalMaterialProyecto('${p.proyecto_id}', '${String(p.numero_proyecto || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''}</td>
       <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">${p.numero_proyecto || ''}</td>
       <td>${p.cliente || ''}</td>
       ${verComercial ? `<td>${p.comercial || ''}</td>` : ''}
-      <td>${p.fecha_emision || ''}</td>
-      <td>${badgeSemaforo(p.semaforo)} ${caduca}</td>
+      <td>${(p.fecha_emision || '').split(' ')[0]}</td>
+      <td>${(p.evento_inicio || '').split(' ')[0]}</td>
+      <td style="width:56px;">${badgeSemaforo(p.semaforo)} ${caduca}</td>
       <td><span class="badge ${badgeClase}">${p.estado || ''}</span></td>
       <td style="text-align:right;">${formatearEuros(p.importe_sin_iva)}</td>
     </tr>
