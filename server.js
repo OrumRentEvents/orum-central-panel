@@ -289,7 +289,7 @@ app.get('/api/presupuestos', requiereLogin, async (req, res) => {
         else if (diasRestantes <= 7) semaforo = 'amarillo';
         else semaforo = 'verde';
       }
-      return { ...p, dias_restantes: diasRestantes, semaforo, evento_inicio: eventoPorProyecto[String(p.proyecto_id)] || '' };
+      return { ...p, dias_restantes: diasRestantes, semaforo, en_pipeline: enPipeline, evento_inicio: eventoPorProyecto[String(p.proyecto_id)] || '' };
     });
     res.json(resultado);
   } catch (err) {

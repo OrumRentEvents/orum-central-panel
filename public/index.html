@@ -2345,7 +2345,6 @@ function badgeSemaforo(semaforo) {
 }
 function pintarPresupuestos(presupuestos) {
   const body = document.getElementById('content-body');
-  window.presupuestosOriginales = presupuestos;
   grupoPresupuestos = null;
   if (!presupuestos || presupuestos.length === 0) {
     body.innerHTML = '<p class="loading-text">No hay presupuestos para mostrar.</p>';
@@ -2363,7 +2362,14 @@ function pintarPresupuestos(presupuestos) {
   const tasaConversion = decididos > 0 ? Math.round((ganados / decididos) * 100) : 0;
   const pendientes = presupuestos.filter(p => ['verde', 'amarillo', 'rojo'].includes(p.semaforo));
   const caducados = presupuestos.filter(p => p.semaforo === 'negro');
-  const estadosDisponibles = [...new Set(presupuestos.map(p => p.estado).filter(Boolean))].sort();
+  // El listado solo enseña lo que sigue en etapa comercial (Pending/Concept/
+  // Inquiry) - lo ya confirmado, cancelado o ejecutado (Confirmed, Canceled,
+  // Returned, On location...) ya no aporta como seguimiento y solo ensucia
+  // la tabla; sigue contando en los KPIs de arriba (Ganados/Perdidos/etc.).
+  const presupuestosListado = presupuestos.filter(p => p.en_pipeline);
+  window.presupuestosOriginales = presupuestosListado;
+  const estadosDisponibles = [...new Set(presupuestosListado.map(p => p.estado).filter(Boolean))].sort();
+  const comercialesDisponibles = [...new Set(presupuestosListado.map(p => p.comercial).filter(Boolean))].sort();
 
   let html = `
     <div style="display:flex; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;">
@@ -2395,10 +2401,24 @@ function pintarPresupuestos(presupuestos) {
   `;
   html += `
     <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem; align-items:center;">
+      <div class="search-box" style="flex:1; min-width:200px;">
+        <input type="text" id="buscador-presupuestos" placeholder="Buscar cliente o proyecto...">
+      </div>
       <select id="filtro-estado-presupuestos" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
         <option value="">Estado: Todos</option>
         ${estadosDisponibles.map(e => `<option value="${e}">${e}</option>`).join('')}
       </select>
+      ${verComercial ? `
+      <select id="filtro-comercial-presupuestos" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
+        <option value="">Comercial: Todos</option>
+        ${comercialesDisponibles.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>` : ''}
+      <label style="font-size:13px; color:var(--text-secondary);">Evento desde
+        <input type="date" id="filtro-fecha-desde-presupuestos" style="padding:7px; border:1px solid var(--border); border-radius:4px;">
+      </label>
+      <label style="font-size:13px; color:var(--text-secondary);">hasta
+        <input type="date" id="filtro-fecha-hasta-presupuestos" style="padding:7px; border:1px solid var(--border); border-radius:4px;">
+      </label>
     </div>
     <table>
       <thead>
@@ -2414,11 +2434,14 @@ function pintarPresupuestos(presupuestos) {
           <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenPresupuestos('importe_sin_iva')">Importe${flechaOrdenPresupuestos('importe_sin_iva')}</th>
         </tr>
       </thead>
-      <tbody id="tabla-presupuestos-body">${presupuestos.map(p => filaPresupuesto(p, verComercial)).join('')}</tbody>
+      <tbody id="tabla-presupuestos-body">${presupuestosListado.map(p => filaPresupuesto(p, verComercial)).join('')}</tbody>
     </table>
   `;
   body.innerHTML = html;
-  document.getElementById('filtro-estado-presupuestos').addEventListener('input', () => aplicarFiltrosPresupuestos(presupuestos));
+  ['buscador-presupuestos', 'filtro-estado-presupuestos', 'filtro-comercial-presupuestos', 'filtro-fecha-desde-presupuestos', 'filtro-fecha-hasta-presupuestos'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => aplicarFiltrosPresupuestos(presupuestosListado));
+  });
 }
 let grupoPresupuestos = null; // null | 'pendientes' | 'caducados'
 function filtrarPresupuestosPorGrupo(grupo) {
@@ -2426,9 +2449,28 @@ function filtrarPresupuestosPorGrupo(grupo) {
   aplicarFiltrosPresupuestos(window.presupuestosOriginales);
 }
 function aplicarFiltrosPresupuestos(presupuestos) {
+  const texto = (document.getElementById('buscador-presupuestos')?.value || '').toLowerCase();
   const estado = document.getElementById('filtro-estado-presupuestos').value;
+  const comercial = document.getElementById('filtro-comercial-presupuestos')?.value || '';
+  const desde = document.getElementById('filtro-fecha-desde-presupuestos')?.value || '';
+  const hasta = document.getElementById('filtro-fecha-hasta-presupuestos')?.value || '';
   const verComercial = usuarioActual.rol !== 'Comercial';
-  let filtrados = presupuestos.filter(p => !estado || p.estado === estado);
+  let filtrados = presupuestos.filter(p => {
+    const coincideTexto = (p.cliente || '').toLowerCase().includes(texto) || String(p.numero_proyecto || '').includes(texto);
+    const coincideEstado = !estado || p.estado === estado;
+    const coincideComercial = !comercial || p.comercial === comercial;
+    let coincideFecha = true;
+    if ((desde || hasta) && p.evento_inicio) {
+      const [fParte] = p.evento_inicio.split(' ');
+      const [d, m, a] = fParte.split('/');
+      const fechaEvento = `${a}-${m}-${d}`;
+      if (desde && fechaEvento < desde) coincideFecha = false;
+      if (hasta && fechaEvento > hasta) coincideFecha = false;
+    } else if (desde || hasta) {
+      coincideFecha = false;
+    }
+    return coincideTexto && coincideEstado && coincideComercial && coincideFecha;
+  });
   if (grupoPresupuestos === 'pendientes') filtrados = filtrados.filter(p => ['verde', 'amarillo', 'rojo'].includes(p.semaforo));
   else if (grupoPresupuestos === 'caducados') filtrados = filtrados.filter(p => p.semaforo === 'negro');
   filtrados = ordenarLista(filtrados, ordenPresupuestos);
