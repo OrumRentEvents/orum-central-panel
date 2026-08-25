@@ -144,6 +144,7 @@
   .loading-text { color: var(--gray-400); font-size: 13px; padding: 2rem 0; }
   select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 2px; font-size: 13px; background: #fff; color: var(--text-primary); }
   .pnc-filtro-btn { font-size:13px; padding:6px 14px; border-radius:2px; background:#fff; color:var(--text-secondary); border:1px solid var(--border); cursor:pointer; }
+  .btn-material { background: var(--accent-light); color: var(--accent-dark); border: none; border-radius: 4px; padding: 1px 5px; cursor: pointer; font-size: 10px; margin-left: 4px; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -184,6 +185,17 @@
         <p class="loading-text">Cargando datos...</p>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Modal material + servicios adicionales de un proyecto -->
+<div id="modal-material" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:6px; width:100%; max-width:480px; max-height:80vh; display:flex; flex-direction:column; margin:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border);">
+      <h2 style="font-size:15px; font-weight:600; margin:0;" id="modal-material-titulo">Material</h2>
+      <span style="cursor:pointer; font-size:18px; color:var(--text-muted);" onclick="cerrarModalMaterialProyecto()">&times;</span>
+    </div>
+    <div style="padding:14px 16px; overflow-y:auto;" id="modal-material-body"></div>
   </div>
 </div>
 <script>
@@ -2042,7 +2054,7 @@ function filaProyecto(p) {
   const badgeClass = badgeParaEstado(p.estado);
   return `
     <tr>
-      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero || ''}', event)" title="Clic para copiar">${p.numero || ''}</td>
+      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero || ''}', event)" title="Clic para copiar">${p.numero || ''}${p.id ? `<button class="btn-material" onclick="event.stopPropagation(); abrirModalMaterialProyecto('${p.id}', '${String(p.numero || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''}</td>
       <td>${p.cliente || ''}</td>
       <td>${p.comercial || ''}</td>
       <td>${(p.fecha_creacion || '').split(' ')[0]}</td>
@@ -2076,6 +2088,58 @@ function mostrarToastCopiado(ev) {
   toast.style.top = y + 'px';
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 700);
+}
+
+// ================================================================
+// MODAL 📦 MATERIAL + SERVICIOS ADICIONALES (Proyectos / Presupuestos)
+// ================================================================
+function abrirModalMaterialProyecto(proyectoId, numero) {
+  document.getElementById('modal-material-titulo').textContent = 'Material' + (numero ? ' — Proyecto #' + numero : '');
+  const body = document.getElementById('modal-material-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  document.getElementById('modal-material').style.display = 'flex';
+  fetch('/api/proyecto/detalle-material?proyecto_id=' + encodeURIComponent(proyectoId))
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { body.innerHTML = '<p class="loading-text">Error al cargar: ' + data.error + '</p>'; return; }
+      let html = '';
+      if (data.servicios && data.servicios.length > 0) {
+        html += `
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px;">Servicios adicionales</div>
+          <div style="margin-bottom:14px;">
+            ${data.servicios.map(s => `
+              <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); font-size:13px;">
+                <span>${s.nombre}</span>
+                <span style="font-weight:600;">${formatearEuros(s.importe)}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+      if (!data.material || data.material.length === 0) {
+        html += '<p class="loading-text">Sin material registrado.</p>';
+        body.innerHTML = html;
+        return;
+      }
+      const porFamilia = {};
+      data.material.forEach(m => {
+        const f = m.familia || 'Sin familia';
+        (porFamilia[f] = porFamilia[f] || []).push(m);
+      });
+      html += `<div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px;">Material</div>`;
+      Object.keys(porFamilia).sort().forEach(f => {
+        html += `<div style="margin-bottom:12px;"><div style="font-size:12px; font-weight:600; margin-bottom:4px;">${f}</div>`;
+        porFamilia[f].forEach(m => {
+          html += `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); font-size:13px;"><span>${m.articulo || ''}</span><span style="font-weight:600;">${m.cantidad || 0}</span></div>`;
+        });
+        html += '</div>';
+      });
+      body.innerHTML = html;
+    })
+    .catch(() => { body.innerHTML = '<p class="loading-text">Error de conexión</p>'; });
+}
+function cerrarModalMaterialProyecto() {
+  document.getElementById('modal-material').style.display = 'none';
 }
 
 // ================================================================
@@ -2374,7 +2438,7 @@ function filaPresupuesto(p, verComercial) {
   const caduca = yaDecidido ? '—' : ((p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : (p.dias_restantes < 0 ? 'Caducado' : p.dias_restantes + ' días'));
   return `
     <tr>
-      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">${p.numero_proyecto || ''}</td>
+      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">${p.numero_proyecto || ''}${p.proyecto_id ? `<button class="btn-material" onclick="event.stopPropagation(); abrirModalMaterialProyecto('${p.proyecto_id}', '${String(p.numero_proyecto || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''}</td>
       <td>${p.cliente || ''}</td>
       ${verComercial ? `<td>${p.comercial || ''}</td>` : ''}
       <td>${p.fecha_emision || ''}</td>

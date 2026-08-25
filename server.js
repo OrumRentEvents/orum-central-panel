@@ -9,7 +9,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const path = require('path');
-const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
+const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -301,6 +301,21 @@ app.get('/api/leads', requiereLogin, async (req, res) => {
   } catch (err) {
     console.error('Error obteniendo leads:', err);
     res.status(500).json({ error: 'Error al obtener leads desde ORUM CENTRAL' });
+  }
+});
+
+// ── DETALLE DE UN PROYECTO: material + servicios adicionales ──
+// Botón 📦 en Proyectos/Presupuestos (mismo dato que ya se ve en Rutas, con
+// el desglose de transporte/personal-montaje/seguro/otros/venta añadido).
+app.get('/api/proyecto/detalle-material', requiereLogin, async (req, res) => {
+  try {
+    const proyectoId = String(req.query.proyecto_id || '');
+    if (!proyectoId) return res.status(400).json({ error: 'Falta proyecto_id' });
+    const detalle = await obtenerDetalleProyecto(proyectoId);
+    res.json({ ok: true, ...detalle });
+  } catch (err) {
+    console.error('Error en GET /api/proyecto/detalle-material:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
