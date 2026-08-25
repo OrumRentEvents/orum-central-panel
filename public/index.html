@@ -2096,7 +2096,8 @@ async function cargarResumenComercial() {
     actualizarIndicadorFecha(rProy.ultima_actualizacion);
     pintarResumenComercial(rProy.data || [], rPresu.data || [], rLeads.data || []);
   } catch (err) {
-    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+    console.error('Error en Comercial/Resumen:', err);
+    body.innerHTML = '<p class="loading-text">Error de conexión: ' + (err && err.message ? err.message : err) + '</p>';
   }
 }
 function donutSVG(segmentos, size) {
