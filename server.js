@@ -9,6 +9,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const path = require('path');
+const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, ACCIONES: ACCIONES_SUPABASE } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -58,6 +59,16 @@ async function llamarOrumCentral(action, extraParams = {}) {
       return { ...cacheado.data };
     }
   }
+
+  // Fuente principal: Supabase (rápido, sincronizado en tiempo real + cron
+  // cada 15 min como red de seguridad). Solo para acciones sin parámetros
+  // extra - las que llevan extraParams siguen yendo a Apps Script tal cual.
+  if (ACCIONES_SUPABASE[action] && Object.keys(extraParams).length === 0) {
+    const data = await llamarOrumCentralSupabase(action);
+    if (cacheable && !data.error) CACHE_ORUM_CENTRAL.set(action, { data, timestamp: Date.now() });
+    return data;
+  }
+
   const params = new URLSearchParams({ token: APPS_SCRIPT_TOKEN, action, ...extraParams });
   const url = `${APPS_SCRIPT_URL}?${params.toString()}`;
   const resp = await fetch(url);
@@ -656,11 +667,12 @@ app.get('/api/rutas', async (req, res) => {
   }
   try {
     const { desde, hasta } = req.query;
-    const params = new URLSearchParams({ token: APPS_SCRIPT_TOKEN, action: 'rutas' });
-    if (desde) params.append('desde', desde);
-    if (hasta) params.append('hasta', hasta);
-    const resp = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`);
-    res.json(await resp.json());
+    // Antes: llamaba a Apps Script en directo (10+ s). Ahora: Supabase,
+    // con las asignaciones/paradas manuales ya sincronizadas en tiempo
+    // real (ver parche de rutasSetAsignacion/rutasAddParadaManual/etc.
+    // en OrumCentral.gs), así que no hay pérdida de frescura.
+    const data = await llamarOrumCentralSupabase('rutas', { desde, hasta });
+    res.json(data);
   } catch (err) {
     console.error('Error en /api/rutas:', err);
     res.status(500).json({ error: err.message });
@@ -851,8 +863,9 @@ app.get('/api/rutas/material', async (req, res) => {
   try {
     const proyectoId = String(req.query.proyecto_id || '');
     if (!proyectoId) return res.status(400).json({ error: 'Falta proyecto_id' });
-    const equipmentResp = await llamarOrumCentral('equipment');
-    const equipment = (equipmentResp.data || []).filter(e => String(e.proyecto_id) === proyectoId);
+    // Antes: traía las 11.000+ filas de Equipment enteras y filtraba en
+    // memoria. Ahora: consulta indexada por proyecto_id directo en Supabase.
+    const equipment = await obtenerMaterialDeProyecto(proyectoId);
     res.json({ ok: true, material: equipment });
   } catch (err) {
     console.error('Error en GET /api/rutas/material:', err);
