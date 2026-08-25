@@ -2299,7 +2299,7 @@ function pintarResumenComercial(proyectos, presupuestos, leads) {
           ${alertas.slice(0, 8).map(p => `
             <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
               <span>${badgeSemaforo(p.semaforo)} <span class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">Proyecto ${p.numero_proyecto || ''}</span>${p.proyecto_id ? `<button class="btn-material" onclick="event.stopPropagation(); abrirModalMaterialProyecto('${p.proyecto_id}', '${String(p.numero_proyecto || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''} — ${p.cliente || ''}</span>
-              <span>${p.dias_restantes < 0 ? 'Caducado hace ' + Math.abs(p.dias_restantes) + ' días' : p.dias_restantes + ' días restantes'}</span>
+              <span style="text-align:right; white-space:nowrap;"><strong>${formatearEuros(p.importe_sin_iva)}</strong> · ${p.dias_restantes < 0 ? 'Caducado hace ' + Math.abs(p.dias_restantes) + ' días' : p.dias_restantes + ' días restantes'}</span>
             </div>
           `).join('')}
         </div>
@@ -2402,7 +2402,7 @@ function pintarPresupuestos(presupuestos) {
         ${alertas.map(p => `
           <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
             <span>${badgeSemaforo(p.semaforo)} <span class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">Proyecto ${p.numero_proyecto || ''}</span>${p.proyecto_id ? `<button class="btn-material" onclick="event.stopPropagation(); abrirModalMaterialProyecto('${p.proyecto_id}', '${String(p.numero_proyecto || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''} — ${p.cliente || ''}${verComercial ? ' (' + (p.comercial || '') + ')' : ''}</span>
-            <span>${p.dias_restantes < 0 ? 'Caducado hace ' + Math.abs(p.dias_restantes) + ' días' : p.dias_restantes + ' días restantes'}</span>
+            <span style="text-align:right; white-space:nowrap;"><strong>${formatearEuros(p.importe_sin_iva)}</strong> · ${p.dias_restantes < 0 ? 'Caducado hace ' + Math.abs(p.dias_restantes) + ' días' : p.dias_restantes + ' días restantes'}</span>
           </div>
         `).join('')}
       </div>
