@@ -2363,8 +2363,6 @@ function pintarPresupuestos(presupuestos) {
   const tasaConversion = decididos > 0 ? Math.round((ganados / decididos) * 100) : 0;
   const pendientes = presupuestos.filter(p => ['verde', 'amarillo', 'rojo'].includes(p.semaforo));
   const caducados = presupuestos.filter(p => p.semaforo === 'negro');
-  const alertas = [...presupuestos].filter(p => ['rojo', 'amarillo', 'negro'].includes(p.semaforo))
-    .sort((a, b) => (a.dias_restantes ?? 999) - (b.dias_restantes ?? 999));
   const estadosDisponibles = [...new Set(presupuestos.map(p => p.estado).filter(Boolean))].sort();
 
   let html = `
@@ -2395,19 +2393,6 @@ function pintarPresupuestos(presupuestos) {
       </div>
     </div>
   `;
-  if (alertas.length > 0) {
-    html += `<div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1.25rem;">
-      <div style="font-weight:600; margin-bottom:8px;">⏰ Seguimiento pendiente (${alertas.length})</div>
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        ${alertas.map(p => `
-          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
-            <span>${badgeSemaforo(p.semaforo)} <span class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">Proyecto ${p.numero_proyecto || ''}</span>${p.proyecto_id ? `<button class="btn-material" onclick="event.stopPropagation(); abrirModalMaterialProyecto('${p.proyecto_id}', '${String(p.numero_proyecto || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''} — ${p.cliente || ''}${verComercial ? ' (' + (p.comercial || '') + ')' : ''}</span>
-            <span style="text-align:right; white-space:nowrap;"><strong>${formatearEuros(p.importe_sin_iva)}</strong> · ${p.dias_restantes < 0 ? 'Caducado hace ' + Math.abs(p.dias_restantes) + ' días' : p.dias_restantes + ' días restantes'}</span>
-          </div>
-        `).join('')}
-      </div>
-    </div>`;
-  }
   html += `
     <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem; align-items:center;">
       <select id="filtro-estado-presupuestos" style="padding:8px; border:1px solid var(--border); border-radius:4px;">
