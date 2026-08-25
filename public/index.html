@@ -285,6 +285,9 @@ const MENU = [
       { id: 'fact-config', label: 'Configurar proveedores', onClick: () => cargarConfiguracionProveedores() },
   ]},
   { id: 'muelle', icon: '🚛', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
+  { id: 'sync-status', icon: '🔄', label: 'Estado Sincronización', especial: true, onClick: () => {
+      window.open('/sync-status', '_blank');
+  }},
 ];
 function construirMenu() {
   const nav = document.getElementById('nav-container');
