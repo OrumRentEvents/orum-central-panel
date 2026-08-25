@@ -2008,6 +2008,7 @@ function pintarTablaProyectos(proyectos) {
     <table>
       <thead>
         <tr>
+          <th style="width:28px;"></th>
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('numero', proyectosOriginales)">Nº${flechaOrdenProyectos('numero')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('cliente', proyectosOriginales)">Cliente${flechaOrdenProyectos('cliente')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenProyectos('comercial', proyectosOriginales)">Comercial${flechaOrdenProyectos('comercial')}</th>
@@ -2054,7 +2055,8 @@ function filaProyecto(p) {
   const badgeClass = badgeParaEstado(p.estado);
   return `
     <tr>
-      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero || ''}', event)" title="Clic para copiar">${p.numero || ''}${p.id ? `<button class="btn-material" onclick="event.stopPropagation(); abrirModalMaterialProyecto('${p.id}', '${String(p.numero || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''}</td>
+      <td style="text-align:center; width:28px;">${p.id ? `<button class="btn-material" onclick="abrirModalMaterialProyecto('${p.id}', '${String(p.numero || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''}</td>
+      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero || ''}', event)" title="Clic para copiar">${p.numero || ''}</td>
       <td>${p.cliente || ''}</td>
       <td>${p.comercial || ''}</td>
       <td>${(p.fecha_creacion || '').split(' ')[0]}</td>
@@ -2103,6 +2105,19 @@ function abrirModalMaterialProyecto(proyectoId, numero) {
     .then(data => {
       if (data.error) { body.innerHTML = '<p class="loading-text">Error al cargar: ' + data.error + '</p>'; return; }
       let html = '';
+      if (data.facturas && data.facturas.length > 0) {
+        html += `
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px;">Forma de pago</div>
+          <div style="margin-bottom:14px;">
+            ${data.facturas.map(f => `
+              <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); font-size:13px;">
+                <span>${f.metodo_pago || 'Sin especificar'}${f.fecha_pago ? ' · ' + f.fecha_pago : ''}</span>
+                <span style="font-weight:600;">${formatearEuros(f.importe)}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
       if (data.servicios && data.servicios.length > 0) {
         html += `
           <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px;">Servicios adicionales</div>
@@ -2403,6 +2418,7 @@ function pintarPresupuestos(presupuestos) {
     <table>
       <thead>
         <tr>
+          <th style="width:28px;"></th>
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('numero_proyecto')">Nº proyecto${flechaOrdenPresupuestos('numero_proyecto')}</th>
           <th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('cliente')">Cliente${flechaOrdenPresupuestos('cliente')}</th>
           ${verComercial ? `<th style="cursor:pointer;" onclick="cambiarOrdenPresupuestos('comercial')">Comercial${flechaOrdenPresupuestos('comercial')}</th>` : ''}
@@ -2438,7 +2454,8 @@ function filaPresupuesto(p, verComercial) {
   const caduca = yaDecidido ? '—' : ((p.dias_restantes === null || p.dias_restantes === undefined) ? '—' : (p.dias_restantes < 0 ? 'Caducado' : p.dias_restantes + ' días'));
   return `
     <tr>
-      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">${p.numero_proyecto || ''}${p.proyecto_id ? `<button class="btn-material" onclick="event.stopPropagation(); abrirModalMaterialProyecto('${p.proyecto_id}', '${String(p.numero_proyecto || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''}</td>
+      <td style="text-align:center; width:28px;">${p.proyecto_id ? `<button class="btn-material" onclick="abrirModalMaterialProyecto('${p.proyecto_id}', '${String(p.numero_proyecto || '').replace(/'/g, "\\'")}')" title="Ver material y servicios">&#128230;</button>` : ''}</td>
+      <td class="celda-copiable" onclick="copiarAlPortapapeles('${p.numero_proyecto || ''}', event)" title="Clic para copiar">${p.numero_proyecto || ''}</td>
       <td>${p.cliente || ''}</td>
       ${verComercial ? `<td>${p.comercial || ''}</td>` : ''}
       <td>${p.fecha_emision || ''}</td>
