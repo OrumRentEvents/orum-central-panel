@@ -9,7 +9,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const path = require('path');
-const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, ACCIONES: ACCIONES_SUPABASE } = require('./lib/supabaseSource');
+const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -173,6 +173,69 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/sesion', (req, res) => {
   if (!req.session.usuario) return res.status(401).json({ error: 'No autenticado' });
   res.json({ usuario: req.session.usuario });
+});
+
+// ================================================================
+// ESTADO DE SINCRONIZACIÓN — panel de salud de Supabase
+// ================================================================
+
+const TABLAS_ESTADO = [
+  { tabla: 'proyectos', etiqueta: 'Proyectos' },
+  { tabla: 'facturas', etiqueta: 'Facturas' },
+  { tabla: 'pagos', etiqueta: 'Pagos' },
+  { tabla: 'presupuestos', etiqueta: 'Presupuestos' },
+  { tabla: 'servicios', etiqueta: 'Servicios' },
+  { tabla: 'equipment', etiqueta: 'Equipment' },
+  { tabla: 'leads', etiqueta: 'Leads' },
+  { tabla: 'usuarios', etiqueta: 'Usuarios' },
+  { tabla: 'caja', etiqueta: 'Caja' },
+  { tabla: 'rutas', etiqueta: 'Rutas' },
+];
+
+app.get('/api/sync-status', requiereLogin, async (req, res) => {
+  try {
+    // Últimas ~200 filas de sync_log (de sobra para cubrir al menos una
+    // pasada completa de las 10 tablas) y nos quedamos con la más
+    // reciente de cada una.
+    const { data: logRows, error } = await supabase
+      .from('sync_log')
+      .select('tabla,exito,resumen,duracion_ms,terminado_en')
+      .order('terminado_en', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+
+    const ultimaPorTabla = {};
+    (logRows || []).forEach((r) => {
+      if (!ultimaPorTabla[r.tabla]) ultimaPorTabla[r.tabla] = r;
+    });
+
+    const ahora = Date.now();
+    const cron = TABLAS_ESTADO.map(({ tabla, etiqueta }) => {
+      const r = ultimaPorTabla[tabla];
+      return {
+        tabla,
+        etiqueta,
+        exito: r ? r.exito : null,
+        resumen: r ? r.resumen : null,
+        terminado_en: r ? r.terminado_en : null,
+        hace_minutos: r ? Math.round((ahora - new Date(r.terminado_en).getTime()) / 60000) : null,
+      };
+    });
+
+    // Conteos rápidos de las tablas principales, para ver de un vistazo
+    // que no se han quedado a cero por accidente.
+    const tablasConteo = ['proyectos', 'facturas', 'pagos', 'presupuestos', 'equipment', 'rutas_paradas', 'caja_registros'];
+    const conteos = {};
+    await Promise.all(tablasConteo.map(async (t) => {
+      const { count } = await supabase.from(t).select('*', { count: 'exact', head: true });
+      conteos[t] = count;
+    }));
+
+    res.json({ ok: true, generado_en: new Date().toISOString(), cron, conteos });
+  } catch (err) {
+    console.error('Error en /api/sync-status:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ================================================================
@@ -655,6 +718,10 @@ app.get('/api/preparacion-publica', async (req, res) => {
 
 app.get('/preparacion', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'preparacion.html'));
+});
+
+app.get('/sync-status', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'sync-status.html'));
 });
 
 // ================================================================

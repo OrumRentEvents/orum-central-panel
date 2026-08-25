@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estado de sincronización — ORUM CENTRAL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #1a1a1a;
+    --gray-100: #f7f6f3;
+    --gray-200: #eeecea;
+    --gray-300: #dddbd7;
+    --gray-400: #999794;
+    --gray-500: #666462;
+    --accent: #b8956a;
+    --accent-dark: #8a6d1e;
+    --accent-light: #e8d5b0;
+    --green: #2e7d52;
+    --red: #c0392b;
+    --bg-main: #f2f0ec;
+    --border: #e0ddd9;
+    --text-primary: #1a1a1a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    padding: 2rem;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.7rem;
+    margin-bottom: 0.25rem;
+  }
+  .subtitulo { color: var(--gray-500); font-size: 13px; margin-bottom: 1.75rem; }
+  .subtitulo span { color: var(--text-primary); font-weight: 600; }
+
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 2rem; max-width: 900px; }
+  .tarjeta { background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; }
+  .tarjeta .num { font-size: 1.4rem; font-weight: 700; }
+  .tarjeta .label { font-size: 11px; color: var(--gray-500); text-transform: uppercase; letter-spacing: .03em; margin-top: 2px; }
+
+  table { border-collapse: collapse; width: 100%; max-width: 900px; background: #fff; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { background: var(--gray-100); color: var(--gray-500); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+  tr:last-child td { border-bottom: none; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.ok { background: #e6f2ea; color: var(--green); }
+  .badge.mal { background: #fbe9e7; color: var(--red); }
+  .badge.gris { background: var(--gray-200); color: var(--gray-500); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .hace { color: var(--gray-500); font-size: 12px; }
+  .hace.alerta { color: var(--red); font-weight: 600; }
+
+  .volver { display: inline-block; margin-bottom: 1.25rem; color: var(--accent-dark); text-decoration: none; font-size: 13px; font-weight: 500; }
+  .volver:hover { text-decoration: underline; }
+
+  .actualizado { color: var(--gray-400); font-size: 12px; margin-top: 1rem; }
+  .cargando { color: var(--gray-500); padding: 2rem 0; }
+</style>
+</head>
+<body>
+
+<a href="/" class="volver">&larr; Volver al panel</a>
+<h1>Estado de sincronización</h1>
+<p class="subtitulo">De ORUM CENTRAL hacia Supabase — <span id="resumen-cabecera">cargando...</span></p>
+
+<div id="conteos" class="tarjetas"></div>
+
+<table>
+  <thead>
+    <tr><th>Tabla</th><th>Estado</th><th>Última sincronización</th><th>Detalle</th></tr>
+  </thead>
+  <tbody id="cuerpo-tabla">
+    <tr><td colspan="4" class="cargando">Cargando...</td></tr>
+  </tbody>
+</table>
+
+<p class="actualizado" id="actualizado-en"></p>
+
+<script>
+function tiempoRelativo(minutos) {
+  if (minutos == null) return 'nunca';
+  if (minutos < 1) return 'justo ahora';
+  if (minutos < 60) return 'hace ' + minutos + ' min';
+  var horas = Math.floor(minutos / 60);
+  if (horas < 24) return 'hace ' + horas + 'h ' + (minutos % 60) + 'min';
+  return 'hace ' + Math.floor(horas / 24) + ' días';
+}
+
+function badge(exito) {
+  if (exito === null) return '<span class="badge gris"><span class="dot"></span>Sin datos</span>';
+  if (exito) return '<span class="badge ok"><span class="dot"></span>OK</span>';
+  return '<span class="badge mal"><span class="dot"></span>Falló</span>';
+}
+
+async function cargar() {
+  try {
+    var res = await fetch('/api/sync-status');
+    if (res.status === 401) { window.location.href = '/'; return; }
+    var json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error desconocido');
+
+    var okCount = json.cron.filter(function(r){ return r.exito === true; }).length;
+    document.getElementById('resumen-cabecera').textContent = okCount + ' de ' + json.cron.length + ' piezas al día';
+
+    var tarjetasHtml = '';
+    var nombres = { proyectos:'Proyectos', facturas:'Facturas', pagos:'Pagos', presupuestos:'Presupuestos', equipment:'Equipment', rutas_paradas:'Rutas (paradas)', caja_registros:'Caja' };
+    Object.keys(json.conteos).forEach(function(k) {
+      tarjetasHtml += '<div class="tarjeta"><div class="num">' + (json.conteos[k] ?? '—') + '</div><div class="label">' + (nombres[k]||k) + '</div></div>';
+    });
+    document.getElementById('conteos').innerHTML = tarjetasHtml;
+
+    var filas = json.cron.map(function(r) {
+      var claseHace = (r.hace_minutos != null && r.hace_minutos > 30) ? 'hace alerta' : 'hace';
+      return '<tr>' +
+        '<td>' + r.etiqueta + '</td>' +
+        '<td>' + badge(r.exito) + '</td>' +
+        '<td class="' + claseHace + '">' + tiempoRelativo(r.hace_minutos) + '</td>' +
+        '<td class="hace">' + (r.resumen ? r.resumen.replace(/</g,'&lt;').slice(0,80) : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('cuerpo-tabla').innerHTML = filas || '<tr><td colspan="4" class="cargando">Sin datos todavía</td></tr>';
+
+    document.getElementById('actualizado-en').textContent = 'Esta pantalla se refresca sola cada 60s. Última comprobación: ' + new Date().toLocaleTimeString('es-ES');
+  } catch (e) {
+    document.getElementById('cuerpo-tabla').innerHTML = '<tr><td colspan="4" class="cargando">Error cargando estado: ' + e.message + '</td></tr>';
+  }
+}
+
+cargar();
+setInterval(cargar, 60000);
+</script>
+
+</body>
+</html>
