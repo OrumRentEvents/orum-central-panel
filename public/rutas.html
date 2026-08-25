@@ -388,25 +388,14 @@ function pinCheck(){
     document.getElementById('btn-backup').style.display='inline-block';
   }
   initVehs(); initSelectorMes(); setHoy(); load();
-  iniciarAutoRefresco();
 }
 
-// Refresco suave cada 90s: vuelve a llamar a load() (no recarga la página
-// entera), así no se pierde el sitio de nadie ni se cierra ningún modal
-// (los modales son elementos aparte, load() solo reescribe la lista).
-// Se salta el refresco si hay algún modal abierto, para no interrumpir
-// a quien esté editando algo en ese momento.
-function iniciarAutoRefresco(){
-  setInterval(function(){
-    var modales=['modal','modal-conductores','modal-choferes','modal-material','modal-cambiar-veh','modal-historial'];
-    var hayModalAbierto=modales.some(function(id){
-      var el=document.getElementById(id);
-      return el && getComputedStyle(el).display!=='none';
-    });
-    if(hayModalAbierto) return;
-    load();
-  }, 90000);
-}
+// Refresco automático QUITADO (25 ago 2026) - interrumpía a quien estaba
+// montando una ruta en ese momento (aunque hubiera un modal abierto, el
+// refresco seguía molestando en otras situaciones, ej. arrastrar paradas).
+// Ahora la sincronización se mantiene fresca solo con el cron de 15 min
+// + tiempo real por debajo; el usuario refresca manualmente si quiere
+// ver algo hecho por otra persona al instante.
 
 // ── FECHAS ──
 // OJO: usamos componentes de fecha LOCALES (no toISOString, que convierte a UTC y
