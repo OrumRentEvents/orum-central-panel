@@ -366,9 +366,9 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
   `;
 
   html += `
-    <div style="background:var(--accent-light); border:1px solid var(--accent); border-radius:4px; padding:0.85rem 1rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="window.open('/rutas.html', '_blank')">
+    <div style="background:var(--accent-light); border:1px solid var(--accent); border-radius:4px; padding:0.85rem 1rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="marcarMenuActivo('menu-item-log-rutas'); cargarEstadisticasRutas();">
       <span style="font-weight:600; color:var(--accent-dark);">🚛 Rutas & Conductores</span>
-      <span style="font-size:13px; color:var(--accent-dark);">Abrir panel de rutas →</span>
+      <span style="font-size:13px; color:var(--accent-dark);">Ver estadísticas →</span>
     </div>
     <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1rem;">
       <div style="font-weight:600; margin-bottom:8px; cursor:pointer;" onclick="marcarMenuActivo('menu-item-proyectos'); cargarProyectos();">📦 Próximas entregas →</div>
@@ -395,6 +395,83 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
 
   body.innerHTML = html;
 }
+
+// ================================================================
+// RUTAS & CONDUCTORES · ESTADÍSTICAS
+// (no confundir con el panel operativo del día a día, /rutas.html —
+// esto es el informe de entregas/recogidas hechas por conductor y por
+// vehículo, sacado de rutas_paradas en Supabase.)
+// ================================================================
+async function cargarEstadisticasRutas(desde, hasta) {
+  document.getElementById('content-title').textContent = 'Rutas & Conductores · Estadísticas';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando estadísticas...</p>';
+  if (!desde || !hasta) {
+    const hoy = new Date();
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    desde = desde || inicioMes.toISOString().slice(0, 10);
+    hasta = hasta || hoy.toISOString().slice(0, 10);
+  }
+  try {
+    const resp = await fetch('/api/rutas/estadisticas?desde=' + desde + '&hasta=' + hasta);
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    document.getElementById('last-update-text').textContent = 'Actualizado ' + new Date().toLocaleString('es-ES');
+    document.getElementById('last-update-indicator').classList.remove('stale');
+    pintarEstadisticasRutas(data, desde, hasta);
+  } catch (err) {
+    console.error('Error en estadísticas de Rutas:', err);
+    body.innerHTML = '<p class="loading-text">Error de conexión: ' + (err && err.message ? err.message : err) + '</p>';
+  }
+}
+function pintarEstadisticasRutas(data, desde, hasta) {
+  const body = document.getElementById('content-body');
+  const filaRanking = r => `
+    <tr>
+      <td>${r.nombre}</td>
+      <td style="text-align:right;">${r.entregas}</td>
+      <td style="text-align:right;">${r.recogidas}</td>
+      <td style="text-align:right; font-weight:600;">${r.total}</td>
+    </tr>`;
+  let html = `
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem; align-items:center;">
+      <label style="font-size:13px; color:var(--text-secondary);">Desde
+        <input type="date" id="est-rutas-desde" value="${desde}" style="padding:7px; border:1px solid var(--border); border-radius:4px;">
+      </label>
+      <label style="font-size:13px; color:var(--text-secondary);">hasta
+        <input type="date" id="est-rutas-hasta" value="${hasta}" style="padding:7px; border:1px solid var(--border); border-radius:4px;">
+      </label>
+      <button onclick="cargarEstadisticasRutas(document.getElementById('est-rutas-desde').value, document.getElementById('est-rutas-hasta').value)" style="padding:8px 16px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Aplicar</button>
+    </div>
+    <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      ${kpiCard('Total paradas', data.total_paradas)}
+      ${kpiCard('Entregas', data.total_entregas)}
+      ${kpiCard('Recogidas', data.total_recogidas)}
+      ${kpiCard('Sin asignar', data.sin_asignar)}
+      ${kpiCard('Con incidencia', data.con_incidencia)}
+    </div>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:1; min-width:320px;">
+        <div style="font-weight:600; margin-bottom:8px;">Por conductor</div>
+        ${data.conductores.length === 0 ? '<p style="font-size:13px; color:var(--text-muted);">Sin datos en este rango.</p>' : `
+        <table>
+          <thead><tr><th>Conductor</th><th style="text-align:right;">Entregas</th><th style="text-align:right;">Recogidas</th><th style="text-align:right;">Total</th></tr></thead>
+          <tbody>${data.conductores.map(filaRanking).join('')}</tbody>
+        </table>`}
+      </div>
+      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:1; min-width:320px;">
+        <div style="font-weight:600; margin-bottom:8px;">Por vehículo</div>
+        ${data.vehiculos.length === 0 ? '<p style="font-size:13px; color:var(--text-muted);">Sin datos en este rango.</p>' : `
+        <table>
+          <thead><tr><th>Vehículo</th><th style="text-align:right;">Entregas</th><th style="text-align:right;">Recogidas</th><th style="text-align:right;">Total</th></tr></thead>
+          <tbody>${data.vehiculos.map(filaRanking).join('')}</tbody>
+        </table>`}
+      </div>
+    </div>
+  `;
+  body.innerHTML = html;
+}
+
 const MENU = [
   { id: 'resumen', icon: '🏠', label: 'Resumen', onClick: () => cargarResumenGeneral() },
   { id: 'proyectos', icon: '📁', label: 'Proyectos', onClick: () => cargarProyectos() },
@@ -423,7 +500,7 @@ const MENU = [
       { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
       { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
       { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
-      { id: 'log-rutas', label: 'Rutas & Conductores', onClick: () => window.open('/rutas.html', '_blank') },
+      { id: 'log-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
       { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
   ]},
   { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },

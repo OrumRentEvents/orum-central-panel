@@ -9,7 +9,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const path = require('path');
-const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
+const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -958,6 +958,20 @@ app.get('/api/rutas/material', async (req, res) => {
     res.json({ ok: true, material: equipment });
   } catch (err) {
     console.error('Error en GET /api/rutas/material:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── ESTADÍSTICAS DE RUTAS & CONDUCTORES ──
+// GET /api/rutas/estadisticas?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+// Entregas/recogidas por conductor y por vehículo en un rango de fechas.
+app.get('/api/rutas/estadisticas', requiereLogin, async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+    const data = await obtenerEstadisticasRutas(desde || null, hasta || null);
+    res.json(data);
+  } catch (err) {
+    console.error('Error en GET /api/rutas/estadisticas:', err);
     res.status(500).json({ error: err.message });
   }
 });
