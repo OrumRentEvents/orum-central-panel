@@ -1068,41 +1068,79 @@ Si la factura no desglosa IVA (por ejemplo recargo de equivalencia, régimen esp
   return extraido;
 }
 
+// Sacado a función aparte (28 ago 2026) para poder llamarla tanto desde el
+// botón manual como desde la sincronización automática diaria de abajo.
+async function sincronizarFacturasProveedoresInterno(anio) {
+  const paramsLista = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listaPendientes', anio });
+  const respLista = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsLista.toString()}`);
+  const dataLista = await respLista.json();
+  if (dataLista.error) throw new Error('Error listando pendientes: ' + dataLista.error);
+
+  const pendientes = dataLista.pendientes || [];
+  const resultados = [], errores = [];
+
+  for (const item of pendientes) {
+    try {
+      const paramsDescarga = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId: item.fileId });
+      const respDescarga = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsDescarga.toString()}`);
+      const dataDescarga = await respDescarga.json();
+      if (dataDescarga.error) { errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); continue; }
+
+      const extraido = await extraerDatosFactura(dataDescarga.base64, item.nombreArchivo, item.proveedor);
+      await fetch(APPS_SCRIPT_FACTURAS_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, numeroFactura: extraido.numeroFactura, fecha: extraido.fecha, importeBase: extraido.importeBase, iva: extraido.iva, importeTotal: extraido.importeTotal, confianza: extraido.confianza })
+      });
+      resultados.push({ ...item, ...extraido });
+    } catch (errItem) {
+      errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: errItem.message });
+    }
+  }
+
+  return { total_pendientes: pendientes.length, procesadas: resultados.length, con_error: errores.length, resultados, errores };
+}
+
 app.post('/api/facturas-proveedores/sincronizar', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const anio = req.query.anio || '2026';
-    const paramsLista = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listaPendientes', anio });
-    const respLista = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsLista.toString()}`);
-    const dataLista = await respLista.json();
-    if (dataLista.error) return res.status(500).json({ error: 'Error listando pendientes: ' + dataLista.error });
-
-    const pendientes = dataLista.pendientes || [];
-    const resultados = [], errores = [];
-
-    for (const item of pendientes) {
-      try {
-        const paramsDescarga = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId: item.fileId });
-        const respDescarga = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsDescarga.toString()}`);
-        const dataDescarga = await respDescarga.json();
-        if (dataDescarga.error) { errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); continue; }
-
-        const extraido = await extraerDatosFactura(dataDescarga.base64, item.nombreArchivo, item.proveedor);
-        await fetch(APPS_SCRIPT_FACTURAS_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, numeroFactura: extraido.numeroFactura, fecha: extraido.fecha, importeBase: extraido.importeBase, iva: extraido.iva, importeTotal: extraido.importeTotal, confianza: extraido.confianza })
-        });
-        resultados.push({ ...item, ...extraido });
-      } catch (errItem) {
-        errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: errItem.message });
-      }
-    }
-
-    res.json({ ok: true, total_pendientes: pendientes.length, procesadas: resultados.length, con_error: errores.length, resultados, errores });
+    const anio = req.query.anio || String(new Date().getFullYear());
+    const resultado = await sincronizarFacturasProveedoresInterno(anio);
+    res.json({ ok: true, ...resultado });
   } catch (err) {
     console.error('Error en /api/facturas-proveedores/sincronizar:', err);
     res.status(500).json({ error: 'Error al sincronizar facturas: ' + err.message });
   }
 });
+
+// ── Sincronización automática diaria a las 6:00 (hora de Madrid) ──
+// Pedido explícito del usuario: que siempre esté al día sin tener que
+// acordarse de pulsar el botón. El botón manual se deja tal cual, por si
+// hace falta forzarla antes de las 6:00 de un día concreto.
+function msHastaProximaHoraMadrid(horaObjetivo) {
+  const ahoraMadrid = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+  const objetivo = new Date(ahoraMadrid);
+  objetivo.setHours(horaObjetivo, 0, 0, 0);
+  if (objetivo <= ahoraMadrid) objetivo.setDate(objetivo.getDate() + 1);
+  return objetivo.getTime() - ahoraMadrid.getTime();
+}
+function programarSincronizacionDiariaFacturas() {
+  const delay = msHastaProximaHoraMadrid(6);
+  setTimeout(async () => {
+    try {
+      console.log('[Facturas Proveedores] Sincronización automática (06:00 Madrid) iniciando...');
+      const anio = String(new Date().getFullYear());
+      const resultado = await sincronizarFacturasProveedoresInterno(anio);
+      console.log(`[Facturas Proveedores] Sincronización automática completada: ${resultado.procesadas} nuevas, ${resultado.con_error} con error (de ${resultado.total_pendientes} pendientes).`);
+    } catch (err) {
+      console.error('[Facturas Proveedores] Error en sincronización automática:', err.message);
+    } finally {
+      programarSincronizacionDiariaFacturas(); // se reprograma sola para el día siguiente
+    }
+  }, delay);
+  console.log(`[Facturas Proveedores] Próxima sincronización automática en ${Math.round(delay / 60000)} min.`);
+}
+if (APPS_SCRIPT_FACTURAS_URL && APPS_SCRIPT_FACTURAS_URL !== 'PEGA_AQUI_LA_URL_DEL_SCRIPT_DE_FACTURAS') {
+  programarSincronizacionDiariaFacturas();
+}
 
 app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
@@ -1176,13 +1214,24 @@ app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, 
 // NUEVO (28 ago 2026): gestión de las 4 columnas manuales (Forma de Pago,
 // Contabilizada, Digitalizada, Matrícula) desde el propio panel, para que
 // contabilidad no tenga que tocar la Sheet directamente.
-const CAMPOS_FACTURA_EDITABLES = ['formaPago', 'contabilizada', 'digitalizada', 'matricula'];
+const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'importeBase', 'iva', 'importeTotal', 'formaPago', 'contabilizada', 'digitalizada', 'matricula'];
 app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const { fileId, campo, valor } = req.body;
     if (!fileId) return res.status(400).json({ error: 'fileId requerido' });
     if (!CAMPOS_FACTURA_EDITABLES.includes(campo)) return res.status(400).json({ error: 'Campo no editable: ' + campo });
-    const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'actualizarCampo', fileId, campo, valor }) });
+    const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+    const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'actualizarCampo', fileId, campo, valor, usuario }) });
+    const data = await resp.json();
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/facturas-proveedores/:fileId/historial', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'historialFactura', fileId: req.params.fileId });
+    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
     const data = await resp.json();
     if (data.error) return res.status(500).json({ error: data.error });
     res.json(data);
