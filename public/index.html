@@ -211,16 +211,6 @@
   </div>
 </div>
 
-<!-- Modal editar factura de proveedor -->
-<div id="modal-editar-factura" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center;">
-  <div style="background:#fff; border-radius:6px; width:100%; max-width:560px; max-height:85vh; display:flex; flex-direction:column; margin:1rem;">
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border);">
-      <h2 style="font-size:15px; font-weight:600; margin:0;">✏️ Editar factura</h2>
-      <span style="cursor:pointer; font-size:18px; color:var(--text-muted);" onclick="document.getElementById('modal-editar-factura').style.display='none'">&times;</span>
-    </div>
-    <div style="padding:14px 16px; overflow-y:auto;" id="modal-editar-factura-body"></div>
-  </div>
-</div>
 <script>
 let usuarioActual = null;
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -2305,22 +2295,42 @@ function renderTablaFacturasProveedores(lista) {
       `<span class="badge badge-neutral" style="font-size:11px;" title="${euros(d.importe)}">${d.departamento}${d.porcentaje < 100 ? ' ' + d.porcentaje + '%' : ''}</span>`
     ).join(' ');
     const idAttr = String(f.fileId).replace(/"/g, '&quot;');
+    const formaPagoOpts = FORMAS_PAGO_FACTURA.map(v => `<option value="${v}" ${v === (f.formaPago || '') ? 'selected' : ''}>${v || '—'}</option>`).join('');
+    // Matrícula: si el valor guardado coincide con una de la flota fija, el desplegable
+    // la selecciona; si no (o está vacío), cae en "Otro" y el texto queda en la nota libre.
+    const matriculaFija = VEHICULOS_ORUM_FACTURAS.some(v => v.matricula === f.matricula);
+    const mostrarNota = !!f.matricula && !matriculaFija;
+    const matriculaOpts = `<option value="">—</option>` +
+      VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${v.matricula}" ${v.matricula === f.matricula ? 'selected' : ''}>${v.label}</option>`).join('') +
+      `<option value="__otro__" ${mostrarNota ? 'selected' : ''}>Otro (vehículo externo)</option>`;
+    // El lápiz activa edición en la propia línea para los campos que extrae
+    // la IA (Proveedor/Nº Factura/Fecha/Base/IVA/Total) - nada de modal.
+    const editando = facturasEnEdicion.has(idAttr);
+    const celdaTexto = (campo, valor, ancho) => editando
+      ? `<input type="text" value="${String(valor || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:${ancho}px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','${campo}')">`
+      : String(valor || '—');
+    const celdaNumero = (campo, valor, ancho) => editando
+      ? `<input type="number" step="0.01" value="${valor != null ? valor : ''}" style="font-size:12px; width:${ancho}px; text-align:right;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','${campo}')">`
+      : euros(valor);
     html += `
       <tr>
-        <td>${String(f.proveedor || '—')}</td>
-        <td>${String(f.numeroFactura || '—')}</td>
-        <td>${String(f.fecha || '—')}</td>
-        <td style="text-align:right;">${euros(f.importeBase)}</td>
-        <td style="text-align:right; color:#6b6a64;">${euros(f.iva)}</td>
-        <td style="text-align:right; font-weight:500;">${euros(f.importeTotal)}</td>
+        <td>${celdaTexto('proveedor', f.proveedor, 130)}</td>
+        <td>${celdaTexto('numeroFactura', f.numeroFactura, 80)}</td>
+        <td>${celdaTexto('fecha', f.fecha, 80)}</td>
+        <td style="text-align:right;">${celdaNumero('importeBase', f.importeBase, 75)}</td>
+        <td style="text-align:right; color:#6b6a64;">${celdaNumero('iva', f.iva, 65)}</td>
+        <td style="text-align:right; font-weight:500;">${celdaNumero('importeTotal', f.importeTotal, 75)}</td>
         <td>${departamentosHtml}</td>
         <td>${badgeConfianza}</td>
-        <td>${f.formaPago || '<span style="color:#9a988f;">—</span>'}</td>
-        <td style="text-align:center;">${f.contabilizada ? '✅' : '—'}</td>
-        <td style="text-align:center;">${f.digitalizada ? '✅' : '—'}</td>
-        <td>${f.matricula || '<span style="color:#9a988f;">—</span>'}</td>
+        <td><select style="font-size:12px;" onchange="actualizarCampoFacturaUI(this,'${idAttr}','formaPago')">${formaPagoOpts}</select></td>
+        <td style="text-align:center;"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','contabilizada')"></td>
+        <td style="text-align:center;"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','digitalizada')"></td>
+        <td>
+          <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${idAttr}')">${matriculaOpts}</select>
+          <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')">
+        </td>
         <td style="white-space:nowrap;">
-          <span onclick="abrirEditarFactura('${idAttr}')" title="Editar esta factura" style="cursor:pointer; font-size:14px; margin-right:8px;">✏️</span>
+          <span onclick="toggleEdicionFactura('${idAttr}')" title="${editando ? 'Terminar de editar' : 'Corregir Proveedor/Nº Factura/Fecha/Importes'}" style="cursor:pointer; font-size:14px; margin-right:8px;">${editando ? '✅' : '✏️'}</span>
           <span onclick="abrirHistorialFactura('${idAttr}')" title="Ver quién ha tocado esta factura" style="cursor:pointer; font-size:14px;">🕓</span>
         </td>
       </tr>
@@ -2329,87 +2339,48 @@ function renderTablaFacturasProveedores(lista) {
   html += '</tbody></table>';
   cont.innerHTML = html;
 }
-function abrirEditarFactura(fileId) {
-  const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
-  if (!f) return;
-  const formaPagoOpts = FORMAS_PAGO_FACTURA.map(v => `<option value="${v}" ${v === (f.formaPago || '') ? 'selected' : ''}>${v || '—'}</option>`).join('');
-  const matriculaFija = VEHICULOS_ORUM_FACTURAS.some(v => v.matricula === f.matricula);
-  const mostrarNota = !!f.matricula && !matriculaFija;
-  const matriculaOpts = `<option value="">—</option>` +
-    VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${v.matricula}" ${v.matricula === f.matricula ? 'selected' : ''}>${v.label}</option>`).join('') +
-    `<option value="__otro__" ${mostrarNota ? 'selected' : ''}>Otro (vehículo externo)</option>`;
-  document.getElementById('modal-editar-factura-body').innerHTML = `
-    <input type="hidden" id="ef-fileid" value="${String(fileId).replace(/"/g, '&quot;')}">
-    <div style="display:flex; gap:10px;">
-      <div class="form-group" style="flex:2;"><label>Proveedor</label><input type="text" id="ef-proveedor" value="${String(f.proveedor || '').replace(/"/g, '&quot;')}"></div>
-      <div class="form-group" style="flex:1;"><label>Nº Factura</label><input type="text" id="ef-numerofactura" value="${String(f.numeroFactura || '').replace(/"/g, '&quot;')}"></div>
-    </div>
-    <div style="display:flex; gap:10px;">
-      <div class="form-group" style="flex:1;"><label>Fecha</label><input type="text" id="ef-fecha" placeholder="DD/MM/AAAA" value="${String(f.fecha || '').replace(/"/g, '&quot;')}"></div>
-      <div class="form-group" style="flex:1;"><label>Base (€)</label><input type="number" step="0.01" id="ef-base" value="${f.importeBase != null ? f.importeBase : ''}"></div>
-      <div class="form-group" style="flex:1;"><label>IVA (€)</label><input type="number" step="0.01" id="ef-iva" value="${f.iva != null ? f.iva : ''}"></div>
-      <div class="form-group" style="flex:1;"><label>Total (€)</label><input type="number" step="0.01" id="ef-total" value="${f.importeTotal != null ? f.importeTotal : ''}"></div>
-    </div>
-    <div style="display:flex; gap:10px;">
-      <div class="form-group" style="flex:1;"><label>Forma de pago</label><select id="ef-formapago">${formaPagoOpts}</select></div>
-      <div class="form-group" style="flex:1;">
-        <label>Matrícula</label>
-        <select id="ef-matricula-select" onchange="onMatriculaSelectChangeModal(this)">${matriculaOpts}</select>
-        <input type="text" id="ef-matricula-nota" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="width:100%; margin-top:4px; ${mostrarNota ? '' : 'display:none;'}">
-      </div>
-    </div>
-    <div style="display:flex; gap:16px; margin:8px 0;">
-      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="checkbox" id="ef-contabilizada" ${f.contabilizada ? 'checked' : ''}> Contabilizada</label>
-      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="checkbox" id="ef-digitalizada" ${f.digitalizada ? 'checked' : ''}> Digitalizada</label>
-    </div>
-    <div style="display:flex; gap:10px; margin-top:16px;">
-      <button onclick="document.getElementById('modal-editar-factura').style.display='none'" style="flex:1; padding:11px; border:1.5px solid var(--border); background:#fff; border-radius:8px; font-size:14px; cursor:pointer;">Cancelar</button>
-      <button onclick="guardarEdicionFactura()" style="flex:1; padding:11px; background:#1a1a18; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">💾 Guardar</button>
-    </div>
-  `;
-  document.getElementById('modal-editar-factura').style.display = 'flex';
+// Lápiz: activa/desactiva edición en la propia línea para Proveedor/Nº
+// Factura/Fecha/Base/IVA/Total (los que extrae la IA). Sin modal - se
+// escribe directo en la celda, como el resto de campos manuales.
+let facturasEnEdicion = new Set();
+function toggleEdicionFactura(fileId) {
+  const key = String(fileId);
+  if (facturasEnEdicion.has(key)) facturasEnEdicion.delete(key);
+  else facturasEnEdicion.add(key);
+  aplicarFiltrosFacturasProveedores();
 }
-function onMatriculaSelectChangeModal(sel) {
-  const notaInput = document.getElementById('ef-matricula-nota');
-  if (sel.value === '__otro__') { notaInput.style.display = ''; notaInput.value = ''; notaInput.focus(); }
-  else { notaInput.style.display = 'none'; }
-}
-async function guardarEdicionFactura() {
-  const fileId = document.getElementById('ef-fileid').value;
-  const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
-  if (!f) return;
-  const matriculaSel = document.getElementById('ef-matricula-select').value;
-  const nuevosValores = {
-    proveedor: document.getElementById('ef-proveedor').value,
-    numeroFactura: document.getElementById('ef-numerofactura').value,
-    fecha: document.getElementById('ef-fecha').value,
-    importeBase: parseFloat(document.getElementById('ef-base').value) || 0,
-    iva: parseFloat(document.getElementById('ef-iva').value) || 0,
-    importeTotal: parseFloat(document.getElementById('ef-total').value) || 0,
-    formaPago: document.getElementById('ef-formapago').value,
-    matricula: matriculaSel === '__otro__' ? document.getElementById('ef-matricula-nota').value : matriculaSel,
-    contabilizada: document.getElementById('ef-contabilizada').checked,
-    digitalizada: document.getElementById('ef-digitalizada').checked,
-  };
-  // Solo se manda al servidor (y queda en el historial) lo que de verdad cambió.
-  const cambios = Object.keys(nuevosValores).filter(campo => String(f[campo] ?? '') !== String(nuevosValores[campo] ?? ''));
-  const btn = document.querySelector('#modal-editar-factura-body button[onclick="guardarEdicionFactura()"]');
-  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+// Guarda un campo (manual o de los extraídos por IA) al vuelo, sin recargar
+// toda la tabla - así se puede ir marcando/corrigiendo sin perder el sitio.
+async function actualizarCampoFacturaUI(el, fileId, campo) {
+  const valor = el.type === 'checkbox' ? el.checked : el.value;
+  el.disabled = true;
   try {
-    for (const campo of cambios) {
-      const resp = await fetch('/api/facturas-proveedores/actualizar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId, campo, valor: nuevosValores[campo] })
-      });
-      const data = await resp.json();
-      if (data.error) throw new Error(data.error);
-      f[campo] = nuevosValores[campo];
-    }
-    document.getElementById('modal-editar-factura').style.display = 'none';
-    pintarFacturasProveedores();
+    const resp = await fetch('/api/facturas-proveedores/actualizar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId, campo, valor })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
+    if (f) f[campo] = valor;
   } catch (err) {
     alert('Error al guardar: ' + err.message);
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar'; }
+  } finally {
+    el.disabled = false;
+  }
+}
+// Cuando se elige una matrícula fija de la flota, se guarda directo (no hace
+// falta nota); al elegir "Otro" se muestra el campo de texto para la nota y
+// se guarda cuando el usuario termine de escribirla (onblur del input).
+function onMatriculaSelectChange(sel, fileId) {
+  const notaInput = sel.nextElementSibling;
+  if (sel.value === '__otro__') {
+    notaInput.style.display = '';
+    notaInput.value = '';
+    notaInput.focus();
+  } else {
+    notaInput.style.display = 'none';
+    actualizarCampoFacturaUI(sel, fileId, 'matricula');
   }
 }
 const NOMBRES_CAMPO_HISTORIAL = {
