@@ -15,6 +15,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
+// FIX (28 ago 2026): Express genera un ETag por defecto en toda respuesta.
+// Si el navegador repite una petición GET con el mismo contenido (ej.
+// recargar la misma pantalla dos veces seguidas), Express responde 304 sin
+// cuerpo - y el fetch() del frontend intenta parsear ese cuerpo vacío como
+// JSON y explota ("Error de conexión"), aunque el backend funcione bien.
+// Esta app es un panel de datos en vivo (nunca queremos servir una
+// respuesta cacheada), así que se desactiva el ETag entero.
+app.set('etag', false);
 
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'PEGA_AQUI_LA_URL_DEL_DOGET';
 const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN || 'ORUMx2026CentralData9Q';
