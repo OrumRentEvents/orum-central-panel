@@ -57,7 +57,7 @@
     max-width: 380px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.06);
   }
-  .login-box .crown { display:block; text-align:center; font-size:30px; margin-bottom:10px; }
+  .login-box .crown { display:block; margin:0 auto 10px; height:70px; width:auto; }
   .login-box h1 {
     font-family: 'Playfair Display', serif;
     font-size: 34px; font-weight: 900; letter-spacing: 7px;
@@ -92,7 +92,8 @@
   .sidebar-header .org-name {
     font-family: 'Playfair Display', serif; font-weight: 900; font-size: 20px; letter-spacing: 3px; text-transform: uppercase;
   }
-  .sidebar-header .org-name .crown-mini { margin-right: 6px; }
+  .sidebar-header .org-name .crown-mini { height: 22px; width: auto; vertical-align: middle; margin-right: 6px; }
+  .sidebar-header .org-name { display: flex; align-items: center; }
   .sidebar-header .user-name { font-size: 11px; color: var(--text-muted); margin-top: 4px; letter-spacing: 0.5px; }
   .nav-group-title {
     padding: 1.1rem 1.5rem 0.4rem; font-size: 10px; color: var(--gray-400);
@@ -150,8 +151,8 @@
 <body>
 <div id="login-screen">
   <div class="login-box">
-    <span class="crown">👑</span>
-    <h1>ORUM Central</h1>
+    <img class="crown" src="logo-orum-crown.png" alt="ORUM">
+    <h1>Central</h1>
     <p class="subtitle">Rent &amp; Events</p>
     <form id="login-form">
       <label for="usuario">Usuario</label>
@@ -167,7 +168,7 @@
   <div class="app-layout">
     <div class="sidebar">
       <div class="sidebar-header">
-        <div class="org-name"><span class="crown-mini">👑</span>ORUM Central</div>
+        <div class="org-name"><img class="crown-mini" src="logo-orum-crown.png" alt="ORUM"> Central</div>
         <div class="user-name" id="sidebar-user-name"></div>
       </div>
       <div id="nav-container"></div>
@@ -207,6 +208,17 @@
       <span style="cursor:pointer; font-size:18px; color:var(--text-muted);" onclick="document.getElementById('modal-historial-factura').style.display='none'">&times;</span>
     </div>
     <div style="padding:14px 16px; overflow-y:auto;" id="modal-historial-factura-body"></div>
+  </div>
+</div>
+
+<!-- Modal editar factura de proveedor -->
+<div id="modal-editar-factura" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:6px; width:100%; max-width:560px; max-height:85vh; display:flex; flex-direction:column; margin:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border);">
+      <h2 style="font-size:15px; font-weight:600; margin:0;">✏️ Editar factura</h2>
+      <span style="cursor:pointer; font-size:18px; color:var(--text-muted);" onclick="document.getElementById('modal-editar-factura').style.display='none'">&times;</span>
+    </div>
+    <div style="padding:14px 16px; overflow-y:auto;" id="modal-editar-factura-body"></div>
   </div>
 </div>
 <script>
@@ -2293,71 +2305,111 @@ function renderTablaFacturasProveedores(lista) {
       `<span class="badge badge-neutral" style="font-size:11px;" title="${euros(d.importe)}">${d.departamento}${d.porcentaje < 100 ? ' ' + d.porcentaje + '%' : ''}</span>`
     ).join(' ');
     const idAttr = String(f.fileId).replace(/"/g, '&quot;');
-    const formaPagoOpts = FORMAS_PAGO_FACTURA.map(v => `<option value="${v}" ${v === (f.formaPago || '') ? 'selected' : ''}>${v || '—'}</option>`).join('');
-    // Matrícula: si el valor guardado coincide con una de la flota fija, el desplegable
-    // la selecciona; si no (o está vacío), cae en "Otro" y el texto queda en la nota libre.
-    const matriculaFija = VEHICULOS_ORUM_FACTURAS.some(v => v.matricula === f.matricula);
-    const mostrarNota = !!f.matricula && !matriculaFija;
-    const matriculaOpts = `<option value="">—</option>` +
-      VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${v.matricula}" ${v.matricula === f.matricula ? 'selected' : ''}>${v.label}</option>`).join('') +
-      `<option value="__otro__" ${mostrarNota ? 'selected' : ''}>Otro (vehículo externo)</option>`;
     html += `
       <tr>
-        <td><input type="text" value="${String(f.proveedor || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:130px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','proveedor')"></td>
-        <td><input type="text" value="${String(f.numeroFactura || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:80px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','numeroFactura')"></td>
-        <td><input type="text" value="${String(f.fecha || '').replace(/"/g, '&quot;')}" placeholder="DD/MM/AAAA" style="font-size:12px; width:80px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','fecha')"></td>
-        <td style="text-align:right;"><input type="number" step="0.01" value="${f.importeBase != null ? f.importeBase : ''}" style="font-size:12px; width:75px; text-align:right;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','importeBase')"></td>
-        <td style="text-align:right; color:#6b6a64;"><input type="number" step="0.01" value="${f.iva != null ? f.iva : ''}" style="font-size:12px; width:65px; text-align:right;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','iva')"></td>
-        <td style="text-align:right;"><input type="number" step="0.01" value="${f.importeTotal != null ? f.importeTotal : ''}" style="font-size:12px; width:75px; text-align:right; font-weight:500;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','importeTotal')"></td>
+        <td>${String(f.proveedor || '—')}</td>
+        <td>${String(f.numeroFactura || '—')}</td>
+        <td>${String(f.fecha || '—')}</td>
+        <td style="text-align:right;">${euros(f.importeBase)}</td>
+        <td style="text-align:right; color:#6b6a64;">${euros(f.iva)}</td>
+        <td style="text-align:right; font-weight:500;">${euros(f.importeTotal)}</td>
         <td>${departamentosHtml}</td>
         <td>${badgeConfianza}</td>
-        <td><select style="font-size:12px;" onchange="actualizarCampoFacturaUI(this,'${idAttr}','formaPago')">${formaPagoOpts}</select></td>
-        <td style="text-align:center;"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','contabilizada')"></td>
-        <td style="text-align:center;"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','digitalizada')"></td>
-        <td>
-          <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${idAttr}')">${matriculaOpts}</select>
-          <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')">
+        <td>${f.formaPago || '<span style="color:#9a988f;">—</span>'}</td>
+        <td style="text-align:center;">${f.contabilizada ? '✅' : '—'}</td>
+        <td style="text-align:center;">${f.digitalizada ? '✅' : '—'}</td>
+        <td>${f.matricula || '<span style="color:#9a988f;">—</span>'}</td>
+        <td style="white-space:nowrap;">
+          <span onclick="abrirEditarFactura('${idAttr}')" title="Editar esta factura" style="cursor:pointer; font-size:14px; margin-right:8px;">✏️</span>
+          <span onclick="abrirHistorialFactura('${idAttr}')" title="Ver quién ha tocado esta factura" style="cursor:pointer; font-size:14px;">🕓</span>
         </td>
-        <td><span onclick="abrirHistorialFactura('${idAttr}')" title="Ver quién ha tocado esta factura" style="cursor:pointer; font-size:14px;">🕓</span></td>
       </tr>
     `;
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
 }
-// Guarda un campo manual (Forma de Pago, Contabilizada, Digitalizada, Matrícula)
-// al vuelo, sin recargar toda la tabla — así contabilidad puede ir marcando
-// facturas una a una sin perder el sitio en el que está.
-async function actualizarCampoFacturaUI(el, fileId, campo) {
-  const valor = el.type === 'checkbox' ? el.checked : el.value;
-  el.disabled = true;
+function abrirEditarFactura(fileId) {
+  const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
+  if (!f) return;
+  const formaPagoOpts = FORMAS_PAGO_FACTURA.map(v => `<option value="${v}" ${v === (f.formaPago || '') ? 'selected' : ''}>${v || '—'}</option>`).join('');
+  const matriculaFija = VEHICULOS_ORUM_FACTURAS.some(v => v.matricula === f.matricula);
+  const mostrarNota = !!f.matricula && !matriculaFija;
+  const matriculaOpts = `<option value="">—</option>` +
+    VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${v.matricula}" ${v.matricula === f.matricula ? 'selected' : ''}>${v.label}</option>`).join('') +
+    `<option value="__otro__" ${mostrarNota ? 'selected' : ''}>Otro (vehículo externo)</option>`;
+  document.getElementById('modal-editar-factura-body').innerHTML = `
+    <input type="hidden" id="ef-fileid" value="${String(fileId).replace(/"/g, '&quot;')}">
+    <div style="display:flex; gap:10px;">
+      <div class="form-group" style="flex:2;"><label>Proveedor</label><input type="text" id="ef-proveedor" value="${String(f.proveedor || '').replace(/"/g, '&quot;')}"></div>
+      <div class="form-group" style="flex:1;"><label>Nº Factura</label><input type="text" id="ef-numerofactura" value="${String(f.numeroFactura || '').replace(/"/g, '&quot;')}"></div>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <div class="form-group" style="flex:1;"><label>Fecha</label><input type="text" id="ef-fecha" placeholder="DD/MM/AAAA" value="${String(f.fecha || '').replace(/"/g, '&quot;')}"></div>
+      <div class="form-group" style="flex:1;"><label>Base (€)</label><input type="number" step="0.01" id="ef-base" value="${f.importeBase != null ? f.importeBase : ''}"></div>
+      <div class="form-group" style="flex:1;"><label>IVA (€)</label><input type="number" step="0.01" id="ef-iva" value="${f.iva != null ? f.iva : ''}"></div>
+      <div class="form-group" style="flex:1;"><label>Total (€)</label><input type="number" step="0.01" id="ef-total" value="${f.importeTotal != null ? f.importeTotal : ''}"></div>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <div class="form-group" style="flex:1;"><label>Forma de pago</label><select id="ef-formapago">${formaPagoOpts}</select></div>
+      <div class="form-group" style="flex:1;">
+        <label>Matrícula</label>
+        <select id="ef-matricula-select" onchange="onMatriculaSelectChangeModal(this)">${matriculaOpts}</select>
+        <input type="text" id="ef-matricula-nota" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="width:100%; margin-top:4px; ${mostrarNota ? '' : 'display:none;'}">
+      </div>
+    </div>
+    <div style="display:flex; gap:16px; margin:8px 0;">
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="checkbox" id="ef-contabilizada" ${f.contabilizada ? 'checked' : ''}> Contabilizada</label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="checkbox" id="ef-digitalizada" ${f.digitalizada ? 'checked' : ''}> Digitalizada</label>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button onclick="document.getElementById('modal-editar-factura').style.display='none'" style="flex:1; padding:11px; border:1.5px solid var(--border); background:#fff; border-radius:8px; font-size:14px; cursor:pointer;">Cancelar</button>
+      <button onclick="guardarEdicionFactura()" style="flex:1; padding:11px; background:#1a1a18; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">💾 Guardar</button>
+    </div>
+  `;
+  document.getElementById('modal-editar-factura').style.display = 'flex';
+}
+function onMatriculaSelectChangeModal(sel) {
+  const notaInput = document.getElementById('ef-matricula-nota');
+  if (sel.value === '__otro__') { notaInput.style.display = ''; notaInput.value = ''; notaInput.focus(); }
+  else { notaInput.style.display = 'none'; }
+}
+async function guardarEdicionFactura() {
+  const fileId = document.getElementById('ef-fileid').value;
+  const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
+  if (!f) return;
+  const matriculaSel = document.getElementById('ef-matricula-select').value;
+  const nuevosValores = {
+    proveedor: document.getElementById('ef-proveedor').value,
+    numeroFactura: document.getElementById('ef-numerofactura').value,
+    fecha: document.getElementById('ef-fecha').value,
+    importeBase: parseFloat(document.getElementById('ef-base').value) || 0,
+    iva: parseFloat(document.getElementById('ef-iva').value) || 0,
+    importeTotal: parseFloat(document.getElementById('ef-total').value) || 0,
+    formaPago: document.getElementById('ef-formapago').value,
+    matricula: matriculaSel === '__otro__' ? document.getElementById('ef-matricula-nota').value : matriculaSel,
+    contabilizada: document.getElementById('ef-contabilizada').checked,
+    digitalizada: document.getElementById('ef-digitalizada').checked,
+  };
+  // Solo se manda al servidor (y queda en el historial) lo que de verdad cambió.
+  const cambios = Object.keys(nuevosValores).filter(campo => String(f[campo] ?? '') !== String(nuevosValores[campo] ?? ''));
+  const btn = document.querySelector('#modal-editar-factura-body button[onclick="guardarEdicionFactura()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
   try {
-    const resp = await fetch('/api/facturas-proveedores/actualizar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileId, campo, valor })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
-    if (f) f[campo] = valor;
+    for (const campo of cambios) {
+      const resp = await fetch('/api/facturas-proveedores/actualizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId, campo, valor: nuevosValores[campo] })
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      f[campo] = nuevosValores[campo];
+    }
+    document.getElementById('modal-editar-factura').style.display = 'none';
+    pintarFacturasProveedores();
   } catch (err) {
     alert('Error al guardar: ' + err.message);
-  } finally {
-    el.disabled = false;
-  }
-}
-// Cuando se elige una matrícula fija de la flota, se guarda directo (no hace
-// falta nota); al elegir "Otro" se muestra el campo de texto para la nota y
-// se guarda cuando el usuario termine de escribirla (onblur del input).
-function onMatriculaSelectChange(sel, fileId) {
-  const notaInput = sel.nextElementSibling;
-  if (sel.value === '__otro__') {
-    notaInput.style.display = '';
-    notaInput.value = '';
-    notaInput.focus();
-  } else {
-    notaInput.style.display = 'none';
-    actualizarCampoFacturaUI(sel, fileId, 'matricula');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar'; }
   }
 }
 const NOMBRES_CAMPO_HISTORIAL = {
