@@ -408,6 +408,48 @@ function lunesDeLaSemanaJS_(d) {
   x.setDate(x.getDate() - dia + 1);
   return x;
 }
+function isoWeekNumberJS_(fecha) {
+  const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+function rangoSemanaISO_(anio, semana) {
+  const jan4 = new Date(anio, 0, 4);
+  const diaJan4 = jan4.getDay() || 7;
+  const lunesSemana1 = new Date(jan4);
+  lunesSemana1.setDate(jan4.getDate() - diaJan4 + 1);
+  const lunes = new Date(lunesSemana1);
+  lunes.setDate(lunesSemana1.getDate() + (semana - 1) * 7);
+  const domingo = new Date(lunes);
+  domingo.setDate(lunes.getDate() + 6);
+  return { desde: lunes.toISOString().slice(0, 10), hasta: domingo.toISOString().slice(0, 10) };
+}
+// Un mes = todas las semanas ISO cuya MAYORÍA de días caen en ese mes -
+// misma regla que el Informe Mensual, así "mes" significa lo mismo en
+// todo el panel (una semana a caballo entre dos meses no se parte).
+function rangoMesPorSemanasISO_(anio, mes) {
+  const primerDia = new Date(anio, mes - 1, 1);
+  const ultimoDia = new Date(anio, mes, 0);
+  let cursor = lunesDeLaSemanaJS_(primerDia);
+  cursor.setDate(cursor.getDate() - 7);
+  const limite = new Date(ultimoDia); limite.setDate(limite.getDate() + 7);
+  let primerLunes = null, ultimoDomingo = null;
+  while (cursor <= limite) {
+    const lunes = new Date(cursor);
+    const domingo = new Date(cursor); domingo.setDate(domingo.getDate() + 6);
+    const conteo = {};
+    const d = new Date(lunes);
+    for (let i = 0; i < 7; i++) { const key = d.getFullYear() + '-' + d.getMonth(); conteo[key] = (conteo[key] || 0) + 1; d.setDate(d.getDate() + 1); }
+    let mejorKey = null, mejorCount = -1;
+    Object.keys(conteo).forEach(k => { if (conteo[k] > mejorCount) { mejorCount = conteo[k]; mejorKey = k; } });
+    const [anioM, mesIdx] = mejorKey.split('-').map(Number);
+    if (anioM === anio && mesIdx === mes - 1) { if (!primerLunes) primerLunes = lunes; ultimoDomingo = domingo; }
+    cursor = new Date(cursor); cursor.setDate(cursor.getDate() + 7);
+  }
+  return { desde: primerLunes.toISOString().slice(0, 10), hasta: ultimoDomingo.toISOString().slice(0, 10) };
+}
 async function cargarEstadisticasRutas(desde, hasta, periodo) {
   document.getElementById('content-title').textContent = 'Rutas & Conductores · Estadísticas';
   const body = document.getElementById('content-body');
@@ -426,19 +468,62 @@ async function cargarEstadisticasRutas(desde, hasta, periodo) {
     periodo = periodo || 'custom';
   }
   try {
-    const resp = await fetch('/api/rutas/estadisticas?desde=' + desde + '&hasta=' + hasta);
+    const [resp, respEvo] = await Promise.all([
+      fetch('/api/rutas/estadisticas?desde=' + desde + '&hasta=' + hasta),
+      fetch('/api/rutas/evolucion-mensual')
+    ]);
     const data = await resp.json();
+    const evolucion = await respEvo.json();
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
     document.getElementById('last-update-text').textContent = 'Actualizado ' + new Date().toLocaleString('es-ES');
     document.getElementById('last-update-indicator').classList.remove('stale');
-    pintarEstadisticasRutas(data, desde, hasta, periodo);
+    pintarEstadisticasRutas(data, desde, hasta, periodo, evolucion.meses || []);
   } catch (err) {
     console.error('Error en estadísticas de Rutas:', err);
     body.innerHTML = '<p class="loading-text">Error de conexión: ' + (err && err.message ? err.message : err) + '</p>';
   }
 }
-function pintarEstadisticasRutas(data, desde, hasta, periodo) {
+function graficoBarrasRutas_(meses) {
+  const alturaMax = 130;
+  const maxVal = Math.max(1, ...meses.flatMap(m => [m.entregas, m.recogidas]));
+  return `
+    <div style="display:flex; align-items:flex-end; gap:10px; height:${alturaMax + 26}px; overflow-x:auto;">
+      ${meses.map(m => `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; min-width:44px;">
+          <div style="display:flex; align-items:flex-end; gap:3px; height:${alturaMax}px;" title="${m.label}: ${m.entregas} entregas, ${m.recogidas} recogidas">
+            <div style="width:14px; background:#4c8c1f; height:${Math.max(2, Math.round(m.entregas / maxVal * alturaMax))}px; border-radius:2px 2px 0 0;"></div>
+            <div style="width:14px; background:#C77D0B; height:${Math.max(2, Math.round(m.recogidas / maxVal * alturaMax))}px; border-radius:2px 2px 0 0;"></div>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted);">${m.label}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="display:flex; gap:16px; margin-top:10px; font-size:12px; justify-content:center;">
+      <span><span style="display:inline-block;width:9px;height:9px;background:#4c8c1f;border-radius:2px;margin-right:5px;"></span>Entregas</span>
+      <span><span style="display:inline-block;width:9px;height:9px;background:#C77D0B;border-radius:2px;margin-right:5px;"></span>Recogidas</span>
+    </div>
+  `;
+}
+function irASemanaISO_() {
+  const anio = parseInt(document.getElementById('est-rutas-semana-anio').value, 10);
+  const semana = parseInt(document.getElementById('est-rutas-semana-num').value, 10);
+  if (!anio || !semana) return;
+  const r = rangoSemanaISO_(anio, semana);
+  cargarEstadisticasRutas(r.desde, r.hasta, 'custom');
+}
+function irAMesISO_() {
+  const anio = parseInt(document.getElementById('est-rutas-mes-anio').value, 10);
+  const mes = parseInt(document.getElementById('est-rutas-mes-mes').value, 10);
+  if (!anio || !mes) return;
+  const r = rangoMesPorSemanasISO_(anio, mes);
+  cargarEstadisticasRutas(r.desde, r.hasta, 'custom');
+}
+function pintarEstadisticasRutas(data, desde, hasta, periodo, evolucionMeses) {
   const body = document.getElementById('content-body');
+  const hoy = new Date();
+  const anioActual = hoy.getFullYear();
+  const semanaActual = isoWeekNumberJS_(hoy);
+  const NOMBRES_MES_RUTAS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const btnPeriodo = (id, label, activo) => `<button onclick="cargarEstadisticasRutas(null,null,'${id}')" style="padding:8px 14px; border-radius:4px; border:1px solid ${activo ? 'var(--accent)' : 'var(--border)'}; background:${activo ? 'var(--accent-light)' : '#fff'}; color:${activo ? 'var(--accent-dark)' : 'var(--text-secondary)'}; cursor:pointer; font-size:13px; font-weight:${activo ? '600' : '400'};">${label}</button>`;
   const filaRanking = r => `
     <tr>
@@ -448,7 +533,7 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo) {
       <td style="text-align:right; font-weight:600;">${r.total}</td>
     </tr>`;
   let html = `
-    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.25rem; align-items:center;">
+    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem; align-items:center;">
       ${btnPeriodo('semana', 'Esta semana', periodo === 'semana')}
       ${btnPeriodo('mes', 'Este mes', periodo === 'mes')}
       <span style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
@@ -460,6 +545,20 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo) {
       </label>
       <button onclick="cargarEstadisticasRutas(document.getElementById('est-rutas-desde').value, document.getElementById('est-rutas-hasta').value)" style="padding:8px 16px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Aplicar</button>
     </div>
+    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.25rem; align-items:center; font-size:13px; color:var(--text-secondary);">
+      Semana ISO
+      <input type="number" id="est-rutas-semana-num" min="1" max="53" value="${semanaActual}" style="width:56px; padding:7px; border:1px solid var(--border); border-radius:4px;">
+      de
+      <input type="number" id="est-rutas-semana-anio" value="${anioActual}" style="width:72px; padding:7px; border:1px solid var(--border); border-radius:4px;">
+      <button onclick="irASemanaISO_()" style="padding:7px 12px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Ir</button>
+      <span style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
+      Mes
+      <select id="est-rutas-mes-mes" style="padding:7px; border:1px solid var(--border); border-radius:4px;">
+        ${NOMBRES_MES_RUTAS.map((n, i) => `<option value="${i + 1}" ${i + 1 === hoy.getMonth() + 1 ? 'selected' : ''}>${n}</option>`).join('')}
+      </select>
+      <input type="number" id="est-rutas-mes-anio" value="${anioActual}" style="width:72px; padding:7px; border:1px solid var(--border); border-radius:4px;">
+      <button onclick="irAMesISO_()" style="padding:7px 12px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Ir</button>
+    </div>
     <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
       ${kpiCard('Total paradas', data.total_paradas)}
       ${kpiCard('Entregas', data.total_entregas)}
@@ -467,6 +566,11 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo) {
       ${kpiCard('Sin asignar', data.sin_asignar)}
       ${kpiCard('Con incidencia', data.con_incidencia)}
     </div>
+    ${evolucionMeses && evolucionMeses.length > 0 ? `
+    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1.5rem;">
+      <div style="font-weight:600; margin-bottom:8px;">Evolución mensual (entregas / recogidas)</div>
+      ${graficoBarrasRutas_(evolucionMeses)}
+    </div>` : ''}
     <div style="display:flex; gap:1rem; flex-wrap:wrap;">
       <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:1; min-width:320px;">
         <div style="font-weight:600; margin-bottom:8px;">Por conductor</div>

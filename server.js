@@ -9,7 +9,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const path = require('path');
-const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, obtenerEstadisticasMaterial, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
+const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, obtenerEstadisticasMaterial, obtenerParadasParaEvolucion, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -972,6 +972,38 @@ app.get('/api/rutas/estadisticas', requiereLogin, async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('Error en GET /api/rutas/estadisticas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── EVOLUCIÓN MENSUAL DE RUTAS (para la gráfica comparativa) ──
+// Cada semana cuenta entera en el mes que tenga más días de esa semana -
+// misma regla que usa el Informe Mensual, para que "mes" signifique lo
+// mismo en todo el panel.
+app.get('/api/rutas/evolucion-mensual', requiereLogin, async (req, res) => {
+  try {
+    const paradas = await obtenerParadasParaEvolucion();
+    const porMes = {};
+    paradas.forEach(r => {
+      if (!r.fecha) return;
+      const [y, m, d] = r.fecha.split('-').map(Number);
+      const fecha = new Date(y, m - 1, d);
+      const lunes = lunesDeLaSemana(fecha);
+      const pertenece = mesConMasDias(lunes);
+      const key = pertenece.anio + '-' + String(pertenece.mes).padStart(2, '0');
+      if (!porMes[key]) porMes[key] = { anio: pertenece.anio, mes: pertenece.mes, entregas: 0, recogidas: 0, total: 0 };
+      porMes[key].total++;
+      if (r.tipo === 'ENTREGA') porMes[key].entregas++;
+      else if (r.tipo === 'RECOGIDA') porMes[key].recogidas++;
+    });
+    const MESES_ES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const meses = Object.keys(porMes).sort().map(k => {
+      const m = porMes[k];
+      return { label: MESES_ES[m.mes] + ' ' + m.anio, anio: m.anio, mes: m.mes, entregas: m.entregas, recogidas: m.recogidas, total: m.total };
+    });
+    res.json({ ok: true, meses });
+  } catch (err) {
+    console.error('Error en GET /api/rutas/evolucion-mensual:', err);
     res.status(500).json({ error: err.message });
   }
 });
