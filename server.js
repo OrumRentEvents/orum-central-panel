@@ -1151,15 +1151,41 @@ function isoWeekNumber(fecha) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
+// A qué mes "pertenece" una semana lunes-domingo: el que tenga más días
+// dentro de esa semana (nunca hay empate, 7 días es impar).
+function mesConMasDias(lunes) {
+  const conteo = {};
+  const cursor = new Date(lunes);
+  for (let i = 0; i < 7; i++) {
+    const key = cursor.getFullYear() + '-' + cursor.getMonth();
+    conteo[key] = (conteo[key] || 0) + 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  let mejorKey = null, mejorCount = -1;
+  Object.keys(conteo).forEach(k => { if (conteo[k] > mejorCount) { mejorCount = conteo[k]; mejorKey = k; } });
+  const [anioStr, mesIdxStr] = mejorKey.split('-');
+  return { anio: parseInt(anioStr, 10), mes: parseInt(mesIdxStr, 10) + 1 };
+}
+
+// Cada semana ISO (lunes-domingo) cuenta entera en UN solo mes: el que tenga
+// más días de esa semana. Antes se incluía cualquier semana que tocara el
+// mes, así que la semana a caballo entre dos meses aparecía completa en
+// AMBOS informes (se pisaban / se contaba dos veces). Ahora se recorre un
+// margen de una semana de más por cada lado y se filtra por mayoría.
 function isoWeeksInMonth(mes, anio) {
   const primerDia = new Date(anio, mes - 1, 1);
   const ultimoDia = new Date(anio, mes, 0);
   const semanas = [];
   let cursor = lunesDeLaSemana(primerDia);
-  while (cursor <= ultimoDia) {
+  cursor.setDate(cursor.getDate() - 7);
+  const limite = new Date(ultimoDia); limite.setDate(limite.getDate() + 7);
+  while (cursor <= limite) {
     const lunes = new Date(cursor);
     const domingo = new Date(cursor); domingo.setDate(domingo.getDate() + 6);
-    semanas.push({ isoWeek: isoWeekNumber(lunes), lunes, domingo });
+    const pertenece = mesConMasDias(lunes);
+    if (pertenece.anio === anio && pertenece.mes === mes) {
+      semanas.push({ isoWeek: isoWeekNumber(lunes), lunes, domingo });
+    }
     cursor = new Date(cursor); cursor.setDate(cursor.getDate() + 7);
   }
   return semanas;
