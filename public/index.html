@@ -366,7 +366,7 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
   `;
 
   html += `
-    <div style="background:var(--accent-light); border:1px solid var(--accent); border-radius:4px; padding:0.85rem 1rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="marcarMenuActivo('menu-item-log-rutas'); cargarEstadisticasRutas();">
+    <div style="background:var(--accent-light); border:1px solid var(--accent); border-radius:4px; padding:0.85rem 1rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="marcarMenuActivo('menu-item-analisis-rutas'); cargarEstadisticasRutas();">
       <span style="font-weight:600; color:var(--accent-dark);">🚛 Rutas & Conductores</span>
       <span style="font-size:13px; color:var(--accent-dark);">Ver estadísticas →</span>
     </div>
@@ -609,12 +609,14 @@ const MENU = [
       const hoy = new Date();
       window.open('/api/reporte-mes?mes=' + (hoy.getMonth() + 1) + '&año=' + hoy.getFullYear(), '_blank');
   }},
+  { id: 'analisis', icon: '🔬', label: 'Análisis', submenu: [
+      { id: 'analisis-material', label: 'Material', onClick: () => cargarEstadisticasMaterial() },
+      { id: 'analisis-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
+  ]},
   { id: 'log', icon: '🧺', label: 'Logística', submenu: [
       { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
       { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
       { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
-      { id: 'log-material-stats', label: 'Estadísticas de Material', onClick: () => cargarEstadisticasMaterial() },
-      { id: 'log-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
       { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
   ]},
   { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
