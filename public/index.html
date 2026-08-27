@@ -762,7 +762,7 @@ const MENU = [
   ]},
   { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
   { id: 'mantenimiento', icon: '🔧', label: 'Mantenimiento', onClick: () => renderProximamente('Mantenimiento') },
-  { id: 'caja', icon: '💰', label: 'Caja', onClick: () => renderProximamente('Caja') },
+  { id: 'caja', icon: '💰', label: 'Caja', especial: true, onClick: () => window.open('https://caja-orum-production.up.railway.app', '_blank') },
   { id: 'fact', icon: '🧾', label: 'Facturas Proveedores', submenu: [
       { id: 'fact-listado', label: 'Listado', onClick: () => cargarFacturasProveedores() },
       { id: 'fact-config', label: 'Configurar proveedores', onClick: () => cargarConfiguracionProveedores() },
