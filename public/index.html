@@ -450,10 +450,12 @@ function rangoMesPorSemanasISO_(anio, mes) {
   }
   return { desde: primerLunes.toISOString().slice(0, 10), hasta: ultimoDomingo.toISOString().slice(0, 10) };
 }
-async function cargarEstadisticasRutas(desde, hasta, periodo) {
+async function cargarEstadisticasRutas(desde, hasta, periodo, filtroNave) {
   document.getElementById('content-title').textContent = 'Rutas & Conductores · Estadísticas';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando estadísticas...</p>';
+  filtroNave = filtroNave || window.rutasFiltroNaveActual || 'todos';
+  window.rutasFiltroNaveActual = filtroNave;
   if (!desde || !hasta) {
     const hoy = new Date();
     periodo = periodo || 'mes';
@@ -469,7 +471,7 @@ async function cargarEstadisticasRutas(desde, hasta, periodo) {
   }
   try {
     const [resp, respEvo] = await Promise.all([
-      fetch('/api/rutas/estadisticas?desde=' + desde + '&hasta=' + hasta),
+      fetch('/api/rutas/estadisticas?desde=' + desde + '&hasta=' + hasta + '&nave=' + filtroNave),
       fetch('/api/rutas/evolucion-mensual')
     ]);
     const data = await resp.json();
@@ -477,7 +479,7 @@ async function cargarEstadisticasRutas(desde, hasta, periodo) {
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
     document.getElementById('last-update-text').textContent = 'Actualizado ' + new Date().toLocaleString('es-ES');
     document.getElementById('last-update-indicator').classList.remove('stale');
-    pintarEstadisticasRutas(data, desde, hasta, periodo, evolucion.meses || []);
+    pintarEstadisticasRutas(data, desde, hasta, periodo, evolucion.meses || [], filtroNave);
   } catch (err) {
     console.error('Error en estadísticas de Rutas:', err);
     body.innerHTML = '<p class="loading-text">Error de conexión: ' + (err && err.message ? err.message : err) + '</p>';
@@ -506,10 +508,21 @@ function graficoBarrasRutas_(meses) {
 }
 function irASemanaISO_() {
   const anio = parseInt(document.getElementById('est-rutas-semana-anio').value, 10);
-  const semana = parseInt(document.getElementById('est-rutas-semana-num').value, 10);
+  const semana = parseInt(document.getElementById('est-rutas-semana-sel').value, 10);
   if (!anio || !semana) return;
   const r = rangoSemanaISO_(anio, semana);
   cargarEstadisticasRutas(r.desde, r.hasta, 'custom');
+}
+function poblarSemanasISO_(anio) {
+  const sel = document.getElementById('est-rutas-semana-sel');
+  if (!sel) return;
+  const fmtCorto = iso => { const [a, m, d] = iso.split('-'); return d + '/' + m; };
+  let opts = '';
+  for (let s = 1; s <= 53; s++) {
+    const r = rangoSemanaISO_(anio, s);
+    opts += `<option value="${s}">Semana ${s} (${fmtCorto(r.desde)} - ${fmtCorto(r.hasta)})</option>`;
+  }
+  sel.innerHTML = opts;
 }
 function irAMesISO_() {
   const anio = parseInt(document.getElementById('est-rutas-mes-anio').value, 10);
@@ -518,13 +531,14 @@ function irAMesISO_() {
   const r = rangoMesPorSemanasISO_(anio, mes);
   cargarEstadisticasRutas(r.desde, r.hasta, 'custom');
 }
-function pintarEstadisticasRutas(data, desde, hasta, periodo, evolucionMeses) {
+function pintarEstadisticasRutas(data, desde, hasta, periodo, evolucionMeses, filtroNave) {
   const body = document.getElementById('content-body');
   const hoy = new Date();
   const anioActual = hoy.getFullYear();
-  const semanaActual = isoWeekNumberJS_(hoy);
   const NOMBRES_MES_RUTAS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  filtroNave = filtroNave || 'todos';
   const btnPeriodo = (id, label, activo) => `<button onclick="cargarEstadisticasRutas(null,null,'${id}')" style="padding:8px 14px; border-radius:4px; border:1px solid ${activo ? 'var(--accent)' : 'var(--border)'}; background:${activo ? 'var(--accent-light)' : '#fff'}; color:${activo ? 'var(--accent-dark)' : 'var(--text-secondary)'}; cursor:pointer; font-size:13px; font-weight:${activo ? '600' : '400'};">${label}</button>`;
+  const btnNave = (id, label, activo) => `<button onclick="cargarEstadisticasRutas('${desde}','${hasta}','${periodo}','${id}')" style="padding:8px 14px; border-radius:4px; border:1px solid ${activo ? 'var(--accent)' : 'var(--border)'}; background:${activo ? 'var(--accent-light)' : '#fff'}; color:${activo ? 'var(--accent-dark)' : 'var(--text-secondary)'}; cursor:pointer; font-size:13px; font-weight:${activo ? '600' : '400'};">${label}</button>`;
   const filaRanking = r => `
     <tr>
       <td>${r.nombre}</td>
@@ -533,6 +547,12 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo, evolucionMeses) {
       <td style="text-align:right; font-weight:600;">${r.total}</td>
     </tr>`;
   let html = `
+    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem; align-items:center;">
+      ${btnNave('todos', 'Todos', filtroNave === 'todos')}
+      ${btnNave('excluir', 'Solo clientes (sin Nave)', filtroNave === 'excluir')}
+      ${btnNave('solo', '📦 Nave Marbella/Monda', filtroNave === 'solo')}
+      ${data.total_interno > 0 ? `<span style="font-size:12px; color:var(--text-muted);">(${data.total_interno} de Nave en este rango — movimiento interno, sin ingreso por entrega)</span>` : ''}
+    </div>
     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem; align-items:center;">
       ${btnPeriodo('semana', 'Esta semana', periodo === 'semana')}
       ${btnPeriodo('mes', 'Este mes', periodo === 'mes')}
@@ -547,9 +567,9 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo, evolucionMeses) {
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.25rem; align-items:center; font-size:13px; color:var(--text-secondary);">
       Semana ISO
-      <input type="number" id="est-rutas-semana-num" min="1" max="53" value="${semanaActual}" style="width:56px; padding:7px; border:1px solid var(--border); border-radius:4px;">
+      <select id="est-rutas-semana-sel" style="padding:7px; border:1px solid var(--border); border-radius:4px;"></select>
       de
-      <input type="number" id="est-rutas-semana-anio" value="${anioActual}" style="width:72px; padding:7px; border:1px solid var(--border); border-radius:4px;">
+      <input type="number" id="est-rutas-semana-anio" value="${anioActual}" onchange="poblarSemanasISO_(parseInt(this.value,10))" style="width:72px; padding:7px; border:1px solid var(--border); border-radius:4px;">
       <button onclick="irASemanaISO_()" style="padding:7px 12px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Ir</button>
       <span style="width:1px; height:20px; background:var(--border); margin:0 4px;"></span>
       Mes
@@ -591,6 +611,8 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo, evolucionMeses) {
     </div>
   `;
   body.innerHTML = html;
+  poblarSemanasISO_(anioActual);
+  document.getElementById('est-rutas-semana-sel').value = String(isoWeekNumberJS_(hoy));
 }
 
 // ================================================================

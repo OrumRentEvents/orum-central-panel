@@ -967,8 +967,8 @@ app.get('/api/rutas/material', async (req, res) => {
 // Entregas/recogidas por conductor y por vehículo en un rango de fechas.
 app.get('/api/rutas/estadisticas', requiereLogin, async (req, res) => {
   try {
-    const { desde, hasta } = req.query;
-    const data = await obtenerEstadisticasRutas(desde || null, hasta || null);
+    const { desde, hasta, nave } = req.query;
+    const data = await obtenerEstadisticasRutas(desde || null, hasta || null, nave || null);
     res.json(data);
   } catch (err) {
     console.error('Error en GET /api/rutas/estadisticas:', err);
