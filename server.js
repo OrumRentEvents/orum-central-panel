@@ -9,7 +9,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fetch = require('node-fetch');
 const path = require('path');
-const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
+const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, obtenerEstadisticasMaterial, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -972,6 +972,18 @@ app.get('/api/rutas/estadisticas', requiereLogin, async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('Error en GET /api/rutas/estadisticas:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── ESTADÍSTICAS DE MATERIAL ──
+// Más/menos alquilado, lo que más ingresa por artículo/familia, y roturas.
+app.get('/api/material/estadisticas', requiereLogin, async (req, res) => {
+  try {
+    const data = await obtenerEstadisticasMaterial();
+    res.json(data);
+  } catch (err) {
+    console.error('Error en GET /api/material/estadisticas:', err);
     res.status(500).json({ error: err.message });
   }
 });

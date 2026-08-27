@@ -489,6 +489,102 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo) {
   body.innerHTML = html;
 }
 
+// ================================================================
+// ESTADÍSTICAS DE MATERIAL (Logística · Almacén)
+// Más/menos alquilado, más rentable, roturas/no devueltos, por familia.
+// Sacado de estadisticas_material(_pnc) y costes_adicionales en Supabase.
+// ================================================================
+async function cargarEstadisticasMaterial() {
+  document.getElementById('content-title').textContent = 'Estadísticas de Material';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando estadísticas...</p>';
+  try {
+    const resp = await fetch('/api/material/estadisticas');
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    document.getElementById('last-update-text').textContent = 'Actualizado ' + new Date().toLocaleString('es-ES');
+    document.getElementById('last-update-indicator').classList.remove('stale');
+    window.materialEstadisticasData = data;
+    pintarEstadisticasMaterial(data, '');
+  } catch (err) {
+    console.error('Error en estadísticas de Material:', err);
+    body.innerHTML = '<p class="loading-text">Error de conexión: ' + (err && err.message ? err.message : err) + '</p>';
+  }
+}
+function pintarEstadisticasMaterial(data, familiaFiltro) {
+  const body = document.getElementById('content-body');
+  const familias = [...new Set(data.articulos.map(a => a.familia).filter(Boolean))].sort();
+  const articulosFiltrados = familiaFiltro ? data.articulos.filter(a => a.familia === familiaFiltro) : data.articulos;
+
+  const totalIngresos = articulosFiltrados.reduce((s, a) => s + a.importe, 0);
+  const masAlquilado = [...articulosFiltrados].sort((a, b) => b.veces - a.veces).slice(0, 15);
+  const menosAlquilado = [...articulosFiltrados].filter(a => a.veces > 0).sort((a, b) => a.veces - b.veces).slice(0, 15);
+  const masRentable = [...articulosFiltrados].sort((a, b) => b.importe - a.importe).slice(0, 15);
+
+  const colsArticulo = '<th>Artículo</th><th>Familia</th><th style="text-align:right;">Veces</th><th style="text-align:right;">Unidades</th><th style="text-align:right;">Importe</th>';
+  const filaArticulo = a => `
+    <tr>
+      <td>${a.articulo}</td>
+      <td style="color:var(--text-muted); font-size:12px;">${a.familia || '—'}</td>
+      <td style="text-align:right;">${a.veces}</td>
+      <td style="text-align:right;">${a.unidades}</td>
+      <td style="text-align:right; font-weight:600;">${formatearEuros(a.importe)}</td>
+    </tr>`;
+  const filaRotura = r => `
+    <tr>
+      <td>${r.articulo}</td>
+      <td style="text-align:right;">${r.veces}</td>
+      <td style="text-align:right;">${r.unidades}</td>
+      <td style="text-align:right; font-weight:600; color:#A32D2D;">${formatearEuros(r.importe)}</td>
+    </tr>`;
+  const filaFamilia = f => `
+    <tr>
+      <td>${f.familia}</td>
+      <td style="text-align:right;">${f.unidades}</td>
+      <td style="text-align:right; font-weight:600;">${formatearEuros(f.importe)}</td>
+    </tr>`;
+  const tabla = (titulo, filasHtml, colsHtml, vacio) => `
+    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:1; min-width:340px;">
+      <div style="font-weight:600; margin-bottom:8px;">${titulo}</div>
+      ${!filasHtml ? `<p style="font-size:13px; color:var(--text-muted);">${vacio || 'Sin datos.'}</p>` : `
+      <div style="overflow-x:auto;"><table>
+        <thead><tr>${colsHtml}</tr></thead>
+        <tbody>${filasHtml}</tbody>
+      </table></div>`}
+    </div>`;
+
+  let html = `
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem; align-items:center;">
+      <select id="filtro-familia-material" style="padding:8px; border:1px solid var(--border); border-radius:4px;" onchange="pintarEstadisticasMaterial(window.materialEstadisticasData, this.value)">
+        <option value="">Familia: Todas</option>
+        ${familias.map(f => `<option value="${f}" ${f === familiaFiltro ? 'selected' : ''}>${f}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      ${kpiCard('Artículos distintos', articulosFiltrados.length)}
+      ${kpiCard('Ingresos por material', formatearEuros(totalIngresos))}
+      ${kpiCard('Más alquilado', masAlquilado[0] ? masAlquilado[0].articulo : '—')}
+      ${kpiCard('Más rentable', masRentable[0] ? masRentable[0].articulo : '—')}
+    </div>
+    <div style="display:flex; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+      ${tabla('📈 Más alquilado', masAlquilado.map(filaArticulo).join(''), colsArticulo)}
+      ${tabla('💰 Más rentable', masRentable.map(filaArticulo).join(''), colsArticulo)}
+    </div>
+    <div style="display:flex; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+      ${tabla('📉 Menos alquilado', menosAlquilado.map(filaArticulo).join(''), colsArticulo)}
+      ${tabla('⚠️ Roturas / no devueltos', data.roturas.slice(0, 15).map(filaRotura).join(''), '<th>Artículo</th><th style="text-align:right;">Veces</th><th style="text-align:right;">Unidades</th><th style="text-align:right;">Importe cobrado</th>', 'Sin roturas registradas.')}
+    </div>
+    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem;">
+      <div style="font-weight:600; margin-bottom:8px;">Ingresos por familia</div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>Familia</th><th style="text-align:right;">Unidades</th><th style="text-align:right;">Importe</th></tr></thead>
+        <tbody>${data.familias.map(filaFamilia).join('')}</tbody>
+      </table></div>
+    </div>
+  `;
+  body.innerHTML = html;
+}
+
 const MENU = [
   { id: 'resumen', icon: '🏠', label: 'Resumen', onClick: () => cargarResumenGeneral() },
   { id: 'proyectos', icon: '📁', label: 'Proyectos', onClick: () => cargarProyectos() },
@@ -517,6 +613,7 @@ const MENU = [
       { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
       { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
       { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
+      { id: 'log-material-stats', label: 'Estadísticas de Material', onClick: () => cargarEstadisticasMaterial() },
       { id: 'log-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
       { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
   ]},
