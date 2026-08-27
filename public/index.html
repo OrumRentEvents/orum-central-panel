@@ -506,6 +506,14 @@ function graficoBarrasRutas_(meses) {
     </div>
   `;
 }
+function aplicarSelectorNave_(desde, hasta, periodo) {
+  const marbella = document.getElementById('chk-nave-marbella').checked;
+  const monda = document.getElementById('chk-nave-monda').checked;
+  const seleccion = [];
+  if (marbella) seleccion.push('marbella');
+  if (monda) seleccion.push('monda');
+  cargarEstadisticasRutas(desde, hasta, periodo, seleccion.length > 0 ? seleccion.join(',') : 'todos');
+}
 function irASemanaISO_() {
   const anio = parseInt(document.getElementById('est-rutas-semana-anio').value, 10);
   const semana = parseInt(document.getElementById('est-rutas-semana-sel').value, 10);
@@ -546,12 +554,19 @@ function pintarEstadisticasRutas(data, desde, hasta, periodo, evolucionMeses, fi
       <td style="text-align:right;">${r.recogidas}</td>
       <td style="text-align:right; font-weight:600;">${r.total}</td>
     </tr>`;
+  const navesSeleccionadas = (filtroNave && filtroNave !== 'todos' && filtroNave !== 'excluir') ? filtroNave.split(',') : [];
   let html = `
-    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem; align-items:center;">
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.6rem; align-items:center;">
       ${btnNave('todos', 'Todos', filtroNave === 'todos')}
-      ${btnNave('excluir', 'Solo clientes (sin Nave)', filtroNave === 'excluir')}
-      ${btnNave('solo', '📦 Nave Marbella/Monda', filtroNave === 'solo')}
-      ${data.total_interno > 0 ? `<span style="font-size:12px; color:var(--text-muted);">(${data.total_interno} de Nave en este rango — movimiento interno, sin ingreso por entrega)</span>` : ''}
+      ${btnNave('excluir', 'Excluir Nave', filtroNave === 'excluir')}
+      <span style="width:1px; height:20px; background:var(--border); margin:0 2px;"></span>
+      <label style="font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; cursor:pointer;">
+        <input type="checkbox" id="chk-nave-marbella" ${navesSeleccionadas.indexOf('marbella') !== -1 ? 'checked' : ''} onchange="aplicarSelectorNave_('${desde}','${hasta}','${periodo}')"> 📦 Nave Marbella (${data.total_marbella})
+      </label>
+      <label style="font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; cursor:pointer;">
+        <input type="checkbox" id="chk-nave-monda" ${navesSeleccionadas.indexOf('monda') !== -1 ? 'checked' : ''} onchange="aplicarSelectorNave_('${desde}','${hasta}','${periodo}')"> 📦 Nave Monda (${data.total_monda})
+      </label>
+      ${data.total_interno > 0 ? `<span style="font-size:12px; color:var(--text-muted);">movimiento interno de almacén, sin ingreso por entrega</span>` : ''}
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem; align-items:center;">
       ${btnPeriodo('semana', 'Esta semana', periodo === 'semana')}
