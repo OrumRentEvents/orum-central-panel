@@ -245,7 +245,7 @@ function mostrarApp() {
   document.getElementById('sidebar-user-name').textContent = usuarioActual.nombre;
   construirMenu();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
-  else cargarProyectos();
+  else cargarResumenGeneral();
 }
 function renderProximamente(nombre) {
   document.getElementById('content-title').textContent = nombre;
@@ -259,7 +259,140 @@ function renderProximamente(nombre) {
     </div>
   `;
 }
+
+// ================================================================
+// RESUMEN GENERAL — pantalla de bienvenida (Dirección/admin)
+// Junta lo más importante de cada departamento sin recalcular nada
+// nuevo: reutiliza los mismos endpoints y funciones de gráfica que ya
+// usan Comercial·Resumen y Financiero·Resumen.
+// ================================================================
+async function cargarResumenGeneral() {
+  document.getElementById('content-title').textContent = 'Resumen';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando resumen...</p>';
+  try {
+    const [rProy, rPresu, rLeads, rFin, rSync] = await Promise.all([
+      fetch('/api/proyectos').then(r => r.json()),
+      fetch('/api/presupuestos').then(r => r.json()),
+      fetch('/api/leads').then(r => r.json()),
+      fetch('/api/financiero').then(r => r.json()).catch(() => null),
+      fetch('/api/sync-status').then(r => r.json()).catch(() => null)
+    ]);
+    if (rProy.error) { body.innerHTML = '<p class="loading-text">Error: ' + rProy.error + '</p>'; return; }
+    actualizarIndicadorFecha(rProy.ultima_actualizacion);
+    pintarResumenGeneral(rProy.data || [], rPresu.data || [], rLeads.data || [], rFin, rSync);
+  } catch (err) {
+    console.error('Error en Resumen general:', err);
+    body.innerHTML = '<p class="loading-text">Error de conexión: ' + (err && err.message ? err.message : err) + '</p>';
+  }
+}
+function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
+  const body = document.getElementById('content-body');
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const en7 = new Date(hoy); en7.setDate(en7.getDate() + 7);
+  const en30 = new Date(hoy); en30.setDate(en30.getDate() + 30);
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+  const parseFechaLocal = raw => {
+    if (!raw) return null;
+    const fParte = raw.split(' ')[0];
+    const partes = fParte.split('/');
+    if (partes.length !== 3) return null;
+    const d = new Date(partes[2], partes[1] - 1, partes[0]);
+    return isNaN(d) ? null : d;
+  };
+
+  const activos = proyectos.filter(p => p.estado !== 'Canceled');
+  const conFecha = activos.map(p => ({ ...p, _fecha: parseFechaLocal(p.evento_inicio) })).filter(p => p._fecha);
+  const entregas7 = conFecha.filter(p => p._fecha >= hoy && p._fecha <= en7);
+  const entregas30 = conFecha.filter(p => p._fecha >= hoy && p._fecha <= en30);
+  const realizadosMes = conFecha.filter(p => p._fecha >= inicioMes && p._fecha < hoy);
+  const proximas = conFecha.filter(p => p._fecha >= hoy).sort((a, b) => a._fecha - b._fecha).slice(0, 8);
+
+  const alertasPresu = presupuestos.filter(p => ['rojo', 'amarillo', 'negro'].includes(p.semaforo));
+  const importeEnJuego = presupuestos.filter(p => ['verde', 'amarillo', 'rojo', 'negro'].includes(p.semaforo))
+    .reduce((s, p) => s + (parseFloat(p.importe_sin_iva) || 0), 0);
+
+  const conteoEstados = {};
+  activos.forEach(p => { const e = p.estado || 'Sin estado'; conteoEstados[e] = (conteoEstados[e] || 0) + 1; });
+  const paletaEstados = ['#4c8c1f', '#C77D0B', '#2a2a2a', '#8a6d1e', '#A32D2D', '#6b6a64', '#9a988f'];
+  const segmentosEstado = Object.entries(conteoEstados).sort((a, b) => b[1] - a[1]).slice(0, 7)
+    .map(([etiqueta, valor], i) => ({ etiqueta, valor, color: paletaEstados[i % paletaEstados.length] }));
+
+  let html = `
+    <div style="font-weight:600; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">Proyectos</div>
+    <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      ${kpiCard('Proyectos activos', activos.length)}
+      ${kpiCard('Entregas próx. 7 días', entregas7.length)}
+      ${kpiCard('Entregas próx. 30 días', entregas30.length)}
+      ${kpiCard('Realizados este mes', realizadosMes.length)}
+    </div>
+  `;
+
+  if (fin && !fin.error && fin.kpis) {
+    const k = fin.kpis;
+    html += `
+      <div style="font-weight:600; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">Financiero</div>
+      <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+        ${kpiCard('Total facturado', euros(k.total_facturado))}
+        ${kpiCard('Cobrado', euros(k.total_cobrado))}
+        ${kpiCard('Pendiente de cobro', euros(k.total_pendiente))}
+        ${kpiCard('Vencidas', euros(k.total_vencidas))}
+      </div>
+    `;
+  }
+
+  html += `
+    <div style="font-weight:600; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">Comercial</div>
+    <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      ${kpiCard('Presupuestos pendientes de seguimiento', alertasPresu.length)}
+      ${kpiCard('Leads recibidos', leads.length)}
+      ${kpiCard('Importe presupuestos en juego', formatearEuros(importeEnJuego))}
+    </div>
+  `;
+
+  html += `
+    <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:1; min-width:280px; display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap;">
+        <div style="font-weight:600; width:100%;">Proyectos por estado</div>
+        ${donutSVG(segmentosEstado)}
+        <div style="flex:1; min-width:140px;">${leyendaDonut(segmentosEstado)}</div>
+      </div>
+      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:2; min-width:340px;">
+        <div style="font-weight:600; margin-bottom:8px;">Evolución de presupuestos (desde enero)</div>
+        ${graficoBarrasMensuales(evolucionMensualPresupuestos(presupuestos))}
+      </div>
+    </div>
+  `;
+
+  html += `
+    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1rem;">
+      <div style="font-weight:600; margin-bottom:8px; cursor:pointer;" onclick="marcarMenuActivo('menu-item-proyectos'); cargarProyectos();">📦 Próximas entregas →</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        ${proximas.length === 0 ? '<div style="font-size:13px; color:var(--text-muted);">No hay entregas próximas.</div>' : proximas.map(p => `
+          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
+            <span>${p.numero || ''} — ${p.cliente || ''}</span>
+            <span style="color:var(--text-muted);">${p._fecha.toLocaleDateString('es-ES')}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  if (sync && sync.ok && Array.isArray(sync.cron)) {
+    const hayFallo = sync.cron.some(c => c.exito === false);
+    html += `
+      <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer; width:fit-content;" onclick="window.open('/sync-status','_blank')">
+        <span style="width:8px; height:8px; border-radius:50%; background:${hayFallo ? '#A32D2D' : '#4c8c1f'}; display:inline-block;"></span>
+        Sincronización: ${hayFallo ? 'hay algo que revisar' : 'todo correcto'} — ver detalle
+      </div>
+    `;
+  }
+
+  body.innerHTML = html;
+}
 const MENU = [
+  { id: 'resumen', icon: '🏠', label: 'Resumen', onClick: () => cargarResumenGeneral() },
   { id: 'proyectos', icon: '📁', label: 'Proyectos', onClick: () => cargarProyectos() },
   { id: 'fin', icon: '💶', label: 'Financiero', submenu: [
       { id: 'fin-resumen', label: 'Resumen', onClick: () => cargarFinancieroResumen() },
@@ -340,7 +473,7 @@ function construirMenu() {
       nav.appendChild(submenuEl);
     }
   });
-  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : 'menu-item-proyectos');
+  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : 'menu-item-resumen');
 }
 function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
