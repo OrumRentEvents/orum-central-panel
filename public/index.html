@@ -748,6 +748,9 @@ const MENU = [
       { id: 'fin-auditoria', label: 'Auditoría / Alertas', onClick: () => cargarFinancieroAuditoria() },
       { id: 'fin-rentabilidad', label: 'Rentabilidad', onClick: () => renderProximamente('Financiero · Rentabilidad') },
       { id: 'fin-evolucion', label: 'Evolución', onClick: () => renderProximamente('Financiero · Evolución') },
+      { id: 'fin-caja', label: 'Caja', onClick: () => window.open('https://caja-orum-production.up.railway.app', '_blank') },
+      { id: 'fin-fact-listado', label: 'Facturas Proveedores', onClick: () => cargarFacturasProveedores() },
+      { id: 'fin-fact-config', label: 'Config. Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
   ]},
   { id: 'comercial', icon: '⭐', label: 'Comercial', submenu: [
       { id: 'com-resumen', label: 'Resumen', onClick: () => cargarResumenComercial() },
@@ -773,11 +776,6 @@ const MENU = [
   ]},
   { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
   { id: 'mantenimiento', icon: '🔧', label: 'Mantenimiento', onClick: () => renderProximamente('Mantenimiento') },
-  { id: 'caja', icon: '💰', label: 'Caja', especial: true, onClick: () => window.open('https://caja-orum-production.up.railway.app', '_blank') },
-  { id: 'fact', icon: '🧾', label: 'Facturas Proveedores', submenu: [
-      { id: 'fact-listado', label: 'Listado', onClick: () => cargarFacturasProveedores() },
-      { id: 'fact-config', label: 'Configurar proveedores', onClick: () => cargarConfiguracionProveedores() },
-  ]},
   { id: 'muelle', icon: '🚛', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
   { id: 'sync-status', icon: '🔄', label: 'Estado Sincronización', especial: true, onClick: () => {
       window.open('/sync-status', '_blank');
