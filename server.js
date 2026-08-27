@@ -1423,7 +1423,7 @@ function renderReporteMesHTML(data) {
       <td style="padding:10px 14px;text-align:right;color:#8e44ad">${totalLucasPct}%</td>
     </tr></tfoot>
   </table>
-  <div class="footnote">* Semanas en curso — datos en tiempo real desde Rentman · Objetivo = 2025 +20% · Generado: ${new Date().toLocaleString('es-ES')}</div>
+  <div class="footnote">* Semanas en curso — datos aún sin cerrar, sujetos a cambio · Objetivo = 2025 +20% · Generado: ${new Date().toLocaleString('es-ES')}</div>
 </body></html>`;
 }
 
