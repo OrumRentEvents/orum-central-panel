@@ -1173,6 +1173,22 @@ app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// NUEVO (28 ago 2026): gestión de las 4 columnas manuales (Forma de Pago,
+// Contabilizada, Digitalizada, Matrícula) desde el propio panel, para que
+// contabilidad no tenga que tocar la Sheet directamente.
+const CAMPOS_FACTURA_EDITABLES = ['formaPago', 'contabilizada', 'digitalizada', 'matricula'];
+app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const { fileId, campo, valor } = req.body;
+    if (!fileId) return res.status(400).json({ error: 'fileId requerido' });
+    if (!CAMPOS_FACTURA_EDITABLES.includes(campo)) return res.status(400).json({ error: 'Campo no editable: ' + campo });
+    const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'actualizarCampo', fileId, campo, valor }) });
+    const data = await resp.json();
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ================================================================
 // INFORME MENSUAL — ventas por semana ISO, real vs 2025, objetivo +20%
 // ================================================================

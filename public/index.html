@@ -2177,11 +2177,24 @@ function pintarFacturasProveedores() {
         <option value="">Proveedor: Todos</option>
         ${[...new Set(facturas.map(f => f.proveedor))].sort().map(p => `<option value="${p}">${p}</option>`).join('')}
       </select>
+      <select id="filtro-fact-mes" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
+        <option value="">Mes: Todos</option>
+        ${[...new Set(facturas.map(f => f.mes).filter(m => m != null))].sort((a, b) => a - b).map(m => `<option value="${m}">${MESES_ES_FACTURAS[m] || m}</option>`).join('')}
+      </select>
+      <select id="filtro-fact-anio" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
+        <option value="">Año: Todos</option>
+        ${[...new Set(facturas.map(f => f.anio).filter(a => a != null))].sort((a, b) => b - a).map(a => `<option value="${a}">${a}</option>`).join('')}
+      </select>
       <select id="filtro-fact-confianza" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
         <option value="">Confianza: Todas</option>
         <option value="alta">Alta</option>
         <option value="media">Media</option>
         <option value="baja">Baja</option>
+      </select>
+      <select id="filtro-fact-contabilizada" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
+        <option value="">Contabilizada: Todas</option>
+        <option value="si">Sí</option>
+        <option value="no">No</option>
       </select>
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-fact-proveedores" placeholder="Buscar proveedor o nº factura..." oninput="aplicarFiltrosFacturasProveedores()">
@@ -2196,17 +2209,24 @@ function filtrarFacturasPorDepartamento(departamento) {
   facturasFiltroDepartamentoActivo = departamento;
   pintarFacturasProveedores();
 }
+const MESES_ES_FACTURAS = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 function aplicarFiltrosFacturasProveedores() {
   const data = facturasProveedoresDataGlobal;
   const proveedor = document.getElementById('filtro-fact-proveedor').value;
+  const mes = document.getElementById('filtro-fact-mes').value;
+  const anio = document.getElementById('filtro-fact-anio').value;
   const confianza = document.getElementById('filtro-fact-confianza').value;
+  const contabilizada = document.getElementById('filtro-fact-contabilizada').value;
   const busqueda = document.getElementById('buscador-fact-proveedores').value.toLowerCase();
   let filtradas = data.facturas;
   if (facturasFiltroDepartamentoActivo) {
     filtradas = filtradas.filter(f => f.desglose_departamentos.some(d => d.departamento === facturasFiltroDepartamentoActivo));
   }
   if (proveedor) filtradas = filtradas.filter(f => f.proveedor === proveedor);
+  if (mes) filtradas = filtradas.filter(f => String(f.mes) === mes);
+  if (anio) filtradas = filtradas.filter(f => String(f.anio) === anio);
   if (confianza) filtradas = filtradas.filter(f => f.confianza === confianza);
+  if (contabilizada) filtradas = filtradas.filter(f => contabilizada === 'si' ? !!f.contabilizada : !f.contabilizada);
   if (busqueda) {
     filtradas = filtradas.filter(f =>
       (f.proveedor || '').toLowerCase().includes(busqueda) ||
@@ -2215,6 +2235,7 @@ function aplicarFiltrosFacturasProveedores() {
   }
   renderTablaFacturasProveedores(filtradas);
 }
+const FORMAS_PAGO_FACTURA = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
 function renderTablaFacturasProveedores(lista) {
   const cont = document.getElementById('tabla-facturas-proveedores');
   let html = `
@@ -2229,12 +2250,16 @@ function renderTablaFacturasProveedores(lista) {
           <th style="text-align:right;">Total</th>
           <th>Departamento(s)</th>
           <th>Confianza</th>
+          <th>Forma de pago</th>
+          <th style="text-align:center;">Contabilizada</th>
+          <th style="text-align:center;">Digitalizada</th>
+          <th>Matrícula</th>
         </tr>
       </thead>
       <tbody>
   `;
   if (lista.length === 0) {
-    html += '<tr><td colspan="8" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+    html += '<tr><td colspan="12" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
   lista.forEach(f => {
     const badgeConfianza = f.confianza === 'alta'
@@ -2245,6 +2270,8 @@ function renderTablaFacturasProveedores(lista) {
     const departamentosHtml = f.desglose_departamentos.map(d =>
       `<span class="badge badge-neutral" style="font-size:11px;" title="${euros(d.importe)}">${d.departamento}${d.porcentaje < 100 ? ' ' + d.porcentaje + '%' : ''}</span>`
     ).join(' ');
+    const idAttr = String(f.fileId).replace(/"/g, '&quot;');
+    const formaPagoOpts = FORMAS_PAGO_FACTURA.map(v => `<option value="${v}" ${v === (f.formaPago || '') ? 'selected' : ''}>${v || '—'}</option>`).join('');
     html += `
       <tr>
         <td>${f.proveedor || ''}</td>
@@ -2255,13 +2282,38 @@ function renderTablaFacturasProveedores(lista) {
         <td style="text-align:right; font-weight:500;">${euros(f.importeTotal)}</td>
         <td>${departamentosHtml}</td>
         <td>${badgeConfianza}</td>
+        <td><select style="font-size:12px;" onchange="actualizarCampoFacturaUI(this,'${idAttr}','formaPago')">${formaPagoOpts}</select></td>
+        <td style="text-align:center;"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','contabilizada')"></td>
+        <td style="text-align:center;"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','digitalizada')"></td>
+        <td><input type="text" value="${(f.matricula || '').replace(/"/g, '&quot;')}" placeholder="Ej: 1234ABC" style="font-size:12px; width:90px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')"></td>
       </tr>
     `;
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
 }
-const DEPARTAMENTOS_ORUM = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Otros Gastos'];
+// Guarda un campo manual (Forma de Pago, Contabilizada, Digitalizada, Matrícula)
+// al vuelo, sin recargar toda la tabla — así contabilidad puede ir marcando
+// facturas una a una sin perder el sitio en el que está.
+async function actualizarCampoFacturaUI(el, fileId, campo) {
+  const valor = el.type === 'checkbox' ? el.checked : el.value;
+  el.disabled = true;
+  try {
+    const resp = await fetch('/api/facturas-proveedores/actualizar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId, campo, valor })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
+    if (f) f[campo] = valor;
+  } catch (err) {
+    alert('Error al guardar: ' + err.message);
+  } finally {
+    el.disabled = false;
+  }
+}
+const DEPARTAMENTOS_ORUM = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Vehículos', 'Otros Gastos'];
 let configProveedoresGlobal = { proveedores: [], reparto: [] };
 async function cargarConfiguracionProveedores() {
   document.getElementById('content-title').textContent = 'Facturas Proveedores · Configurar proveedores';
