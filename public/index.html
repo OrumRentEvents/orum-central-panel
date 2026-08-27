@@ -2303,9 +2303,9 @@ function renderTablaFacturasProveedores(lista) {
       `<option value="__otro__" ${mostrarNota ? 'selected' : ''}>Otro (vehículo externo)</option>`;
     html += `
       <tr>
-        <td><input type="text" value="${(f.proveedor || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:130px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','proveedor')"></td>
-        <td><input type="text" value="${(f.numeroFactura || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:80px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','numeroFactura')"></td>
-        <td><input type="text" value="${(f.fecha || '').replace(/"/g, '&quot;')}" placeholder="DD/MM/AAAA" style="font-size:12px; width:80px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','fecha')"></td>
+        <td><input type="text" value="${String(f.proveedor || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:130px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','proveedor')"></td>
+        <td><input type="text" value="${String(f.numeroFactura || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:80px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','numeroFactura')"></td>
+        <td><input type="text" value="${String(f.fecha || '').replace(/"/g, '&quot;')}" placeholder="DD/MM/AAAA" style="font-size:12px; width:80px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','fecha')"></td>
         <td style="text-align:right;"><input type="number" step="0.01" value="${f.importeBase != null ? f.importeBase : ''}" style="font-size:12px; width:75px; text-align:right;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','importeBase')"></td>
         <td style="text-align:right; color:#6b6a64;"><input type="number" step="0.01" value="${f.iva != null ? f.iva : ''}" style="font-size:12px; width:65px; text-align:right;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','iva')"></td>
         <td style="text-align:right;"><input type="number" step="0.01" value="${f.importeTotal != null ? f.importeTotal : ''}" style="font-size:12px; width:75px; text-align:right; font-weight:500;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','importeTotal')"></td>
@@ -2316,7 +2316,7 @@ function renderTablaFacturasProveedores(lista) {
         <td style="text-align:center;"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','digitalizada')"></td>
         <td>
           <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${idAttr}')">${matriculaOpts}</select>
-          <input type="text" value="${(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')">
+          <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')">
         </td>
         <td><span onclick="abrirHistorialFactura('${idAttr}')" title="Ver quién ha tocado esta factura" style="cursor:pointer; font-size:14px;">🕓</span></td>
       </tr>
