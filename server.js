@@ -1165,10 +1165,13 @@ function isoWeeksInMonth(mes, anio) {
   return semanas;
 }
 
+// Rentabilidad = siempre SIN IVA (el IVA solo se usa para control de pagos,
+// en ningún otro informe/KPI). Antes esto sumaba el IVA (×1.21) a las ventas
+// "Rentman" normales pero no a las PNC, mezclando criterios en la misma fila
+// y comparando contra VENTAS_2025_SEMANAL (que sí está en sin IVA) como si
+// fueran lo mismo - ambos tipos van sin IVA ahora, sin excepción.
 function valorFinalProyecto(p) {
-  const esPNC = p.es_abrebotellas === 'SI' || p.es_abrebotellas === true;
-  const valorSinIva = parseFloat(p.valor) || 0;
-  return esPNC ? valorSinIva : Math.round(valorSinIva * 1.21 * 100) / 100;
+  return parseFloat(p.valor) || 0;
 }
 
 async function construirReporteMes(mes, anio) {
