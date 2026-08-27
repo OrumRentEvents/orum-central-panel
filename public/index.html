@@ -366,6 +366,10 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
   `;
 
   html += `
+    <div style="background:var(--accent-light); border:1px solid var(--accent); border-radius:4px; padding:0.85rem 1rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="window.open('/rutas.html', '_blank')">
+      <span style="font-weight:600; color:var(--accent-dark);">🚛 Rutas & Conductores</span>
+      <span style="font-size:13px; color:var(--accent-dark);">Abrir panel de rutas →</span>
+    </div>
     <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1rem;">
       <div style="font-weight:600; margin-bottom:8px; cursor:pointer;" onclick="marcarMenuActivo('menu-item-proyectos'); cargarProyectos();">📦 Próximas entregas →</div>
       <div style="display:flex; flex-direction:column; gap:6px;">
@@ -419,7 +423,7 @@ const MENU = [
       { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
       { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
       { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
-      { id: 'log-rutas', label: 'Rutas & Conductores', onClick: () => renderProximamente('Rutas & Conductores') },
+      { id: 'log-rutas', label: 'Rutas & Conductores', onClick: () => window.open('/rutas.html', '_blank') },
       { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
   ]},
   { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
