@@ -791,6 +791,53 @@ app.get('/preparacion', (req, res) => {
 // (Almacén), pero aquí en ventana de 15 días y agrupado día a día en vez
 // de solo "próximos 14 días" sin fecha exacta.
 // ================================================================
+
+// Confirmado con datos reales de Rentman (/projectfunctions): "TRANSPORTE"
+// aparece en casi todos los proyectos (no es una "extra" real, es la base) y
+// "RECOGIDA DIA SIGUIENTE" tampoco cuenta como extra a efectos de ruta — el
+// usuario pidió explícitamente no mostrar ninguno de los dos aquí. El resto
+// (montaje/desmontaje, nocturno, domingo, desplazamiento...) sí interesa.
+const SERVICIOS_EXTRA_EXCLUIR = ['transporte', 'recogida dia siguiente'];
+function esServicioExtraRelevante(nombre) {
+  const n = normalizarTexto(nombre);
+  return !SERVICIOS_EXTRA_EXCLUIR.some(ex => n.indexOf(ex) !== -1);
+}
+// La tabla "servicios" solo guarda UNA fecha por línea (la de entrega del
+// proyecto — así la escribe el sync en OrumCentral.gs), pero varios tipos de
+// servicio en realidad corresponden a otro día del proyecto. Corregido según
+// lo pedido explícitamente por el usuario, usando entrega_fecha/recogida_fecha
+// del propio proyecto:
+//  - MONTAJE (no DESMONTAJE)  → día de entrega
+//  - DESMONTAJE               → día de recogida
+//  - DOMINGO/FESTIVO          → el que de los dos (entrega o recogida) caiga
+//                               en domingo. Un festivo entre semana no se
+//                               puede detectar sin calendario de festivos —
+//                               se deja en el día de entrega como antes.
+//  - DESPLAZAMIENTO           → sale EN AMBOS días (entrega y recogida, si
+//                               son distintos) para que no se olvide en
+//                               ninguno de los dos viajes.
+//  - cualquier otro (nocturno, material...) → se queda en el día de entrega
+//    tal cual venía — no hay forma de saber a qué noche concreta se refiere.
+// Devuelve un array de fechas (normalmente 1, dos para desplazamiento).
+function fechasEfectivasServicio(servicioNombre, proyecto, fechaOriginal) {
+  const n = normalizarTexto(servicioNombre);
+  const entrega = parsearFechaDDMMYYYY(proyecto.entrega_fecha) || fechaOriginal;
+  const recogida = parsearFechaDDMMYYYY(proyecto.recogida_fecha);
+
+  if (n.indexOf('desmontaje') !== -1) return [recogida || entrega];
+  if (n.indexOf('montaje') !== -1) return [entrega];
+  if (n.indexOf('desplaz') !== -1) {
+    const out = entrega ? [entrega] : [];
+    if (recogida && (!entrega || recogida.getTime() !== entrega.getTime())) out.push(recogida);
+    return out.length ? out : [fechaOriginal];
+  }
+  if (n.indexOf('doming') !== -1 || n.indexOf('festivo') !== -1) {
+    if (entrega && entrega.getDay() === 0) return [entrega];
+    if (recogida && recogida.getDay() === 0) return [recogida];
+    return [entrega];
+  }
+  return [fechaOriginal || entrega];
+}
 async function construirServiciosExtra() {
   const [serviciosResp, proyectosResp] = await Promise.all([
     llamarOrumCentral('servicios'),
@@ -806,31 +853,53 @@ async function construirServiciosExtra() {
 
   const items = [];
   (serviciosResp.data || []).forEach(s => {
-    const fecha = parsearFechaDDMMYYYY(s.fecha_entrega);
-    if (!fecha) return;
-    const fechaDia = inicioDelDia(fecha);
-    const fechaMs = fechaDia.getTime();
-    if (fechaMs < hoyMs || fechaMs > limiteMs) return;
+    if (!esServicioExtraRelevante(s.servicio)) return;
     const proyecto = proyectoPorId[String(s.proyecto_id)] || {};
-    items.push({
-      fecha_ms: fechaMs, fecha_iso: fechaDia.toISOString().slice(0, 10),
-      proyecto_id: s.proyecto_id, proyecto_numero: s.numero || proyecto.numero || null,
-      proyecto_nombre: proyecto.nombre || '', cliente: proyecto.cliente || '', comercial: proyecto.comercial || '',
-      estado: proyecto.estado || '', localizacion: proyecto.localizacion || '', google_maps_url: proyecto.google_maps_url || '',
-      entrega_hora: proyecto.entrega_hora || '', recogida_fecha: proyecto.recogida_fecha || '', recogida_hora: proyecto.recogida_hora || '',
-      servicio: s.servicio || 'Sin especificar', cantidad: s.cantidad, importe: s.importe
+    const fechaOriginal = parsearFechaDDMMYYYY(s.fecha_entrega);
+    const fechas = fechasEfectivasServicio(s.servicio, proyecto, fechaOriginal);
+    fechas.forEach(fecha => {
+      if (!fecha) return;
+      const fechaDia = inicioDelDia(fecha);
+      const fechaMs = fechaDia.getTime();
+      if (fechaMs < hoyMs || fechaMs > limiteMs) return;
+      items.push({
+        fecha_ms: fechaMs, fecha_iso: fechaDia.toISOString().slice(0, 10),
+        proyecto_id: s.proyecto_id, proyecto_numero: s.numero || proyecto.numero || null,
+        proyecto_nombre: proyecto.nombre || '', cliente: proyecto.cliente || '', comercial: proyecto.comercial || '',
+        estado: proyecto.estado || '', localizacion: proyecto.localizacion || '', google_maps_url: proyecto.google_maps_url || '',
+        entrega_hora: proyecto.entrega_hora || '', recogida_fecha: proyecto.recogida_fecha || '', recogida_hora: proyecto.recogida_hora || '',
+        servicio: s.servicio || 'Sin especificar', cantidad: s.cantidad, importe: s.importe
+      });
     });
   });
   items.sort((a, b) => a.fecha_ms - b.fecha_ms || String(a.cliente).localeCompare(String(b.cliente)));
 
+  // Agrupado día → proyecto: si un proyecto tiene varios servicios extra el
+  // mismo día (p.ej. NOCTURNO + DOMINGO/FESTIVO + DESPLAZAMIENTO), sale en
+  // una sola tarjeta con varios badges, no una tarjeta por servicio.
   const porDiaMap = {};
   items.forEach(it => {
     if (!porDiaMap[it.fecha_iso]) {
-      porDiaMap[it.fecha_iso] = { fecha_iso: it.fecha_iso, dias_desde_hoy: Math.round((it.fecha_ms - hoyMs) / 86400000), items: [] };
+      porDiaMap[it.fecha_iso] = { fecha_iso: it.fecha_iso, dias_desde_hoy: Math.round((it.fecha_ms - hoyMs) / 86400000), proyectos: {} };
     }
-    porDiaMap[it.fecha_iso].items.push(it);
+    const dia = porDiaMap[it.fecha_iso];
+    const clave = String(it.proyecto_id);
+    if (!dia.proyectos[clave]) {
+      dia.proyectos[clave] = {
+        proyecto_id: it.proyecto_id, proyecto_numero: it.proyecto_numero, proyecto_nombre: it.proyecto_nombre,
+        cliente: it.cliente, comercial: it.comercial, estado: it.estado, localizacion: it.localizacion,
+        google_maps_url: it.google_maps_url, entrega_hora: it.entrega_hora, recogida_fecha: it.recogida_fecha, recogida_hora: it.recogida_hora,
+        servicios: []
+      };
+    }
+    dia.proyectos[clave].servicios.push({ servicio: it.servicio, cantidad: it.cantidad, importe: it.importe });
   });
-  const porDia = Object.keys(porDiaMap).sort().map(k => porDiaMap[k]);
+  const porDia = Object.keys(porDiaMap).sort().map(k => {
+    const d = porDiaMap[k];
+    const proyectos = Object.keys(d.proyectos).map(pk => d.proyectos[pk])
+      .sort((a, b) => String(a.cliente).localeCompare(String(b.cliente)));
+    return { fecha_iso: d.fecha_iso, dias_desde_hoy: d.dias_desde_hoy, proyectos };
+  });
   const tipos = [...new Set(items.map(it => it.servicio))].sort();
 
   return { ok: true, total: items.length, tipos, por_dia: porDia };
