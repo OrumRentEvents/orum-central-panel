@@ -368,7 +368,10 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       ncPorNumeroProyecto[num].push(r);
     });
 
-    const FORMAS_PAGO_REALES = ['transferencia', 'efectivo-marbella', 'efectivo-monda', 'tpv-marbella', 'tpv-monda'];
+    // Incluye las variantes "fianza-..." (1 sep 2026, caja-orum): fianza
+    // aplicada al pago en vez de devuelta - cuenta como dinero real en Caja
+    // igual que su equivalente normal, mismo tipo/ubicación de origen.
+    const FORMAS_PAGO_REALES = ['transferencia', 'efectivo-marbella', 'efectivo-monda', 'tpv-marbella', 'tpv-monda', 'fianza-efectivo-marbella', 'fianza-efectivo-monda', 'fianza-transferencia'];
     const cruceFacturas = facturas.map(f => {
       const proyecto = proyectoPorId[String(f.proyecto_id)] || null;
       const pagosCaja = registrosPorNumeroFactura[String(f.numero)] || [];
