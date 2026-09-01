@@ -2928,13 +2928,14 @@ function isabellaPintarTabla(list) {
       <td>${s.horas}</td>
       <td><strong>${euros(s.importe)}</strong></td>
       <td>${s.desc || '—'}</td>
+      <td>${s.creadoPor || '—'}</td>
       ${admin ? `<td>${euros(s.costeNOE)}</td><td>${euros(s.beneficio)}</td><td><button onclick="isabellaBorrarServicio('${s.id}')" style="background:#fff; color:#A32D2D; border:1px solid #edd0d0; border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer;">Eliminar</button></td>` : ''}
     </tr>
   `).join('');
   wrap.innerHTML = `
     <div style="overflow-x:auto;">
     <table><thead><tr>
-      <th>Fecha</th><th>Empresa</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th>
+      <th>Fecha</th><th>Empresa</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th><th>Registrado por</th>
       ${admin ? '<th>Coste real</th><th>Beneficio</th><th></th>' : ''}
     </tr></thead><tbody>${filas}</tbody></table>
     </div>
