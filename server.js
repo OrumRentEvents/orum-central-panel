@@ -1285,15 +1285,22 @@ async function obtenerConfigIsabella() {
 // Mismo cálculo que calcEstimate() del Apps Script original: vehTipo
 // 1=Camión Azul, 2=Camión 3.500Kg, 3=Furgoneta, 0="sin vehículo" (solo
 // mano de obra, para montaje de mobil homes, lavandería, etc.).
-function calcularCosteIsabella(cfg, vehTipo, km, horas, personas) {
+// tipo === 'combustible' (repostaje, nuevo): no se calcula por km, se usa
+// el importe fijo de la tarifa "repostaje" configurado en Config — sin
+// desgaste ni mano de obra, solo ese gasto + margen.
+function calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas) {
   const p = Number(personas) || 1;
-  let combustible = 0, desgaste = 0;
-  if (Number(vehTipo) > 0) {
-    const consumo = cfg[ISABELLA_VEH_CONSUMO_KEY[vehTipo]] || cfg.consumo2;
-    combustible = (Number(km) / 100) * consumo * cfg.fuelPrice;
-    desgaste = Number(km) * cfg.wear;
+  let combustible = 0, desgaste = 0, manoObra = 0;
+  if (tipo === 'combustible') {
+    combustible = Number(cfg.repostaje) || 0;
+  } else {
+    if (Number(vehTipo) > 0) {
+      const consumo = cfg[ISABELLA_VEH_CONSUMO_KEY[vehTipo]] || cfg.consumo2;
+      combustible = (Number(km) / 100) * consumo * cfg.fuelPrice;
+      desgaste = Number(km) * cfg.wear;
+    }
+    manoObra = Number(horas) * p * cfg.labor;
   }
-  const manoObra = Number(horas) * p * cfg.labor;
   const costeNOE = combustible + desgaste + manoObra;
   const importe = costeNOE * (1 + cfg.marginPct / 100);
   const beneficio = importe - costeNOE;
@@ -1307,8 +1314,8 @@ function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 app.post('/api/isabella/calcular', requiereLogin, permiteIsabella, async (req, res) => {
   try {
     const cfg = await obtenerConfigIsabella();
-    const { vehTipo, km, horas, personas } = req.body;
-    const r = calcularCosteIsabella(cfg, vehTipo, km, horas, personas);
+    const { tipo, vehTipo, km, horas, personas } = req.body;
+    const r = calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas);
     const esAdmin = ROLES_ISABELLA_ADMIN.includes(req.session.usuario.rol);
     res.json({
       ok: true, importe: r2(r.importe),
@@ -1328,7 +1335,7 @@ app.get('/api/isabella/servicios', requiereLogin, permiteIsabella, async (req, r
     const esAdmin = ROLES_ISABELLA_ADMIN.includes(req.session.usuario.rol);
     const mapeado = rows.map(r => ({
       id: r.id, fecha: r.fecha, empresa: r.empresa, pedido: r.pedido || '', vehNombre: r.veh_nombre || '',
-      vehTipo: r.veh_tipo, personal: r.personal || '', personas: r.personas, km: r.km, horas: r.horas,
+      vehTipo: r.veh_tipo, tipo: r.tipo || 'vehiculo', personal: r.personal || '', personas: r.personas, km: r.km, horas: r.horas,
       desc: r.descripcion || '', importe: r.importe, creadoPor: r.creado_por || '',
       ...(esAdmin ? { costeNOE: r.coste_noe, beneficio: r.beneficio } : {})
     }));
@@ -1344,13 +1351,14 @@ app.post('/api/isabella/servicios', requiereLogin, permiteIsabella, async (req, 
     const b = req.body;
     if (!b.fecha || !b.empresa) return res.status(400).json({ error: 'Fecha y empresa son obligatorios' });
     const cfg = await obtenerConfigIsabella();
-    const vehTipo = Number(b.vehTipo) || 0;
+    const tipo = ['vehiculo', 'personal', 'combustible'].includes(b.tipo) ? b.tipo : 'vehiculo';
+    const vehTipo = tipo === 'vehiculo' ? (Number(b.vehTipo) || 0) : 0;
     const personas = Number(b.personas) || 1;
-    const r = calcularCosteIsabella(cfg, vehTipo, Number(b.km) || 0, Number(b.horas) || 0, personas);
+    const r = calcularCosteIsabella(cfg, tipo, vehTipo, Number(b.km) || 0, Number(b.horas) || 0, personas);
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
     const { data, error } = await supabase.from('isabella_servicios').insert({
       fecha: b.fecha, empresa: b.empresa, pedido: b.pedido || '', veh_nombre: b.vehNombre || '',
-      veh_tipo: vehTipo, personal: b.personal || '', personas, km: Number(b.km) || 0, horas: Number(b.horas) || 0,
+      veh_tipo: vehTipo, tipo, personal: b.personal || '', personas, km: Number(b.km) || 0, horas: Number(b.horas) || 0,
       descripcion: b.desc || '', combustible: r2(r.combustible), desgaste: r2(r.desgaste), mano_obra: r2(r.manoObra),
       coste_noe: r2(r.costeNOE), importe: r2(r.importe), beneficio: r2(r.beneficio), creado_por: usuario
     }).select().single();
@@ -1395,7 +1403,7 @@ app.get('/api/isabella/comparativa', requiereLogin, soloIsabellaAdmin, async (re
 app.get('/api/isabella/tarifas', requiereLogin, soloIsabellaAdmin, async (req, res) => {
   try { res.json({ ok: true, config: await obtenerConfigIsabella() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
-const ISABELLA_CAMPOS_TARIFA = ['fuelPrice', 'consumo1', 'consumo2', 'consumo3', 'wear', 'labor', 'marginPct'];
+const ISABELLA_CAMPOS_TARIFA = ['fuelPrice', 'consumo1', 'consumo2', 'consumo3', 'wear', 'labor', 'marginPct', 'repostaje'];
 app.post('/api/isabella/tarifas', requiereLogin, soloIsabellaAdmin, async (req, res) => {
   try {
     const updates = ISABELLA_CAMPOS_TARIFA.filter(k => req.body[k] !== undefined && req.body[k] !== '');

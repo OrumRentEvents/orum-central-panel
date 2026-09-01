@@ -2779,6 +2779,7 @@ function renderIsabellaCalculadora() {
         <select id="ic-tiposervicio" onchange="isabellaToggleTipo('ic'); calcularIsabella();">
           <option value="vehiculo">Transporte con vehículo</option>
           <option value="personal">Solo personal (montaje, lavandería...)</option>
+          <option value="combustible">Combustible (repostaje)</option>
         </select>
       </div>
       <div id="ic-field-vehiculo">
@@ -2793,11 +2794,11 @@ function renderIsabellaCalculadora() {
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Kilómetros estimados</label>
         <input type="number" id="ic-km" value="100" min="0" oninput="calcularIsabella()">
       </div>
-      <div>
+      <div id="ic-field-personas">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº de personas</label>
         <input type="number" id="ic-personas" value="1" min="1" oninput="calcularIsabella()">
       </div>
-      <div>
+      <div id="ic-field-horas">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Horas por persona</label>
         <input type="number" id="ic-horas" value="4" min="0" step="0.5" oninput="calcularIsabella()">
       </div>
@@ -2811,32 +2812,45 @@ function renderIsabellaCalculadora() {
   calcularIsabella();
 }
 function isabellaToggleTipo(prefix) {
-  const esVehiculo = document.getElementById(prefix + '-tiposervicio').value === 'vehiculo';
+  const tipo = document.getElementById(prefix + '-tiposervicio').value; // 'vehiculo' | 'personal' | 'combustible'
+  const esVehiculo = tipo === 'vehiculo';
+  const esCombustible = tipo === 'combustible';
   const fVeh = document.getElementById(prefix + '-field-vehiculo');
   const fKm = document.getElementById(prefix + '-field-km');
   const fVehNombre = document.getElementById(prefix + '-field-vehnombre');
+  const fHoras = document.getElementById(prefix + '-field-horas');
+  const fPersonas = document.getElementById(prefix + '-field-personas');
   if (fVeh) fVeh.style.display = esVehiculo ? '' : 'none';
   if (fKm) fKm.style.display = esVehiculo ? '' : 'none';
-  if (fVehNombre) fVehNombre.style.display = esVehiculo ? '' : 'none';
+  // El nombre del vehículo también aplica a Combustible (para anotar qué coche se repostó).
+  if (fVehNombre) fVehNombre.style.display = (esVehiculo || esCombustible) ? '' : 'none';
+  if (fHoras) fHoras.style.display = esCombustible ? 'none' : '';
+  if (fPersonas) fPersonas.style.display = esCombustible ? 'none' : '';
   if (!esVehiculo) { const kmEl = document.getElementById(prefix + '-km'); if (kmEl) kmEl.value = 0; }
+  if (esCombustible) {
+    const hEl = document.getElementById(prefix + '-horas'); if (hEl) hEl.value = 0;
+    const pEl = document.getElementById(prefix + '-personas'); if (pEl) pEl.value = 1;
+  }
 }
 function calcularIsabella() {
   clearTimeout(isabellaCalcTimer);
   isabellaCalcTimer = setTimeout(async () => {
-    const esVehiculo = document.getElementById('ic-tiposervicio').value === 'vehiculo';
-    const vehTipo = esVehiculo ? parseInt(document.getElementById('ic-vehiculo').value) : 0;
-    const km = esVehiculo ? (parseFloat(document.getElementById('ic-km').value) || 0) : 0;
-    const horas = parseFloat(document.getElementById('ic-horas').value) || 0;
-    const personas = parseInt(document.getElementById('ic-personas').value) || 1;
+    const tipo = document.getElementById('ic-tiposervicio').value;
+    const vehTipo = tipo === 'vehiculo' ? parseInt(document.getElementById('ic-vehiculo').value) : 0;
+    const km = tipo === 'vehiculo' ? (parseFloat(document.getElementById('ic-km').value) || 0) : 0;
+    const horas = tipo === 'combustible' ? 0 : (parseFloat(document.getElementById('ic-horas').value) || 0);
+    const personas = tipo === 'combustible' ? 1 : (parseInt(document.getElementById('ic-personas').value) || 1);
     try {
-      const resp = await fetch('/api/isabella/calcular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vehTipo, km, horas, personas }) });
+      const resp = await fetch('/api/isabella/calcular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo, vehTipo, km, horas, personas }) });
       const data = await resp.json();
       if (data.error) { document.getElementById('ic-total').innerHTML = 'Error al calcular'; return; }
       document.getElementById('ic-total').innerHTML = euros(data.importe) + ' <span style="font-size:14px; font-weight:400; color:var(--gray-400);">importe a facturar</span>';
       if (data.combustible !== undefined) {
         const bd = document.getElementById('ic-breakdown');
         bd.style.display = 'grid';
-        bd.innerHTML = `
+        bd.innerHTML = tipo === 'combustible'
+          ? `<div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Combustible (tarifa fija)</div><div style="font-size:15px; font-weight:600;">${euros(data.combustible)}</div></div>`
+          : `
           <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Combustible</div><div style="font-size:15px; font-weight:600;">${euros(data.combustible)}</div></div>
           <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Desgaste vehículo</div><div style="font-size:15px; font-weight:600;">${euros(data.desgaste)}</div></div>
           <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Mano de obra</div><div style="font-size:15px; font-weight:600;">${euros(data.manoObra)}</div></div>
@@ -2863,6 +2877,7 @@ function renderIsabellaRegistro() {
           <select id="ir-tiposervicio" onchange="isabellaToggleTipo('ir')">
             <option value="vehiculo">Transporte con vehículo</option>
             <option value="personal">Solo personal (montaje, lavandería...)</option>
+            <option value="combustible">Combustible (repostaje)</option>
           </select>
         </div>
         <div id="ir-field-vehnombre"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Vehículo (nombre)</label><input type="text" id="ir-vehnombre" placeholder="Renault, Nissan, Furgo NDL..."></div>
@@ -2871,9 +2886,9 @@ function renderIsabellaRegistro() {
         </div>
         <div id="ir-field-km"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Kilómetros recorridos</label><input type="number" id="ir-km" value="0" min="0"></div>
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Personal / conductor</label><input type="text" id="ir-personal" placeholder="Juan, Leo..."></div>
-        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº de personas ese día</label><input type="number" id="ir-personas" value="1" min="1"></div>
-        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Horas por persona</label><input type="number" id="ir-horas" value="0" min="0" step="0.5"></div>
-        <div style="grid-column:1/-1;"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">¿En qué ha consistido el servicio?</label><input type="text" id="ir-desc" placeholder="Montaje mobil home cliente X, día 1 de 2"></div>
+        <div id="ir-field-personas"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº de personas ese día</label><input type="number" id="ir-personas" value="1" min="1"></div>
+        <div id="ir-field-horas"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Horas por persona</label><input type="number" id="ir-horas" value="0" min="0" step="0.5"></div>
+        <div style="grid-column:1/-1;"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">¿En qué ha consistido el servicio? / Notas</label><input type="text" id="ir-desc" placeholder="Montaje mobil home cliente X, día 1 de 2 · repostaje furgo NDL para reparto..."></div>
       </div>
       <button id="ir-add-btn" onclick="isabellaAnadirServicio()" style="margin-top:14px; padding:9px 20px; border-radius:4px; border:none; background:#1a1a18; color:#fff; cursor:pointer; font-size:13px; font-weight:500;">Añadir al registro</button>
       <span id="ir-add-estado" style="font-size:12px; margin-left:10px;"></span>
@@ -2911,6 +2926,8 @@ async function isabellaCargarTabla() {
   } catch (err) { wrap.innerHTML = '<p class="loading-text">Error de conexión</p>'; }
 }
 function isabellaVehLabel(t) { return t == 1 ? 'Camión Azul' : t == 2 ? 'Camión 3.500 Kg' : t == 3 ? 'Furgoneta' : 'Sin vehículo'; }
+// Combustible (repostaje) puede llevar vehNombre sin vehTipo (no es un camión propio de ORUM) — se prioriza el nombre si existe.
+function isabellaVehCelda(s) { return s.vehNombre || (Number(s.vehTipo) > 0 ? isabellaVehLabel(s.vehTipo) : 'Sin vehículo'); }
 function isabellaFmtFecha(iso) { const p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
 function isabellaPintarTabla(list) {
   const wrap = document.getElementById('ir-tabla-wrap');
@@ -2921,7 +2938,7 @@ function isabellaPintarTabla(list) {
       <td>${isabellaFmtFecha(s.fecha)}</td>
       <td>${s.empresa}</td>
       <td>${s.pedido || '—'}</td>
-      <td>${Number(s.vehTipo) > 0 ? (s.vehNombre || isabellaVehLabel(s.vehTipo)) : 'Sin vehículo'}</td>
+      <td>${isabellaVehCelda(s)}</td>
       <td>${s.personal || '—'}</td>
       <td>${s.personas || 1}</td>
       <td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td>
@@ -2944,15 +2961,17 @@ function isabellaPintarTabla(list) {
 async function isabellaAnadirServicio() {
   const fecha = document.getElementById('ir-fecha').value;
   if (!fecha) { alert('Indica la fecha del servicio.'); return; }
-  const esVehiculo = document.getElementById('ir-tiposervicio').value === 'vehiculo';
+  const tipo = document.getElementById('ir-tiposervicio').value;
+  const esVehiculo = tipo === 'vehiculo';
+  const esCombustible = tipo === 'combustible';
   const payload = {
-    fecha, empresa: document.getElementById('ir-empresa').value, pedido: document.getElementById('ir-pedido').value.trim(),
-    vehNombre: esVehiculo ? document.getElementById('ir-vehnombre').value.trim() : '',
+    fecha, tipo, empresa: document.getElementById('ir-empresa').value, pedido: document.getElementById('ir-pedido').value.trim(),
+    vehNombre: (esVehiculo || esCombustible) ? document.getElementById('ir-vehnombre').value.trim() : '',
     vehTipo: esVehiculo ? parseInt(document.getElementById('ir-vehiculo').value) : 0,
     personal: document.getElementById('ir-personal').value.trim(),
-    personas: parseInt(document.getElementById('ir-personas').value) || 1,
+    personas: esCombustible ? 1 : (parseInt(document.getElementById('ir-personas').value) || 1),
     km: esVehiculo ? (parseFloat(document.getElementById('ir-km').value) || 0) : 0,
-    horas: parseFloat(document.getElementById('ir-horas').value) || 0,
+    horas: esCombustible ? 0 : (parseFloat(document.getElementById('ir-horas').value) || 0),
     desc: document.getElementById('ir-desc').value.trim()
   };
   const btn = document.getElementById('ir-add-btn');
@@ -2982,7 +3001,7 @@ async function isabellaBorrarServicio(id) {
 }
 function isabellaExportarCSV() {
   const headers = ['Fecha', 'Empresa', 'Pedido', 'Vehiculo', 'Personal', 'NumPersonas', 'Km', 'HorasPorPersona', 'ImporteACobrar', 'Descripcion'];
-  const rows = ISABELLA_LAST_LIST.map(s => [s.fecha, s.empresa, s.pedido, (Number(s.vehTipo) > 0 ? (s.vehNombre || isabellaVehLabel(s.vehTipo)) : 'Sin vehiculo'), s.personal, s.personas || 1, s.km, s.horas, Number(s.importe).toFixed(2), (s.desc || '').replace(/;/g, ',')]);
+  const rows = ISABELLA_LAST_LIST.map(s => [s.fecha, s.empresa, s.pedido, isabellaVehCelda(s), s.personal, s.personas || 1, s.km, s.horas, Number(s.importe).toFixed(2), (s.desc || '').replace(/;/g, ',')]);
   const csv = headers.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -3027,7 +3046,7 @@ async function isabellaGenerarInforme() {
     const [y, m] = mes.split('-');
     const nombreMes = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     const filas = list.map(s => `
-      <tr><td>${isabellaFmtFecha(s.fecha)}</td><td>${s.pedido || '—'}</td><td>${Number(s.vehTipo) > 0 ? (s.vehNombre || isabellaVehLabel(s.vehTipo)) : 'Sin vehículo'}</td><td>${s.personal || '—'}</td><td>${s.personas || 1}</td><td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td><td>${s.horas}</td><td><strong>${euros(s.importe)}</strong></td><td>${s.desc || '—'}</td></tr>
+      <tr><td>${isabellaFmtFecha(s.fecha)}</td><td>${s.pedido || '—'}</td><td>${isabellaVehCelda(s)}</td><td>${s.personal || '—'}</td><td>${s.personas || 1}</td><td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td><td>${s.horas}</td><td><strong>${euros(s.importe)}</strong></td><td>${s.desc || '—'}</td></tr>
     `).join('');
     wrap.innerHTML = `
       <p style="font-size:15px; font-weight:600; margin:0 0 4px;">Liquidación · ${empresa} · ${nombreMes}</p>
@@ -3096,6 +3115,7 @@ async function renderIsabellaTarifas() {
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Desgaste vehículo (€/km)</label><input type="number" id="it-wear" step="0.01" value="${c.wear}"></div>
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Mano de obra (€/hora/persona)</label><input type="number" id="it-labor" step="0.1" value="${c.labor}"></div>
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Margen sobre coste (%)</label><input type="number" id="it-margin" step="1" value="${c.marginPct}"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Importe fijo de repostaje (€)</label><input type="number" id="it-repostaje" step="0.01" value="${c.repostaje ?? 0}"></div>
       </div>
       <button onclick="isabellaGuardarTarifas()" style="margin-top:16px; padding:9px 20px; border-radius:4px; border:none; background:#1a1a18; color:#fff; cursor:pointer; font-size:13px; font-weight:500;">Guardar tarifas</button>
       <span id="it-estado" style="font-size:12px; margin-left:10px;"></span>
@@ -3110,7 +3130,8 @@ async function isabellaGuardarTarifas() {
     consumo3: parseFloat(document.getElementById('it-c3').value),
     wear: parseFloat(document.getElementById('it-wear').value),
     labor: parseFloat(document.getElementById('it-labor').value),
-    marginPct: parseFloat(document.getElementById('it-margin').value)
+    marginPct: parseFloat(document.getElementById('it-margin').value),
+    repostaje: parseFloat(document.getElementById('it-repostaje').value)
   };
   const estado = document.getElementById('it-estado');
   estado.textContent = 'Guardando…'; estado.style.color = 'var(--gray-400)';
