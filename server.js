@@ -768,6 +768,67 @@ app.get('/preparacion', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'preparacion.html'));
 });
 
+// ================================================================
+// SERVICIOS EXTRA — próximos 15 días (Logística). Engloba los servicios
+// adicionales que contratan los clientes (desplazamiento, montaje,
+// nocturnidad, domingo, etc. — lo que sea que traiga Rentman en la tabla
+// "servicios") agrupados por día, para tenerlos en cuenta de cara a la ruta.
+// Misma tabla Supabase que ya usa la pestaña "Servicios" de Preparación
+// (Almacén), pero aquí en ventana de 15 días y agrupado día a día en vez
+// de solo "próximos 14 días" sin fecha exacta.
+// ================================================================
+async function construirServiciosExtra() {
+  const [serviciosResp, proyectosResp] = await Promise.all([
+    llamarOrumCentral('servicios'),
+    llamarOrumCentral('proyectos')
+  ]);
+  const proyectos = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI');
+  const proyectoPorId = {};
+  proyectos.forEach(p => { proyectoPorId[String(p.id)] = p; });
+
+  const hoy = inicioDelDia(new Date());
+  const hoyMs = hoy.getTime();
+  const limiteMs = hoyMs + 15 * 86400000;
+
+  const items = [];
+  (serviciosResp.data || []).forEach(s => {
+    const fecha = parsearFechaDDMMYYYY(s.fecha_entrega);
+    if (!fecha) return;
+    const fechaDia = inicioDelDia(fecha);
+    const fechaMs = fechaDia.getTime();
+    if (fechaMs < hoyMs || fechaMs > limiteMs) return;
+    const proyecto = proyectoPorId[String(s.proyecto_id)] || {};
+    items.push({
+      fecha_ms: fechaMs, fecha_iso: fechaDia.toISOString().slice(0, 10),
+      proyecto_id: s.proyecto_id, proyecto_numero: s.numero || proyecto.numero || null,
+      cliente: proyecto.cliente || '', localizacion: proyecto.localizacion || '',
+      servicio: s.servicio || 'Sin especificar', cantidad: s.cantidad, importe: s.importe
+    });
+  });
+  items.sort((a, b) => a.fecha_ms - b.fecha_ms || String(a.cliente).localeCompare(String(b.cliente)));
+
+  const porDiaMap = {};
+  items.forEach(it => {
+    if (!porDiaMap[it.fecha_iso]) {
+      porDiaMap[it.fecha_iso] = { fecha_iso: it.fecha_iso, dias_desde_hoy: Math.round((it.fecha_ms - hoyMs) / 86400000), items: [] };
+    }
+    porDiaMap[it.fecha_iso].items.push(it);
+  });
+  const porDia = Object.keys(porDiaMap).sort().map(k => porDiaMap[k]);
+  const tipos = [...new Set(items.map(it => it.servicio))].sort();
+
+  return { ok: true, total: items.length, tipos, por_dia: porDia };
+}
+
+app.get('/api/logistica/servicios-extra', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    res.json(await construirServiciosExtra());
+  } catch (err) {
+    console.error('Error en /api/logistica/servicios-extra:', err);
+    res.status(500).json({ error: 'Error al construir servicios extra: ' + err.message });
+  }
+});
+
 app.get('/sync-status', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'sync-status.html'));
 });

@@ -263,7 +263,7 @@ function mostrarApp() {
   document.getElementById('sidebar-user-name').textContent = usuarioActual.nombre;
   construirMenu();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
-  else if (usuarioActual.rol === 'Logistica') cargarIsabellaServicios();
+  else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
   else cargarResumenGeneral();
 }
 function renderProximamente(nombre) {
@@ -777,14 +777,19 @@ const MENU = [
       { id: 'analisis-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
   ]},
   { id: 'log', icon: '🧺', label: 'Logística', submenu: [
+      { id: 'log-resumen', label: 'Inicio', onClick: () => cargarResumenLogistica() },
+      { id: 'log-servicios-extra', label: 'Servicios Extra (15 días)', onClick: () => cargarServiciosExtra() },
       { id: 'log-isabella', label: 'Servicios Isabella', onClick: () => cargarIsabellaServicios() },
       // App de conductores (PIN propio, no la contraseña de USUARIOS) — vive en el mismo
       // Railway (public/rutas.html) pero no estaba enlazada desde el menú, solo accesible
       // con la URL directa. Se abre en pestaña nueva, igual que Caja.
-      { id: 'log-rutas-app', label: 'Rutas — app conductores', onClick: () => window.open('/rutas.html', '_blank') },
-      { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
-      { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
-      { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
+      { id: 'log-rutas-app', label: 'Rutas', onClick: () => window.open('/rutas.html', '_blank') },
+      // Antes 3 items sueltos (Lavandería/Office/Almacén) — mismo dato y misma
+      // función cargarPreparacion() de siempre, solo que ahora la vista se
+      // cambia con pestañas dentro de la página en vez de con 3 entradas de
+      // menú. Aterriza en "almacen" porque es la vista más completa (incluye
+      // Servicios y Logística además de Por proyecto/Por material).
+      { id: 'log-preparacion', label: 'Preparación', onClick: () => cargarPreparacion('almacen') },
       { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
   ]},
   { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
@@ -855,7 +860,7 @@ function construirMenu() {
     }
   });
   document.getElementById('menu-search-input').addEventListener('input', (e) => filtrarMenuLateral(e.target.value));
-  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : usuarioActual.rol === 'Logistica' ? 'menu-item-log-isabella' : 'menu-item-resumen');
+  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : usuarioActual.rol === 'Logistica' ? 'menu-item-log-resumen' : 'menu-item-resumen');
   // El grupo del item activo por defecto empieza desplegado (si no, Comercial/Logística
   // aterrizarían con su único grupo cerrado y no verían nada al entrar).
   if (usuarioActual.rol === 'Comercial') abrirGrupoMenu('comercial');
@@ -1318,7 +1323,7 @@ let preparacionPestanaActiva = 'proyecto';
 async function cargarPreparacion(vista) {
   preparacionVistaActiva = vista;
   preparacionPestanaActiva = 'proyecto';
-  document.getElementById('content-title').textContent = 'Logística · ' + TITULOS_PREP[vista];
+  document.getElementById('content-title').textContent = 'Preparación · ' + TITULOS_PREP[vista];
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando...</p>';
   try {
@@ -1351,7 +1356,11 @@ function pintarPreparacion(vista) {
       <div id="tab-prep-servicios" onclick="cambiarPestanaPreparacion('servicios')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Servicios</div>
       <div id="tab-prep-logistica" onclick="cambiarPestanaPreparacion('logistica')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Logística</div>
   ` : '';
+  // Selector de vista (antes eran 3 entradas de menú separadas — Lavandería/
+  // Office/Almacén — ahora es un único acceso "Preparación" con este selector).
+  const btnVista = (id, label) => `<button onclick="cargarPreparacion('${id}')" style="padding:7px 14px; border-radius:4px; border:1px solid ${vista === id ? 'var(--accent)' : 'var(--border)'}; background:${vista === id ? 'var(--accent-light)' : '#fff'}; color:${vista === id ? 'var(--accent-dark)' : 'var(--text-secondary)'}; cursor:pointer; font-size:13px; font-weight:${vista === id ? '600' : '400'};">${label}</button>`;
   let html = `
+    <div style="display:flex; gap:8px; margin-bottom:1rem;">${btnVista('almacen', 'Almacén')}${btnVista('lavanderia', 'Lavandería')}${btnVista('office', 'Office')}</div>
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:1.25rem;">${barrasResumen}</div>
     <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
       <div id="tab-prep-proyecto" onclick="cambiarPestanaPreparacion('proyecto')" style="padding:8px 16px; font-size:13px; cursor:pointer;">Por proyecto</div>
@@ -2786,6 +2795,178 @@ function mostrarToastCopiado(ev) {
   toast.style.top = y + 'px';
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 700);
+}
+
+// ================================================================
+// SERVICIOS EXTRA (Logística) — próximos 15 días. Engloba los servicios
+// adicionales que contratan los clientes (desplazamiento, montaje,
+// nocturnidad, domingo...) agrupados por día, para tenerlos en cuenta de
+// cara a la ruta. Los "badges" de color son solo una ayuda visual por
+// palabra clave — no dependen de que el texto exacto de Rentman coincida
+// al 100%, el filtro de tipo sí usa el valor real tal cual venga.
+// ================================================================
+let SERVICIOS_EXTRA_DATA = null;
+let servExtraFiltroTipo = '';
+async function cargarServiciosExtra() {
+  document.getElementById('content-title').textContent = 'Servicios Extra · Próximos 15 días';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetch('/api/logistica/servicios-extra');
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    SERVICIOS_EXTRA_DATA = data;
+    servExtraFiltroTipo = '';
+    pintarServiciosExtra();
+  } catch (err) { body.innerHTML = '<p class="loading-text">Error de conexión</p>'; }
+}
+function servicioExtraBadge(nombre) {
+  const n = (nombre || '').toLowerCase();
+  if (n.includes('noctur')) return { bg: '#2a2a2a', fg: '#fff', icon: '🌙' };
+  if (n.includes('doming')) return { bg: '#FCEBEB', fg: '#A32D2D', icon: '☀️' };
+  if (n.includes('desplaz')) return { bg: '#cfe3fc', fg: '#1c4e80', icon: '🚚' };
+  if (n.includes('montaj')) return { bg: '#d8f0dc', fg: '#1f6b3a', icon: '🔧' };
+  return { bg: 'var(--gray-100)', fg: 'var(--text-secondary)', icon: '➕' };
+}
+function etiquetaDiaServExtra(diasDesdeHoy, fechaIso) {
+  const [y, m, d] = fechaIso.split('-');
+  const fechaFmt = d + '/' + m + '/' + y;
+  if (diasDesdeHoy === 0) return 'HOY · ' + fechaFmt;
+  if (diasDesdeHoy === 1) return 'MAÑANA · ' + fechaFmt;
+  const dt = new Date(y, m - 1, d);
+  const diaSemana = dt.toLocaleDateString('es-ES', { weekday: 'long' });
+  return diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1) + ' · ' + fechaFmt;
+}
+function pintarServiciosExtra() {
+  const body = document.getElementById('content-body');
+  const data = SERVICIOS_EXTRA_DATA;
+  const filtroHtml = `
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap;">
+      <select id="sext-filtro-tipo" onchange="servExtraFiltroTipo = this.value; pintarServiciosExtra();" style="width:auto;">
+        <option value="">Tipo: Todos</option>
+        ${data.tipos.map(t => `<option value="${t}" ${servExtraFiltroTipo === t ? 'selected' : ''}>${t}</option>`).join('')}
+      </select>
+      <span style="font-size:12px; color:var(--gray-400);">${data.total} servicio(s) extra en los próximos 15 días</span>
+    </div>
+  `;
+  const porDia = servExtraFiltroTipo
+    ? data.por_dia.map(d => ({ ...d, items: d.items.filter(it => it.servicio === servExtraFiltroTipo) })).filter(d => d.items.length)
+    : data.por_dia;
+  if (!porDia.length) {
+    body.innerHTML = filtroHtml + '<p class="loading-text">No hay servicios extra que coincidan.</p>';
+    return;
+  }
+  const bloques = porDia.map(dia => {
+    const filas = dia.items.map(it => {
+      const badge = servicioExtraBadge(it.servicio);
+      return `
+        <tr>
+          <td><span style="background:${badge.bg}; color:${badge.fg}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:12px; display:inline-block; white-space:nowrap;">${badge.icon} ${it.servicio}</span></td>
+          <td>${it.proyecto_numero ? '#' + it.proyecto_numero : '—'}</td>
+          <td>${it.cliente || '—'}</td>
+          <td>${it.localizacion || '—'}</td>
+          <td>${it.cantidad != null ? it.cantidad : '—'}</td>
+        </tr>
+      `;
+    }).join('');
+    return `
+      <div style="margin-bottom:1.5rem;">
+        <p style="font-size:13px; font-weight:600; color:var(--accent-dark); text-transform:uppercase; letter-spacing:.5px; margin:0 0 8px;">${etiquetaDiaServExtra(dia.dias_desde_hoy, dia.fecha_iso)}</p>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Servicio</th><th>Proyecto</th><th>Cliente</th><th>Ubicación</th><th>Cant.</th></tr></thead><tbody>${filas}</tbody></table></div>
+      </div>
+    `;
+  }).join('');
+  body.innerHTML = filtroHtml + bloques;
+}
+
+// ================================================================
+// INICIO — Logística. Página de aterrizaje del rol Logistica: aviso de
+// servicios sensibles (nocturnidad/domingo) próximos, resumen de
+// preparación de hoy/mañana y accesos rápidos al resto del apartado.
+// ================================================================
+async function cargarResumenLogistica() {
+  document.getElementById('content-title').textContent = 'Logística · Inicio';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const [prep, extra] = await Promise.all([
+      fetch('/api/preparacion?vista=almacen').then(r => r.json()),
+      fetch('/api/logistica/servicios-extra').then(r => r.json())
+    ]);
+    if (prep.error) { body.innerHTML = '<p class="loading-text">Error: ' + prep.error + '</p>'; return; }
+    actualizarIndicadorFecha(prep.ultima_actualizacion);
+    pintarResumenLogistica(prep, extra);
+  } catch (err) { body.innerHTML = '<p class="loading-text">Error de conexión</p>'; }
+}
+function pintarResumenLogistica(prep, extra) {
+  const body = document.getElementById('content-body');
+  const hoy = new Date();
+  const saludo = usuarioActual.nombre ? ('Hola, ' + usuarioActual.nombre.split(' ')[0]) : 'Hola';
+  const fechaTexto = hoy.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const resumenHoy = (prep.resumen_periodos || []).find(r => r.periodo === 'HOY') || { listos: 0, total: 0 };
+  const resumenManana = (prep.resumen_periodos || []).find(r => r.periodo === 'MAÑANA') || { listos: 0, total: 0 };
+
+  const extraOk = extra && !extra.error;
+  const totalExtra = extraOk ? extra.total : 0;
+  const contadorTipo = {};
+  if (extraOk) extra.por_dia.forEach(d => d.items.forEach(it => { contadorTipo[it.servicio] = (contadorTipo[it.servicio] || 0) + 1; }));
+  const destacados = ['nocturnidad', 'domingo'];
+  const avisos = Object.keys(contadorTipo).filter(t => destacados.some(d => t.toLowerCase().includes(d)));
+
+  const previewExtra = (extraOk ? extra.por_dia : []).slice(0, 3).map(dia => {
+    const items = dia.items.slice(0, 4).map(it => {
+      const badge = servicioExtraBadge(it.servicio);
+      return `<span style="background:${badge.bg}; color:${badge.fg}; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; margin-right:4px; display:inline-block; margin-bottom:4px;">${badge.icon} ${it.servicio} — ${it.cliente || 'sin cliente'}</span>`;
+    }).join('');
+    return `<div style="margin-bottom:10px;"><p style="font-size:12px; font-weight:600; color:var(--gray-500); margin:0 0 4px;">${etiquetaDiaServExtra(dia.dias_desde_hoy, dia.fecha_iso)}</p>${items}</div>`;
+  }).join('') || '<p class="loading-text" style="padding:0.5rem 0;">Sin servicios extra en los próximos días.</p>';
+
+  const tarjeta = (icon, titulo, desc, onclick) => `
+    <div onclick="${onclick}" style="cursor:pointer; background:#fff; border:1px solid var(--border); border-radius:10px; padding:1.25rem; transition:box-shadow .15s;" onmouseover="this.style.boxShadow='0 2px 10px rgba(0,0,0,.06)'" onmouseout="this.style.boxShadow='none'">
+      <div style="font-size:26px; margin-bottom:8px;">${icon}</div>
+      <p style="font-size:14px; font-weight:600; margin:0 0 4px; color:var(--text-primary);">${titulo}</p>
+      <p style="font-size:12px; color:var(--gray-400); margin:0;">${desc}</p>
+    </div>
+  `;
+
+  body.innerHTML = `
+    <div style="margin-bottom:1.5rem;">
+      <p style="font-family:'Playfair Display',serif; font-size:24px; font-weight:700; margin:0 0 2px;">${saludo} 👋</p>
+      <p style="font-size:13px; color:var(--gray-400); text-transform:capitalize;">${fechaTexto}</p>
+    </div>
+
+    ${avisos.length ? `
+    <div style="background:#FCEBEB; border:1px solid #f0c9c9; border-radius:8px; padding:0.85rem 1rem; margin-bottom:1.5rem; font-size:13px; color:#A32D2D;">
+      ⚠️ Hay servicios con ${avisos.join(' y ')} en los próximos 15 días — revísalos en "Servicios Extra" para tenerlos en cuenta en la ruta.
+    </div>` : ''}
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:1.75rem;">
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:11px; color:var(--gray-400); text-transform:uppercase; margin:0 0 6px;">Listos para hoy</p>
+        <p style="font-size:22px; font-weight:700; margin:0;">${resumenHoy.listos} / ${resumenHoy.total}</p>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:11px; color:var(--gray-400); text-transform:uppercase; margin:0 0 6px;">Listos para mañana</p>
+        <p style="font-size:22px; font-weight:700; margin:0;">${resumenManana.listos} / ${resumenManana.total}</p>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:11px; color:var(--gray-400); text-transform:uppercase; margin:0 0 6px;">Servicios extra (15 días)</p>
+        <p style="font-size:22px; font-weight:700; margin:0;">${totalExtra}</p>
+      </div>
+    </div>
+
+    <p style="font-size:14px; font-weight:600; margin:0 0 10px;">Próximos servicios extra</p>
+    <div style="background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; margin-bottom:1.75rem;">${previewExtra}</div>
+
+    <p style="font-size:14px; font-weight:600; margin:0 0 10px;">Accesos rápidos</p>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;">
+      ${tarjeta('🚨', 'Servicios Extra', 'Próximos 15 días', "marcarMenuActivo('menu-item-log-servicios-extra'); cargarServiciosExtra();")}
+      ${tarjeta('📦', 'Preparación', 'Almacén, Lavandería, Office', "marcarMenuActivo('menu-item-log-preparacion'); cargarPreparacion('almacen');")}
+      ${tarjeta('🚗', 'Servicios Isabella', 'Registrar servicio al grupo Isabella', "marcarMenuActivo('menu-item-log-isabella'); cargarIsabellaServicios();")}
+      ${tarjeta('🧭', 'App de Rutas', 'Se abre en pestaña nueva (PIN)', "window.open('/rutas.html','_blank');")}
+    </div>
+  `;
 }
 
 // ================================================================
