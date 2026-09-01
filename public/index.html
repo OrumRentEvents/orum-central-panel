@@ -147,6 +147,11 @@
   .search-box::before {
     content: "🔍"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: 0.5;
   }
+  /* Los formularios de Servicios Isabella usan grid (a diferencia del resto
+     del panel, que usa filas flex) - sin esto los inputs/selects se quedan a
+     su ancho natural (pequeño) dentro de columnas de grid mucho más anchas,
+     y el formulario sale descuadrado/apretado. */
+  #isabella-panel input, #isabella-panel select { width: 100%; }
   .loading-text { color: var(--gray-400); font-size: 13px; padding: 2rem 0; }
   select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 2px; font-size: 13px; background: #fff; color: var(--text-primary); }
   .pnc-filtro-btn { font-size:13px; padding:6px 14px; border-radius:2px; background:#fff; color:var(--text-secondary); border:1px solid var(--border); cursor:pointer; }
@@ -3115,6 +3120,21 @@ function renderIsabellaCalculadora() {
   isabellaToggleTipo('ic');
   calcularIsabella();
 }
+// Desplegable de la flota fija de ORUM (misma lista que ya usa Facturas
+// Proveedores) + "Otro" para escribir el vehículo a mano cuando no es de la
+// flota propia (coche de una empresa Isabella, alquilado puntual, etc.).
+function isabellaOnVehiculoSelect() {
+  const sel = document.getElementById('ir-vehnombre-select');
+  const input = document.getElementById('ir-vehnombre');
+  if (sel.value === '__otro__') {
+    input.style.display = '';
+    input.value = '';
+    input.focus();
+  } else {
+    input.style.display = 'none';
+    input.value = sel.value;
+  }
+}
 function isabellaToggleTipo(prefix) {
   const tipo = document.getElementById(prefix + '-tiposervicio').value; // 'vehiculo' | 'personal' | 'combustible'
   const esVehiculo = tipo === 'vehiculo';
@@ -3171,7 +3191,7 @@ function renderIsabellaRegistro() {
   panel.innerHTML = `
     <div style="background:#f7f6f2; border-radius:8px; padding:1.25rem; margin-bottom:1.25rem;">
       <p style="font-size:13px; font-weight:600; margin:0 0 12px;">Registrar servicio prestado</p>
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; max-width:900px;">
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Fecha</label><input type="date" id="ir-fecha"></div>
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Empresa</label>
           <select id="ir-empresa">${ISABELLA_EMPRESAS.map(e => `<option>${e}</option>`).join('')}<option>Otra</option></select>
@@ -3184,7 +3204,15 @@ function renderIsabellaRegistro() {
             <option value="combustible">Combustible (repostaje)</option>
           </select>
         </div>
-        <div id="ir-field-vehnombre"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Vehículo (nombre)</label><input type="text" id="ir-vehnombre" placeholder="Renault, Nissan, Furgo NDL..."></div>
+        <div id="ir-field-vehnombre">
+          <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Vehículo</label>
+          <select id="ir-vehnombre-select" onchange="isabellaOnVehiculoSelect()">
+            <option value="">Selecciona...</option>
+            ${VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${v.label.replace(/"/g, '&quot;')}">${v.label}</option>`).join('')}
+            <option value="__otro__">Otro (escribir)...</option>
+          </select>
+          <input type="text" id="ir-vehnombre" placeholder="¿Qué vehículo?" style="display:none; margin-top:6px;">
+        </div>
         <div id="ir-field-vehiculo"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Tipo de vehículo</label>
           <select id="ir-vehiculo"><option value="1">Camión Azul</option><option value="2" selected>Camión 3.500 Kg</option><option value="3">Furgoneta</option></select>
         </div>
@@ -3287,6 +3315,8 @@ async function isabellaAnadirServicio() {
     if (data.error) { estado.textContent = 'Error: ' + data.error; estado.style.color = '#A32D2D'; return; }
     estado.textContent = '✓ Guardado'; estado.style.color = '#27500A';
     ['ir-pedido', 'ir-vehnombre', 'ir-personal', 'ir-desc'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ir-vehnombre-select').value = '';
+    document.getElementById('ir-vehnombre').style.display = 'none';
     document.getElementById('ir-personas').value = 1;
     document.getElementById('ir-km').value = 0;
     document.getElementById('ir-horas').value = 0;
