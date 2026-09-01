@@ -28,6 +28,7 @@
     --text-muted: #888582;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
   body {
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: #ffffff;
@@ -85,9 +86,13 @@
   }
   .login-box button:hover { background: var(--accent); color: var(--black); }
   .login-error { color: var(--red); font-size: 13px; margin-top: 14px; display: none; text-align: center; }
-  #app-screen { display: none; min-height: 100vh; }
-  .app-layout { display: flex; min-height: 100vh; }
-  .sidebar { width: 230px; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 1.5rem 0; flex-shrink: 0; }
+  /* app-screen ocupa exactamente la ventana y no se desplaza — sidebar y
+     main-content tienen cada uno su propio scroll interno, independiente
+     uno del otro (antes todo era un único documento y al hacer scroll
+     abajo en el contenido el menú se iba con él). */
+  #app-screen { display: none; height: 100vh; overflow: hidden; }
+  .app-layout { display: flex; height: 100%; }
+  .sidebar { width: 230px; height: 100%; overflow-y: auto; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 1.5rem 0; flex-shrink: 0; }
   .sidebar-header { padding: 0 1.5rem 1.25rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
   .sidebar-header .org-name {
     font-family: 'Playfair Display', serif; font-weight: 900; font-size: 20px; letter-spacing: 3px; text-transform: uppercase;
@@ -112,7 +117,7 @@
     width: calc(100% - 3rem); transition: all 0.2s;
   }
   .logout-button:hover { border-color: var(--red); color: var(--red); }
-  .main-content { flex: 1; padding: 2rem 2.25rem; min-width: 0; background: var(--bg-main); }
+  .main-content { flex: 1; height: 100%; overflow-y: auto; padding: 2rem 2.25rem; min-width: 0; background: var(--bg-main); }
   .main-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
   .main-header h1 { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.5px; }
   .last-update { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; letter-spacing: 0.5px; }
@@ -773,6 +778,10 @@ const MENU = [
   ]},
   { id: 'log', icon: '🧺', label: 'Logística', submenu: [
       { id: 'log-isabella', label: 'Servicios Isabella', onClick: () => cargarIsabellaServicios() },
+      // App de conductores (PIN propio, no la contraseña de USUARIOS) — vive en el mismo
+      // Railway (public/rutas.html) pero no estaba enlazada desde el menú, solo accesible
+      // con la URL directa. Se abre en pestaña nueva, igual que Caja.
+      { id: 'log-rutas-app', label: 'Rutas — app conductores', onClick: () => window.open('/rutas.html', '_blank') },
       { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
       { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
       { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
@@ -788,6 +797,13 @@ const MENU = [
 function construirMenu() {
   const nav = document.getElementById('nav-container');
   nav.innerHTML = '';
+
+  // Buscador del menú lateral — filtra grupos/subitems por texto mientras se escribe.
+  const searchWrap = document.createElement('div');
+  searchWrap.style.cssText = 'padding: 0 1.5rem 0.75rem;';
+  searchWrap.innerHTML = '<input type="text" id="menu-search-input" placeholder="🔍 Buscar en el menú..." style="width:100%; padding:7px 10px; font-size:12px; border:1px solid var(--border); border-radius:4px; background:#fff; color:var(--text-primary);">';
+  nav.appendChild(searchWrap);
+
   const grupoTitle = document.createElement('div');
   grupoTitle.className = 'nav-group-title';
   grupoTitle.textContent = usuarioActual.rol;
@@ -802,24 +818,34 @@ function construirMenu() {
     const itemEl = document.createElement('div');
     itemEl.className = 'nav-item';
     itemEl.id = 'menu-item-' + item.id;
+    itemEl.dataset.label = item.label.toLowerCase();
     itemEl.style.fontWeight = '500';
     itemEl.style.cursor = 'pointer';
-    itemEl.textContent = item.icon + ' ' + item.label;
+    if (item.submenu && !item.especial) {
+      itemEl.style.justifyContent = 'space-between';
+      itemEl.innerHTML = '<span>' + item.icon + ' ' + item.label + '</span><span class="nav-chevron" style="font-size:10px; color:var(--gray-400); transition:transform .15s;">▸</span>';
+    } else {
+      itemEl.textContent = item.icon + ' ' + item.label;
+    }
     if (item.especial) {
       itemEl.onclick = item.onClick;
     } else if (item.submenu) {
-      itemEl.onclick = () => { const first = item.submenu[0]; marcarMenuActivo('menu-item-' + first.id); first.onClick(); };
+      // Contraído por defecto: pinchar en el grupo solo despliega/repliega sus
+      // submenús (no navega), así el menú no queda tan extenso de entrada.
+      itemEl.onclick = () => toggleGrupoMenu(item.id);
     } else {
       itemEl.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
     }
     nav.appendChild(itemEl);
     if (item.submenu) {
       const submenuEl = document.createElement('div');
-      submenuEl.style.paddingLeft = '1.25rem';
+      submenuEl.id = 'submenu-' + item.id;
+      submenuEl.style.cssText = 'padding-left:1.25rem; display:none;';
       item.submenu.forEach(sub => {
         const subEl = document.createElement('div');
         subEl.className = 'nav-subitem';
         subEl.id = 'menu-item-' + sub.id;
+        subEl.dataset.label = sub.label.toLowerCase();
         subEl.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:var(--text-secondary);';
         subEl.textContent = sub.label;
         subEl.onclick = () => { marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); };
@@ -828,7 +854,49 @@ function construirMenu() {
       nav.appendChild(submenuEl);
     }
   });
+  document.getElementById('menu-search-input').addEventListener('input', (e) => filtrarMenuLateral(e.target.value));
   marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : usuarioActual.rol === 'Logistica' ? 'menu-item-log-isabella' : 'menu-item-resumen');
+  // El grupo del item activo por defecto empieza desplegado (si no, Comercial/Logística
+  // aterrizarían con su único grupo cerrado y no verían nada al entrar).
+  if (usuarioActual.rol === 'Comercial') abrirGrupoMenu('comercial');
+  else if (usuarioActual.rol === 'Logistica') abrirGrupoMenu('log');
+}
+function toggleGrupoMenu(groupId) {
+  const submenuEl = document.getElementById('submenu-' + groupId);
+  if (!submenuEl) return;
+  const abierto = submenuEl.style.display !== 'none';
+  submenuEl.style.display = abierto ? 'none' : 'block';
+  const chevron = document.querySelector('#menu-item-' + groupId + ' .nav-chevron');
+  if (chevron) chevron.style.transform = abierto ? '' : 'rotate(90deg)';
+}
+function abrirGrupoMenu(groupId) {
+  const submenuEl = document.getElementById('submenu-' + groupId);
+  if (submenuEl) submenuEl.style.display = 'block';
+  const chevron = document.querySelector('#menu-item-' + groupId + ' .nav-chevron');
+  if (chevron) chevron.style.transform = 'rotate(90deg)';
+}
+// Filtra el menú lateral por texto: si un grupo coincide se muestran todos sus
+// subitems; si solo coincide algún subitem, se despliega el grupo automáticamente
+// para que se vea. Con el buscador vacío se restaura todo (grupos quedan como estaban).
+function filtrarMenuLateral(query) {
+  const q = (query || '').trim().toLowerCase();
+  document.querySelectorAll('#nav-container .nav-item').forEach(itemEl => {
+    const groupId = itemEl.id.replace('menu-item-', '');
+    const submenuEl = document.getElementById('submenu-' + groupId);
+    const groupMatch = !q || (itemEl.dataset.label || '').includes(q);
+    if (!submenuEl) {
+      itemEl.style.display = groupMatch ? '' : 'none';
+      return;
+    }
+    let anySubMatch = false;
+    submenuEl.querySelectorAll('.nav-subitem').forEach(subEl => {
+      const subMatch = groupMatch || !q || (subEl.dataset.label || '').includes(q);
+      subEl.style.display = subMatch ? '' : 'none';
+      if (subMatch) anySubMatch = true;
+    });
+    itemEl.style.display = (groupMatch || anySubMatch) ? '' : 'none';
+    if (q && (groupMatch || anySubMatch)) submenuEl.style.display = 'block';
+  });
 }
 function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
