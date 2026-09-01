@@ -2837,6 +2837,29 @@ function etiquetaDiaServExtra(diasDesdeHoy, fechaIso) {
   const diaSemana = dt.toLocaleDateString('es-ES', { weekday: 'long' });
   return diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1) + ' · ' + fechaFmt;
 }
+function pintarDebugServiciosExtra(data) {
+  const d = data.debug;
+  if (!d) return '';
+  const filas = (d.muestra_cruda || []).map(m => `<tr><td>${m.proyecto_id ?? '—'}</td><td>${m.servicio ?? '—'}</td><td>${m.fecha_entrega === '' ? '<em>(vacío)</em>' : (m.fecha_entrega ?? '<em>(null)</em>')}</td></tr>`).join('');
+  return `
+    <div style="background:#FAEEDA; border:1px solid #e8d5a8; border-radius:8px; padding:1rem 1.25rem; margin-top:1.5rem; font-size:12px; color:#5a4416;">
+      <p style="font-weight:700; margin:0 0 8px;">🔧 Diagnóstico temporal (para depurar por qué no aparece nada)</p>
+      <p style="margin:0 0 4px;">Filas totales en la tabla "servicios": <strong>${d.total_filas_tabla_servicios}</strong></p>
+      <p style="margin:0 0 4px;">Descartadas por fecha vacía/no reconocida: <strong>${d.descartados_sin_fecha_valida}</strong></p>
+      <p style="margin:0 0 10px;">Descartadas por estar fuera de los próximos 15 días: <strong>${d.descartados_fuera_de_ventana_15d}</strong></p>
+      <p style="font-weight:600; margin:0 0 6px;">Primeras filas tal cual llegan de Supabase:</p>
+      <div style="overflow-x:auto;"><table style="background:#fff;"><thead><tr><th>proyecto_id</th><th>servicio</th><th>fecha_entrega</th></tr></thead><tbody>${filas || '<tr><td colspan="3">Sin filas.</td></tr>'}</tbody></table></div>
+    </div>
+  `;
+}
+function toggleServExtraCard(headerEl) {
+  const card = headerEl.closest('.servextra-card');
+  const detalle = card.querySelector('.servextra-detalle');
+  const chevron = card.querySelector('.servextra-chevron');
+  const abierto = detalle.style.display !== 'none';
+  detalle.style.display = abierto ? 'none' : 'block';
+  chevron.style.transform = abierto ? '' : 'rotate(180deg)';
+}
 function pintarServiciosExtra() {
   const body = document.getElementById('content-body');
   const data = SERVICIOS_EXTRA_DATA;
@@ -2853,26 +2876,43 @@ function pintarServiciosExtra() {
     ? data.por_dia.map(d => ({ ...d, items: d.items.filter(it => it.servicio === servExtraFiltroTipo) })).filter(d => d.items.length)
     : data.por_dia;
   if (!porDia.length) {
-    body.innerHTML = filtroHtml + '<p class="loading-text">No hay servicios extra que coincidan.</p>';
+    body.innerHTML = filtroHtml + '<p class="loading-text">No hay servicios extra que coincidan.</p>' + pintarDebugServiciosExtra(data);
     return;
   }
   const bloques = porDia.map(dia => {
-    const filas = dia.items.map(it => {
+    const tarjetas = dia.items.map((it, idx) => {
       const badge = servicioExtraBadge(it.servicio);
+      const cardId = 'sext-' + dia.fecha_iso + '-' + idx;
       return `
-        <tr>
-          <td><span style="background:${badge.bg}; color:${badge.fg}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:12px; display:inline-block; white-space:nowrap;">${badge.icon} ${it.servicio}</span></td>
-          <td>${it.proyecto_numero ? '#' + it.proyecto_numero : '—'}</td>
-          <td>${it.cliente || '—'}</td>
-          <td>${it.localizacion || '—'}</td>
-          <td>${it.cantidad != null ? it.cantidad : '—'}</td>
-        </tr>
+        <div class="servextra-card" id="${cardId}" style="border:1px solid var(--border); border-radius:8px; margin-bottom:8px; overflow:hidden; background:#fff;">
+          <div onclick="toggleServExtraCard(this)" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 14px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span style="background:${badge.bg}; color:${badge.fg}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:12px; white-space:nowrap;">${badge.icon} ${it.servicio}</span>
+              <span style="font-weight:600; font-size:13px;">${it.proyecto_numero ? '#' + it.proyecto_numero : 'Proyecto s/n'} — ${it.cliente || 'Sin cliente'}</span>
+            </div>
+            <span class="servextra-chevron" style="font-size:11px; color:var(--gray-400); transition:transform .15s;">▾</span>
+          </div>
+          <div class="servextra-detalle" style="display:none; padding:0 14px 14px; border-top:1px solid var(--border); background:#faf9f6;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; padding-top:12px; font-size:13px;">
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Proyecto</span>${it.proyecto_nombre || '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Cliente</span>${it.cliente || '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Comercial</span>${it.comercial || '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Estado</span>${it.estado || '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Hora entrega</span>${it.entrega_hora || '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Recogida</span>${it.recogida_fecha ? (it.recogida_fecha + (it.recogida_hora ? ' ' + it.recogida_hora : '')) : '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Ubicación</span>${it.localizacion || '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Cantidad</span>${it.cantidad != null ? it.cantidad : '—'}</div>
+              <div><span style="color:var(--gray-400); font-size:11px; text-transform:uppercase; display:block;">Importe</span>${it.importe != null ? euros(it.importe) : '—'}</div>
+            </div>
+            ${it.google_maps_url ? `<a href="${it.google_maps_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:13px; font-weight:600; color:var(--accent-dark); text-decoration:none;">📍 Ver ubicación en Maps</a>` : ''}
+          </div>
+        </div>
       `;
     }).join('');
     return `
       <div style="margin-bottom:1.5rem;">
         <p style="font-size:13px; font-weight:600; color:var(--accent-dark); text-transform:uppercase; letter-spacing:.5px; margin:0 0 8px;">${etiquetaDiaServExtra(dia.dias_desde_hoy, dia.fecha_iso)}</p>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Servicio</th><th>Proyecto</th><th>Cliente</th><th>Ubicación</th><th>Cant.</th></tr></thead><tbody>${filas}</tbody></table></div>
+        ${tarjetas}
       </div>
     `;
   }).join('');

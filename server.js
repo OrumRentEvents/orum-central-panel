@@ -798,17 +798,20 @@ async function construirServiciosExtra() {
   const limiteMs = hoyMs + 15 * 86400000;
 
   const items = [];
+  let descartadosSinFecha = 0, descartadosFueraDeVentana = 0;
   (serviciosResp.data || []).forEach(s => {
     const fecha = parsearFechaDDMMYYYY(s.fecha_entrega);
-    if (!fecha) return;
+    if (!fecha) { descartadosSinFecha++; return; }
     const fechaDia = inicioDelDia(fecha);
     const fechaMs = fechaDia.getTime();
-    if (fechaMs < hoyMs || fechaMs > limiteMs) return;
+    if (fechaMs < hoyMs || fechaMs > limiteMs) { descartadosFueraDeVentana++; return; }
     const proyecto = proyectoPorId[String(s.proyecto_id)] || {};
     items.push({
       fecha_ms: fechaMs, fecha_iso: fechaDia.toISOString().slice(0, 10),
       proyecto_id: s.proyecto_id, proyecto_numero: s.numero || proyecto.numero || null,
-      cliente: proyecto.cliente || '', localizacion: proyecto.localizacion || '',
+      proyecto_nombre: proyecto.nombre || '', cliente: proyecto.cliente || '', comercial: proyecto.comercial || '',
+      estado: proyecto.estado || '', localizacion: proyecto.localizacion || '', google_maps_url: proyecto.google_maps_url || '',
+      entrega_hora: proyecto.entrega_hora || '', recogida_fecha: proyecto.recogida_fecha || '', recogida_hora: proyecto.recogida_hora || '',
       servicio: s.servicio || 'Sin especificar', cantidad: s.cantidad, importe: s.importe
     });
   });
@@ -824,7 +827,19 @@ async function construirServiciosExtra() {
   const porDia = Object.keys(porDiaMap).sort().map(k => porDiaMap[k]);
   const tipos = [...new Set(items.map(it => it.servicio))].sort();
 
-  return { ok: true, total: items.length, tipos, por_dia: porDia };
+  // DEBUG TEMPORAL (quitar en cuanto se confirme que carga bien en real):
+  // para poder ver, sin acceso directo a Supabase, cuántas filas trae la
+  // tabla "servicios" en total y unos cuantos ejemplos crudos de fecha_entrega
+  // tal cual llegan — así se ve de un vistazo si el problema es que no hay
+  // filas, que las fechas vienen vacías, o que vienen en un formato inesperado.
+  const debug = {
+    total_filas_tabla_servicios: (serviciosResp.data || []).length,
+    descartados_sin_fecha_valida: descartadosSinFecha,
+    descartados_fuera_de_ventana_15d: descartadosFueraDeVentana,
+    muestra_cruda: (serviciosResp.data || []).slice(0, 10).map(s => ({ proyecto_id: s.proyecto_id, servicio: s.servicio, fecha_entrega: s.fecha_entrega }))
+  };
+
+  return { ok: true, total: items.length, tipos, por_dia: porDia, debug };
 }
 
 app.get('/api/logistica/servicios-extra', requiereLogin, bloquearComercial, async (req, res) => {
