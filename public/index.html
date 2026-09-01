@@ -258,6 +258,7 @@ function mostrarApp() {
   document.getElementById('sidebar-user-name').textContent = usuarioActual.nombre;
   construirMenu();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
+  else if (usuarioActual.rol === 'Logistica') cargarIsabellaServicios();
   else cargarResumenGeneral();
 }
 function renderProximamente(nombre) {
@@ -771,6 +772,7 @@ const MENU = [
       { id: 'analisis-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
   ]},
   { id: 'log', icon: '🧺', label: 'Logística', submenu: [
+      { id: 'log-isabella', label: 'Servicios Isabella', onClick: () => cargarIsabellaServicios() },
       { id: 'log-lavanderia', label: 'Lavandería', onClick: () => cargarPreparacion('lavanderia') },
       { id: 'log-office', label: 'Office', onClick: () => cargarPreparacion('office') },
       { id: 'log-almacen', label: 'Almacén', onClick: () => cargarPreparacion('almacen') },
@@ -790,8 +792,12 @@ function construirMenu() {
   grupoTitle.className = 'nav-group-title';
   grupoTitle.textContent = usuarioActual.rol;
   nav.appendChild(grupoTitle);
-  // Rol Comercial: solo ve el apartado Comercial, nada más del menú.
-  const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial') : MENU;
+  // Rol Comercial: solo ve el apartado Comercial. Rol Logística: solo ve
+  // el apartado Logística (incluye Servicios Isabella). Nada más del menú
+  // en ninguno de los dos casos.
+  const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => item.id === 'log')
+    : MENU;
   menuVisible.forEach(item => {
     const itemEl = document.createElement('div');
     itemEl.className = 'nav-item';
@@ -822,7 +828,7 @@ function construirMenu() {
       nav.appendChild(submenuEl);
     }
   });
-  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : 'menu-item-resumen');
+  marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : usuarioActual.rol === 'Logistica' ? 'menu-item-log-isabella' : 'menu-item-resumen');
 }
 function marcarMenuActivo(idActivo) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -2712,6 +2718,407 @@ function mostrarToastCopiado(ev) {
   toast.style.top = y + 'px';
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 700);
+}
+
+// ================================================================
+// SERVICIOS ISABELLA (Logística) — apoyo logístico/de personal de ORUM a
+// VMS Horeca, Isabella Mobiliario, Isabella al Carbón e Isabella Mobil
+// Home. Logística registra servicios; Dirección/Contabilidad ven además
+// coste real, beneficio, comparativa y tarifas (gateado también en
+// server.js, no solo aquí).
+// ================================================================
+const ISABELLA_EMPRESAS = ['VMS Horeca', 'Isabella Mobiliario', 'Isabella al Carbón', 'Isabella Mobil Home'];
+function isabellaEsAdmin() { return usuarioActual.rol === 'Direccion' || usuarioActual.rol === 'Contabilidad'; }
+let ISABELLA_TAB = 'calc';
+let ISABELLA_LAST_LIST = [];
+let isabellaCalcTimer = null;
+
+function cargarIsabellaServicios() {
+  document.getElementById('content-title').textContent = 'Logística · Servicios Isabella';
+  ISABELLA_TAB = 'calc';
+  pintarIsabellaShell();
+}
+function pintarIsabellaShell() {
+  const body = document.getElementById('content-body');
+  const admin = isabellaEsAdmin();
+  const tabs = [
+    { id: 'calc', label: 'Calculadora' },
+    { id: 'registro', label: 'Registro de servicios' },
+    { id: 'informe', label: 'Informe mensual' },
+    ...(admin ? [{ id: 'comparativa', label: 'Comparativa' }, { id: 'tarifas', label: 'Tarifas' }] : [])
+  ];
+  const tabsHtml = tabs.map(t => `
+    <button onclick="cambiarPestanaIsabella('${t.id}')" style="padding:8px 16px; border-radius:4px; border:1px solid ${ISABELLA_TAB === t.id ? 'var(--accent)' : 'var(--border)'}; background:${ISABELLA_TAB === t.id ? 'var(--accent-light)' : '#fff'}; color:${ISABELLA_TAB === t.id ? 'var(--accent-dark)' : 'var(--text-secondary)'}; cursor:pointer; font-size:13px; font-weight:${ISABELLA_TAB === t.id ? '600' : '400'};">${t.label}</button>
+  `).join('');
+  body.innerHTML = `
+    <p style="font-size:13px; color:var(--gray-400); margin:0 0 1rem;">Apoyo logístico y de personal de ORUM a las empresas del grupo Isabella: cálculo, registro y liquidación mensual.</p>
+    <div style="display:flex; gap:8px; margin-bottom:1.25rem; flex-wrap:wrap;">${tabsHtml}</div>
+    <div id="isabella-panel"></div>
+  `;
+  renderIsabellaTab();
+}
+function cambiarPestanaIsabella(tab) {
+  ISABELLA_TAB = tab;
+  pintarIsabellaShell();
+}
+function renderIsabellaTab() {
+  if (ISABELLA_TAB === 'calc') renderIsabellaCalculadora();
+  else if (ISABELLA_TAB === 'registro') renderIsabellaRegistro();
+  else if (ISABELLA_TAB === 'informe') renderIsabellaInforme();
+  else if (ISABELLA_TAB === 'comparativa') renderIsabellaComparativa();
+  else if (ISABELLA_TAB === 'tarifas') renderIsabellaTarifas();
+}
+
+// ---------- Calculadora ----------
+function renderIsabellaCalculadora() {
+  const panel = document.getElementById('isabella-panel');
+  panel.innerHTML = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; max-width:760px;">
+      <div>
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Tipo de servicio</label>
+        <select id="ic-tiposervicio" onchange="isabellaToggleTipo('ic'); calcularIsabella();">
+          <option value="vehiculo">Transporte con vehículo</option>
+          <option value="personal">Solo personal (montaje, lavandería...)</option>
+        </select>
+      </div>
+      <div id="ic-field-vehiculo">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Tipo de vehículo</label>
+        <select id="ic-vehiculo" onchange="calcularIsabella()">
+          <option value="1">Camión Azul</option>
+          <option value="2" selected>Camión 3.500 Kg</option>
+          <option value="3">Furgoneta</option>
+        </select>
+      </div>
+      <div id="ic-field-km">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Kilómetros estimados</label>
+        <input type="number" id="ic-km" value="100" min="0" oninput="calcularIsabella()">
+      </div>
+      <div>
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº de personas</label>
+        <input type="number" id="ic-personas" value="1" min="1" oninput="calcularIsabella()">
+      </div>
+      <div>
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Horas por persona</label>
+        <input type="number" id="ic-horas" value="4" min="0" step="0.5" oninput="calcularIsabella()">
+      </div>
+    </div>
+    <div style="margin-top:1.25rem; background:#f7f6f2; border-radius:8px; padding:1.25rem; max-width:760px;">
+      <div style="font-size:30px; font-weight:600;" id="ic-total">— <span style="font-size:14px; font-weight:400; color:var(--gray-400);">importe a facturar</span></div>
+      <div id="ic-breakdown" style="display:none; margin-top:12px; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;"></div>
+    </div>
+  `;
+  isabellaToggleTipo('ic');
+  calcularIsabella();
+}
+function isabellaToggleTipo(prefix) {
+  const esVehiculo = document.getElementById(prefix + '-tiposervicio').value === 'vehiculo';
+  const fVeh = document.getElementById(prefix + '-field-vehiculo');
+  const fKm = document.getElementById(prefix + '-field-km');
+  const fVehNombre = document.getElementById(prefix + '-field-vehnombre');
+  if (fVeh) fVeh.style.display = esVehiculo ? '' : 'none';
+  if (fKm) fKm.style.display = esVehiculo ? '' : 'none';
+  if (fVehNombre) fVehNombre.style.display = esVehiculo ? '' : 'none';
+  if (!esVehiculo) { const kmEl = document.getElementById(prefix + '-km'); if (kmEl) kmEl.value = 0; }
+}
+function calcularIsabella() {
+  clearTimeout(isabellaCalcTimer);
+  isabellaCalcTimer = setTimeout(async () => {
+    const esVehiculo = document.getElementById('ic-tiposervicio').value === 'vehiculo';
+    const vehTipo = esVehiculo ? parseInt(document.getElementById('ic-vehiculo').value) : 0;
+    const km = esVehiculo ? (parseFloat(document.getElementById('ic-km').value) || 0) : 0;
+    const horas = parseFloat(document.getElementById('ic-horas').value) || 0;
+    const personas = parseInt(document.getElementById('ic-personas').value) || 1;
+    try {
+      const resp = await fetch('/api/isabella/calcular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vehTipo, km, horas, personas }) });
+      const data = await resp.json();
+      if (data.error) { document.getElementById('ic-total').innerHTML = 'Error al calcular'; return; }
+      document.getElementById('ic-total').innerHTML = euros(data.importe) + ' <span style="font-size:14px; font-weight:400; color:var(--gray-400);">importe a facturar</span>';
+      if (data.combustible !== undefined) {
+        const bd = document.getElementById('ic-breakdown');
+        bd.style.display = 'grid';
+        bd.innerHTML = `
+          <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Combustible</div><div style="font-size:15px; font-weight:600;">${euros(data.combustible)}</div></div>
+          <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Desgaste vehículo</div><div style="font-size:15px; font-weight:600;">${euros(data.desgaste)}</div></div>
+          <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Mano de obra</div><div style="font-size:15px; font-weight:600;">${euros(data.manoObra)}</div></div>
+          <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Coste real</div><div style="font-size:15px; font-weight:600;">${euros(data.costeNOE)}</div></div>
+        `;
+      }
+    } catch (err) { document.getElementById('ic-total').innerHTML = 'Error de conexión'; }
+  }, 200);
+}
+
+// ---------- Registro de servicios ----------
+function renderIsabellaRegistro() {
+  const panel = document.getElementById('isabella-panel');
+  panel.innerHTML = `
+    <div style="background:#f7f6f2; border-radius:8px; padding:1.25rem; margin-bottom:1.25rem;">
+      <p style="font-size:13px; font-weight:600; margin:0 0 12px;">Registrar servicio prestado</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px;">
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Fecha</label><input type="date" id="ir-fecha"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Empresa</label>
+          <select id="ir-empresa">${ISABELLA_EMPRESAS.map(e => `<option>${e}</option>`).join('')}<option>Otra</option></select>
+        </div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº pedido / referencia</label><input type="text" id="ir-pedido" placeholder="SO2401349"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Tipo de servicio</label>
+          <select id="ir-tiposervicio" onchange="isabellaToggleTipo('ir')">
+            <option value="vehiculo">Transporte con vehículo</option>
+            <option value="personal">Solo personal (montaje, lavandería...)</option>
+          </select>
+        </div>
+        <div id="ir-field-vehnombre"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Vehículo (nombre)</label><input type="text" id="ir-vehnombre" placeholder="Renault, Nissan, Furgo NDL..."></div>
+        <div id="ir-field-vehiculo"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Tipo de vehículo</label>
+          <select id="ir-vehiculo"><option value="1">Camión Azul</option><option value="2" selected>Camión 3.500 Kg</option><option value="3">Furgoneta</option></select>
+        </div>
+        <div id="ir-field-km"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Kilómetros recorridos</label><input type="number" id="ir-km" value="0" min="0"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Personal / conductor</label><input type="text" id="ir-personal" placeholder="Juan, Leo..."></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº de personas ese día</label><input type="number" id="ir-personas" value="1" min="1"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Horas por persona</label><input type="number" id="ir-horas" value="0" min="0" step="0.5"></div>
+        <div style="grid-column:1/-1;"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">¿En qué ha consistido el servicio?</label><input type="text" id="ir-desc" placeholder="Montaje mobil home cliente X, día 1 de 2"></div>
+      </div>
+      <button id="ir-add-btn" onclick="isabellaAnadirServicio()" style="margin-top:14px; padding:9px 20px; border-radius:4px; border:none; background:#1a1a18; color:#fff; cursor:pointer; font-size:13px; font-weight:500;">Añadir al registro</button>
+      <span id="ir-add-estado" style="font-size:12px; margin-left:10px;"></span>
+    </div>
+    <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:flex-end; flex-wrap:wrap;">
+      <select id="ir-filtro-empresa" onchange="isabellaCargarTabla()" style="width:auto;"><option value="">Empresa: Todas</option>${ISABELLA_EMPRESAS.map(e => `<option>${e}</option>`).join('')}</select>
+      <input type="month" id="ir-filtro-mes" onchange="isabellaCargarTabla()">
+      <label style="font-size:13px; display:flex; align-items:center; gap:6px;"><input type="checkbox" id="ir-filtro-todos" onchange="isabellaCargarTabla()"> Ver todos los meses</label>
+      <button onclick="isabellaCargarTabla()" style="padding:7px 14px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Actualizar</button>
+      <button onclick="isabellaExportarCSV()" style="padding:7px 14px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Exportar CSV</button>
+    </div>
+    <div id="ir-tabla-wrap"><p class="loading-text">Cargando...</p></div>
+  `;
+  document.getElementById('ir-fecha').valueAsDate = new Date();
+  document.getElementById('ir-filtro-mes').value = new Date().toISOString().slice(0, 7);
+  isabellaToggleTipo('ir');
+  isabellaCargarTabla();
+}
+async function isabellaCargarTabla() {
+  const wrap = document.getElementById('ir-tabla-wrap');
+  wrap.innerHTML = '<p class="loading-text">Cargando...</p>';
+  const empresa = document.getElementById('ir-filtro-empresa').value;
+  const todos = document.getElementById('ir-filtro-todos').checked;
+  const mes = todos ? '' : document.getElementById('ir-filtro-mes').value;
+  document.getElementById('ir-filtro-mes').disabled = todos;
+  try {
+    const params = new URLSearchParams();
+    if (empresa) params.set('empresa', empresa);
+    if (mes) params.set('mes', mes);
+    const resp = await fetch('/api/isabella/servicios?' + params.toString());
+    const data = await resp.json();
+    if (data.error) { wrap.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    ISABELLA_LAST_LIST = data.data || [];
+    isabellaPintarTabla(ISABELLA_LAST_LIST);
+  } catch (err) { wrap.innerHTML = '<p class="loading-text">Error de conexión</p>'; }
+}
+function isabellaVehLabel(t) { return t == 1 ? 'Camión Azul' : t == 2 ? 'Camión 3.500 Kg' : t == 3 ? 'Furgoneta' : 'Sin vehículo'; }
+function isabellaFmtFecha(iso) { const p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+function isabellaPintarTabla(list) {
+  const wrap = document.getElementById('ir-tabla-wrap');
+  if (!list.length) { wrap.innerHTML = '<p class="loading-text">Todavía no hay servicios registrados.</p>'; return; }
+  const admin = isabellaEsAdmin();
+  const filas = list.slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)) || b.id - a.id).map(s => `
+    <tr>
+      <td>${isabellaFmtFecha(s.fecha)}</td>
+      <td>${s.empresa}</td>
+      <td>${s.pedido || '—'}</td>
+      <td>${Number(s.vehTipo) > 0 ? (s.vehNombre || isabellaVehLabel(s.vehTipo)) : 'Sin vehículo'}</td>
+      <td>${s.personal || '—'}</td>
+      <td>${s.personas || 1}</td>
+      <td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td>
+      <td>${s.horas}</td>
+      <td><strong>${euros(s.importe)}</strong></td>
+      <td>${s.desc || '—'}</td>
+      ${admin ? `<td>${euros(s.costeNOE)}</td><td>${euros(s.beneficio)}</td><td><button onclick="isabellaBorrarServicio('${s.id}')" style="background:#fff; color:#A32D2D; border:1px solid #edd0d0; border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer;">Eliminar</button></td>` : ''}
+    </tr>
+  `).join('');
+  wrap.innerHTML = `
+    <div style="overflow-x:auto;">
+    <table><thead><tr>
+      <th>Fecha</th><th>Empresa</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th>
+      ${admin ? '<th>Coste real</th><th>Beneficio</th><th></th>' : ''}
+    </tr></thead><tbody>${filas}</tbody></table>
+    </div>
+  `;
+}
+async function isabellaAnadirServicio() {
+  const fecha = document.getElementById('ir-fecha').value;
+  if (!fecha) { alert('Indica la fecha del servicio.'); return; }
+  const esVehiculo = document.getElementById('ir-tiposervicio').value === 'vehiculo';
+  const payload = {
+    fecha, empresa: document.getElementById('ir-empresa').value, pedido: document.getElementById('ir-pedido').value.trim(),
+    vehNombre: esVehiculo ? document.getElementById('ir-vehnombre').value.trim() : '',
+    vehTipo: esVehiculo ? parseInt(document.getElementById('ir-vehiculo').value) : 0,
+    personal: document.getElementById('ir-personal').value.trim(),
+    personas: parseInt(document.getElementById('ir-personas').value) || 1,
+    km: esVehiculo ? (parseFloat(document.getElementById('ir-km').value) || 0) : 0,
+    horas: parseFloat(document.getElementById('ir-horas').value) || 0,
+    desc: document.getElementById('ir-desc').value.trim()
+  };
+  const btn = document.getElementById('ir-add-btn');
+  const estado = document.getElementById('ir-add-estado');
+  btn.disabled = true; estado.textContent = 'Guardando…'; estado.style.color = 'var(--gray-400)';
+  try {
+    const resp = await fetch('/api/isabella/servicios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await resp.json();
+    if (data.error) { estado.textContent = 'Error: ' + data.error; estado.style.color = '#A32D2D'; return; }
+    estado.textContent = '✓ Guardado'; estado.style.color = '#27500A';
+    ['ir-pedido', 'ir-vehnombre', 'ir-personal', 'ir-desc'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ir-personas').value = 1;
+    document.getElementById('ir-km').value = 0;
+    document.getElementById('ir-horas').value = 0;
+    isabellaCargarTabla();
+  } catch (err) { estado.textContent = 'Error de conexión'; estado.style.color = '#A32D2D'; }
+  finally { btn.disabled = false; }
+}
+async function isabellaBorrarServicio(id) {
+  if (!confirm('¿Eliminar este servicio del registro?')) return;
+  try {
+    const resp = await fetch('/api/isabella/servicios/' + id, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.error) { alert('No se pudo eliminar: ' + data.error); return; }
+    isabellaCargarTabla();
+  } catch (err) { alert('Error de conexión'); }
+}
+function isabellaExportarCSV() {
+  const headers = ['Fecha', 'Empresa', 'Pedido', 'Vehiculo', 'Personal', 'NumPersonas', 'Km', 'HorasPorPersona', 'ImporteACobrar', 'Descripcion'];
+  const rows = ISABELLA_LAST_LIST.map(s => [s.fecha, s.empresa, s.pedido, (Number(s.vehTipo) > 0 ? (s.vehNombre || isabellaVehLabel(s.vehTipo)) : 'Sin vehiculo'), s.personal, s.personas || 1, s.km, s.horas, Number(s.importe).toFixed(2), (s.desc || '').replace(/;/g, ',')]);
+  const csv = headers.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'servicios_isabella.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ---------- Informe mensual ----------
+function renderIsabellaInforme() {
+  const panel = document.getElementById('isabella-panel');
+  panel.innerHTML = `
+    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:1.25rem;">
+      <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Empresa</label>
+        <select id="ii-empresa">${ISABELLA_EMPRESAS.map(e => `<option>${e}</option>`).join('')}</select>
+      </div>
+      <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Mes</label><input type="month" id="ii-mes"></div>
+      <button onclick="isabellaGenerarInforme()" style="padding:9px 20px; border-radius:4px; border:none; background:#1a1a18; color:#fff; cursor:pointer; font-size:13px; font-weight:500;">Generar informe</button>
+    </div>
+    <div id="ii-report"></div>
+  `;
+  document.getElementById('ii-mes').value = new Date().toISOString().slice(0, 7);
+}
+async function isabellaGenerarInforme() {
+  const empresa = document.getElementById('ii-empresa').value;
+  const mes = document.getElementById('ii-mes').value;
+  const wrap = document.getElementById('ii-report');
+  if (!mes) { alert('Selecciona un mes.'); return; }
+  wrap.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetch('/api/isabella/servicios?empresa=' + encodeURIComponent(empresa));
+    const data = await resp.json();
+    if (data.error) { wrap.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    const todos = data.data || [];
+    const list = todos.filter(s => String(s.fecha).startsWith(mes)).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+    if (!list.length) {
+      if (!todos.length) { wrap.innerHTML = `<p class="loading-text">Todavía no hay ningún servicio registrado para ${empresa}.</p>`; return; }
+      const meses = [...new Set(todos.map(s => String(s.fecha).slice(0, 7)))].sort().reverse();
+      wrap.innerHTML = `<p class="loading-text">No hay servicios de ${empresa} en ese mes. Tienes ${todos.length} servicio(s) registrados en: ${meses.join(', ')}.</p>`;
+      return;
+    }
+    const total = list.reduce((a, s) => a + Number(s.importe), 0);
+    const [y, m] = mes.split('-');
+    const nombreMes = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    const filas = list.map(s => `
+      <tr><td>${isabellaFmtFecha(s.fecha)}</td><td>${s.pedido || '—'}</td><td>${Number(s.vehTipo) > 0 ? (s.vehNombre || isabellaVehLabel(s.vehTipo)) : 'Sin vehículo'}</td><td>${s.personal || '—'}</td><td>${s.personas || 1}</td><td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td><td>${s.horas}</td><td><strong>${euros(s.importe)}</strong></td><td>${s.desc || '—'}</td></tr>
+    `).join('');
+    wrap.innerHTML = `
+      <p style="font-size:15px; font-weight:600; margin:0 0 4px;">Liquidación · ${empresa} · ${nombreMes}</p>
+      <p style="font-size:13px; color:var(--gray-400); margin:0 0 14px;">Servicios logísticos y de personal prestados por ORUM Rent &amp; Events a ${empresa}.</p>
+      <div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th></tr></thead><tbody>${filas}</tbody></table></div>
+      <div style="margin-top:16px; background:#1a1a18; color:#fff; border-radius:8px; padding:16px; max-width:320px;">
+        <div style="font-size:11px; color:#cbb98a; text-transform:uppercase;">Total a facturar a ${empresa}</div>
+        <div style="font-size:22px; font-weight:700;">${euros(total)}</div>
+      </div>
+      <div style="margin-top:14px; display:flex; gap:10px;">
+        <button onclick="window.print()" style="padding:8px 16px; border-radius:4px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:13px;">Imprimir / Guardar PDF</button>
+      </div>
+    `;
+  } catch (err) { wrap.innerHTML = '<p class="loading-text">Error de conexión</p>'; }
+}
+
+// ---------- Comparativa (solo Dirección/Contabilidad) ----------
+async function renderIsabellaComparativa() {
+  const panel = document.getElementById('isabella-panel');
+  panel.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetch('/api/isabella/comparativa');
+    const data = await resp.json();
+    if (data.error) { panel.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    const beneficio = data.totalIngresos - data.totalGastos;
+    const filasEmpresa = Object.keys(data.porEmpresa).sort().map(emp => {
+      const d = data.porEmpresa[emp];
+      return `<tr><td>${emp}</td><td>${d.servicios}</td><td>${euros(d.ingresos)}</td><td>${euros(d.gastos)}</td><td><strong>${euros(d.ingresos - d.gastos)}</strong></td></tr>`;
+    }).join('');
+    const filasMes = Object.keys(data.porMes).sort().reverse().map(mes => {
+      const d = data.porMes[mes];
+      const [y, m] = mes.split('-');
+      const nombre = (y && m) ? new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }) : mes;
+      return `<tr><td>${nombre}</td><td>${d.servicios}</td><td>${euros(d.ingresos)}</td><td>${euros(d.gastos)}</td><td><strong>${euros(d.ingresos - d.gastos)}</strong></td></tr>`;
+    }).join('');
+    panel.innerHTML = `
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:1.5rem; max-width:760px;">
+        <div style="background:#f7f6f2; border-radius:8px; padding:1rem;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Ingresos totales</div><div style="font-size:20px; font-weight:700;">${euros(data.totalIngresos)}</div></div>
+        <div style="background:#f7f6f2; border-radius:8px; padding:1rem;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Gastos totales</div><div style="font-size:20px; font-weight:700;">${euros(data.totalGastos)}</div></div>
+        <div style="background:#f7f6f2; border-radius:8px; padding:1rem;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Beneficio</div><div style="font-size:20px; font-weight:700;">${euros(beneficio)}</div></div>
+      </div>
+      <p style="font-size:14px; font-weight:600; margin:0 0 8px;">Por empresa</p>
+      <div style="overflow-x:auto; margin-bottom:1.5rem;"><table><thead><tr><th>Empresa</th><th>Servicios</th><th>Ingresos</th><th>Gastos</th><th>Beneficio</th></tr></thead><tbody>${filasEmpresa || '<tr><td colspan="5" class="loading-text">Sin datos todavía.</td></tr>'}</tbody></table></div>
+      <p style="font-size:14px; font-weight:600; margin:0 0 8px;">Por mes</p>
+      <div style="overflow-x:auto;"><table><thead><tr><th>Mes</th><th>Servicios</th><th>Ingresos</th><th>Gastos</th><th>Beneficio</th></tr></thead><tbody>${filasMes || '<tr><td colspan="5" class="loading-text">Sin datos todavía.</td></tr>'}</tbody></table></div>
+    `;
+  } catch (err) { panel.innerHTML = '<p class="loading-text">Error de conexión</p>'; }
+}
+
+// ---------- Tarifas (solo Dirección/Contabilidad) ----------
+async function renderIsabellaTarifas() {
+  const panel = document.getElementById('isabella-panel');
+  panel.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetch('/api/isabella/tarifas');
+    const data = await resp.json();
+    if (data.error) { panel.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    const c = data.config;
+    panel.innerHTML = `
+      <p style="font-size:13px; color:var(--gray-400); margin:0 0 1rem; max-width:600px;">Ajusta estas tarifas si cambian los costes reales; se aplican a partir de ese momento a la calculadora y al registro.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; max-width:760px;">
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Precio combustible (€/L)</label><input type="number" id="it-fuel" step="0.01" value="${c.fuelPrice}"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Consumo Camión Azul (L/100km)</label><input type="number" id="it-c1" step="0.1" value="${c.consumo1}"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Consumo Camión 3.500 Kg (L/100km)</label><input type="number" id="it-c2" step="0.1" value="${c.consumo2}"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Consumo Furgoneta (L/100km)</label><input type="number" id="it-c3" step="0.1" value="${c.consumo3}"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Desgaste vehículo (€/km)</label><input type="number" id="it-wear" step="0.01" value="${c.wear}"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Mano de obra (€/hora/persona)</label><input type="number" id="it-labor" step="0.1" value="${c.labor}"></div>
+        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Margen sobre coste (%)</label><input type="number" id="it-margin" step="1" value="${c.marginPct}"></div>
+      </div>
+      <button onclick="isabellaGuardarTarifas()" style="margin-top:16px; padding:9px 20px; border-radius:4px; border:none; background:#1a1a18; color:#fff; cursor:pointer; font-size:13px; font-weight:500;">Guardar tarifas</button>
+      <span id="it-estado" style="font-size:12px; margin-left:10px;"></span>
+    `;
+  } catch (err) { panel.innerHTML = '<p class="loading-text">Error de conexión</p>'; }
+}
+async function isabellaGuardarTarifas() {
+  const payload = {
+    fuelPrice: parseFloat(document.getElementById('it-fuel').value),
+    consumo1: parseFloat(document.getElementById('it-c1').value),
+    consumo2: parseFloat(document.getElementById('it-c2').value),
+    consumo3: parseFloat(document.getElementById('it-c3').value),
+    wear: parseFloat(document.getElementById('it-wear').value),
+    labor: parseFloat(document.getElementById('it-labor').value),
+    marginPct: parseFloat(document.getElementById('it-margin').value)
+  };
+  const estado = document.getElementById('it-estado');
+  estado.textContent = 'Guardando…'; estado.style.color = 'var(--gray-400)';
+  try {
+    const resp = await fetch('/api/isabella/tarifas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await resp.json();
+    if (data.error) { estado.textContent = 'Error: ' + data.error; estado.style.color = '#A32D2D'; return; }
+    estado.textContent = '✓ Tarifas guardadas'; estado.style.color = '#27500A';
+  } catch (err) { estado.textContent = 'Error de conexión'; estado.style.color = '#A32D2D'; }
 }
 
 // ================================================================

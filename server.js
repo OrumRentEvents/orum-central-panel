@@ -128,6 +128,21 @@ function bloquearComercial(req, res, next) {
   next();
 }
 
+// Servicios Isabella (VMS Horeca, Isabella Mobiliario, Isabella al Carbón,
+// Isabella Mobil Home): los responsables de Logística dan de alta los
+// servicios prestados pero no ven coste real/margen; Dirección y
+// Contabilidad ven todo, igual que en Facturas Proveedores.
+const ROLES_ISABELLA_LECTURA = ['Logistica', 'Direccion', 'Contabilidad'];
+const ROLES_ISABELLA_ADMIN = ['Direccion', 'Contabilidad'];
+function permiteIsabella(req, res, next) {
+  if (!ROLES_ISABELLA_LECTURA.includes(req.session.usuario.rol)) return res.status(403).json({ error: 'No autorizado para este apartado' });
+  next();
+}
+function soloIsabellaAdmin(req, res, next) {
+  if (!ROLES_ISABELLA_ADMIN.includes(req.session.usuario.rol)) return res.status(403).json({ error: 'No autorizado para este apartado' });
+  next();
+}
+
 // ── Auditoría de Rutas: registra quién hizo qué en la pestaña HISTORIAL_RUTAS ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
 function logHistorialRutas(usuario, accion, detalle) {
@@ -1246,6 +1261,149 @@ app.get('/api/facturas-proveedores/:fileId/historial', requiereLogin, bloquearCo
     const data = await resp.json();
     if (data.error) return res.status(500).json({ error: data.error });
     res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ================================================================
+// SERVICIOS ISABELLA — apoyo logístico/de personal de ORUM al grupo
+// Isabella (VMS Horeca, Isabella Mobiliario, Isabella al Carbón, Isabella
+// Mobil Home). Migrado desde el Apps Script standalone original a Supabase
+// (tablas isabella_servicios / isabella_config) — ver memoria
+// isabella-servicios-orum-central para el contexto completo.
+// ================================================================
+
+const ISABELLA_VEH_CONSUMO_KEY = { 1: 'consumo1', 2: 'consumo2', 3: 'consumo3' };
+
+async function obtenerConfigIsabella() {
+  const { data, error } = await supabase.from('isabella_config').select('key,value');
+  if (error) throw error;
+  const cfg = {};
+  data.forEach(r => { cfg[r.key] = parseFloat(r.value); });
+  return cfg;
+}
+
+// Mismo cálculo que calcEstimate() del Apps Script original: vehTipo
+// 1=Camión Azul, 2=Camión 3.500Kg, 3=Furgoneta, 0="sin vehículo" (solo
+// mano de obra, para montaje de mobil homes, lavandería, etc.).
+function calcularCosteIsabella(cfg, vehTipo, km, horas, personas) {
+  const p = Number(personas) || 1;
+  let combustible = 0, desgaste = 0;
+  if (Number(vehTipo) > 0) {
+    const consumo = cfg[ISABELLA_VEH_CONSUMO_KEY[vehTipo]] || cfg.consumo2;
+    combustible = (Number(km) / 100) * consumo * cfg.fuelPrice;
+    desgaste = Number(km) * cfg.wear;
+  }
+  const manoObra = Number(horas) * p * cfg.labor;
+  const costeNOE = combustible + desgaste + manoObra;
+  const importe = costeNOE * (1 + cfg.marginPct / 100);
+  const beneficio = importe - costeNOE;
+  return { combustible, desgaste, manoObra, costeNOE, importe, beneficio };
+}
+function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+// Calculadora de coste estimado (antes de registrar el servicio). Logística
+// solo recibe el importe a facturar; Dirección/Contabilidad ven también el
+// desglose de coste real.
+app.post('/api/isabella/calcular', requiereLogin, permiteIsabella, async (req, res) => {
+  try {
+    const cfg = await obtenerConfigIsabella();
+    const { vehTipo, km, horas, personas } = req.body;
+    const r = calcularCosteIsabella(cfg, vehTipo, km, horas, personas);
+    const esAdmin = ROLES_ISABELLA_ADMIN.includes(req.session.usuario.rol);
+    res.json({
+      ok: true, importe: r2(r.importe),
+      ...(esAdmin ? { combustible: r2(r.combustible), desgaste: r2(r.desgaste), manoObra: r2(r.manoObra), costeNOE: r2(r.costeNOE) } : {})
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/isabella/servicios', requiereLogin, permiteIsabella, async (req, res) => {
+  try {
+    let query = supabase.from('isabella_servicios').select('*').order('fecha', { ascending: false }).order('id', { ascending: false });
+    if (req.query.empresa) query = query.eq('empresa', req.query.empresa);
+    const { data, error } = await query;
+    if (error) throw error;
+    let rows = data || [];
+    if (req.query.mes) rows = rows.filter(r => String(r.fecha).slice(0, 7) === req.query.mes);
+    const esAdmin = ROLES_ISABELLA_ADMIN.includes(req.session.usuario.rol);
+    const mapeado = rows.map(r => ({
+      id: r.id, fecha: r.fecha, empresa: r.empresa, pedido: r.pedido || '', vehNombre: r.veh_nombre || '',
+      vehTipo: r.veh_tipo, personal: r.personal || '', personas: r.personas, km: r.km, horas: r.horas,
+      desc: r.descripcion || '', importe: r.importe, creadoPor: r.creado_por || '',
+      ...(esAdmin ? { costeNOE: r.coste_noe, beneficio: r.beneficio } : {})
+    }));
+    res.json({ ok: true, data: mapeado });
+  } catch (err) {
+    console.error('Error en /api/isabella/servicios:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/isabella/servicios', requiereLogin, permiteIsabella, async (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.fecha || !b.empresa) return res.status(400).json({ error: 'Fecha y empresa son obligatorios' });
+    const cfg = await obtenerConfigIsabella();
+    const vehTipo = Number(b.vehTipo) || 0;
+    const personas = Number(b.personas) || 1;
+    const r = calcularCosteIsabella(cfg, vehTipo, Number(b.km) || 0, Number(b.horas) || 0, personas);
+    const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+    const { data, error } = await supabase.from('isabella_servicios').insert({
+      fecha: b.fecha, empresa: b.empresa, pedido: b.pedido || '', veh_nombre: b.vehNombre || '',
+      veh_tipo: vehTipo, personal: b.personal || '', personas, km: Number(b.km) || 0, horas: Number(b.horas) || 0,
+      descripcion: b.desc || '', combustible: r2(r.combustible), desgaste: r2(r.desgaste), mano_obra: r2(r.manoObra),
+      coste_noe: r2(r.costeNOE), importe: r2(r.importe), beneficio: r2(r.beneficio), creado_por: usuario
+    }).select().single();
+    if (error) throw error;
+    res.json({ ok: true, servicio: data });
+  } catch (err) {
+    console.error('Error en POST /api/isabella/servicios:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Borrar un servicio: solo Dirección/Contabilidad (igual que el modo admin del Apps Script original)
+app.delete('/api/isabella/servicios/:id', requiereLogin, soloIsabellaAdmin, async (req, res) => {
+  try {
+    const { error } = await supabase.from('isabella_servicios').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Comparativa coste real vs. facturado, por empresa y por mes — solo Dirección/Contabilidad
+app.get('/api/isabella/comparativa', requiereLogin, soloIsabellaAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('isabella_servicios').select('empresa,fecha,importe,coste_noe');
+    if (error) throw error;
+    const porEmpresa = {}, porMes = {};
+    let totalIngresos = 0, totalGastos = 0;
+    (data || []).forEach(r => {
+      const importe = Number(r.importe) || 0, coste = Number(r.coste_noe) || 0;
+      totalIngresos += importe; totalGastos += coste;
+      porEmpresa[r.empresa] = porEmpresa[r.empresa] || { servicios: 0, ingresos: 0, gastos: 0 };
+      porEmpresa[r.empresa].servicios++; porEmpresa[r.empresa].ingresos += importe; porEmpresa[r.empresa].gastos += coste;
+      const mes = String(r.fecha).slice(0, 7);
+      porMes[mes] = porMes[mes] || { servicios: 0, ingresos: 0, gastos: 0 };
+      porMes[mes].servicios++; porMes[mes].ingresos += importe; porMes[mes].gastos += coste;
+    });
+    res.json({ ok: true, totalIngresos: r2(totalIngresos), totalGastos: r2(totalGastos), porEmpresa, porMes });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Tarifas de cálculo (combustible, consumos, desgaste, mano de obra, margen) — solo Dirección/Contabilidad
+app.get('/api/isabella/tarifas', requiereLogin, soloIsabellaAdmin, async (req, res) => {
+  try { res.json({ ok: true, config: await obtenerConfigIsabella() }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+const ISABELLA_CAMPOS_TARIFA = ['fuelPrice', 'consumo1', 'consumo2', 'consumo3', 'wear', 'labor', 'marginPct'];
+app.post('/api/isabella/tarifas', requiereLogin, soloIsabellaAdmin, async (req, res) => {
+  try {
+    const updates = ISABELLA_CAMPOS_TARIFA.filter(k => req.body[k] !== undefined && req.body[k] !== '');
+    for (const k of updates) {
+      const { error } = await supabase.from('isabella_config').update({ value: Number(req.body[k]) }).eq('key', k);
+      if (error) throw error;
+    }
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
