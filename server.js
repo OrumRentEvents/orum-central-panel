@@ -578,7 +578,14 @@ function parsearFechaDDMMYYYY(str) {
   if (!str) return null;
   const partes = String(str).split('/');
   if (partes.length !== 3) return null;
-  return new Date(partes[2], partes[1] - 1, partes[0]);
+  const d = new Date(partes[2], partes[1] - 1, partes[0]);
+  // new Date(NaN, NaN, NaN) no devuelve null, devuelve un objeto Date "Invalid
+  // Date" — sigue siendo truthy en JS, así que sin este chequeo se cuela por
+  // cualquier "if (!fecha) return" de quien llame a esta función y explota
+  // más tarde (p.ej. RangeError: Invalid time value al hacer toISOString()).
+  // Pasa con fechas mal formadas o vacías que lleguen desde Rentman/Supabase.
+  if (isNaN(d.getTime())) return null;
+  return d;
 }
 
 function inicioDelDia(d) {
