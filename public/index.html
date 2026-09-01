@@ -2943,16 +2943,17 @@ function pintarResumenLogistica(prep, extra) {
   const extraOk = extra && !extra.error;
   const totalExtra = extraOk ? extra.total : 0;
   const contadorTipo = {};
-  if (extraOk) extra.por_dia.forEach(d => d.items.forEach(it => { contadorTipo[it.servicio] = (contadorTipo[it.servicio] || 0) + 1; }));
+  if (extraOk) extra.por_dia.forEach(d => d.proyectos.forEach(p => p.servicios.forEach(s => { contadorTipo[s.servicio] = (contadorTipo[s.servicio] || 0) + 1; })));
   const destacados = ['nocturnidad', 'domingo'];
   const avisos = Object.keys(contadorTipo).filter(t => destacados.some(d => t.toLowerCase().includes(d)));
 
   const previewExtra = (extraOk ? extra.por_dia : []).slice(0, 3).map(dia => {
-    const items = dia.items.slice(0, 4).map(it => {
-      const badge = servicioExtraBadge(it.servicio);
-      return `<span style="background:${badge.bg}; color:${badge.fg}; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; margin-right:4px; display:inline-block; margin-bottom:4px;">${badge.icon} ${it.servicio} — ${it.cliente || 'sin cliente'}</span>`;
+    const chips = dia.proyectos.slice(0, 4).map(p => {
+      const badge = servicioExtraBadge(p.servicios[0].servicio);
+      const etiquetaServicios = p.servicios.map(s => s.servicio).join(' + ');
+      return `<span style="background:${badge.bg}; color:${badge.fg}; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; margin-right:4px; display:inline-block; margin-bottom:4px;">${badge.icon} ${etiquetaServicios} — ${p.cliente || 'sin cliente'}</span>`;
     }).join('');
-    return `<div style="margin-bottom:10px;"><p style="font-size:12px; font-weight:600; color:var(--gray-500); margin:0 0 4px;">${etiquetaDiaServExtra(dia.dias_desde_hoy, dia.fecha_iso)}</p>${items}</div>`;
+    return `<div style="margin-bottom:10px;"><p style="font-size:12px; font-weight:600; color:var(--gray-500); margin:0 0 4px;">${etiquetaDiaServExtra(dia.dias_desde_hoy, dia.fecha_iso)}</p>${chips}</div>`;
   }).join('') || '<p class="loading-text" style="padding:0.5rem 0;">Sin servicios extra en los próximos días.</p>';
 
   const tarjeta = (icon, titulo, desc, onclick) => `
