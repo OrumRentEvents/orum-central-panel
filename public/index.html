@@ -2837,21 +2837,6 @@ function etiquetaDiaServExtra(diasDesdeHoy, fechaIso) {
   const diaSemana = dt.toLocaleDateString('es-ES', { weekday: 'long' });
   return diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1) + ' · ' + fechaFmt;
 }
-function pintarDebugServiciosExtra(data) {
-  const d = data.debug;
-  if (!d) return '';
-  const filas = (d.muestra_cruda || []).map(m => `<tr><td>${m.proyecto_id ?? '—'}</td><td>${m.servicio ?? '—'}</td><td>${m.fecha_entrega === '' ? '<em>(vacío)</em>' : (m.fecha_entrega ?? '<em>(null)</em>')}</td></tr>`).join('');
-  return `
-    <div style="background:#FAEEDA; border:1px solid #e8d5a8; border-radius:8px; padding:1rem 1.25rem; margin-top:1.5rem; font-size:12px; color:#5a4416;">
-      <p style="font-weight:700; margin:0 0 8px;">🔧 Diagnóstico temporal (para depurar por qué no aparece nada)</p>
-      <p style="margin:0 0 4px;">Filas totales en la tabla "servicios": <strong>${d.total_filas_tabla_servicios}</strong></p>
-      <p style="margin:0 0 4px;">Descartadas por fecha vacía/no reconocida: <strong>${d.descartados_sin_fecha_valida}</strong></p>
-      <p style="margin:0 0 10px;">Descartadas por estar fuera de los próximos 15 días: <strong>${d.descartados_fuera_de_ventana_15d}</strong></p>
-      <p style="font-weight:600; margin:0 0 6px;">Primeras filas tal cual llegan de Supabase:</p>
-      <div style="overflow-x:auto;"><table style="background:#fff;"><thead><tr><th>proyecto_id</th><th>servicio</th><th>fecha_entrega</th></tr></thead><tbody>${filas || '<tr><td colspan="3">Sin filas.</td></tr>'}</tbody></table></div>
-    </div>
-  `;
-}
 function toggleServExtraCard(headerEl) {
   const card = headerEl.closest('.servextra-card');
   const detalle = card.querySelector('.servextra-detalle');

@@ -576,14 +576,21 @@ function familiaPerteneceA(familia, listaNormalizada) {
 
 function parsearFechaDDMMYYYY(str) {
   if (!str) return null;
-  const partes = String(str).split('/');
+  // Algunos campos _raw de Supabase (confirmado en la tabla "servicios": 1313/1313
+  // filas) llegan como "15/05/2026 00:00" en vez de solo "15/05/2026" — la hora
+  // pegada rompía el split por '/' (el trozo del año quedaba "2026 00:00", que
+  // Number() no puede convertir) y toda fecha con hora se descartaba en
+  // silencio. Nos quedamos solo con la parte de fecha, antes del espacio.
+  const soloFecha = String(str).trim().split(' ')[0];
+  const partes = soloFecha.split('/');
   if (partes.length !== 3) return null;
-  const d = new Date(partes[2], partes[1] - 1, partes[0]);
+  const anio = Number(partes[2]), mes = Number(partes[1]), dia = Number(partes[0]);
+  if (!Number.isFinite(anio) || !Number.isFinite(mes) || !Number.isFinite(dia)) return null;
+  const d = new Date(anio, mes - 1, dia);
   // new Date(NaN, NaN, NaN) no devuelve null, devuelve un objeto Date "Invalid
   // Date" — sigue siendo truthy en JS, así que sin este chequeo se cuela por
   // cualquier "if (!fecha) return" de quien llame a esta función y explota
   // más tarde (p.ej. RangeError: Invalid time value al hacer toISOString()).
-  // Pasa con fechas mal formadas o vacías que lleguen desde Rentman/Supabase.
   if (isNaN(d.getTime())) return null;
   return d;
 }
@@ -798,13 +805,12 @@ async function construirServiciosExtra() {
   const limiteMs = hoyMs + 15 * 86400000;
 
   const items = [];
-  let descartadosSinFecha = 0, descartadosFueraDeVentana = 0;
   (serviciosResp.data || []).forEach(s => {
     const fecha = parsearFechaDDMMYYYY(s.fecha_entrega);
-    if (!fecha) { descartadosSinFecha++; return; }
+    if (!fecha) return;
     const fechaDia = inicioDelDia(fecha);
     const fechaMs = fechaDia.getTime();
-    if (fechaMs < hoyMs || fechaMs > limiteMs) { descartadosFueraDeVentana++; return; }
+    if (fechaMs < hoyMs || fechaMs > limiteMs) return;
     const proyecto = proyectoPorId[String(s.proyecto_id)] || {};
     items.push({
       fecha_ms: fechaMs, fecha_iso: fechaDia.toISOString().slice(0, 10),
@@ -827,19 +833,7 @@ async function construirServiciosExtra() {
   const porDia = Object.keys(porDiaMap).sort().map(k => porDiaMap[k]);
   const tipos = [...new Set(items.map(it => it.servicio))].sort();
 
-  // DEBUG TEMPORAL (quitar en cuanto se confirme que carga bien en real):
-  // para poder ver, sin acceso directo a Supabase, cuántas filas trae la
-  // tabla "servicios" en total y unos cuantos ejemplos crudos de fecha_entrega
-  // tal cual llegan — así se ve de un vistazo si el problema es que no hay
-  // filas, que las fechas vienen vacías, o que vienen en un formato inesperado.
-  const debug = {
-    total_filas_tabla_servicios: (serviciosResp.data || []).length,
-    descartados_sin_fecha_valida: descartadosSinFecha,
-    descartados_fuera_de_ventana_15d: descartadosFueraDeVentana,
-    muestra_cruda: (serviciosResp.data || []).slice(0, 10).map(s => ({ proyecto_id: s.proyecto_id, servicio: s.servicio, fecha_entrega: s.fecha_entrega }))
-  };
-
-  return { ok: true, total: items.length, tipos, por_dia: porDia, debug };
+  return { ok: true, total: items.length, tipos, por_dia: porDia };
 }
 
 app.get('/api/logistica/servicios-extra', requiereLogin, bloquearComercial, async (req, res) => {
