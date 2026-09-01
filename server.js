@@ -984,50 +984,6 @@ app.get('/api/rutas/estadisticas', requiereLogin, async (req, res) => {
   }
 });
 
-// ── BACKFILL ONE-OFF: conductores/vehículos marzo-junio 2026 ──────
-// Rellena rutas_paradas.conductor con los nombres ya resueltos del Excel
-// histórico (RUTA ORUM 2026), para fechas anteriores a julio (antes de que
-// existiera el sistema de asignación en tiempo real rutas_conductores).
-// Protegido por token propio, no por sesión, para poder invocarlo una vez
-// por script. BORRAR este endpoint en cuanto se confirme que ha ido bien.
-const BACKFILL_TOKEN = 'ORUMx2026#BackfillMarJun$OneOff';
-app.post('/api/admin/backfill-conductores-marzo-junio', async (req, res) => {
-  try {
-    if (req.headers['x-backfill-token'] !== BACKFILL_TOKEN) return res.status(403).json({ ok: false, error: 'Token inválido' });
-    if (!supabase) return res.status(500).json({ ok: false, error: 'Supabase no configurado' });
-    const filas = Array.isArray(req.body.filas) ? req.body.filas : [];
-    const resultado = { total: filas.length, actualizados: 0, sin_fila: [], ambiguos: [], errores: [] };
-    for (const fila of filas) {
-      const numero = parseInt(fila.numero);
-      const tipo = String(fila.tipo || '').toUpperCase();
-      const conductores = Array.isArray(fila.conductores_resueltos) ? fila.conductores_resueltos.filter(Boolean) : [];
-      if (isNaN(numero) || !tipo || conductores.length === 0) { resultado.sin_fila.push({ numero: fila.numero, tipo: fila.tipo, motivo: 'fila_invalida' }); continue; }
-
-      const { data: candidatas, error: errSel } = await supabase.from('rutas_paradas').select('id,fecha,vehiculo').eq('numero', numero).eq('tipo', tipo);
-      if (errSel) { resultado.errores.push({ numero, tipo, error: errSel.message }); continue; }
-      if (!candidatas || candidatas.length === 0) { resultado.sin_fila.push({ numero, tipo, motivo: 'sin_parada_en_bd' }); continue; }
-
-      let objetivo = candidatas;
-      if (candidatas.length > 1 && fila.fecha) {
-        const porFecha = candidatas.filter(c => c.fecha === fila.fecha);
-        if (porFecha.length > 0) objetivo = porFecha;
-      }
-      if (objetivo.length > 1) { resultado.ambiguos.push({ numero, tipo, fecha: fila.fecha, candidatas: objetivo.length }); continue; }
-
-      const fila_bd = objetivo[0];
-      const update = { conductor: conductores };
-      if (fila.vehiculo && !fila_bd.vehiculo) update.vehiculo = fila.vehiculo;
-      const { error: errUpd } = await supabase.from('rutas_paradas').update(update).eq('id', fila_bd.id);
-      if (errUpd) { resultado.errores.push({ numero, tipo, error: errUpd.message }); continue; }
-      resultado.actualizados++;
-    }
-    res.json({ ok: true, resultado });
-  } catch (err) {
-    console.error('Error en POST /api/admin/backfill-conductores-marzo-junio:', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
 // ── EVOLUCIÓN MENSUAL DE RUTAS (para la gráfica comparativa) ──
 // Cada semana cuenta entera en el mes que tenga más días de esa semana -
 // misma regla que usa el Informe Mensual, para que "mes" signifique lo
