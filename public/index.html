@@ -2898,7 +2898,7 @@ function pintarServiciosExtra() {
         <div class="servextra-card" id="${cardId}" style="border:1px solid var(--border); border-radius:8px; margin-bottom:8px; overflow:hidden; background:#fff;">
           <div onclick="toggleServExtraCard(this)" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 14px;">
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <span style="font-weight:600; font-size:13px;">${p.proyecto_numero ? '#' + p.proyecto_numero : 'Proyecto s/n'} — ${p.cliente || 'Sin cliente'}</span>
+              <span style="font-weight:600; font-size:13px;">${p.proyecto_numero ? `<span class="celda-copiable" onclick="copiarAlPortapapeles('${p.proyecto_numero}', event)" title="Clic para copiar">#${p.proyecto_numero}</span>` : 'Proyecto s/n'} — ${p.cliente || 'Sin cliente'}</span>
               ${badges}
             </div>
             <span class="servextra-chevron" style="font-size:11px; color:var(--gray-400); transition:transform .15s;">▾</span>

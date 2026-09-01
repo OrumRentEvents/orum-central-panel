@@ -838,10 +838,10 @@ function esFechaFestiva(d) { return !!d && FESTIVOS_SET.has(fechaAIso_(d)); }
 
 // Confirmado con datos reales de Rentman (/projectfunctions): "TRANSPORTE"
 // aparece en casi todos los proyectos (no es una "extra" real, es la base) y
-// "RECOGIDA DIA SIGUIENTE" tampoco cuenta como extra a efectos de ruta — el
-// usuario pidió explícitamente no mostrar ninguno de los dos aquí. El resto
+// "RECOGIDA DIA SIGUIENTE" tampoco cuenta como extra a efectos de ruta —
+// "MATERIAL OPCIONAL BARRA" tampoco (pedido explícito del usuario). El resto
 // (montaje/desmontaje, nocturno, domingo, desplazamiento...) sí interesa.
-const SERVICIOS_EXTRA_EXCLUIR = ['transporte', 'recogida dia siguiente'];
+const SERVICIOS_EXTRA_EXCLUIR = ['transporte', 'recogida dia siguiente', 'material opcional barra'];
 function esServicioExtraRelevante(nombre) {
   const n = normalizarTexto(nombre);
   return !SERVICIOS_EXTRA_EXCLUIR.some(ex => n.indexOf(ex) !== -1);
@@ -887,7 +887,12 @@ async function construirServiciosExtra() {
     llamarOrumCentral('servicios'),
     llamarOrumCentral('proyectos')
   ]);
-  const proyectos = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI');
+  // Solo fase confirmada: fuera cancelados y fuera todavía-en-comercial
+  // (Pending/Concept/Inquiry — mismo criterio "todavía sin decidir" que ya
+  // usan Financiero y Presupuestos, ESTADOS_PIPELINE_NOMBRE).
+  const proyectos = (proyectosResp.data || []).filter(p =>
+    p.cancelado !== 'SI' && !ESTADOS_PIPELINE_NOMBRE.includes(normalizarTexto(p.estado))
+  );
   const proyectoPorId = {};
   proyectos.forEach(p => { proyectoPorId[String(p.id)] = p; });
 
