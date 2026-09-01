@@ -2845,9 +2845,26 @@ function toggleServExtraCard(headerEl) {
   detalle.style.display = abierto ? 'none' : 'block';
   chevron.style.transform = abierto ? '' : 'rotate(180deg)';
 }
+// Aviso: entrega/recogida en domingo o festivo (calendario fijo +
+// Jueves/Viernes Santo calculados) sin servicio "Domingo/Festivo" dado de
+// alta en el proyecto — para pillar el despiste antes de que llegue el día.
+function pintarAlertasServExtra(alertas) {
+  if (!alertas || !alertas.length) return '';
+  const filas = alertas.map(a => {
+    const [y, m, d] = a.fecha_iso.split('-');
+    return `<li style="margin-bottom:4px;">${a.tipo_fecha === 'recogida' ? 'Recogida' : 'Entrega'} en <strong>${a.motivo === 'domingo' ? 'domingo' : 'festivo'}</strong> (${d}/${m}/${y}) — ${a.proyecto_numero ? '#' + a.proyecto_numero : 'Proyecto s/n'} ${a.cliente ? '· ' + a.cliente : ''} — sin servicio Domingo/Festivo dado de alta</li>`;
+  }).join('');
+  return `
+    <div style="background:#FCEBEB; border:1px solid #f0c9c9; border-radius:8px; padding:0.85rem 1.1rem; margin-bottom:1.25rem; font-size:13px; color:#A32D2D;">
+      <p style="font-weight:700; margin:0 0 6px;">⚠️ ${alertas.length} entrega(s)/recogida(s) en domingo o festivo sin contemplar</p>
+      <ul style="margin:0 0 0 1.1rem; padding:0;">${filas}</ul>
+    </div>
+  `;
+}
 function pintarServiciosExtra() {
   const body = document.getElementById('content-body');
   const data = SERVICIOS_EXTRA_DATA;
+  const alertasHtml = pintarAlertasServExtra(data.alertas);
   const filtroHtml = `
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap;">
       <select id="sext-filtro-tipo" onchange="servExtraFiltroTipo = this.value; pintarServiciosExtra();" style="width:auto;">
@@ -2864,7 +2881,7 @@ function pintarServiciosExtra() {
     ? data.por_dia.map(d => ({ ...d, proyectos: d.proyectos.filter(p => p.servicios.some(s => s.servicio === servExtraFiltroTipo)) })).filter(d => d.proyectos.length)
     : data.por_dia;
   if (!porDia.length) {
-    body.innerHTML = filtroHtml + '<p class="loading-text">No hay servicios extra que coincidan.</p>';
+    body.innerHTML = alertasHtml + filtroHtml + '<p class="loading-text">No hay servicios extra que coincidan.</p>';
     return;
   }
   const bloques = porDia.map(dia => {
@@ -2909,7 +2926,7 @@ function pintarServiciosExtra() {
       </div>
     `;
   }).join('');
-  body.innerHTML = filtroHtml + bloques;
+  body.innerHTML = alertasHtml + filtroHtml + bloques;
 }
 
 // ================================================================
@@ -2971,8 +2988,12 @@ function pintarResumenLogistica(prep, extra) {
     </div>
 
     ${avisos.length ? `
-    <div style="background:#FCEBEB; border:1px solid #f0c9c9; border-radius:8px; padding:0.85rem 1rem; margin-bottom:1.5rem; font-size:13px; color:#A32D2D;">
+    <div style="background:#FCEBEB; border:1px solid #f0c9c9; border-radius:8px; padding:0.85rem 1rem; margin-bottom:0.75rem; font-size:13px; color:#A32D2D;">
       ⚠️ Hay servicios con ${avisos.join(' y ')} en los próximos 15 días — revísalos en "Servicios Extra" para tenerlos en cuenta en la ruta.
+    </div>` : ''}
+    ${extraOk && extra.alertas && extra.alertas.length ? `
+    <div style="background:#FCEBEB; border:1px solid #f0c9c9; border-radius:8px; padding:0.85rem 1rem; margin-bottom:1.5rem; font-size:13px; color:#A32D2D; cursor:pointer;" onclick="marcarMenuActivo('menu-item-log-servicios-extra'); cargarServiciosExtra();">
+      ⚠️ ${extra.alertas.length} entrega(s)/recogida(s) en domingo o festivo sin servicio Domingo/Festivo dado de alta — ver en "Servicios Extra" →
     </div>` : ''}
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:1.75rem;">

@@ -792,6 +792,50 @@ app.get('/preparacion', (req, res) => {
 // de solo "próximos 14 días" sin fecha exacta.
 // ================================================================
 
+// Festivos puntuales entregados a mano por el usuario ("Días importantes"),
+// formato dd-mm-yyyy tal cual. Lista concreta, no recurrente — si el usuario
+// quiere que cubra más años hay que ampliarla (los festivos locales de
+// Marbella, p.ej., no siguen ninguna fórmula, no se pueden calcular).
+const FESTIVOS_FIJOS = [
+  '25-12-2024', '06-12-2025', '08-12-2025', '24-12-2025', '01-01-2026', '06-01-2026',
+  '28-02-2026', '01-05-2026', '11-06-2026', '15-08-2026', '12-10-2026', '19-10-2026',
+  '01-11-2026', '31-12-2026'
+];
+// Jueves y Viernes Santo cambian cada año (dependen de la Pascua) — se
+// calculan con el algoritmo de Meeus/Jones/Butcher (calendario gregoriano)
+// en vez de tenerlos a mano, para no tener que acordarse de actualizarlos.
+function calcularDomingoPascua(anio) {
+  const a = anio % 19, b = Math.floor(anio / 100), c = anio % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31);
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(anio, mes - 1, dia);
+}
+function festivosSemanaSanta(anio) {
+  const pascua = calcularDomingoPascua(anio);
+  const viernesSanto = new Date(pascua); viernesSanto.setDate(pascua.getDate() - 2);
+  const juevesSanto = new Date(pascua); juevesSanto.setDate(pascua.getDate() - 3);
+  return [juevesSanto, viernesSanto];
+}
+function fechaAIso_(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function construirSetFestivos() {
+  const anioActual = new Date().getFullYear();
+  const fechas = new Set();
+  FESTIVOS_FIJOS.forEach(f => {
+    const [d, m, y] = f.split('-');
+    fechas.add(y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0'));
+  });
+  for (let y = anioActual - 1; y <= anioActual + 2; y++) {
+    festivosSemanaSanta(y).forEach(dt => fechas.add(fechaAIso_(dt)));
+  }
+  return fechas;
+}
+const FESTIVOS_SET = construirSetFestivos();
+function esFechaFestiva(d) { return !!d && FESTIVOS_SET.has(fechaAIso_(d)); }
+
 // Confirmado con datos reales de Rentman (/projectfunctions): "TRANSPORTE"
 // aparece en casi todos los proyectos (no es una "extra" real, es la base) y
 // "RECOGIDA DIA SIGUIENTE" tampoco cuenta como extra a efectos de ruta — el
@@ -810,9 +854,9 @@ function esServicioExtraRelevante(nombre) {
 //  - MONTAJE (no DESMONTAJE)  → día de entrega
 //  - DESMONTAJE               → día de recogida
 //  - DOMINGO/FESTIVO          → el que de los dos (entrega o recogida) caiga
-//                               en domingo. Un festivo entre semana no se
-//                               puede detectar sin calendario de festivos —
-//                               se deja en el día de entrega como antes.
+//                               en domingo O en la lista FESTIVOS_SET (fija +
+//                               Jueves/Viernes Santo calculados). Si ninguno
+//                               coincide, se deja en el día de entrega.
 //  - DESPLAZAMIENTO           → sale EN AMBOS días (entrega y recogida, si
 //                               son distintos) para que no se olvide en
 //                               ninguno de los dos viajes.
@@ -832,8 +876,8 @@ function fechasEfectivasServicio(servicioNombre, proyecto, fechaOriginal) {
     return out.length ? out : [fechaOriginal];
   }
   if (n.indexOf('doming') !== -1 || n.indexOf('festivo') !== -1) {
-    if (entrega && entrega.getDay() === 0) return [entrega];
-    if (recogida && recogida.getDay() === 0) return [recogida];
+    if (entrega && (entrega.getDay() === 0 || esFechaFestiva(entrega))) return [entrega];
+    if (recogida && (recogida.getDay() === 0 || esFechaFestiva(recogida))) return [recogida];
     return [entrega];
   }
   return [fechaOriginal || entrega];
@@ -902,7 +946,35 @@ async function construirServiciosExtra() {
   });
   const tipos = [...new Set(items.map(it => it.servicio))].sort();
 
-  return { ok: true, total: items.length, tipos, por_dia: porDia };
+  // Alerta: entrega o recogida que cae en domingo/festivo pero el proyecto
+  // NO tiene ningún servicio "Domingo/Festivo" dado de alta — para pillar el
+  // despiste antes de que llegue el día (pedido explícito del usuario).
+  const proyectoIdsConDomingoFestivo = new Set();
+  (serviciosResp.data || []).forEach(s => {
+    const n = normalizarTexto(s.servicio);
+    if (n.indexOf('doming') !== -1 || n.indexOf('festivo') !== -1) proyectoIdsConDomingoFestivo.add(String(s.proyecto_id));
+  });
+  const alertas = [];
+  proyectos.forEach(p => {
+    [['entrega', p.entrega_fecha], ['recogida', p.recogida_fecha]].forEach(([tipoFecha, fechaStr]) => {
+      const fecha = parsearFechaDDMMYYYY(fechaStr);
+      if (!fecha) return;
+      const fechaDia = inicioDelDia(fecha);
+      const fechaMs = fechaDia.getTime();
+      if (fechaMs < hoyMs || fechaMs > limiteMs) return;
+      const esDomingo = fechaDia.getDay() === 0;
+      const esFestivo = esFechaFestiva(fechaDia);
+      if (!esDomingo && !esFestivo) return;
+      if (proyectoIdsConDomingoFestivo.has(String(p.id))) return; // ya contemplado
+      alertas.push({
+        proyecto_id: p.id, proyecto_numero: p.numero, cliente: p.cliente,
+        tipo_fecha: tipoFecha, fecha_iso: fechaAIso_(fechaDia), motivo: esDomingo ? 'domingo' : 'festivo'
+      });
+    });
+  });
+  alertas.sort((a, b) => a.fecha_iso.localeCompare(b.fecha_iso));
+
+  return { ok: true, total: items.length, tipos, por_dia: porDia, alertas };
 }
 
 app.get('/api/logistica/servicios-extra', requiereLogin, bloquearComercial, async (req, res) => {
