@@ -789,6 +789,10 @@ const MENU = [
       // Railway (public/rutas.html) pero no estaba enlazada desde el menú, solo accesible
       // con la URL directa. Se abre en pestaña nueva, igual que Caja.
       { id: 'log-rutas-app', label: 'Rutas', onClick: () => window.open('/rutas.html', '_blank') },
+      // Mismas estadísticas que Análisis → Rutas & Conductores (misma función,
+      // no se duplica lógica) — pedido explícito del usuario para que Logística
+      // las tenga también en su propio apartado.
+      { id: 'log-rutas-stats', label: 'Rutas & Conductores (estadísticas)', onClick: () => cargarEstadisticasRutas() },
       // Antes 3 items sueltos (Lavandería/Office/Almacén) — mismo dato y misma
       // función cargarPreparacion() de siempre, solo que ahora la vista se
       // cambia con pestañas dentro de la página en vez de con 3 entradas de
@@ -818,11 +822,13 @@ function construirMenu() {
   grupoTitle.className = 'nav-group-title';
   grupoTitle.textContent = usuarioActual.rol;
   nav.appendChild(grupoTitle);
-  // Rol Comercial: solo ve el apartado Comercial. Rol Logística: solo ve
-  // el apartado Logística (incluye Servicios Isabella). Nada más del menú
-  // en ninguno de los dos casos.
+  // Rol Comercial: solo ve el apartado Comercial. Rol Logística: el apartado
+  // Logística completo (incluye Servicios Isabella) + Incidencias,
+  // Mantenimiento y Pantalla Muelle (pedido explícito del usuario — hoy son
+  // placeholders "próximamente", pero deben ser visibles para Logística
+  // desde ya). Nada más del menú en ninguno de los dos casos.
   const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => item.id === 'log')
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'muelle'].includes(item.id))
     : MENU;
   menuVisible.forEach(item => {
     const itemEl = document.createElement('div');
