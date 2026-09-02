@@ -979,7 +979,11 @@ async function construirServiciosExtra() {
   });
   alertas.sort((a, b) => a.fecha_iso.localeCompare(b.fecha_iso));
 
-  return { ok: true, total: items.length, tipos, por_dia: porDia, alertas };
+  // ultima_actualizacion real (de la tabla "proyectos" en Supabase) — antes
+  // esta pantalla no lo devolvía y el reloj "Actualizado" de arriba se
+  // quedaba con la hora de la última página que sí lo pintaba, dando la
+  // falsa impresión de que los datos estaban desactualizados.
+  return { ok: true, total: items.length, tipos, por_dia: porDia, alertas, ultima_actualizacion: proyectosResp.ultima_actualizacion || null };
 }
 
 app.get('/api/logistica/servicios-extra', requiereLogin, bloquearComercial, async (req, res) => {

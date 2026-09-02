@@ -2826,6 +2826,7 @@ async function cargarServiciosExtra() {
     const resp = await fetch('/api/logistica/servicios-extra');
     const data = await resp.json();
     if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    actualizarIndicadorFecha(data.ultima_actualizacion);
     SERVICIOS_EXTRA_DATA = data;
     servExtraFiltroTipo = '';
     pintarServiciosExtra();
