@@ -221,6 +221,17 @@
   </div>
 </div>
 
+<!-- Modal histórico de importaciones (facturas por día de sincronización) -->
+<div id="modal-historico-importaciones" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:6px; width:100%; max-width:640px; max-height:80vh; display:flex; flex-direction:column; margin:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border);">
+      <h2 style="font-size:15px; font-weight:600; margin:0;">📅 Histórico de importaciones</h2>
+      <span style="cursor:pointer; font-size:18px; color:var(--text-muted);" onclick="document.getElementById('modal-historico-importaciones').style.display='none'">&times;</span>
+    </div>
+    <div style="padding:14px 16px; overflow-y:auto;" id="modal-historico-importaciones-body"></div>
+  </div>
+</div>
+
 <script>
 let usuarioActual = null;
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -2253,6 +2264,7 @@ function pintarFacturasProveedores() {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
       <div style="display:flex; gap:12px; align-items:center;">
         <button id="btn-sync-facturas" onclick="sincronizarFacturasProveedores()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🔄 Actualizar facturas</button>
+        <button onclick="abrirHistoricoImportaciones()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#1a1a18; cursor:pointer;">📅 Histórico de importaciones</button>
         <span style="font-size:12px; color:#9a988f;">Se sincroniza sola todos los días a las 6:00 — este botón es para forzarlo antes</span>
         <span id="estado-sync-facturas" style="font-size:12px;"></span>
       </div>
@@ -2355,6 +2367,20 @@ const VEHICULOS_ORUM_FACTURAS = [
   { matricula: '4424HVB', label: '4424HVB · Volkswagen Crafter' },
   { matricula: '7710NHY', label: '7710NHY · Citroën C3 Aircross (renting)' }
 ];
+// NUEVO (3 sep 2026): fecha en la que se sincronizó/importó la factura desde
+// Drive (columna "procesadoEn" del Log, se escribe una sola vez al insertar
+// la fila). Llega del backend como Date -> string ISO tras el JSON.stringify
+// de Apps Script; se formatea a DD/MM/YYYY HH:MM para el panel.
+function formatoFechaImportada(valor) {
+  if (!valor) return '—';
+  const d = new Date(valor);
+  if (isNaN(d.getTime())) return String(valor);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()} ${hh}:${min}`;
+}
 function renderTablaFacturasProveedores(lista) {
   const cont = document.getElementById('tabla-facturas-proveedores');
   let html = `
@@ -2373,13 +2399,14 @@ function renderTablaFacturasProveedores(lista) {
           <th style="text-align:center;">Contabilizada</th>
           <th style="text-align:center;">Digitalizada</th>
           <th>Matrícula</th>
+          <th>Importada</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
   `;
   if (lista.length === 0) {
-    html += '<tr><td colspan="13" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
+    html += '<tr><td colspan="14" style="padding:1.5rem 4px; color:#9a988f;">Sin resultados para este filtro.</td></tr>';
   }
   lista.forEach(f => {
     const badgeConfianza = f.confianza === 'alta'
@@ -2425,6 +2452,7 @@ function renderTablaFacturasProveedores(lista) {
           <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${idAttr}')">${matriculaOpts}</select>
           <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')">
         </td>
+        <td style="color:#9a988f; font-size:12px; white-space:nowrap;" title="Fecha en la que se importó/sincronizó desde la carpeta de Drive">${formatoFechaImportada(f.procesadoEn)}</td>
         <td style="white-space:nowrap;">
           <span onclick="toggleEdicionFactura('${idAttr}')" title="${editando ? 'Terminar de editar' : 'Corregir Proveedor/Nº Factura/Fecha/Importes'}" style="cursor:pointer; font-size:14px; margin-right:8px;">${editando ? '✅' : '✏️'}</span>
           <span onclick="abrirHistorialFactura('${idAttr}')" title="Ver quién ha tocado esta factura" style="cursor:pointer; font-size:14px;">🕓</span>
@@ -2478,6 +2506,63 @@ function onMatriculaSelectChange(sel, fileId) {
     notaInput.style.display = 'none';
     actualizarCampoFacturaUI(sel, fileId, 'matricula');
   }
+}
+// NUEVO (3 sep 2026): histórico de importaciones - agrupa las facturas ya
+// cargadas en el listado (facturasProveedoresDataGlobal, en memoria, sin
+// llamada nueva al servidor) por día de "procesadoEn" (cuándo se sincronizó
+// desde Drive), para responder "cuántas facturas entraron cada día y
+// cuáles". Un día se despliega para ver el detalle, igual que las familias
+// de "Por material" en Preparación.
+function abrirHistoricoImportaciones() {
+  const modal = document.getElementById('modal-historico-importaciones');
+  const body = document.getElementById('modal-historico-importaciones-body');
+  const facturas = (facturasProveedoresDataGlobal.facturas || []);
+  const porDia = {};
+  facturas.forEach(f => {
+    if (!f.procesadoEn) return;
+    const d = new Date(f.procesadoEn);
+    if (isNaN(d.getTime())) return;
+    const clave = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (!porDia[clave]) porDia[clave] = { fecha: d, items: [] };
+    porDia[clave].items.push(f);
+  });
+  const dias = Object.keys(porDia).sort((a, b) => b.localeCompare(a));
+  if (dias.length === 0) {
+    body.innerHTML = '<p style="color:#9a988f; font-size:13px;">Sin datos de importación todavía (o son facturas antiguas sin fecha de sincronización registrada).</p>';
+    modal.style.display = 'flex';
+    return;
+  }
+  body.innerHTML = dias.map(clave => {
+    const { fecha, items } = porDia[clave];
+    const fechaTexto = fecha.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const idDia = 'dia-import-' + clave;
+    const filas = items.slice()
+      .sort((a, b) => new Date(a.procesadoEn) - new Date(b.procesadoEn))
+      .map(f => {
+        const hora = formatoFechaImportada(f.procesadoEn).split(' ')[1] || '';
+        return `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f0efea; font-size:12px;">
+          <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${f.proveedor || '—'} <span style="color:#9a988f;">#${f.numeroFactura || '—'}</span></span>
+          <span style="color:#6b6a64; margin:0 10px; white-space:nowrap;">${euros(f.importeTotal)}</span>
+          <span style="color:#9a988f; white-space:nowrap;">${hora}</span>
+        </div>
+      `;
+      }).join('');
+    return `
+      <div style="margin-bottom:8px; border:0.5px solid #e2e2de; border-radius:8px; overflow:hidden;">
+        <div onclick="toggleDiaImportacion('${idDia}')" style="background:#f7f6f2; padding:0.7rem 1rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:500; font-size:13px; text-transform:capitalize;">${fechaTexto}</span>
+          <span style="font-size:12px; color:#6b6a64;">${items.length} factura${items.length === 1 ? '' : 's'} ▾</span>
+        </div>
+        <div id="${idDia}" style="display:none; padding:0.4rem 1rem;">${filas}</div>
+      </div>
+    `;
+  }).join('');
+  modal.style.display = 'flex';
+}
+function toggleDiaImportacion(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 const NOMBRES_CAMPO_HISTORIAL = {
   proveedor: 'Proveedor', numeroFactura: 'Nº Factura', fecha: 'Fecha',
