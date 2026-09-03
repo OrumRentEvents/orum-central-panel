@@ -395,6 +395,16 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       const importeFactura = Math.round((parseFloat(f.importe_con_iva) || 0) * 100) / 100;
       const importeCobradoReal = Math.round(pagosCaja.reduce((sum, p) => sum + (parseFloat(p.importe) || 0), 0) * 100) / 100;
       const difFacturaCobro = Math.round((importeFactura - importeCobradoReal) * 100) / 100;
+      // FIX (3 sep 2026): una factura puede tener varios pagos de Rentman
+      // (split), cada uno con su propio método - antes solo se miraba el
+      // primer pago (primerPago.metodo_pago) tanto para mostrar "Forma de
+      // pago" como para el desglose por método, perdiendo en silencio
+      // cualquier pago posterior con un método distinto (o incluso igual,
+      // pero contado solo una vez en el desglose). Ahora se listan todos los
+      // métodos DISTINTOS realmente usados en esa factura - si son todos
+      // iguales sigue apareciendo uno solo, si son distintos aparecen todos.
+      const metodosDistintos = [...new Set(pagosCaja.map(p => p.metodo_pago).filter(Boolean))];
+      const metodosRealesDistintos = metodosDistintos.filter(m => FORMAS_PAGO_REALES.includes(m));
 
       let diasRetraso = null;
       if (f.esta_pagada !== 'SI' && f.fecha_vencimiento) {
@@ -416,8 +426,13 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
         importe_con_iva: importeFactura, importe_cobrado_real: importeCobradoReal,
         diferencia_factura_cobro: difFacturaCobro, cuadra_con_cobro: Math.abs(difFacturaCobro) < 0.05,
         esta_pagada: f.esta_pagada, pendiente_cobro: f.pendiente_cobro, pagos_caja: pagosCaja,
+        // Compat: forma_pago sigue siendo un único valor (el primer método) -
+        // lo que cambia es formas_pago (array con TODOS los métodos distintos
+        // de esta factura), que es lo que ahora usa el frontend para pintar.
         forma_pago: primerPago ? primerPago.metodo_pago : null, es_rectificativa_a_cero: esRectificativaACero,
+        formas_pago: metodosDistintos,
         forma_pago_real: primerPago && FORMAS_PAGO_REALES.includes(primerPago.metodo_pago) ? primerPago.metodo_pago : null,
+        formas_pago_reales: metodosRealesDistintos,
         sin_registro_caja: pagosCaja.length === 0 && f.esta_pagada === 'SI'
       };
     });
@@ -490,12 +505,18 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
         if (vencimiento && vencimiento < hoy) totalVencidas += parseFloat(f.pendiente_cobro) || 0;
       }
     });
+    // FIX (3 sep 2026): antes solo sumaba el importe del PRIMER pago de cada
+    // factura al método de ESE primer pago - una factura partida en 2+ pagos
+    // (normal desde la migración de Caja del 1 sep) perdía en silencio el
+    // resto. Ahora se recorren TODOS los pagos de TODAS las facturas y cada
+    // uno suma a su propio método, sea el mismo que sus hermanos o distinto.
     cruceFacturas.forEach(cf => {
-      if (cf.forma_pago_real) {
-        const pago = cf.pagos_caja[0];
+      (cf.pagos_caja || []).forEach(pago => {
+        const metodo = pago.metodo_pago;
+        if (!metodo || !FORMAS_PAGO_REALES.includes(metodo)) return;
         const importe = Math.abs(parseFloat(pago.importe) || 0);
-        desglosePorFormaPago[cf.forma_pago_real] = (desglosePorFormaPago[cf.forma_pago_real] || 0) + importe;
-      }
+        desglosePorFormaPago[metodo] = (desglosePorFormaPago[metodo] || 0) + importe;
+      });
     });
 
     const kpis = {

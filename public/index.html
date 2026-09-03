@@ -1864,7 +1864,10 @@ function aplicarFiltrosFacturas() {
   const busqueda = document.getElementById('buscador-facturas').value.toLowerCase();
   let filtradas = data.cruce_facturas;
   if (formaPago === 'sin-registro') filtradas = filtradas.filter(f => f.sin_registro_caja);
-  else if (formaPago) filtradas = filtradas.filter(f => f.forma_pago_real === formaPago);
+  // Usa formas_pago_reales (array) en vez de forma_pago_real (solo el
+  // primer pago) - así una factura partida en 2+ métodos aparece al
+  // filtrar por CUALQUIERA de ellos, no solo por el primero.
+  else if (formaPago) filtradas = filtradas.filter(f => (f.formas_pago_reales || []).includes(formaPago));
   if (comercial) filtradas = filtradas.filter(f => f.comercial === comercial);
   if (estado === 'pagada') filtradas = filtradas.filter(f => f.esta_pagada === 'SI');
   if (estado === 'pendiente') filtradas = filtradas.filter(f => f.esta_pagada !== 'SI');
@@ -1950,11 +1953,16 @@ function renderTablaFacturas(lista) {
     const badgeEstado = f.esta_pagada === 'SI'
       ? '<span class="badge badge-success">Pagada</span>'
       : '<span class="badge badge-warning">Pendiente</span>';
+    // Si la factura se cobró con 2+ métodos distintos (pago partido, ej.
+    // mitad transferencia/mitad TPV) se listan todos, separados por " + ".
+    // Si son varios pagos pero todos con el mismo método, sale uno solo.
     const formaPagoHtml = f.sin_registro_caja
       ? '<span class="badge badge-danger">Sin registro</span>'
       : (f.es_rectificativa_a_cero
           ? '<span class="badge badge-neutral">Rectificativa</span>'
-          : (f.forma_pago ? ETIQUETAS_FORMA_PAGO[f.forma_pago] || f.forma_pago : '<span style="color:#9a988f;">—</span>'));
+          : ((f.formas_pago && f.formas_pago.length)
+              ? f.formas_pago.map(m => ETIQUETAS_FORMA_PAGO[m] || m).join(' + ')
+              : '<span style="color:#9a988f;">—</span>'));
     const badgeCuadra = f.cuadra_con_cobro
       ? '<span class="badge badge-success">Cuadra</span>'
       : '<span class="badge badge-danger">No cuadra</span>';
