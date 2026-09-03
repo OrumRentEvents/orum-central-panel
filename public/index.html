@@ -1691,7 +1691,9 @@ async function cargarFinanciero() {
 }
 function euros(valor) {
   const n = parseFloat(valor) || 0;
-  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
+  // Espacio NO separable ( ) antes de "€": con espacio normal, en
+  // columnas estrechas el importe se parte en dos líneas ("46,35" / "€").
+  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
 const ETIQUETAS_FORMA_PAGO = {
   'transferencia': 'Transferencia',
@@ -2355,7 +2357,11 @@ function aplicarFiltrosFacturasProveedores() {
   }
   renderTablaFacturasProveedores(filtradas);
 }
-const FORMAS_PAGO_FACTURA = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Cargo en cuenta', 'Otro'];
+// "Cargo en cuenta" quitado del desplegable (3 sep 2026, pedido del usuario)
+// - se solapaba con "Domiciliación" y confundía; se deja solo Domiciliación.
+// Las pocas facturas antiguas que aún tengan ese valor literal guardado
+// simplemente no coincidirán con ninguna opción hasta que se corrijan a mano.
+const FORMAS_PAGO_FACTURA = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
 // Flota fija de ORUM - para facturas de vehículos externos al grupo (VMS,
 // Isabella...) se elige "Otro" y se escribe una nota libre en el campo de al lado.
 const VEHICULOS_ORUM_FACTURAS = [
@@ -2396,8 +2402,8 @@ function renderTablaFacturasProveedores(lista) {
           <th>Departamento(s)</th>
           <th>Confianza</th>
           <th>Forma de pago</th>
-          <th style="text-align:center;">Contabilizada</th>
-          <th style="text-align:center;">Digitalizada</th>
+          <th style="text-align:center; width:28px;" title="Contabilizada">C</th>
+          <th style="text-align:center; width:28px;" title="Digitalizada">D</th>
           <th>Matrícula</th>
           <th>Importada</th>
           <th></th>
@@ -2446,8 +2452,8 @@ function renderTablaFacturasProveedores(lista) {
         <td>${departamentosHtml}</td>
         <td>${badgeConfianza}</td>
         <td><select style="font-size:12px;" onchange="actualizarCampoFacturaUI(this,'${idAttr}','formaPago')">${formaPagoOpts}</select></td>
-        <td style="text-align:center;"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','contabilizada')"></td>
-        <td style="text-align:center;"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} onchange="actualizarCampoFacturaUI(this,'${idAttr}','digitalizada')"></td>
+        <td style="text-align:center; width:28px;" title="Contabilizada"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} title="Contabilizada" onchange="actualizarCampoFacturaUI(this,'${idAttr}','contabilizada')"></td>
+        <td style="text-align:center; width:28px;" title="Digitalizada"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} title="Digitalizada" onchange="actualizarCampoFacturaUI(this,'${idAttr}','digitalizada')"></td>
         <td>
           <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${idAttr}')">${matriculaOpts}</select>
           <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')">
@@ -2876,7 +2882,7 @@ function badgeParaEstado(estado) {
 }
 function formatearEuros(valor) {
   const n = parseFloat(valor) || 0;
-  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
+  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 }
 function copiarAlPortapapeles(texto, ev) {
   if (ev) ev.stopPropagation();
