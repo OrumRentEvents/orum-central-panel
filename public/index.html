@@ -2211,6 +2211,20 @@ function renderTablaPNC(lista) {
 // ================================================================
 let facturasProveedoresDataGlobal = null;
 let facturasFiltroDepartamentoActivo = null;
+// NUEVO (3 sep 2026): ordenar por cabecera - mismo patrón que ya usa la
+// tabla de Proyectos/Facturas (ordenarLista/cambiarOrden/flechaOrden), pero
+// con su propio estado porque esta tabla vive fuera de ese sistema genérico
+// (tiene sus propios filtros y su propio render).
+let ordenFacturasProveedores = { campo: null, asc: true };
+function cambiarOrdenFacturasProveedores(campo) {
+  if (ordenFacturasProveedores.campo === campo) ordenFacturasProveedores.asc = !ordenFacturasProveedores.asc;
+  else { ordenFacturasProveedores.campo = campo; ordenFacturasProveedores.asc = true; }
+  aplicarFiltrosFacturasProveedores();
+}
+function flechaOrdenFacturasProveedores(campo) {
+  if (ordenFacturasProveedores.campo !== campo) return '';
+  return ordenFacturasProveedores.asc ? ' ▲' : ' ▼';
+}
 async function cargarFacturasProveedores() {
   document.getElementById('content-title').textContent = 'Facturas Proveedores · Listado';
   const body = document.getElementById('content-body');
@@ -2363,6 +2377,7 @@ function aplicarFiltrosFacturasProveedores() {
       String(f.numeroFactura || '').toLowerCase().includes(busqueda)
     );
   }
+  if (ordenFacturasProveedores.campo) filtradas = ordenarLista(filtradas, ordenFacturasProveedores);
   renderTablaFacturasProveedores(filtradas);
 }
 // "Cargo en cuenta" quitado del desplegable (3 sep 2026, pedido del usuario)
@@ -2401,19 +2416,19 @@ function renderTablaFacturasProveedores(lista) {
     <table>
       <thead>
         <tr>
-          <th>Proveedor</th>
-          <th>Nº Factura</th>
-          <th>Fecha</th>
-          <th style="text-align:right;">Base</th>
-          <th style="text-align:right;">IVA</th>
-          <th style="text-align:right;">Total</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('proveedor')">Proveedor${flechaOrdenFacturasProveedores('proveedor')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('numeroFactura')">Nº Factura${flechaOrdenFacturasProveedores('numeroFactura')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('fecha')">Fecha${flechaOrdenFacturasProveedores('fecha')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('importeBase')">Base${flechaOrdenFacturasProveedores('importeBase')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('iva')">IVA${flechaOrdenFacturasProveedores('iva')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('importeTotal')">Total${flechaOrdenFacturasProveedores('importeTotal')}</th>
           <th>Departamento(s)</th>
-          <th>Confianza</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('confianza')">Confianza${flechaOrdenFacturasProveedores('confianza')}</th>
           <th>Forma de pago</th>
           <th style="text-align:center; width:28px;" title="Contabilizada">C</th>
           <th style="text-align:center; width:28px;" title="Digitalizada">D</th>
           <th>Matrícula</th>
-          <th>Importada</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFacturasProveedores('procesadoEn')">Importada${flechaOrdenFacturasProveedores('procesadoEn')}</th>
           <th></th>
         </tr>
       </thead>
