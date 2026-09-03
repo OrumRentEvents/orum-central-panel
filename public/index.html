@@ -1550,12 +1550,13 @@ function renderPreparacionPorMaterial() {
               <p style="font-size:13px; font-weight:500; margin:0 0 6px;">${a.articulo} <span style="color:#6b6a64; font-weight:400;">— ${a.total} uds total</span></p>
               <table style="width:100%; font-size:12px; border-collapse:collapse; table-layout:fixed;">
                 <colgroup>
-                  <col style="width:70px;"><col><col style="width:130px;"><col style="width:80px;">
+                  <col style="width:70px;"><col><col style="width:90px;"><col style="width:130px;"><col style="width:80px;">
                 </colgroup>
                 <thead>
                   <tr style="border-bottom:0.5px solid #e2e2de;">
                     <th style="text-align:left; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Proyecto</th>
                     <th style="text-align:left; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Cliente</th>
+                    <th style="text-align:left; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Fecha entrega</th>
                     <th style="text-align:left; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Periodo</th>
                     <th style="text-align:right; padding:4px 6px; font-weight:400; color:#9a988f; font-size:11px;">Cantidad</th>
                   </tr>
@@ -1567,6 +1568,7 @@ function renderPreparacionPorMaterial() {
                     <tr style="border-bottom:0.5px solid #f0efea;">
                       <td style="padding:5px 6px; color:#4a4944; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">#${d.proyecto_numero}</td>
                       <td style="padding:5px 6px; color:#4a4944; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${d.cliente || ''}">${d.cliente || ''}</td>
+                      <td style="padding:5px 6px; color:#4a4944; white-space:nowrap;">${d.fecha_entrega || '—'}</td>
                       <td style="padding:5px 6px;"><span style="background:${cp.bg}; color:${cp.color}; font-size:10px; padding:2px 7px; border-radius:6px; white-space:nowrap;">${d.periodo}</span></td>
                       <td style="padding:5px 6px; text-align:right; font-weight:500; white-space:nowrap;">${d.cantidad} uds</td>
                     </tr>

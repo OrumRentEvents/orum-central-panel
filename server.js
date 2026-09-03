@@ -693,7 +693,15 @@ async function construirRespuestaPreparacion(vista) {
     articulos: Object.keys(porMaterial[familia]).sort().map(articulo => ({
       articulo,
       total: Math.round(porMaterial[familia][articulo].total * 100) / 100,
-      detalle: porMaterial[familia][articulo].detalle.sort((a, b) => ordenPeriodos.indexOf(a.periodo) - ordenPeriodos.indexOf(b.periodo))
+      // Ordena primero por periodo (HOY antes que PRÓXIMOS 5 DÍAS) y, dentro
+      // del mismo periodo, por fecha real - así la columna "Fecha entrega"
+      // que ahora se muestra en el panel tiene un orden cronológico con sentido.
+      detalle: porMaterial[familia][articulo].detalle.sort((a, b) => {
+        const porPeriodo = ordenPeriodos.indexOf(a.periodo) - ordenPeriodos.indexOf(b.periodo);
+        if (porPeriodo !== 0) return porPeriodo;
+        const fa = parsearFechaDDMMYYYY(a.fecha_entrega), fb = parsearFechaDDMMYYYY(b.fecha_entrega);
+        return (fa ? fa.getTime() : 0) - (fb ? fb.getTime() : 0);
+      })
     }))
   }));
 
