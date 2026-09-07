@@ -548,6 +548,57 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       .map(c => ({ ...c, pendiente: Math.round(c.pendiente * 100) / 100 }))
       .sort((a, b) => b.pendiente - a.pendiente).slice(0, 20);
 
+    // NUEVO (3 sep 2026): pestaña Financiero → Clientes - salud financiera
+    // basada en lo que dice RENTMAN (esta_pagada/pendiente_cobro), NO en lo
+    // registrado en Caja como topClientesPendientes de arriba - esa otra
+    // tabla se ha visto varias veces hoy con cifras desactualizadas cuando
+    // Rentman ya daba una factura por pagada pero nadie había registrado
+    // todavía el cobro en Caja. Aquí se usa la misma fuente fiable que ya
+    // usa Vencidas y morosidad.
+    const LIMITE_CREDITO_CLIENTE = 5000;
+    const clientesMap = {};
+    cruceFacturas.forEach(cf => {
+      const clave = cf.cliente || 'Sin cliente';
+      if (!clientesMap[clave]) {
+        clientesMap[clave] = {
+          cliente: clave, comercial: cf.comercial,
+          total_facturado: 0, total_pendiente: 0, total_rectificativas: 0,
+          n_facturas: 0, n_pendientes: 0, n_vencidas: 0,
+          dias_retraso_max: 0, fecha_vencimiento_mas_antigua: null
+        };
+      }
+      const c = clientesMap[clave];
+      c.n_facturas++;
+      c.total_facturado += parseFloat(cf.importe_con_iva) || 0;
+      const pendiente = parseFloat(cf.pendiente_cobro) || 0;
+      if (pendiente < -0.01) {
+        // Rectificativa/nota de abono - no es deuda del cliente, aparte.
+        c.total_rectificativas += pendiente;
+        return;
+      }
+      if (pendiente <= 0.05) return;
+      c.total_pendiente += pendiente;
+      c.n_pendientes++;
+      if (cf.dias_retraso !== null && cf.dias_retraso > 0) {
+        c.n_vencidas++;
+        if (cf.dias_retraso > c.dias_retraso_max) c.dias_retraso_max = cf.dias_retraso;
+        if (cf.fecha_vencimiento) {
+          const actual = new Date(cf.fecha_vencimiento.split('/').reverse().join('-'));
+          const previa = c.fecha_vencimiento_mas_antigua ? new Date(c.fecha_vencimiento_mas_antigua.split('/').reverse().join('-')) : null;
+          if (!previa || actual < previa) c.fecha_vencimiento_mas_antigua = cf.fecha_vencimiento;
+        }
+      }
+    });
+    const clientesLista = Object.values(clientesMap).map(c => ({
+      ...c,
+      total_facturado: Math.round(c.total_facturado * 100) / 100,
+      total_pendiente: Math.round(c.total_pendiente * 100) / 100,
+      total_rectificativas: Math.round(c.total_rectificativas * 100) / 100,
+      salud: c.n_vencidas > 0 ? 'moroso' : (c.total_pendiente > 0.05 ? 'pendiente' : 'al_dia'),
+      supera_limite_credito: c.total_pendiente > LIMITE_CREDITO_CLIENTE,
+      limite_credito: LIMITE_CREDITO_CLIENTE
+    }));
+
     const pncCuadran = crucePNC.filter(p => p.cuadra).length;
     const proyectosPendientesFacturar = cruceProyectos.filter(p => !p.es_pnc && Math.abs(p.pendiente_facturar) >= 0.05).length;
     const facturasVencidas = cruceFacturas.filter(f => f.dias_retraso !== null && f.dias_retraso > 0).sort((a, b) => b.dias_retraso - a.dias_retraso);
@@ -1541,14 +1592,15 @@ async function obtenerConfigIsabella() {
 // Mismo cálculo que calcEstimate() del Apps Script original: vehTipo
 // 1=Camión Azul, 2=Camión 3.500Kg, 3=Furgoneta, 0="sin vehículo" (solo
 // mano de obra, para montaje de mobil homes, lavandería, etc.).
-// tipo === 'combustible' (repostaje, nuevo): no se calcula por km, se usa
-// el importe fijo de la tarifa "repostaje" configurado en Config — sin
-// desgaste ni mano de obra, solo ese gasto + margen.
-function calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas) {
+// tipo === 'combustible' (repostaje): no se calcula por km, se pide el
+// número de litros repostados y se usa el precio de combustible ya
+// configurado (litros × fuelPrice) — sin desgaste ni mano de obra, solo
+// ese gasto + margen.
+function calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas, litros) {
   const p = Number(personas) || 1;
   let combustible = 0, desgaste = 0, manoObra = 0;
   if (tipo === 'combustible') {
-    combustible = Number(cfg.repostaje) || 0;
+    combustible = (Number(litros) || 0) * cfg.fuelPrice;
   } else {
     if (Number(vehTipo) > 0) {
       const consumo = cfg[ISABELLA_VEH_CONSUMO_KEY[vehTipo]] || cfg.consumo2;
@@ -1570,8 +1622,8 @@ function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 app.post('/api/isabella/calcular', requiereLogin, permiteIsabella, async (req, res) => {
   try {
     const cfg = await obtenerConfigIsabella();
-    const { tipo, vehTipo, km, horas, personas } = req.body;
-    const r = calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas);
+    const { tipo, vehTipo, km, horas, personas, litros } = req.body;
+    const r = calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas, litros);
     const esAdmin = ROLES_ISABELLA_ADMIN.includes(req.session.usuario.rol);
     res.json({
       ok: true, importe: r2(r.importe),
@@ -1592,7 +1644,7 @@ app.get('/api/isabella/servicios', requiereLogin, permiteIsabella, async (req, r
     const mapeado = rows.map(r => ({
       id: r.id, fecha: r.fecha, empresa: r.empresa, pedido: r.pedido || '', vehNombre: r.veh_nombre || '',
       vehTipo: r.veh_tipo, tipo: r.tipo || 'vehiculo', personal: r.personal || '', personas: r.personas, km: r.km, horas: r.horas,
-      desc: r.descripcion || '', importe: r.importe, creadoPor: r.creado_por || '',
+      litros: r.litros || 0, desc: r.descripcion || '', importe: r.importe, creadoPor: r.creado_por || '',
       ...(esAdmin ? { costeNOE: r.coste_noe, beneficio: r.beneficio } : {})
     }));
     res.json({ ok: true, data: mapeado });
@@ -1610,11 +1662,12 @@ app.post('/api/isabella/servicios', requiereLogin, permiteIsabella, async (req, 
     const tipo = ['vehiculo', 'personal', 'combustible'].includes(b.tipo) ? b.tipo : 'vehiculo';
     const vehTipo = tipo === 'vehiculo' ? (Number(b.vehTipo) || 0) : 0;
     const personas = Number(b.personas) || 1;
-    const r = calcularCosteIsabella(cfg, tipo, vehTipo, Number(b.km) || 0, Number(b.horas) || 0, personas);
+    const litros = tipo === 'combustible' ? (Number(b.litros) || 0) : 0;
+    const r = calcularCosteIsabella(cfg, tipo, vehTipo, Number(b.km) || 0, Number(b.horas) || 0, personas, litros);
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
     const { data, error } = await supabase.from('isabella_servicios').insert({
       fecha: b.fecha, empresa: b.empresa, pedido: b.pedido || '', veh_nombre: b.vehNombre || '',
-      veh_tipo: vehTipo, tipo, personal: b.personal || '', personas, km: Number(b.km) || 0, horas: Number(b.horas) || 0,
+      veh_tipo: vehTipo, tipo, personal: b.personal || '', personas, km: Number(b.km) || 0, horas: Number(b.horas) || 0, litros,
       descripcion: b.desc || '', combustible: r2(r.combustible), desgaste: r2(r.desgaste), mano_obra: r2(r.manoObra),
       coste_noe: r2(r.costeNOE), importe: r2(r.importe), beneficio: r2(r.beneficio), creado_por: usuario
     }).select().single();
@@ -1659,7 +1712,7 @@ app.get('/api/isabella/comparativa', requiereLogin, soloIsabellaAdmin, async (re
 app.get('/api/isabella/tarifas', requiereLogin, soloIsabellaAdmin, async (req, res) => {
   try { res.json({ ok: true, config: await obtenerConfigIsabella() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
-const ISABELLA_CAMPOS_TARIFA = ['fuelPrice', 'consumo1', 'consumo2', 'consumo3', 'wear', 'labor', 'marginPct', 'repostaje'];
+const ISABELLA_CAMPOS_TARIFA = ['fuelPrice', 'consumo1', 'consumo2', 'consumo3', 'wear', 'labor', 'marginPct'];
 app.post('/api/isabella/tarifas', requiereLogin, soloIsabellaAdmin, async (req, res) => {
   try {
     const updates = ISABELLA_CAMPOS_TARIFA.filter(k => req.body[k] !== undefined && req.body[k] !== '');

@@ -3226,6 +3226,10 @@ function renderIsabellaCalculadora() {
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Kilómetros estimados</label>
         <input type="number" id="ic-km" value="100" min="0" oninput="calcularIsabella()">
       </div>
+      <div id="ic-field-litros">
+        <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Litros repostados</label>
+        <input type="number" id="ic-litros" value="30" min="0" step="0.1" oninput="calcularIsabella()">
+      </div>
       <div id="ic-field-personas">
         <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº de personas</label>
         <input type="number" id="ic-personas" value="1" min="1" oninput="calcularIsabella()">
@@ -3264,16 +3268,19 @@ function isabellaToggleTipo(prefix) {
   const esCombustible = tipo === 'combustible';
   const fVeh = document.getElementById(prefix + '-field-vehiculo');
   const fKm = document.getElementById(prefix + '-field-km');
+  const fLitros = document.getElementById(prefix + '-field-litros');
   const fVehNombre = document.getElementById(prefix + '-field-vehnombre');
   const fHoras = document.getElementById(prefix + '-field-horas');
   const fPersonas = document.getElementById(prefix + '-field-personas');
   if (fVeh) fVeh.style.display = esVehiculo ? '' : 'none';
   if (fKm) fKm.style.display = esVehiculo ? '' : 'none';
+  if (fLitros) fLitros.style.display = esCombustible ? '' : 'none';
   // El nombre del vehículo también aplica a Combustible (para anotar qué coche se repostó).
   if (fVehNombre) fVehNombre.style.display = (esVehiculo || esCombustible) ? '' : 'none';
   if (fHoras) fHoras.style.display = esCombustible ? 'none' : '';
   if (fPersonas) fPersonas.style.display = esCombustible ? 'none' : '';
   if (!esVehiculo) { const kmEl = document.getElementById(prefix + '-km'); if (kmEl) kmEl.value = 0; }
+  if (!esCombustible) { const lEl = document.getElementById(prefix + '-litros'); if (lEl) lEl.value = 0; }
   if (esCombustible) {
     const hEl = document.getElementById(prefix + '-horas'); if (hEl) hEl.value = 0;
     const pEl = document.getElementById(prefix + '-personas'); if (pEl) pEl.value = 1;
@@ -3287,8 +3294,9 @@ function calcularIsabella() {
     const km = tipo === 'vehiculo' ? (parseFloat(document.getElementById('ic-km').value) || 0) : 0;
     const horas = tipo === 'combustible' ? 0 : (parseFloat(document.getElementById('ic-horas').value) || 0);
     const personas = tipo === 'combustible' ? 1 : (parseInt(document.getElementById('ic-personas').value) || 1);
+    const litros = tipo === 'combustible' ? (parseFloat(document.getElementById('ic-litros').value) || 0) : 0;
     try {
-      const resp = await fetch('/api/isabella/calcular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo, vehTipo, km, horas, personas }) });
+      const resp = await fetch('/api/isabella/calcular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo, vehTipo, km, horas, personas, litros }) });
       const data = await resp.json();
       if (data.error) { document.getElementById('ic-total').innerHTML = 'Error al calcular'; return; }
       document.getElementById('ic-total').innerHTML = euros(data.importe) + ' <span style="font-size:14px; font-weight:400; color:var(--gray-400);">importe a facturar</span>';
@@ -3296,7 +3304,7 @@ function calcularIsabella() {
         const bd = document.getElementById('ic-breakdown');
         bd.style.display = 'grid';
         bd.innerHTML = tipo === 'combustible'
-          ? `<div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Combustible (tarifa fija)</div><div style="font-size:15px; font-weight:600;">${euros(data.combustible)}</div></div>`
+          ? `<div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Combustible (${litros} L)</div><div style="font-size:15px; font-weight:600;">${euros(data.combustible)}</div></div>`
           : `
           <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Combustible</div><div style="font-size:15px; font-weight:600;">${euros(data.combustible)}</div></div>
           <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 12px;"><div style="font-size:11px; color:var(--gray-400); text-transform:uppercase;">Desgaste vehículo</div><div style="font-size:15px; font-weight:600;">${euros(data.desgaste)}</div></div>
@@ -3340,6 +3348,7 @@ function renderIsabellaRegistro() {
           <select id="ir-vehiculo"><option value="1">Camión Azul</option><option value="2" selected>Camión 3.500 Kg</option><option value="3">Furgoneta</option></select>
         </div>
         <div id="ir-field-km"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Kilómetros recorridos</label><input type="number" id="ir-km" value="0" min="0"></div>
+        <div id="ir-field-litros"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Litros repostados</label><input type="number" id="ir-litros" value="0" min="0" step="0.1"></div>
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Personal / conductor</label><input type="text" id="ir-personal" placeholder="Juan, Leo..."></div>
         <div id="ir-field-personas"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Nº de personas ese día</label><input type="number" id="ir-personas" value="1" min="1"></div>
         <div id="ir-field-horas"><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Horas por persona</label><input type="number" id="ir-horas" value="0" min="0" step="0.5"></div>
@@ -3397,6 +3406,7 @@ function isabellaPintarTabla(list) {
       <td>${s.personal || '—'}</td>
       <td>${s.personas || 1}</td>
       <td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td>
+      <td>${s.tipo === 'combustible' ? s.litros : '—'}</td>
       <td>${s.horas}</td>
       <td><strong>${euros(s.importe)}</strong></td>
       <td>${s.desc || '—'}</td>
@@ -3407,7 +3417,7 @@ function isabellaPintarTabla(list) {
   wrap.innerHTML = `
     <div style="overflow-x:auto;">
     <table><thead><tr>
-      <th>Fecha</th><th>Empresa</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th><th>Registrado por</th>
+      <th>Fecha</th><th>Empresa</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Litros</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th><th>Registrado por</th>
       ${admin ? '<th>Coste real</th><th>Beneficio</th><th></th>' : ''}
     </tr></thead><tbody>${filas}</tbody></table>
     </div>
@@ -3426,6 +3436,7 @@ async function isabellaAnadirServicio() {
     personal: document.getElementById('ir-personal').value.trim(),
     personas: esCombustible ? 1 : (parseInt(document.getElementById('ir-personas').value) || 1),
     km: esVehiculo ? (parseFloat(document.getElementById('ir-km').value) || 0) : 0,
+    litros: esCombustible ? (parseFloat(document.getElementById('ir-litros').value) || 0) : 0,
     horas: esCombustible ? 0 : (parseFloat(document.getElementById('ir-horas').value) || 0),
     desc: document.getElementById('ir-desc').value.trim()
   };
@@ -3442,6 +3453,7 @@ async function isabellaAnadirServicio() {
     document.getElementById('ir-vehnombre').style.display = 'none';
     document.getElementById('ir-personas').value = 1;
     document.getElementById('ir-km').value = 0;
+    document.getElementById('ir-litros').value = 0;
     document.getElementById('ir-horas').value = 0;
     isabellaCargarTabla();
   } catch (err) { estado.textContent = 'Error de conexión'; estado.style.color = '#A32D2D'; }
@@ -3457,8 +3469,8 @@ async function isabellaBorrarServicio(id) {
   } catch (err) { alert('Error de conexión'); }
 }
 function isabellaExportarCSV() {
-  const headers = ['Fecha', 'Empresa', 'Pedido', 'Vehiculo', 'Personal', 'NumPersonas', 'Km', 'HorasPorPersona', 'ImporteACobrar', 'Descripcion'];
-  const rows = ISABELLA_LAST_LIST.map(s => [s.fecha, s.empresa, s.pedido, isabellaVehCelda(s), s.personal, s.personas || 1, s.km, s.horas, Number(s.importe).toFixed(2), (s.desc || '').replace(/;/g, ',')]);
+  const headers = ['Fecha', 'Empresa', 'Pedido', 'Vehiculo', 'Personal', 'NumPersonas', 'Km', 'Litros', 'HorasPorPersona', 'ImporteACobrar', 'Descripcion'];
+  const rows = ISABELLA_LAST_LIST.map(s => [s.fecha, s.empresa, s.pedido, isabellaVehCelda(s), s.personal, s.personas || 1, s.km, s.tipo === 'combustible' ? s.litros : '', s.horas, Number(s.importe).toFixed(2), (s.desc || '').replace(/;/g, ',')]);
   const csv = headers.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -3503,12 +3515,12 @@ async function isabellaGenerarInforme() {
     const [y, m] = mes.split('-');
     const nombreMes = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     const filas = list.map(s => `
-      <tr><td>${isabellaFmtFecha(s.fecha)}</td><td>${s.pedido || '—'}</td><td>${isabellaVehCelda(s)}</td><td>${s.personal || '—'}</td><td>${s.personas || 1}</td><td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td><td>${s.horas}</td><td><strong>${euros(s.importe)}</strong></td><td>${s.desc || '—'}</td></tr>
+      <tr><td>${isabellaFmtFecha(s.fecha)}</td><td>${s.pedido || '—'}</td><td>${isabellaVehCelda(s)}</td><td>${s.personal || '—'}</td><td>${s.personas || 1}</td><td>${Number(s.vehTipo) > 0 ? s.km : '—'}</td><td>${s.tipo === 'combustible' ? s.litros : '—'}</td><td>${s.horas}</td><td><strong>${euros(s.importe)}</strong></td><td>${s.desc || '—'}</td></tr>
     `).join('');
     wrap.innerHTML = `
       <p style="font-size:15px; font-weight:600; margin:0 0 4px;">Liquidación · ${empresa} · ${nombreMes}</p>
       <p style="font-size:13px; color:var(--gray-400); margin:0 0 14px;">Servicios logísticos y de personal prestados por ORUM Rent &amp; Events a ${empresa}.</p>
-      <div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th></tr></thead><tbody>${filas}</tbody></table></div>
+      <div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Litros</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th></tr></thead><tbody>${filas}</tbody></table></div>
       <div style="margin-top:16px; background:#1a1a18; color:#fff; border-radius:8px; padding:16px; max-width:320px;">
         <div style="font-size:11px; color:#cbb98a; text-transform:uppercase;">Total a facturar a ${empresa}</div>
         <div style="font-size:22px; font-weight:700;">${euros(total)}</div>
@@ -3572,8 +3584,8 @@ async function renderIsabellaTarifas() {
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Desgaste vehículo (€/km)</label><input type="number" id="it-wear" step="0.01" value="${c.wear}"></div>
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Mano de obra (€/hora/persona)</label><input type="number" id="it-labor" step="0.1" value="${c.labor}"></div>
         <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Margen sobre coste (%)</label><input type="number" id="it-margin" step="1" value="${c.marginPct}"></div>
-        <div><label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Importe fijo de repostaje (€)</label><input type="number" id="it-repostaje" step="0.01" value="${c.repostaje ?? 0}"></div>
       </div>
+      <p style="font-size:12px; color:var(--gray-400); margin:10px 0 0; max-width:600px;">El tipo de servicio "Combustible" ya no usa un importe fijo: se calcula como litros repostados × Precio combustible (€/L) de arriba.</p>
       <button onclick="isabellaGuardarTarifas()" style="margin-top:16px; padding:9px 20px; border-radius:4px; border:none; background:#1a1a18; color:#fff; cursor:pointer; font-size:13px; font-weight:500;">Guardar tarifas</button>
       <span id="it-estado" style="font-size:12px; margin-left:10px;"></span>
     `;
@@ -3587,8 +3599,7 @@ async function isabellaGuardarTarifas() {
     consumo3: parseFloat(document.getElementById('it-c3').value),
     wear: parseFloat(document.getElementById('it-wear').value),
     labor: parseFloat(document.getElementById('it-labor').value),
-    marginPct: parseFloat(document.getElementById('it-margin').value),
-    repostaje: parseFloat(document.getElementById('it-repostaje').value)
+    marginPct: parseFloat(document.getElementById('it-margin').value)
   };
   const estado = document.getElementById('it-estado');
   estado.textContent = 'Guardando…'; estado.style.color = 'var(--gray-400)';
