@@ -1594,8 +1594,10 @@ async function obtenerConfigIsabella() {
 // mano de obra, para montaje de mobil homes, lavandería, etc.).
 // tipo === 'combustible' (repostaje): no se calcula por km, se pide el
 // número de litros repostados y se usa el precio de combustible ya
-// configurado (litros × fuelPrice) — sin desgaste ni mano de obra, solo
-// ese gasto + margen.
+// configurado (litros × fuelPrice) — sin desgaste ni mano de obra, y SIN
+// margen: es puro suministro repercutido a precio de coste, no un
+// servicio de ORUM (a diferencia de vehículo/personal, que sí llevan el
+// margen de la tarifa).
 function calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas, litros) {
   const p = Number(personas) || 1;
   let combustible = 0, desgaste = 0, manoObra = 0;
@@ -1610,7 +1612,7 @@ function calcularCosteIsabella(cfg, tipo, vehTipo, km, horas, personas, litros) 
     manoObra = Number(horas) * p * cfg.labor;
   }
   const costeNOE = combustible + desgaste + manoObra;
-  const importe = costeNOE * (1 + cfg.marginPct / 100);
+  const importe = tipo === 'combustible' ? costeNOE : costeNOE * (1 + cfg.marginPct / 100);
   const beneficio = importe - costeNOE;
   return { combustible, desgaste, manoObra, costeNOE, importe, beneficio };
 }
