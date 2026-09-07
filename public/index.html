@@ -3411,13 +3411,14 @@ function isabellaPintarTabla(list) {
       <td><strong>${euros(s.importe)}</strong></td>
       <td>${s.desc || '—'}</td>
       <td>${s.creadoPor || '—'}</td>
+      <td><button onclick="isabellaDuplicarServicio('${s.id}')" style="background:#fff; color:#1a1a18; border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer;">Duplicar</button></td>
       ${admin ? `<td>${euros(s.costeNOE)}</td><td>${euros(s.beneficio)}</td><td><button onclick="isabellaBorrarServicio('${s.id}')" style="background:#fff; color:#A32D2D; border:1px solid #edd0d0; border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer;">Eliminar</button></td>` : ''}
     </tr>
   `).join('');
   wrap.innerHTML = `
     <div style="overflow-x:auto;">
     <table><thead><tr>
-      <th>Fecha</th><th>Empresa</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Litros</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th><th>Registrado por</th>
+      <th>Fecha</th><th>Empresa</th><th>Pedido</th><th>Vehículo</th><th>Personal</th><th>Nº pers.</th><th>Km</th><th>Litros</th><th>Horas/pers.</th><th>Importe</th><th>Descripción</th><th>Registrado por</th><th></th>
       ${admin ? '<th>Coste real</th><th>Beneficio</th><th></th>' : ''}
     </tr></thead><tbody>${filas}</tbody></table>
     </div>
@@ -3467,6 +3468,41 @@ async function isabellaBorrarServicio(id) {
     if (data.error) { alert('No se pudo eliminar: ' + data.error); return; }
     isabellaCargarTabla();
   } catch (err) { alert('Error de conexión'); }
+}
+// Copia los datos de un servicio ya registrado al formulario de alta, dejando
+// solo la fecha vacía y con el foco puesto ahí — para repetir el mismo
+// servicio varios días (p.ej. un trabajador varios días en otra empresa)
+// sin tener que rellenar todo de nuevo, solo cambiar el día y "Añadir".
+function isabellaDuplicarServicio(id) {
+  const s = ISABELLA_LAST_LIST.find(x => String(x.id) === String(id));
+  if (!s) return;
+  document.getElementById('ir-empresa').value = s.empresa;
+  document.getElementById('ir-pedido').value = s.pedido || '';
+  document.getElementById('ir-tiposervicio').value = s.tipo || 'vehiculo';
+  isabellaToggleTipo('ir');
+  const sel = document.getElementById('ir-vehnombre-select');
+  const inp = document.getElementById('ir-vehnombre');
+  if (s.vehNombre) {
+    const opt = Array.from(sel.options).find(o => o.value === s.vehNombre);
+    if (opt) { sel.value = s.vehNombre; inp.style.display = 'none'; inp.value = ''; }
+    else { sel.value = '__otro__'; inp.style.display = ''; inp.value = s.vehNombre; }
+  } else {
+    sel.value = ''; inp.style.display = 'none'; inp.value = '';
+  }
+  if (s.tipo === 'vehiculo') document.getElementById('ir-vehiculo').value = s.vehTipo || 2;
+  document.getElementById('ir-personal').value = s.personal || '';
+  document.getElementById('ir-personas').value = s.personas || 1;
+  document.getElementById('ir-km').value = s.km || 0;
+  document.getElementById('ir-litros').value = s.litros || 0;
+  document.getElementById('ir-horas').value = s.horas || 0;
+  document.getElementById('ir-desc').value = s.desc || '';
+  const fecha = document.getElementById('ir-fecha');
+  fecha.value = '';
+  fecha.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  fecha.focus();
+  const estado = document.getElementById('ir-add-estado');
+  estado.textContent = 'Datos copiados — elige la fecha y pulsa "Añadir al registro"';
+  estado.style.color = 'var(--gray-400)';
 }
 function isabellaExportarCSV() {
   const headers = ['Fecha', 'Empresa', 'Pedido', 'Vehiculo', 'Personal', 'NumPersonas', 'Km', 'Litros', 'HorasPorPersona', 'ImporteACobrar', 'Descripcion'];
