@@ -768,6 +768,7 @@ const MENU = [
       { id: 'fin-resumen', label: 'Resumen', onClick: () => cargarFinancieroResumen() },
       { id: 'fin-control-pagos', label: 'Control de pagos', onClick: () => cargarFinanciero() },
       { id: 'fin-vencidas', label: 'Vencidas y morosidad', onClick: () => cargarFinancieroVencidas() },
+      { id: 'fin-fianzas', label: 'Fianzas', onClick: () => cargarFianzas() },
       { id: 'fin-historico', label: 'Histórico mensual', onClick: () => renderProximamente('Financiero · Histórico mensual') },
       { id: 'fin-auditoria', label: 'Auditoría / Alertas', onClick: () => cargarFinancieroAuditoria() },
       { id: 'fin-rentabilidad', label: 'Rentabilidad', onClick: () => renderProximamente('Financiero · Rentabilidad') },
@@ -1165,6 +1166,140 @@ function renderTablaVencidas(listaOriginal) {
         <td>${f.cliente || ''}</td>
         <td>${f.comercial || ''}</td>
         <td style="text-align:right; font-weight:500;">${euros(f.pendiente_cobro)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+// ================================================================
+// FIANZAS — estado en vivo desde Rentman. Objetivo del usuario: cuando
+// llega una devolución de fianza (ej. 50€) por TPV/transferencia/efectivo,
+// poder localizar a qué proyecto pertenece filtrando por ese importe/medio.
+// ================================================================
+const ESTADO_FIANZA_COLOR = {
+  '0': { bg: '#FCEBEB', text: '#A32D2D' }, // Pendiente
+  '1': { bg: '#FDF3E0', text: '#854F0B' }, // Pagada (sin devolver aún)
+  '2': { bg: '#E9F5EC', text: '#1E6B34' }  // Devuelta
+};
+async function cargarFianzas() {
+  document.getElementById('content-title').textContent = 'Financiero · Fianzas';
+  marcarMenuActivo('menu-item-fin-fianzas');
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Leyendo fianzas de Rentman...</p>';
+  try {
+    const resp = await fetch('/api/fianzas');
+    const json = await resp.json();
+    if (json.error) { body.innerHTML = '<p class="loading-text">Error: ' + json.error + '</p>'; return; }
+    actualizarIndicadorFecha(json.ultima_actualizacion);
+    pintarFianzas(json);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+function pintarFianzas(json) {
+  const body = document.getElementById('content-body');
+  const k = json.kpis || {};
+  let html = `
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1.5rem;">
+      ${kpiCard('Pendientes de cobro (' + (k.n_pendientes_cobro||0) + ')', euros(k.total_pendientes_cobro))}
+      ${kpiCard('Pagadas sin devolver (' + (k.n_pagadas_sin_devolver||0) + ')', euros(k.total_pagadas_sin_devolver))}
+      ${kpiCard('Devueltas (' + (k.n_devueltas||0) + ')', euros(k.total_devuelto))}
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1rem; align-items:center;">
+      <div class="search-box">
+        <input type="text" id="buscador-fianzas" placeholder="Cliente, nº proyecto o nº operación..." oninput="aplicarFiltroFianzas()">
+      </div>
+      <input type="text" id="filtro-fianzas-importe" placeholder="Importe exacto (ej. 50)" inputmode="decimal"
+        style="padding:8px 10px; border:1px solid var(--border); border-radius:4px; font-size:13px; width:170px;"
+        oninput="aplicarFiltroFianzas()">
+      <select id="filtro-fianzas-estado" onchange="aplicarFiltroFianzas()" style="padding:8px 10px; border:1px solid var(--border); border-radius:4px; font-size:13px;">
+        <option value="">Todos los estados</option>
+        <option value="0">Pendiente</option>
+        <option value="1">Pagada</option>
+        <option value="2">Devuelta</option>
+      </select>
+      <select id="filtro-fianzas-metodo" onchange="aplicarFiltroFianzas()" style="padding:8px 10px; border:1px solid var(--border); border-radius:4px; font-size:13px;">
+        <option value="">Todas las formas de pago</option>
+        ${[...new Set((json.data||[]).map(f => f.forma_pago).filter(Boolean))].sort().map(m => `<option value="${m}">${m}</option>`).join('')}
+      </select>
+      <span style="font-size:12px; color:var(--text-muted); margin-left:auto;" id="fianzas-contador"></span>
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFianzas('numero_proyecto')">Nº Proyecto${flechaOrdenFianzas('numero_proyecto')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFianzas('cliente')">Cliente${flechaOrdenFianzas('cliente')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFianzas('fecha_evento')">Evento${flechaOrdenFianzas('fecha_evento')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFianzas('estado_fianza')">Estado${flechaOrdenFianzas('estado_fianza')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenFianzas('importe_fianza')">Importe fianza${flechaOrdenFianzas('importe_fianza')}</th>
+          <th style="text-align:right; cursor:pointer;" onclick="cambiarOrdenFianzas('importe_devuelto')">Devuelto${flechaOrdenFianzas('importe_devuelto')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenFianzas('forma_pago')">Forma de pago${flechaOrdenFianzas('forma_pago')}</th>
+          <th>Nº op. TPV cobro</th>
+          <th>Nº op. TPV devolución</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-fianzas-body"></tbody>
+    </table>
+    </div>
+  `;
+  body.innerHTML = html;
+  window.fianzasDataActual = json.data || [];
+  renderTablaFianzas(window.fianzasDataActual);
+}
+function aplicarFiltroFianzas() {
+  const busqueda = document.getElementById('buscador-fianzas').value.toLowerCase().trim();
+  const importeTxt = document.getElementById('filtro-fianzas-importe').value.replace(',', '.').trim();
+  const importe = importeTxt ? parseFloat(importeTxt) : null;
+  const estado = document.getElementById('filtro-fianzas-estado').value;
+  const metodo = document.getElementById('filtro-fianzas-metodo').value;
+  let filtradas = window.fianzasDataActual;
+  if (busqueda) {
+    filtradas = filtradas.filter(f =>
+      (f.cliente || '').toLowerCase().includes(busqueda) ||
+      String(f.numero_proyecto || '').includes(busqueda) ||
+      (f.num_operacion_tpv_cobro || '').toLowerCase().includes(busqueda) ||
+      (f.num_operacion_tpv_devolucion || '').toLowerCase().includes(busqueda)
+    );
+  }
+  if (importe !== null && !isNaN(importe)) {
+    filtradas = filtradas.filter(f => Math.abs(f.importe_fianza - importe) < 0.005 || Math.abs(f.importe_devuelto - importe) < 0.005);
+  }
+  if (estado) filtradas = filtradas.filter(f => f.estado_fianza_id === estado);
+  if (metodo) filtradas = filtradas.filter(f => f.forma_pago === metodo);
+  renderTablaFianzas(filtradas);
+}
+let ordenFianzas = { campo: 'fecha_evento', asc: false };
+function cambiarOrdenFianzas(campo) {
+  if (ordenFianzas.campo === campo) ordenFianzas.asc = !ordenFianzas.asc;
+  else { ordenFianzas.campo = campo; ordenFianzas.asc = true; }
+  aplicarFiltroFianzas();
+}
+function flechaOrdenFianzas(campo) {
+  if (ordenFianzas.campo !== campo) return '';
+  return ordenFianzas.asc ? ' ▲' : ' ▼';
+}
+function renderTablaFianzas(listaOriginal) {
+  const tbody = document.getElementById('tabla-fianzas-body');
+  const contador = document.getElementById('fianzas-contador');
+  const lista = ordenarLista(listaOriginal, ordenFianzas);
+  if (contador) contador.textContent = lista.length + ' fianza' + (lista.length === 1 ? '' : 's');
+  if (lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="padding:1.5rem 4px; color:#9a988f;">No hay fianzas con este filtro.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista.map(f => {
+    const col = ESTADO_FIANZA_COLOR[f.estado_fianza_id] || { bg: '#f7f6f2', text: '#6b6a64' };
+    return `
+      <tr>
+        <td>${f.numero_proyecto ?? '—'}</td>
+        <td>${f.cliente || '—'}</td>
+        <td>${f.fecha_evento || '—'}</td>
+        <td><span style="background:${col.bg}; color:${col.text}; padding:3px 8px; border-radius:10px; font-size:12px; font-weight:500;">${f.estado_fianza}</span></td>
+        <td style="text-align:right;">${euros(f.importe_fianza)}</td>
+        <td style="text-align:right;">${f.importe_devuelto > 0 ? euros(f.importe_devuelto) : '—'}</td>
+        <td>${f.forma_pago || '—'}</td>
+        <td>${f.num_operacion_tpv_cobro || '—'}</td>
+        <td>${f.num_operacion_tpv_devolucion || '—'}</td>
       </tr>
     `;
   }).join('');
