@@ -762,24 +762,49 @@ app.post('/api/fianzas/recargar', requiereLogin, bloquearComercial, async (req, 
       offset += limit;
     }
     const conFianza = all.filter(p => (parseFloat((p.custom || {}).custom_3) || 0) > 0);
-    const filas = conFianza.map(p => {
-      const c = p.custom || {};
-      return {
-        id: p.id,
-        importe_fianza: parseFloat(c.custom_3) || 0,
-        forma_pago_fianza_id: c.custom_4 != null ? String(c.custom_4) : null,
-        estado_fianza_id: c.custom_5 != null ? String(c.custom_5) : null,
-        importe_devuelto_fianza: parseFloat(c.custom_6) || 0,
-        num_operacion_tpv_cobro: c.custom_10 || null,
-        num_operacion_tpv_devolucion: c.custom_15 || null,
-        updated_raw: new Date().toISOString()
-      };
-    });
-    for (let i = 0; i < filas.length; i += 200) {
-      const { error } = await supabase.from('proyectos').upsert(filas.slice(i, i + 200), { onConflict: 'id' });
-      if (error) throw error;
+
+    // Solo tocamos proyectos que YA existen en Supabase - descubierto en vivo
+    // (9 sep 2026): un upsert parcial exige igualmente todas las columnas
+    // NOT NULL aunque la fila ya exista (PostgREST no fusiona de verdad en
+    // esta instancia), así que hace falta un UPDATE real por fila, no un
+    // upsert por lotes. Un proyecto nunca sincronizado recibirá su fianza en
+    // su próxima sincronización normal por webhook.
+    let idsConocidos = new Set();
+    {
+      let off = 0;
+      while (true) {
+        const { data, error } = await supabase.from('proyectos').select('id').range(off, off + 999);
+        if (error) throw error;
+        (data || []).forEach(r => idsConocidos.add(r.id));
+        if (!data || data.length < 1000) break;
+        off += 1000;
+      }
     }
-    res.json({ ok: true, revisados: all.length, con_fianza: filas.length });
+    const filas = conFianza
+      .filter(p => idsConocidos.has(p.id))
+      .map(p => {
+        const c = p.custom || {};
+        return {
+          id: p.id,
+          importe_fianza: parseFloat(c.custom_3) || 0,
+          forma_pago_fianza_id: c.custom_4 != null ? String(c.custom_4) : null,
+          estado_fianza_id: c.custom_5 != null ? String(c.custom_5) : null,
+          importe_devuelto_fianza: parseFloat(c.custom_6) || 0,
+          num_operacion_tpv_cobro: c.custom_10 || null,
+          num_operacion_tpv_devolucion: c.custom_15 || null,
+          updated_raw: new Date().toISOString()
+        };
+      });
+    const CONCURRENCIA = 20;
+    let errores = 0;
+    for (let i = 0; i < filas.length; i += CONCURRENCIA) {
+      const tanda = filas.slice(i, i + CONCURRENCIA);
+      const resultados = await Promise.all(tanda.map(({ id, ...campos }) =>
+        supabase.from('proyectos').update(campos).eq('id', id)
+      ));
+      resultados.forEach(({ error }) => { if (error) { errores++; console.error('Error actualizando fianza:', error.message); } });
+    }
+    res.json({ ok: true, revisados: all.length, con_fianza: filas.length, errores, omitidos_sin_sync: conFianza.length - filas.length });
   } catch (err) {
     console.error('Error en /api/fianzas/recargar:', err);
     res.status(500).json({ error: 'Error al recargar desde Rentman: ' + err.message });
