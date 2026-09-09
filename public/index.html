@@ -1195,6 +1195,23 @@ async function cargarFianzas() {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
+async function recargarFianzasDesdeRentman() {
+  const btn = document.getElementById('btn-fianzas-recargar');
+  const textoOriginal = btn.textContent;
+  btn.textContent = '⏳ Consultando Rentman...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/fianzas/recargar', { method: 'POST' });
+    const json = await resp.json();
+    if (json.error) { alert('Error al recargar: ' + json.error); return; }
+    await cargarFianzas();
+  } catch (err) {
+    alert('Error de conexión al recargar.');
+  } finally {
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
+  }
+}
 function pintarFianzas(json) {
   const body = document.getElementById('content-body');
   const k = json.kpis || {};
@@ -1222,6 +1239,7 @@ function pintarFianzas(json) {
         ${[...new Set((json.data||[]).map(f => f.forma_pago).filter(Boolean))].sort().map(m => `<option value="${m}">${m}</option>`).join('')}
       </select>
       <span style="font-size:12px; color:var(--text-muted); margin-left:auto;" id="fianzas-contador"></span>
+      <button id="btn-fianzas-recargar" onclick="recargarFianzasDesdeRentman()" style="padding:8px 12px; border:1px solid var(--border); border-radius:4px; font-size:13px; background:#fff; cursor:pointer;">🔄 Actualizar desde Rentman</button>
     </div>
     <div style="overflow-x:auto;">
     <table>

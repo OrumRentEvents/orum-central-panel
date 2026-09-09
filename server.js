@@ -32,14 +32,15 @@ const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN || 'ORUMx2026CentralData
 const RUTAS_SCRIPT_URL = process.env.RUTAS_SCRIPT_URL || '';
 const RUTAS_SCRIPT_TOKEN = 'ORUMx2026#Rutas$Stats';
 
-// ── Fianzas (9 sep 2026) ──────────────────────────────────────
-// El estado de la fianza vive SOLO en Rentman (campos personalizados del
-// proyecto, panel "FIANZA" en la UI) - no pasa por el pipeline de webhooks
-// de OrumCentral.gs, así que aquí se lee en vivo, no de Supabase. Decisión
-// explícita del usuario: "el sistema de caja es independiente a orum
-// central" - las fianzas se leen directo de Rentman en los dos paneles.
-// Añade en Railway la variable RENTMAN_TOKEN (mismo valor que ya usa
-// caja-orum - RENTMAN_TOKEN en su .env/Railway).
+// ── Fianzas (9 sep 2026, v2) ────────────────────────────────────
+// El estado de la fianza vive en Rentman (campos personalizados del
+// proyecto, panel "FIANZA" en la UI). /api/fianzas ya NO lo lee en vivo -
+// desde el v2 lo lee de Supabase (proyectos.importe_fianza y compañía),
+// volcado por OrumCentral.gs en cada webhook de proyecto + un backfill de
+// un solo uso para el histórico (ver [[orum-caja-sistema]]). RENTMAN_TOKEN
+// solo se usa aquí para el botón manual "recargar desde Rentman"
+// (/api/fianzas/recargar) - añade en Railway la variable RENTMAN_TOKEN
+// (mismo valor que ya usa caja-orum en su .env/Railway).
 const RENTMAN_TOKEN = process.env.RENTMAN_TOKEN || 'PEGA_AQUI_EL_TOKEN_DE_RENTMAN';
 const RENTMAN_URL = 'https://api.rentman.net';
 // Campos personalizados del proyecto en Rentman (id del extrainputfield =
@@ -71,8 +72,6 @@ const FIANZA_METODOS = {
 // desplegable de Rentman) no está confirmado con un caso real todavía - si
 // aparece, se muestra el código crudo en vez de una etiqueta inventada.
 const FIANZA_ESTADOS = { '0': 'Pendiente', '1': 'Pagada', '2': 'Devuelta' };
-const cacheFianzasRentman = { data: [], ts: 0 };
-const FIANZAS_TTL_MS = 5 * 60 * 1000; // 5 min, mismo TTL que caja-orum
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -670,74 +669,37 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
 });
 
 // ================================================================
-// FIANZAS — estado en vivo desde Rentman (custom_3..custom_15 del
-// proyecto), cruzado con Supabase solo para cliente/comercial/etapa/fecha
-// de evento (ya sincronizado en tiempo real, evita resolver contactos uno
-// a uno contra Rentman). Objetivo del usuario: localizar una devolución de
-// fianza (p.ej. 50€) por importe y método sin tener que abrir Rentman.
+// FIANZAS (v2, 9 sep 2026) — lee de Supabase (proyectos.importe_fianza y
+// compañía), no de Rentman en directo. Esos campos los vuelca OrumCentral.gs
+// en cada webhook de proyecto (procesarProyectoCompleto → sincronizarProyecto
+// ASupabase_) y el backfillFianzas() de un solo uso para el histórico - ver
+// [[orum-caja-sistema]]. "Recargar desde Rentman" sigue disponible como
+// botón manual para el caso raro de necesitar el dato al segundo, antes de
+// que llegue el webhook (normalmente 30s-1min).
 // ================================================================
 const PIPELINE_COMERCIAL_FIANZAS = ['pending', 'concept', 'inquiry']; // mismo criterio que el resto de Financiero
-async function fetchFianzasCrudoRentman() {
-  let all = [];
-  let offset = 0;
-  const limit = 300;
-  while (true) {
-    const r = await fetch(`${RENTMAN_URL}/projects?limit=${limit}&offset=${offset}`, {
-      headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` }
-    });
-    if (!r.ok) throw new Error(`Rentman /projects devolvió ${r.status}`);
-    const data = await r.json();
-    const items = data.data || [];
-    all = all.concat(items);
-    if (items.length < limit) break;
-    offset += limit;
-  }
-  // Solo proyectos con un importe de fianza real (>0) - un proyecto sin
-  // fianza no aporta nada a esta pantalla.
-  return all.filter(p => (parseFloat((p.custom || {}).custom_3) || 0) > 0);
-}
-app.get('/api/fianzas', requiereLogin, bloquearComercial, async (req, res) => {
-  try {
-    const ahora = Date.now();
-    let crudos;
-    if (ahora - cacheFianzasRentman.ts < FIANZAS_TTL_MS && cacheFianzasRentman.data.length > 0) {
-      crudos = cacheFianzasRentman.data;
-    } else {
-      crudos = await fetchFianzasCrudoRentman();
-      cacheFianzasRentman.data = crudos;
-      cacheFianzasRentman.ts = Date.now();
-    }
-
-    // Cruce con Supabase (proyectos) por id interno de Rentman = proyectos.id
-    const ids = crudos.map(p => p.id);
-    let proyectosData = [];
-    if (supabase && ids.length) {
-      const { data, error } = await supabase
-        .from('proyectos')
-        .select('id,numero,cliente,comercial,estado,cancelado,es_abrebotellas,entrega_fecha_raw,evento_inicio_ts')
-        .in('id', ids);
-      if (error) throw error;
-      proyectosData = data || [];
-    }
-    const proyectoPorId = {};
-    proyectosData.forEach(p => { proyectoPorId[p.id] = p; });
-
-    const fianzas = crudos.map(p => {
-      const c = p.custom || {};
-      const proy = proyectoPorId[p.id] || null;
-      const c4 = String(c.custom_4 != null ? c.custom_4 : '0');
-      const c5 = String(c.custom_5 != null ? c.custom_5 : '0');
-      const importeFianza = Math.round((parseFloat(c.custom_3) || 0) * 100) / 100;
-      const importeDevuelto = Math.round((parseFloat(c.custom_6) || 0) * 100) / 100;
+function filasFianzasDesdeProyectos(proyectosData) {
+  return (proyectosData || [])
+    .filter(p => (parseFloat(p.importe_fianza) || 0) > 0)
+    .filter(p => {
+      const est = String(p.estado || '').toLowerCase();
+      if (PIPELINE_COMERCIAL_FIANZAS.includes(est)) return false;
+      if (p.cancelado === true) return false;
+      if (p.es_abrebotellas === true) return false;
+      return true;
+    })
+    .map(p => {
+      const c4 = p.forma_pago_fianza_id != null ? String(p.forma_pago_fianza_id) : '0';
+      const c5 = p.estado_fianza_id != null ? String(p.estado_fianza_id) : '0';
+      const importeFianza = Math.round((parseFloat(p.importe_fianza) || 0) * 100) / 100;
+      const importeDevuelto = Math.round((parseFloat(p.importe_devuelto_fianza) || 0) * 100) / 100;
       return {
         proyecto_id: p.id,
-        numero_proyecto: proy ? proy.numero : p.number,
-        cliente: proy ? proy.cliente : null,
-        comercial: proy ? proy.comercial : null,
-        estado_proyecto: proy ? proy.estado : null,
-        cancelado: proy ? proy.cancelado : null,
-        es_abrebotellas: proy ? proy.es_abrebotellas : null,
-        fecha_evento: proy ? (proy.entrega_fecha_raw || (proy.evento_inicio_ts ? proy.evento_inicio_ts.substring(0, 10) : null)) : null,
+        numero_proyecto: p.numero,
+        cliente: p.cliente,
+        comercial: p.comercial,
+        estado_proyecto: p.estado,
+        fecha_evento: p.entrega_fecha_raw || null,
         estado_fianza: FIANZA_ESTADOS[c5] || c5,
         estado_fianza_id: c5,
         importe_fianza: importeFianza,
@@ -745,42 +707,82 @@ app.get('/api/fianzas', requiereLogin, bloquearComercial, async (req, res) => {
         pendiente_devolver: c5 === '1' ? Math.round((importeFianza - importeDevuelto) * 100) / 100 : 0,
         forma_pago: FIANZA_METODOS[c4] || c4,
         forma_pago_id: c4,
-        num_operacion_tpv_cobro: c.custom_10 || null,
-        num_operacion_tpv_devolucion: c.custom_15 || null,
-        ultimos_digitos_cc: c.custom_9 || null,
-        en_supabase: !!proy
+        num_operacion_tpv_cobro: p.num_operacion_tpv_cobro || null,
+        num_operacion_tpv_devolucion: p.num_operacion_tpv_devolucion || null
       };
-    }).filter(f => {
-      if (!f.en_supabase) return true; // proyecto muy reciente, aún sin sincronizar - no lo ocultamos
-      const est = String(f.estado_proyecto || '').toLowerCase();
-      if (PIPELINE_COMERCIAL_FIANZAS.includes(est)) return false;
-      if (f.cancelado === true || f.cancelado === 'SI') return false;
-      if (f.es_abrebotellas === true || f.es_abrebotellas === 'SI') return false;
-      return true;
     });
-
-    const kpis = {
-      total_pendientes_cobro: fianzas.filter(f => f.estado_fianza_id === '0').reduce((s, f) => s + f.importe_fianza, 0),
-      n_pendientes_cobro: fianzas.filter(f => f.estado_fianza_id === '0').length,
-      total_pagadas_sin_devolver: fianzas.filter(f => f.estado_fianza_id === '1').reduce((s, f) => s + f.pendiente_devolver, 0),
-      n_pagadas_sin_devolver: fianzas.filter(f => f.estado_fianza_id === '1').length,
-      total_devuelto: fianzas.filter(f => f.estado_fianza_id === '2').reduce((s, f) => s + f.importe_devuelto, 0),
-      n_devueltas: fianzas.filter(f => f.estado_fianza_id === '2').length
-    };
-    Object.keys(kpis).forEach(k => { if (typeof kpis[k] === 'number') kpis[k] = Math.round(kpis[k] * 100) / 100; });
-
-    res.json({ ok: true, data: fianzas, kpis, ultima_actualizacion: new Date(cacheFianzasRentman.ts).toISOString() });
+}
+function kpisFianzas(fianzas) {
+  const kpis = {
+    total_pendientes_cobro: fianzas.filter(f => f.estado_fianza_id === '0').reduce((s, f) => s + f.importe_fianza, 0),
+    n_pendientes_cobro: fianzas.filter(f => f.estado_fianza_id === '0').length,
+    total_pagadas_sin_devolver: fianzas.filter(f => f.estado_fianza_id === '1').reduce((s, f) => s + f.pendiente_devolver, 0),
+    n_pagadas_sin_devolver: fianzas.filter(f => f.estado_fianza_id === '1').length,
+    total_devuelto: fianzas.filter(f => f.estado_fianza_id === '2').reduce((s, f) => s + f.importe_devuelto, 0),
+    n_devueltas: fianzas.filter(f => f.estado_fianza_id === '2').length
+  };
+  Object.keys(kpis).forEach(k => { if (typeof kpis[k] === 'number') kpis[k] = Math.round(kpis[k] * 100) / 100; });
+  return kpis;
+}
+app.get('/api/fianzas', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
+    const { data, error } = await supabase
+      .from('proyectos')
+      .select('id,numero,cliente,comercial,estado,cancelado,es_abrebotellas,entrega_fecha_raw,importe_fianza,forma_pago_fianza_id,estado_fianza_id,importe_devuelto_fianza,num_operacion_tpv_cobro,num_operacion_tpv_devolucion,updated_raw')
+      .gt('importe_fianza', 0);
+    if (error) throw error;
+    const fianzas = filasFianzasDesdeProyectos(data);
+    const ultimaAct = (data || []).reduce((max, p) => (p.updated_raw && p.updated_raw > max ? p.updated_raw : max), '');
+    res.json({ ok: true, data: fianzas, kpis: kpisFianzas(fianzas), ultima_actualizacion: ultimaAct || null });
   } catch (err) {
     console.error('Error en /api/fianzas:', err);
-    res.status(500).json({ error: 'Error al leer fianzas de Rentman: ' + err.message });
+    res.status(500).json({ error: 'Error al leer fianzas: ' + err.message });
   }
 });
+// Fuerza una relectura en vivo de Rentman (todos los proyectos, paginado) y
+// vuelca solo los campos de fianza a Supabase - mismo cálculo que
+// backfillFianzas() en OrumCentral.gs, aquí para poder pulsar un botón desde
+// el panel sin esperar al webhook. No usa RENTMAN_TOKEN salvo aquí.
 app.post('/api/fianzas/recargar', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    cacheFianzasRentman.ts = 0; // fuerza recarga en la próxima /api/fianzas
-    res.json({ ok: true });
+    if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
+    let all = [];
+    let offset = 0;
+    const limit = 300;
+    while (true) {
+      const r = await fetch(`${RENTMAN_URL}/projects?limit=${limit}&offset=${offset}`, {
+        headers: { Authorization: `Bearer ${RENTMAN_TOKEN}` }
+      });
+      if (!r.ok) throw new Error(`Rentman /projects devolvió ${r.status}`);
+      const data = await r.json();
+      const items = data.data || [];
+      all = all.concat(items);
+      if (items.length < limit) break;
+      offset += limit;
+    }
+    const conFianza = all.filter(p => (parseFloat((p.custom || {}).custom_3) || 0) > 0);
+    const filas = conFianza.map(p => {
+      const c = p.custom || {};
+      return {
+        id: p.id,
+        importe_fianza: parseFloat(c.custom_3) || 0,
+        forma_pago_fianza_id: c.custom_4 != null ? String(c.custom_4) : null,
+        estado_fianza_id: c.custom_5 != null ? String(c.custom_5) : null,
+        importe_devuelto_fianza: parseFloat(c.custom_6) || 0,
+        num_operacion_tpv_cobro: c.custom_10 || null,
+        num_operacion_tpv_devolucion: c.custom_15 || null,
+        updated_raw: new Date().toISOString()
+      };
+    });
+    for (let i = 0; i < filas.length; i += 200) {
+      const { error } = await supabase.from('proyectos').upsert(filas.slice(i, i + 200), { onConflict: 'id' });
+      if (error) throw error;
+    }
+    res.json({ ok: true, revisados: all.length, con_fianza: filas.length });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error en /api/fianzas/recargar:', err);
+    res.status(500).json({ error: 'Error al recargar desde Rentman: ' + err.message });
   }
 });
 
