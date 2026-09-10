@@ -1661,33 +1661,44 @@ if (APPS_SCRIPT_FACTURAS_URL && APPS_SCRIPT_FACTURAS_URL !== 'PEGA_AQUI_LA_URL_D
   programarSincronizacionDiariaFacturas();
 }
 
+const MESES_ES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// Sacado a función aparte (10 sep 2026) para poder reutilizarla también desde
+// /api/cierre-mensual (Gastos del cierre = mismas facturas de proveedores ya
+// clasificadas por departamento, agregadas por mes en vez de listadas suelta).
+async function obtenerFacturasProveedoresEnriquecidas() {
+  const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
+  const paramsReparto = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
+  const [respListado, respReparto] = await Promise.all([fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsListado.toString()}`), fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsReparto.toString()}`)]);
+  const dataListado = await respListado.json();
+  const dataReparto = await respReparto.json();
+  if (dataListado.error) throw new Error(dataListado.error);
+  if (dataReparto.error) throw new Error(dataReparto.error);
+
+  const facturas = dataListado.facturas || [];
+  const reparto = dataReparto.reparto || [];
+  const repartoPorProveedor = {};
+  reparto.forEach(r => {
+    const prov = String(r.proveedor);
+    if (!repartoPorProveedor[prov]) repartoPorProveedor[prov] = [];
+    repartoPorProveedor[prov].push({ departamento: r.departamento, porcentaje: parseFloat(r.porcentaje) || 0 });
+  });
+
+  const facturasEnriquecidas = facturas.map(f => {
+    const base = parseFloat(f.importeBase) || 0;
+    const reglas = repartoPorProveedor[String(f.proveedor)] || null;
+    const desglose = reglas
+      ? reglas.map(r => ({ departamento: r.departamento, porcentaje: r.porcentaje, importe: Math.round(base * (r.porcentaje / 100) * 100) / 100 }))
+      : [{ departamento: 'Sin clasificar', porcentaje: 100, importe: base }];
+    return { ...f, desglose_departamentos: desglose };
+  });
+
+  return { facturasEnriquecidas, repartoPorProveedor };
+}
+
 app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
-    const paramsReparto = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
-    const [respListado, respReparto] = await Promise.all([fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsListado.toString()}`), fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsReparto.toString()}`)]);
-    const dataListado = await respListado.json();
-    const dataReparto = await respReparto.json();
-    if (dataListado.error) return res.status(500).json({ error: dataListado.error });
-    if (dataReparto.error) return res.status(500).json({ error: dataReparto.error });
-
-    const facturas = dataListado.facturas || [];
-    const reparto = dataReparto.reparto || [];
-    const repartoPorProveedor = {};
-    reparto.forEach(r => {
-      const prov = String(r.proveedor);
-      if (!repartoPorProveedor[prov]) repartoPorProveedor[prov] = [];
-      repartoPorProveedor[prov].push({ departamento: r.departamento, porcentaje: parseFloat(r.porcentaje) || 0 });
-    });
-
-    const facturasEnriquecidas = facturas.map(f => {
-      const base = parseFloat(f.importeBase) || 0;
-      const reglas = repartoPorProveedor[String(f.proveedor)] || null;
-      const desglose = reglas
-        ? reglas.map(r => ({ departamento: r.departamento, porcentaje: r.porcentaje, importe: Math.round(base * (r.porcentaje / 100) * 100) / 100 }))
-        : [{ departamento: 'Sin clasificar', porcentaje: 100, importe: base }];
-      return { ...f, desglose_departamentos: desglose };
-    });
+    const { facturasEnriquecidas, repartoPorProveedor } = await obtenerFacturasProveedoresEnriquecidas();
 
     const totalesPorDepartamento = {};
     facturasEnriquecidas.forEach(f => f.desglose_departamentos.forEach(d => { totalesPorDepartamento[d.departamento] = (totalesPorDepartamento[d.departamento] || 0) + d.importe; }));
@@ -1697,6 +1708,80 @@ app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (re
   } catch (err) {
     console.error('Error en /api/facturas-proveedores:', err);
     res.status(500).json({ error: 'Error al obtener facturas: ' + err.message });
+  }
+});
+
+// ================================================================
+// CIERRE MENSUAL (10 sep 2026) — Financiero → Cierre Mensual. Fase 1: solo
+// datos ya automatizados (Ingresos = facturas de Rentman vía ORUM CENTRAL,
+// Gastos = Facturas Proveedores ya repartidas por departamento). Personal
+// (nóminas) e Impuestos quedan fuera de esta fase - se suman más adelante
+// cuando exista una fuente de datos para ellos (usuario los subirá aparte).
+// ================================================================
+app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio) || new Date().getFullYear();
+
+    const [facturasResp, provResult] = await Promise.all([
+      llamarOrumCentral('facturas'),
+      obtenerFacturasProveedoresEnriquecidas()
+    ]);
+    const facturas = facturasResp.data || [];
+    const { facturasEnriquecidas: facturasProveedores } = provResult;
+
+    const meses = Array.from({ length: 12 }, (_, i) => ({
+      mes: i + 1, nombre: MESES_ES[i + 1],
+      ingresos: 0, gastos: 0, gastos_por_departamento: {}
+    }));
+
+    facturas.forEach(f => {
+      if (!f.fecha_emision) return;
+      const partes = f.fecha_emision.split('/'); // dd/mm/yyyy
+      if (partes.length !== 3) return;
+      const mes = parseInt(partes[1]), anioFactura = parseInt(partes[2]);
+      if (anioFactura !== anio || mes < 1 || mes > 12) return;
+      meses[mes - 1].ingresos += parseFloat(f.importe_con_iva) || 0;
+    });
+
+    facturasProveedores.forEach(f => {
+      const mes = parseInt(f.mes), anioFactura = parseInt(f.anio);
+      if (anioFactura !== anio || mes < 1 || mes > 12) return;
+      const total = parseFloat(f.importeTotal) || 0;
+      meses[mes - 1].gastos += total;
+      (f.desglose_departamentos || []).forEach(d => {
+        // Reparto guardado sobre la base sin IVA - se escala proporcionalmente
+        // al total con IVA para que el desglose por departamento sume el
+        // mismo total que "gastos" (coherencia visual, mismo criterio que ya
+        // usa Facturas Proveedores en su resumen por departamento).
+        meses[mes - 1].gastos_por_departamento[d.departamento] = (meses[mes - 1].gastos_por_departamento[d.departamento] || 0) + d.importe;
+      });
+    });
+
+    const mesesRedondeados = meses.map(m => ({
+      mes: m.mes, nombre: m.nombre,
+      ingresos: Math.round(m.ingresos * 100) / 100,
+      gastos: Math.round(m.gastos * 100) / 100,
+      beneficio: Math.round((m.ingresos - m.gastos) * 100) / 100,
+      margen: m.ingresos > 0.05 ? Math.round(((m.ingresos - m.gastos) / m.ingresos) * 1000) / 10 : 0,
+      gastos_por_departamento: Object.keys(m.gastos_por_departamento)
+        .map(dep => ({ departamento: dep, total: Math.round(m.gastos_por_departamento[dep] * 100) / 100 }))
+        .sort((a, b) => b.total - a.total)
+    }));
+
+    const totalIngresos = mesesRedondeados.reduce((s, m) => s + m.ingresos, 0);
+    const totalGastos = mesesRedondeados.reduce((s, m) => s + m.gastos, 0);
+    res.json({
+      anio, meses: mesesRedondeados,
+      totales_anio: {
+        ingresos: Math.round(totalIngresos * 100) / 100,
+        gastos: Math.round(totalGastos * 100) / 100,
+        beneficio: Math.round((totalIngresos - totalGastos) * 100) / 100,
+        margen: totalIngresos > 0.05 ? Math.round(((totalIngresos - totalGastos) / totalIngresos) * 1000) / 10 : 0
+      }
+    });
+  } catch (err) {
+    console.error('Error en /api/cierre-mensual:', err);
+    res.status(500).json({ error: 'Error al calcular el cierre mensual: ' + err.message });
   }
 });
 

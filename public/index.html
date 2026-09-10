@@ -768,6 +768,8 @@ const MENU = [
       { id: 'fin-resumen', label: 'Resumen', onClick: () => cargarFinancieroResumen() },
       { id: 'fin-control-pagos', label: 'Control de pagos', onClick: () => cargarFinanciero() },
       { id: 'fin-vencidas', label: 'Vencidas y morosidad', onClick: () => cargarFinancieroVencidas() },
+      { id: 'fin-cierre-mensual', label: 'Cierre Mensual', onClick: () => cargarCierreMensual() },
+      { id: 'fin-personal', label: 'Personal', onClick: () => renderProximamente('Financiero · Personal') },
       { id: 'fin-fianzas', label: 'Fianzas', onClick: () => cargarFianzas() },
       { id: 'fin-historico', label: 'Histórico mensual', onClick: () => renderProximamente('Financiero · Histórico mensual') },
       { id: 'fin-auditoria', label: 'Auditoría / Alertas', onClick: () => cargarFinancieroAuditoria() },
@@ -1175,6 +1177,127 @@ function renderTablaVencidas(listaOriginal) {
       </tr>
     `;
   }).join('');
+}
+// ================================================================
+// CIERRE MENSUAL (10 sep 2026) — Financiero → Cierre Mensual. Fase 1: vista
+// visual del año (tarjetas + gráfico de barras + tabla por mes con desglose
+// de gastos por departamento al hacer clic). Ingresos = facturas Rentman,
+// Gastos = Facturas Proveedores ya repartidas por departamento. Personal
+// (nóminas) e Impuestos se suman en una fase siguiente.
+// ================================================================
+let cierreMensualDataActual = null;
+let mesSeleccionadoCierre = null;
+async function cargarCierreMensual() {
+  document.getElementById('content-title').textContent = 'Financiero · Cierre Mensual';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Calculando cierre del año...</p>';
+  try {
+    const anio = new Date().getFullYear();
+    const resp = await fetch('/api/cierre-mensual?anio=' + anio);
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    cierreMensualDataActual = data;
+    // Por defecto, el último mes que ya tiene algún dato (ingreso o gasto).
+    const mesesConDatos = data.meses.filter(m => m.ingresos > 0 || m.gastos > 0);
+    mesSeleccionadoCierre = mesesConDatos.length ? mesesConDatos[mesesConDatos.length - 1].mes : data.meses[0].mes;
+    pintarCierreMensual(data);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+function barrasCierreSVG(meses) {
+  const w = 900, h = 260, padL = 10, padR = 10, padT = 10, padB = 28;
+  const areaW = w - padL - padR, areaH = h - padT - padB;
+  const max = Math.max(1, ...meses.map(m => Math.max(m.ingresos, m.gastos)));
+  const grupoW = areaW / meses.length;
+  const barW = grupoW * 0.32;
+  let barras = '';
+  meses.forEach((m, i) => {
+    const cx = padL + grupoW * i + grupoW / 2;
+    const hIng = (m.ingresos / max) * areaH;
+    const hGas = (m.gastos / max) * areaH;
+    const activo = m.mes === mesSeleccionadoCierre;
+    barras += `
+      <rect x="${cx - barW - 2}" y="${padT + areaH - hIng}" width="${barW}" height="${hIng}" fill="#4C8C2B" opacity="${activo ? 1 : 0.75}" rx="2"/>
+      <rect x="${cx + 2}" y="${padT + areaH - hGas}" width="${barW}" height="${hGas}" fill="#C24545" opacity="${activo ? 1 : 0.75}" rx="2"/>
+      <rect x="${cx - grupoW / 2}" y="${padT}" width="${grupoW}" height="${areaH + padB}" fill="transparent" style="cursor:pointer;" onclick="seleccionarMesCierre(${m.mes})"/>
+      <text x="${cx}" y="${h - 8}" text-anchor="middle" font-size="11" fill="${activo ? '#1a1a18' : '#9a988f'}" font-weight="${activo ? '600' : '400'}">${m.nombre.slice(0, 3)}</text>
+    `;
+  });
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${barras}</svg>`;
+}
+function seleccionarMesCierre(mes) {
+  mesSeleccionadoCierre = mes;
+  pintarCierreMensual(cierreMensualDataActual);
+}
+function pintarCierreMensual(data) {
+  const body = document.getElementById('content-body');
+  const t = data.totales_anio;
+  const mesData = data.meses.find(m => m.mes === mesSeleccionadoCierre) || data.meses[0];
+  const filasDepto = mesData.gastos_por_departamento.length
+    ? mesData.gastos_por_departamento.map(d => `
+        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:0.5px solid #ece9e2; font-size:13px;">
+          <span style="color:#4a4944;">${d.departamento}</span>
+          <b>${euros(d.total)}</b>
+        </div>`).join('')
+    : '<p style="color:#9a988f; font-size:13px; margin:0;">Sin gastos de proveedores clasificados este mes.</p>';
+  const margenColor = mesData.beneficio >= 0 ? '#173404' : '#501313';
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <p style="font-size:13px; color:#6b6a64; margin:0;">Año ${data.anio}</p>
+    </div>
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:1.5rem;">
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Ingresos ${data.anio}</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${euros(t.ingresos)}</p>
+      </div>
+      <div style="background:#FCEEEE; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#A32D2D; margin:0 0 6px;">Gastos ${data.anio}</p>
+        <p style="font-size:22px; font-weight:500; color:#501313; margin:0;">${euros(t.gastos)}</p>
+      </div>
+      <div style="background:#EAF3DE; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#27500A; margin:0 0 6px;">Beneficio</p>
+        <p style="font-size:22px; font-weight:500; color:#173404; margin:0;">${euros(t.beneficio)}</p>
+      </div>
+      <div style="background:#FAEEDA; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#854F0B; margin:0 0 6px;">Margen</p>
+        <p style="font-size:22px; font-weight:500; color:#412402; margin:0;">${t.margen}%</p>
+      </div>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem 0.5rem; margin-bottom:1.5rem;">
+      <div style="display:flex; gap:16px; align-items:center; margin-bottom:8px;">
+        <span style="font-size:13px; font-weight:500; color:#1a1a18;">Ingresos vs Gastos por mes</span>
+        <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6b6a64;"><span style="width:10px; height:10px; border-radius:2px; background:#4C8C2B; display:inline-block;"></span>Ingresos</span>
+        <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6b6a64;"><span style="width:10px; height:10px; border-radius:2px; background:#C24545; display:inline-block;"></span>Gastos</span>
+        <span style="font-size:11px; color:#9a988f; margin-left:auto;">Clic en un mes para ver su detalle abajo</span>
+      </div>
+      ${barrasCierreSVG(data.meses)}
+    </div>
+    <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap:1.5rem; align-items:start;">
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+        <table>
+          <thead><tr><th>Mes</th><th style="text-align:right;">Ingresos</th><th style="text-align:right;">Gastos</th><th style="text-align:right;">Beneficio</th><th style="text-align:right;">Margen</th></tr></thead>
+          <tbody>
+            ${data.meses.map(m => `
+              <tr style="cursor:pointer; ${m.mes === mesSeleccionadoCierre ? 'background:#FBF7EE;' : ''}" onclick="seleccionarMesCierre(${m.mes})">
+                <td style="${m.mes === mesSeleccionadoCierre ? 'font-weight:600;' : ''}">${m.nombre}</td>
+                <td style="text-align:right;">${euros(m.ingresos)}</td>
+                <td style="text-align:right;">${euros(m.gastos)}</td>
+                <td style="text-align:right; font-weight:500; color:${m.beneficio >= 0 ? '#27500A' : '#A32D2D'};">${euros(m.beneficio)}</td>
+                <td style="text-align:right;">${m.ingresos > 0 ? m.margen + '%' : '—'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem;">
+        <p style="font-size:13px; font-weight:500; color:#1a1a18; margin:0 0 4px;">Gastos por departamento — ${mesData.nombre}</p>
+        <p style="font-size:12px; color:${margenColor}; margin:0 0 10px;">Beneficio del mes: ${euros(mesData.beneficio)}</p>
+        ${filasDepto}
+      </div>
+    </div>
+  `;
+  body.innerHTML = html;
 }
 // ================================================================
 // FIANZAS — estado en vivo desde Rentman. Objetivo del usuario: cuando
