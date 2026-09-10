@@ -1106,6 +1106,7 @@ function pintarVencidas(data) {
       </div>
     </div>
     <div style="display:flex; gap:8px; margin-bottom:1rem; align-items:center;">
+      <span id="total-filtrado-vencidas" style="font-size:13px; color:#6b6a64;"></span>
       <div class="search-box" style="margin-left:auto;">
         <input type="text" id="buscador-vencidas" placeholder="Buscar cliente o nº factura..." oninput="aplicarFiltroVencidas()">
       </div>
@@ -1152,6 +1153,11 @@ function flechaOrdenVencidas(campo) {
 function renderTablaVencidas(listaOriginal) {
   const tbody = document.getElementById('tabla-vencidas-body');
   const lista = ordenarLista(listaOriginal, ordenVencidas);
+  const elTotal = document.getElementById('total-filtrado-vencidas');
+  if (elTotal) {
+    const totalFiltrado = lista.reduce((sum, f) => sum + (parseFloat(f.pendiente_cobro) || 0), 0);
+    elTotal.textContent = lista.length + (lista.length === 1 ? ' factura · ' : ' facturas · ') + euros(totalFiltrado);
+  }
   if (lista.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">No hay facturas vencidas con este filtro.</td></tr>';
     return;

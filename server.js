@@ -577,18 +577,6 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       .map(c => ({ comercial: c, total: Math.round(facturadoPorComercial[c] * 100) / 100 }))
       .sort((a, b) => b.total - a.total);
 
-    const pendientePorCliente = {};
-    cruceProyectos.forEach(p => {
-      if (p.pendiente_cobrar <= 0.05) return;
-      const clave = p.cliente || 'Sin cliente';
-      if (!pendientePorCliente[clave]) pendientePorCliente[clave] = { cliente: clave, comercial: p.comercial, pendiente: 0, proyectos: [] };
-      pendientePorCliente[clave].pendiente += p.pendiente_cobrar;
-      pendientePorCliente[clave].proyectos.push(p.numero);
-    });
-    const topClientesPendientes = Object.values(pendientePorCliente)
-      .map(c => ({ ...c, pendiente: Math.round(c.pendiente * 100) / 100 }))
-      .sort((a, b) => b.pendiente - a.pendiente).slice(0, 20);
-
     // NUEVO (3 sep 2026): pestaña Financiero → Clientes - salud financiera
     // basada en lo que dice RENTMAN (esta_pagada/pendiente_cobro), NO en lo
     // registrado en Caja como topClientesPendientes de arriba - esa otra
@@ -605,7 +593,7 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
           cliente: clave, comercial: cf.comercial,
           total_facturado: 0, total_pendiente: 0, total_rectificativas: 0,
           n_facturas: 0, n_pendientes: 0, n_vencidas: 0,
-          dias_retraso_max: 0, fecha_vencimiento_mas_antigua: null
+          dias_retraso_max: 0, fecha_vencimiento_mas_antigua: null, proyectos: []
         };
       }
       const c = clientesMap[clave];
@@ -620,6 +608,7 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       if (pendiente <= 0.05) return;
       c.total_pendiente += pendiente;
       c.n_pendientes++;
+      if (cf.proyecto_numero != null && !c.proyectos.includes(cf.proyecto_numero)) c.proyectos.push(cf.proyecto_numero);
       if (cf.dias_retraso !== null && cf.dias_retraso > 0) {
         c.n_vencidas++;
         if (cf.dias_retraso > c.dias_retraso_max) c.dias_retraso_max = cf.dias_retraso;
@@ -639,6 +628,19 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       supera_limite_credito: c.total_pendiente > LIMITE_CREDITO_CLIENTE,
       limite_credito: LIMITE_CREDITO_CLIENTE
     }));
+
+    // FIX (10 sep 2026): "Top clientes con pendiente de cobro" vivía antes de
+    // cruceProyectos (valor de proyecto, incluía PNC/abrebotellas calculados
+    // sobre "valor esperado" en vez de facturas reales - clientes como
+    // abrebotellas aparecían con pendiente que no era deuda de factura de
+    // verdad). Ahora se construye desde clientesLista: solo facturas reales,
+    // mismo pendiente_cobro de Rentman que ya usa Vencidas y morosidad -
+    // misma fuente fiable, sin mezclar valor de proyecto.
+    const topClientesPendientes = clientesLista
+      .filter(c => c.total_pendiente > 0.05)
+      .map(c => ({ cliente: c.cliente, comercial: c.comercial, proyectos: c.proyectos, pendiente: c.total_pendiente }))
+      .sort((a, b) => b.pendiente - a.pendiente)
+      .slice(0, 20);
 
     const pncCuadran = crucePNC.filter(p => p.cuadra).length;
     const proyectosPendientesFacturar = cruceProyectos.filter(p => !p.es_pnc && Math.abs(p.pendiente_facturar) >= 0.05).length;
