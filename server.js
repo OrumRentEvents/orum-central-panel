@@ -1712,22 +1712,108 @@ app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (re
 });
 
 // ================================================================
+// GASTOS ANUALES (10 sep 2026) — Financiero → Config. Pagos Anuales.
+// Partidas que se pagan de golpe una vez al año (seguros de vehículos,
+// impuestos, IBI, IAE...) pero que Cierre Mensual reparte a partes iguales
+// entre los 12 meses del año — mismo criterio que ya hacía a mano el
+// Excel (columna "(ANUAL X€)" dividida entre 12).
+//
+// Tabla Supabase nueva - crear UNA VEZ desde el SQL editor de Supabase:
+//   create table gastos_anuales (
+//     id bigint generated always as identity primary key,
+//     concepto text not null,
+//     categoria text not null,
+//     importe_anual numeric not null default 0,
+//     anio integer not null,
+//     notas text,
+//     creado_por text,
+//     created_at timestamptz not null default now()
+//   );
+// ================================================================
+const CATEGORIAS_GASTO_ANUAL = ['Impuestos', 'Seguros Vehículos', 'Seguros Propiedades', 'Suministros', 'Financiación', 'Alquiler / Renting', 'Otros'];
+
+app.get('/api/gastos-anuales', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio) || new Date().getFullYear();
+    const { data, error } = await supabase.from('gastos_anuales').select('*').eq('anio', anio).order('categoria').order('concepto');
+    if (error) throw error;
+    res.json({
+      ok: true, categorias: CATEGORIAS_GASTO_ANUAL,
+      data: (data || []).map(r => ({ ...r, importe_mensual: Math.round((parseFloat(r.importe_anual) || 0) / 12 * 100) / 100 }))
+    });
+  } catch (err) {
+    console.error('Error en /api/gastos-anuales:', err);
+    res.status(500).json({ error: 'Error al leer gastos anuales: ' + err.message });
+  }
+});
+
+app.post('/api/gastos-anuales', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.concepto || !b.categoria || b.importe_anual === undefined || b.importe_anual === '') {
+      return res.status(400).json({ error: 'Concepto, categoría e importe anual son obligatorios' });
+    }
+    const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+    const { data, error } = await supabase.from('gastos_anuales').insert({
+      concepto: b.concepto, categoria: b.categoria, importe_anual: Number(b.importe_anual) || 0,
+      anio: parseInt(b.anio) || new Date().getFullYear(), notas: b.notas || null, creado_por: usuario
+    }).select().single();
+    if (error) throw error;
+    res.json({ ok: true, gasto: data });
+  } catch (err) {
+    console.error('Error en POST /api/gastos-anuales:', err);
+    res.status(500).json({ error: 'Error al guardar: ' + err.message });
+  }
+});
+
+app.put('/api/gastos-anuales/:id', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const b = req.body;
+    const campos = {};
+    if (b.concepto !== undefined) campos.concepto = b.concepto;
+    if (b.categoria !== undefined) campos.categoria = b.categoria;
+    if (b.importe_anual !== undefined) campos.importe_anual = Number(b.importe_anual) || 0;
+    if (b.anio !== undefined) campos.anio = parseInt(b.anio) || new Date().getFullYear();
+    if (b.notas !== undefined) campos.notas = b.notas || null;
+    const { error } = await supabase.from('gastos_anuales').update(campos).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error en PUT /api/gastos-anuales:', err);
+    res.status(500).json({ error: 'Error al actualizar: ' + err.message });
+  }
+});
+
+app.delete('/api/gastos-anuales/:id', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const { error } = await supabase.from('gastos_anuales').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar: ' + err.message });
+  }
+});
+
+// ================================================================
 // CIERRE MENSUAL (10 sep 2026) — Financiero → Cierre Mensual. Fase 1: solo
 // datos ya automatizados (Ingresos = facturas de Rentman vía ORUM CENTRAL,
-// Gastos = Facturas Proveedores ya repartidas por departamento). Personal
-// (nóminas) e Impuestos quedan fuera de esta fase - se suman más adelante
-// cuando exista una fuente de datos para ellos (usuario los subirá aparte).
+// Gastos = Facturas Proveedores ya repartidas por departamento + Gastos
+// Anuales repartidos entre 12 meses). Personal (nóminas) queda fuera de
+// esta fase - se suma más adelante cuando el usuario suba el Excel.
 // ================================================================
 app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
 
-    const [facturasResp, provResult] = await Promise.all([
+    const [facturasResp, provResult, gastosAnualesResp] = await Promise.all([
       llamarOrumCentral('facturas'),
-      obtenerFacturasProveedoresEnriquecidas()
+      obtenerFacturasProveedoresEnriquecidas(),
+      supabase.from('gastos_anuales').select('*').eq('anio', anio)
     ]);
     const facturas = facturasResp.data || [];
     const { facturasEnriquecidas: facturasProveedores } = provResult;
+    if (gastosAnualesResp.error) throw gastosAnualesResp.error;
+    const gastosAnuales = gastosAnualesResp.data || [];
 
     const meses = Array.from({ length: 12 }, (_, i) => ({
       mes: i + 1, nombre: MESES_ES[i + 1],
@@ -1755,6 +1841,17 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
         // usa Facturas Proveedores en su resumen por departamento).
         meses[mes - 1].gastos_por_departamento[d.departamento] = (meses[mes - 1].gastos_por_departamento[d.departamento] || 0) + d.importe;
       });
+    });
+
+    // Gastos anuales (seguros, impuestos...) repartidos a partes iguales
+    // entre los 12 meses — se suman a "gastos" y aparecen en el desglose
+    // junto a los departamentos de Facturas Proveedores, bajo su categoría.
+    gastosAnuales.forEach(g => {
+      const mensual = (parseFloat(g.importe_anual) || 0) / 12;
+      for (let i = 0; i < 12; i++) {
+        meses[i].gastos += mensual;
+        meses[i].gastos_por_departamento[g.categoria] = (meses[i].gastos_por_departamento[g.categoria] || 0) + mensual;
+      }
     });
 
     const mesesRedondeados = meses.map(m => ({

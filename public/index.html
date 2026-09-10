@@ -778,6 +778,7 @@ const MENU = [
       { id: 'fin-caja', label: 'Caja', onClick: () => window.open('https://caja-orum-production.up.railway.app', '_blank') },
       { id: 'fin-fact-listado', label: 'Facturas Proveedores', onClick: () => cargarFacturasProveedores() },
       { id: 'fin-fact-config', label: 'Config. Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
+      { id: 'fin-gastos-anuales', label: 'Config. Pagos Anuales', onClick: () => cargarGastosAnuales() },
   ]},
   { id: 'comercial', icon: '⭐', label: 'Comercial', submenu: [
       { id: 'com-resumen', label: 'Resumen', onClick: () => cargarResumenComercial() },
@@ -1298,6 +1299,140 @@ function pintarCierreMensual(data) {
     </div>
   `;
   body.innerHTML = html;
+}
+// ================================================================
+// CONFIG. PAGOS ANUALES (10 sep 2026) — Financiero → Config. Pagos Anuales.
+// Aquí se dan de alta las partidas que se pagan una vez al año (seguros de
+// vehículos, impuestos, IBI, IAE...) con su importe anual; Cierre Mensual
+// las reparte solo entre los 12 meses (importe_anual / 12). No hace falta
+// tocarlas cada mes, solo cuando cambie la cuota (renovación de seguro,
+// nuevo recibo de impuesto...).
+// ================================================================
+let gastosAnualesGlobal = { anio: new Date().getFullYear(), categorias: [], data: [] };
+async function cargarGastosAnuales() {
+  document.getElementById('content-title').textContent = 'Financiero · Config. Pagos Anuales';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetch('/api/gastos-anuales?anio=' + gastosAnualesGlobal.anio);
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + data.error + '</p>'; return; }
+    gastosAnualesGlobal.categorias = data.categorias || [];
+    gastosAnualesGlobal.data = data.data || [];
+    pintarGastosAnuales();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+function cambiarAnioGastosAnuales(anio) {
+  gastosAnualesGlobal.anio = parseInt(anio);
+  cargarGastosAnuales();
+}
+function filaGastoAnualHtml(g) {
+  const id = g.id;
+  const opcionesCategoria = gastosAnualesGlobal.categorias.map(c => `<option value="${c}" ${c === g.categoria ? 'selected' : ''}>${c}</option>`).join('');
+  return `
+    <tr id="fila-gasto-anual-${id}">
+      <td><input type="text" value="${(g.concepto || '').replace(/"/g, '&quot;')}" onblur="actualizarGastoAnualUI(${id}, 'concepto', this.value)" style="width:100%; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px;" onfocus="this.style.border='1px solid #e2e2de'"></td>
+      <td><select onchange="actualizarGastoAnualUI(${id}, 'categoria', this.value)" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">${opcionesCategoria}</select></td>
+      <td style="text-align:right;"><input type="number" step="0.01" value="${g.importe_anual}" onblur="actualizarGastoAnualUI(${id}, 'importe_anual', this.value)" style="width:100px; text-align:right; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px;" onfocus="this.style.border='1px solid #e2e2de'"></td>
+      <td style="text-align:right; color:#6b6a64;">${euros(g.importe_mensual)}<span style="color:#c9c7bf;"> /mes</span></td>
+      <td><input type="text" value="${(g.notas || '').replace(/"/g, '&quot;')}" placeholder="matrícula, referencia..." onblur="actualizarGastoAnualUI(${id}, 'notas', this.value)" style="width:100%; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px; color:#6b6a64;" onfocus="this.style.border='1px solid #e2e2de'"></td>
+      <td style="text-align:center;"><button onclick="eliminarGastoAnual(${id})" title="Eliminar" style="border:none; background:transparent; color:#A32D2D; cursor:pointer; font-size:15px;">🗑️</button></td>
+    </tr>
+  `;
+}
+function pintarGastosAnuales() {
+  const body = document.getElementById('content-body');
+  const anioActual = new Date().getFullYear();
+  const opcionesAnio = [anioActual - 1, anioActual, anioActual + 1].map(a => `<option value="${a}" ${a === gastosAnualesGlobal.anio ? 'selected' : ''}>${a}</option>`).join('');
+  const totalAnual = gastosAnualesGlobal.data.reduce((s, g) => s + (parseFloat(g.importe_anual) || 0), 0);
+  const opcionesCategoriaNueva = gastosAnualesGlobal.categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+  let html = `
+    <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Da de alta aquí las partidas que se pagan una vez al año (seguros de vehículos, impuestos, IBI, IAE...). El importe anual se reparte solo entre los 12 meses en <span style="cursor:pointer; text-decoration:underline;" onclick="marcarMenuActivo('menu-item-fin-cierre-mensual'); cargarCierreMensual();">Cierre Mensual</span>.</p>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label style="font-size:13px; color:#6b6a64;">Año</label>
+        <select onchange="cambiarAnioGastosAnuales(this.value)" style="font-size:13px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesAnio}</select>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:0.6rem 1rem; text-align:right;">
+        <p style="font-size:11px; color:#6b6a64; margin:0;">Total anual</p>
+        <p style="font-size:16px; font-weight:500; margin:0;">${euros(totalAnual)} <span style="font-size:12px; color:#9a988f; font-weight:400;">(${euros(totalAnual / 12)}/mes)</span></p>
+      </div>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+      <table>
+        <thead><tr><th>Concepto</th><th>Categoría</th><th style="text-align:right;">Importe anual</th><th style="text-align:right;">Importe mensual</th><th>Notas</th><th></th></tr></thead>
+        <tbody id="tabla-gastos-anuales-body">
+          ${gastosAnualesGlobal.data.map(filaGastoAnualHtml).join('') || '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">Sin pagos anuales configurados para ' + gastosAnualesGlobal.anio + '.</td></tr>'}
+        </tbody>
+        <tfoot>
+          <tr style="background:#FBF7EE;">
+            <td><input type="text" id="nuevo-gasto-concepto" placeholder="Ej: Seguro 6625MYZ Iveco Daily" style="width:100%; border:1px solid #e2e2de; padding:5px 6px; border-radius:4px; font-size:13px;"></td>
+            <td><select id="nuevo-gasto-categoria" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">${opcionesCategoriaNueva}</select></td>
+            <td style="text-align:right;"><input type="number" step="0.01" id="nuevo-gasto-importe" placeholder="0,00" style="width:100px; text-align:right; border:1px solid #e2e2de; padding:5px 6px; border-radius:4px; font-size:13px;"></td>
+            <td></td>
+            <td><input type="text" id="nuevo-gasto-notas" placeholder="Opcional" style="width:100%; border:1px solid #e2e2de; padding:5px 6px; border-radius:4px; font-size:13px;"></td>
+            <td style="text-align:center;"><button onclick="anadirGastoAnual()" style="border:none; background:#1a1a18; color:#fff; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px;">+ Añadir</button></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
+  body.innerHTML = html;
+}
+async function actualizarGastoAnualUI(id, campo, valor) {
+  try {
+    const resp = await fetch('/api/gastos-anuales/' + id, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [campo]: valor })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    const g = gastosAnualesGlobal.data.find(x => x.id === id);
+    if (g) {
+      g[campo] = valor;
+      if (campo === 'importe_anual') {
+        g.importe_mensual = Math.round((parseFloat(valor) || 0) / 12 * 100) / 100;
+        pintarGastosAnuales();
+      }
+    }
+  } catch (err) {
+    alert('Error al guardar: ' + err.message);
+  }
+}
+async function eliminarGastoAnual(id) {
+  if (!confirm('¿Eliminar este pago anual? No se podrá deshacer.')) return;
+  try {
+    const resp = await fetch('/api/gastos-anuales/' + id, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    gastosAnualesGlobal.data = gastosAnualesGlobal.data.filter(g => g.id !== id);
+    pintarGastosAnuales();
+  } catch (err) {
+    alert('Error al eliminar: ' + err.message);
+  }
+}
+async function anadirGastoAnual() {
+  const concepto = document.getElementById('nuevo-gasto-concepto').value.trim();
+  const categoria = document.getElementById('nuevo-gasto-categoria').value;
+  const importe_anual = document.getElementById('nuevo-gasto-importe').value;
+  const notas = document.getElementById('nuevo-gasto-notas').value.trim();
+  if (!concepto || !importe_anual) { alert('Concepto e importe anual son obligatorios.'); return; }
+  try {
+    const resp = await fetch('/api/gastos-anuales', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ concepto, categoria, importe_anual, notas, anio: gastosAnualesGlobal.anio })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    const g = data.gasto;
+    g.importe_mensual = Math.round((parseFloat(g.importe_anual) || 0) / 12 * 100) / 100;
+    gastosAnualesGlobal.data.push(g);
+    pintarGastosAnuales();
+  } catch (err) {
+    alert('Error al guardar: ' + err.message);
+  }
 }
 // ================================================================
 // FIANZAS — estado en vivo desde Rentman. Objetivo del usuario: cuando
