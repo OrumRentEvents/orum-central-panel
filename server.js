@@ -34,6 +34,13 @@ const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN || 'ORUMx2026CentralData
 const RUTAS_SCRIPT_URL = process.env.RUTAS_SCRIPT_URL || '';
 const RUTAS_SCRIPT_TOKEN = 'ORUMx2026#Rutas$Stats';
 
+// ── Hoja de Sheets "HORAS EXTRAS 2026" (Financiero → Personal → Extras) ──
+// Compartida por el usuario como "Cualquiera con el enlace, Lector" (11 sep
+// 2026) — se lee en vivo vía el endpoint público de Google Visualization
+// (gviz), sin necesidad de OAuth ni Apps Script, pidiendo la pestaña
+// "PAGOS <MES> <AÑO>" por nombre. Ver sincronizarExtrasDelMes() más abajo.
+const EXTRAS_SHEET_ID = process.env.EXTRAS_SHEET_ID || '1CSit6DHHhpiCT63791dPu_SvgPsjohKQJhtfHCdWlbs';
+
 // ── Fianzas (9 sep 2026, v2) ────────────────────────────────────
 // El estado de la fianza vive en Rentman (campos personalizados del
 // proyecto, panel "FIANZA" en la UI). /api/fianzas ya NO lo lee en vivo -
@@ -1935,23 +1942,30 @@ function parsearNominaXLS(buffer) {
   return { anio, mes, empresaNombre, empresaNif, empleados };
 }
 
-// GET del año completo: detalle por trabajador/mes + la lista de
-// departamentos asignados. El frontend construye desde aquí el histórico de
-// nóminas subidas, el informe (por depto/trabajador, meses seleccionables) y
-// la config de departamentos, sin más idas y vueltas al servidor.
+// GET del año completo de TODO Personal (nóminas + extras) + las 2 listas
+// de departamentos. El frontend construye desde aquí el histórico de
+// nóminas/extras, el informe (por depto/trabajador, meses seleccionables) y
+// las 2 config de departamentos, sin más idas y vueltas al servidor.
 app.get('/api/nominas/anio', requiereLogin, soloPersonal, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
-    const [detalleResp, deptoResp] = await Promise.all([
+    const [detalleResp, deptoResp, extrasResp, extrasDeptoResp] = await Promise.all([
       supabase.from('nominas_detalle').select('*').eq('anio', anio).order('mes').order('empresa_nombre').order('nombre'),
-      supabase.from('empleados_departamento').select('*').order('empresa_nombre').order('nombre')
+      supabase.from('empleados_departamento').select('*').order('empresa_nombre').order('nombre'),
+      supabase.from('extras_detalle').select('*').eq('anio', anio).order('mes').order('nombre'),
+      supabase.from('extras_departamento').select('*').order('nombre')
     ]);
     if (detalleResp.error) throw detalleResp.error;
     if (deptoResp.error) throw deptoResp.error;
-    res.json({ ok: true, anio, detalle: detalleResp.data || [], departamentos: deptoResp.data || [] });
+    if (extrasResp.error) throw extrasResp.error;
+    if (extrasDeptoResp.error) throw extrasDeptoResp.error;
+    res.json({
+      ok: true, anio, detalle: detalleResp.data || [], departamentos: deptoResp.data || [],
+      extras: extrasResp.data || [], extras_departamentos: extrasDeptoResp.data || []
+    });
   } catch (err) {
     console.error('Error en /api/nominas/anio:', err);
-    res.status(500).json({ error: 'Error al leer nóminas: ' + err.message });
+    res.status(500).json({ error: 'Error al leer datos de Personal: ' + err.message });
   }
 });
 
@@ -2035,23 +2049,163 @@ app.post('/api/empleados-departamento', requiereLogin, soloPersonal, async (req,
 });
 
 // ================================================================
+// GASTOS DE PERSONAL — EXTRAS (11 sep 2026) — Financiero → Personal →
+// Extras. Segundo gasto de Personal, junto a Nóminas: horas extra/festivos
+// pagadas, llevadas por el usuario en la hoja "HORAS EXTRAS 2026" (una
+// pestaña "PAGOS <MES> <AÑO>" por mes, con el total ya calculado por
+// trabajador en la columna "A PAGAR (€)" — la propia hoja también lleva el
+// saldo de días de descanso compensados, que no es gasto en € y no se lee
+// aquí). Se sincroniza con un botón manual (igual que "Actualizar facturas"
+// en Facturas Proveedores) en vez de leerse en vivo en cada carga, para no
+// depender de Google en cada visita a Cierre Mensual.
+//
+// Los nombres en esta hoja son informales ("Conchi", "Joaquin", sin
+// apellidos) y no se corresponden 1:1 con el "APELLIDOS, Nombre" de
+// nominas_detalle - se decidió (11 sep 2026) NO intentar casarlos por
+// nombre (poco fiable) sino llevar un reparto a departamento
+// independiente, propio de Extras (tabla extras_departamento, clave =
+// nombre tal cual aparece en la hoja).
+//
+// Tablas Supabase nuevas - crear UNA VEZ desde el SQL editor de Supabase:
+//   create table extras_detalle (
+//     id bigint generated always as identity primary key,
+//     anio integer not null,
+//     mes integer not null,
+//     nombre text not null,
+//     extras integer not null default 0,
+//     importe numeric not null default 0,
+//     updated_at timestamptz not null default now(),
+//     unique (anio, mes, nombre)
+//   );
+//   create table extras_departamento (
+//     nombre text primary key,
+//     departamento text,
+//     updated_at timestamptz not null default now()
+//   );
+// ================================================================
+
+// Parser CSV mínimo para el export de gviz (siempre entrecomilla cada
+// campo y escapa comillas internas como "" — no hace falta más).
+function parseCSVGoogle(texto) {
+  const filas = [];
+  let fila = [], campo = '', dentroComillas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (dentroComillas) {
+      if (c === '"' && texto[i + 1] === '"') { campo += '"'; i++; }
+      else if (c === '"') dentroComillas = false;
+      else campo += c;
+    } else if (c === '"') dentroComillas = true;
+    else if (c === ',') { fila.push(campo); campo = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && texto[i + 1] === '\n') i++;
+      fila.push(campo); campo = ''; filas.push(fila); fila = [];
+    } else campo += c;
+  }
+  if (campo !== '' || fila.length > 0) { fila.push(campo); filas.push(fila); }
+  return filas.filter(f => f.length > 1 || f[0] !== '');
+}
+
+// "€5.388,00" / "€50,00" (formato español: punto miles, coma decimal) → número.
+function euroEspanolANumero(v) {
+  if (v == null) return 0;
+  const s = String(v).replace(/[€\s]/g, '').replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+}
+
+// Lee en vivo la pestaña "PAGOS <MES> <AÑO>" de la hoja de Extras. OJO: si
+// la pestaña no existe todavía (mes sin cerrar), gviz NO da error — devuelve
+// en silencio la primera pestaña del libro ("Respuestas de formulario 1"),
+// así que se valida que la cabecera tenga pinta de tabla de pagos antes de
+// confiar en el resultado; si no, se trata como "sin datos este mes".
+async function leerPagosExtrasDelMes(anio, mes) {
+  const nombrePestana = 'PAGOS ' + MESES_ES[mes].toUpperCase() + ' ' + anio;
+  const url = `https://docs.google.com/spreadsheets/d/${EXTRAS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(nombrePestana)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) return { encontrado: false, empleados: [] };
+  const filas = parseCSVGoogle(await resp.text());
+  if (filas.length < 2) return { encontrado: false, empleados: [] };
+  const cabecera = filas[0].map(normalizarCabeceraNomina);
+  if (!cabecera.some(c => c.includes('APAGAR'))) return { encontrado: false, empleados: [] };
+  const colExtras = cabecera.findIndex(c => c === 'EXTRAS');
+  const colImporte = cabecera.findIndex(c => c.includes('APAGAR'));
+  const empleados = [];
+  for (let i = 1; i < filas.length; i++) {
+    const fila = filas[i];
+    const nombre = (fila[0] || '').trim();
+    if (!nombre || nombre.toUpperCase().startsWith('TOTAL')) continue;
+    empleados.push({ nombre, extras: parseInt(fila[colExtras]) || 0, importe: euroEspanolANumero(fila[colImporte]) });
+  }
+  return { encontrado: true, empleados };
+}
+
+app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio) || new Date().getFullYear();
+    const mesesSincronizados = [], mesesSinDatos = [];
+    const filasExtras = [], nombresVistos = new Map();
+
+    for (let mes = 1; mes <= 12; mes++) {
+      const { encontrado, empleados } = await leerPagosExtrasDelMes(anio, mes);
+      if (!encontrado) { mesesSinDatos.push(mes); continue; }
+      mesesSincronizados.push(mes);
+      empleados.forEach(e => {
+        filasExtras.push({ anio, mes, nombre: e.nombre, extras: e.extras, importe: e.importe, updated_at: new Date().toISOString() });
+        nombresVistos.set(e.nombre, true);
+      });
+    }
+
+    if (filasExtras.length > 0) {
+      const { error: errExtras } = await supabase.from('extras_detalle').upsert(filasExtras, { onConflict: 'anio,mes,nombre' });
+      if (errExtras) throw errExtras;
+      const { error: errDepto } = await supabase.from('extras_departamento')
+        .upsert([...nombresVistos.keys()].map(nombre => ({ nombre })), { onConflict: 'nombre', ignoreDuplicates: true });
+      if (errDepto) throw errDepto;
+    }
+
+    res.json({ ok: true, anio, meses_sincronizados: mesesSincronizados, meses_sin_datos: mesesSinDatos, total_trabajadores: nombresVistos.size });
+  } catch (err) {
+    console.error('Error en /api/extras/sincronizar:', err);
+    res.status(500).json({ error: 'Error al sincronizar extras: ' + err.message });
+  }
+});
+
+app.post('/api/extras-departamento', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const asignaciones = req.body.asignaciones || [];
+    if (!Array.isArray(asignaciones) || asignaciones.length === 0) return res.status(400).json({ error: 'Nada que guardar.' });
+    const filas = asignaciones.map(a => ({ nombre: a.nombre, departamento: a.departamento || null, updated_at: new Date().toISOString() }));
+    const { error } = await supabase.from('extras_departamento').upsert(filas, { onConflict: 'nombre' });
+    if (error) throw error;
+    res.json({ ok: true, guardadas: filas.length });
+  } catch (err) {
+    console.error('Error en POST /api/extras-departamento:', err);
+    res.status(500).json({ error: 'Error al guardar: ' + err.message });
+  }
+});
+
+// ================================================================
 // CIERRE MENSUAL (10 sep 2026, ampliado 11 sep 2026) — Financiero → Cierre
 // Mensual. Ingresos = facturas de Rentman vía ORUM CENTRAL. Gastos =
 // Facturas Proveedores repartidas por departamento + Gastos Anuales
-// repartidos entre 12 meses + Personal (coste total de nóminas_detalle,
-// repartido según empleados_departamento). Extras (segundo gasto de
-// Personal) queda fuera todavía - pendiente el enlace de la hoja de Sheets.
+// repartidos entre 12 meses + Personal: nóminas_detalle (repartido según
+// empleados_departamento) + extras_detalle (repartido según
+// extras_departamento — sincronizado con el botón manual de Personal ·
+// Extras, no en vivo en cada carga de Cierre Mensual).
 // ================================================================
 app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
 
-    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp] = await Promise.all([
+    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp] = await Promise.all([
       llamarOrumCentral('facturas'),
       obtenerFacturasProveedoresEnriquecidas(),
       supabase.from('gastos_anuales').select('*').eq('anio', anio),
       supabase.from('nominas_detalle').select('mes, empresa_nif, num_empleado, coste_total').eq('anio', anio),
-      supabase.from('empleados_departamento').select('empresa_nif, num_empleado, departamento')
+      supabase.from('empleados_departamento').select('empresa_nif, num_empleado, departamento'),
+      supabase.from('extras_detalle').select('mes, nombre, importe').eq('anio', anio),
+      supabase.from('extras_departamento').select('nombre, departamento')
     ]);
     const facturas = facturasResp.data || [];
     const { facturasEnriquecidas: facturasProveedores } = provResult;
@@ -2059,9 +2213,14 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     const gastosAnuales = gastosAnualesResp.data || [];
     if (nominasResp.error) throw nominasResp.error;
     if (deptoResp.error) throw deptoResp.error;
+    if (extrasResp.error) throw extrasResp.error;
+    if (extrasDeptoResp.error) throw extrasDeptoResp.error;
     const nominas = nominasResp.data || [];
+    const extras = extrasResp.data || [];
     const mapaDeptoEmpleado = {};
     (deptoResp.data || []).forEach(d => { mapaDeptoEmpleado[d.empresa_nif + '|' + d.num_empleado] = d.departamento; });
+    const mapaDeptoExtras = {};
+    (extrasDeptoResp.data || []).forEach(d => { mapaDeptoExtras[d.nombre] = d.departamento; });
 
     const meses = Array.from({ length: 12 }, (_, i) => ({
       mes: i + 1, nombre: MESES_ES[i + 1],
@@ -2102,6 +2261,18 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       meses[mes - 1].gastos += coste;
       const depto = mapaDeptoEmpleado[n.empresa_nif + '|' + n.num_empleado] || 'Personal sin clasificar';
       meses[mes - 1].gastos_por_departamento[depto] = (meses[mes - 1].gastos_por_departamento[depto] || 0) + coste;
+    });
+
+    // Extras: mismo criterio, pero el reparto es por nombre (extras_departamento)
+    // en vez de por empresa+número — la hoja de extras no usa la numeración
+    // de la gestoría (ver comentario en /api/extras/sincronizar).
+    extras.forEach(e => {
+      const mes = parseInt(e.mes);
+      if (mes < 1 || mes > 12) return;
+      const importe = parseFloat(e.importe) || 0;
+      meses[mes - 1].gastos += importe;
+      const depto = mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
+      meses[mes - 1].gastos_por_departamento[depto] = (meses[mes - 1].gastos_por_departamento[depto] || 0) + importe;
     });
 
     // Gastos anuales (seguros, impuestos...) repartidos a partes iguales

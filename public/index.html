@@ -1446,9 +1446,10 @@ async function anadirGastoAnual() {
 // entero) con cualquiera de las dos agrupaciones, todo en el cliente sobre
 // los datos ya cargados del año, sin más peticiones al servidor.
 // ================================================================
-let personalGlobal = { anio: new Date().getFullYear(), detalle: [], departamentos: [], tab: 'nominas' };
+let personalGlobal = { anio: new Date().getFullYear(), detalle: [], departamentos: [], extras: [], extrasDepartamentos: [], tab: 'nominas' };
 let informePersonalMeses = new Set(Array.from({ length: 12 }, (_, i) => i + 1));
 let informePersonalAgrupacion = 'departamento';
+let informePersonalFuente = 'ambos'; // 'nominas' | 'extras' | 'ambos'
 
 async function cargarPersonal() {
   document.getElementById('content-title').textContent = 'Financiero · Personal';
@@ -1467,6 +1468,8 @@ async function recargarDatosPersonal() {
   if (data.error) throw new Error(data.error);
   personalGlobal.detalle = data.detalle || [];
   personalGlobal.departamentos = data.departamentos || [];
+  personalGlobal.extras = data.extras || [];
+  personalGlobal.extrasDepartamentos = data.extras_departamentos || [];
 }
 function cambiarAnioPersonal(anio) {
   personalGlobal.anio = parseInt(anio);
@@ -1599,21 +1602,79 @@ function pintarPersonalConfig() {
     return (a.empresa_nombre || '').localeCompare(b.empresa_nombre || '') || (a.nombre || '').localeCompare(b.nombre || '');
   });
   const filasHtml = lista.map(filaEmpleadoDeptoHtml).join('');
+  const listaExtras = [...personalGlobal.extrasDepartamentos].sort((a, b) => {
+    if (!a.departamento !== !b.departamento) return a.departamento ? 1 : -1;
+    return (a.nombre || '').localeCompare(b.nombre || '');
+  });
+  const filasExtrasHtml = listaExtras.map(filaExtraDeptoHtml).join('');
   cont.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; gap:1rem;">
-      <p style="font-size:13px; color:#6b6a64; margin:0;">Asigna un departamento a cada trabajador (se rellena solo, "sin clasificar", al subir una nómina con gente nueva).</p>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
+      <p style="font-size:14px; font-weight:500; margin:0;">Nóminas</p>
       <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
         <span id="estado-guardar-depto-personal" style="font-size:12px;"></span>
         <button onclick="guardarConfigPersonal()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
       </div>
     </div>
-    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Se rellena solo, "sin clasificar", al subir una nómina con gente nueva.</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden; margin-bottom:2rem;">
       <table>
         <thead><tr><th>Empresa</th><th>Nº</th><th>Trabajador</th><th>Departamento</th></tr></thead>
         <tbody id="tabla-personal-config-body">${filasHtml || '<tr><td colspan="4" style="padding:1.5rem 4px; color:#9a988f;">Sube una nómina primero para ver aquí a los trabajadores.</td></tr>'}</tbody>
       </table>
     </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
+      <p style="font-size:14px; font-weight:500; margin:0;">Extras</p>
+      <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
+        <span id="estado-guardar-depto-extras" style="font-size:12px;"></span>
+        <button onclick="guardarConfigExtras()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
+      </div>
+    </div>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Nombres tal cual vienen de la hoja de Extras — no se cruzan con la lista de Nóminas de arriba (formatos distintos), así que se clasifican aparte.</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+      <table>
+        <thead><tr><th>Trabajador (Extras)</th><th>Departamento</th></tr></thead>
+        <tbody id="tabla-personal-config-extras-body">${filasExtrasHtml || '<tr><td colspan="2" style="padding:1.5rem 4px; color:#9a988f;">Sincroniza Extras primero (pestaña Extras) para ver aquí a los trabajadores.</td></tr>'}</tbody>
+      </table>
+    </div>
   `;
+}
+function filaExtraDeptoHtml(e) {
+  const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === e.departamento ? 'selected' : ''}>${d}</option>`).join('');
+  const sinClasificar = !e.departamento;
+  return `
+    <tr data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${sinClasificar ? 'style="background:#FCEBEB;"' : ''}>
+      <td>${e.nombre || ''}</td>
+      <td>
+        <select class="select-depto-extras" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">
+          <option value="">Sin clasificar</option>
+          ${opciones}
+        </select>
+      </td>
+    </tr>
+  `;
+}
+async function guardarConfigExtras() {
+  const filas = document.querySelectorAll('#tabla-personal-config-extras-body tr[data-nombre]');
+  const asignaciones = [];
+  filas.forEach(fila => {
+    asignaciones.push({ nombre: fila.dataset.nombre, departamento: fila.querySelector('.select-depto-extras').value || null });
+  });
+  const estado = document.getElementById('estado-guardar-depto-extras');
+  estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
+  try {
+    const resp = await fetch('/api/extras-departamento', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asignaciones })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    estado.textContent = '✓ Guardado (' + data.guardadas + ')';
+    estado.style.color = '#27500A';
+    await recargarDatosPersonal();
+  } catch (err) {
+    estado.textContent = 'Error: ' + err.message;
+    estado.style.color = '#A32D2D';
+  }
 }
 function filaEmpleadoDeptoHtml(e) {
   const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === e.departamento ? 'selected' : ''}>${d}</option>`).join('');
@@ -1677,6 +1738,11 @@ function pintarPersonalInforme() {
           <button onclick="cambiarAgrupacionInforme('departamento')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalAgrupacion === 'departamento' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Por departamento</button>
           <button onclick="cambiarAgrupacionInforme('trabajador')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalAgrupacion === 'trabajador' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Por trabajador</button>
         </div>
+        <div style="display:flex; gap:6px;">
+          <button onclick="cambiarFuenteInforme('nominas')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalFuente === 'nominas' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Nóminas</button>
+          <button onclick="cambiarFuenteInforme('extras')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalFuente === 'extras' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Extras</button>
+          <button onclick="cambiarFuenteInforme('ambos')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalFuente === 'ambos' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Ambos</button>
+        </div>
         <div>
           <button onclick="marcarTodosMesesInforme(true)" style="font-size:11px; padding:4px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer; margin-right:4px;">Todo el año</button>
           <button onclick="marcarTodosMesesInforme(false)" style="font-size:11px; padding:4px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">Ninguno</button>
@@ -1700,22 +1766,44 @@ function cambiarAgrupacionInforme(tipo) {
   informePersonalAgrupacion = tipo;
   pintarPersonalInforme();
 }
+function cambiarFuenteInforme(fuente) {
+  informePersonalFuente = fuente;
+  pintarPersonalInforme();
+}
+// Nóminas y Extras no comparten identidad de trabajador (nombres en formato
+// distinto, ver comentario junto a /api/extras/sincronizar en server.js),
+// así que en "Por trabajador" cada fuente aporta sus propias filas (con
+// etiqueta "· Extras" para no confundirlas); en "Por departamento" sí se
+// suman juntas porque ambas usan la misma lista DEPARTAMENTOS_ORUM.
 function renderTablaInformePersonal() {
   const cont = document.getElementById('tabla-informe-personal');
-  const detalle = personalGlobal.detalle;
   const mapaDepto = {};
-  personalGlobal.departamentos.forEach(d => { mapaDepto[d.empresa_nif + '|' + d.num_empleado] = d.departamento || 'Sin clasificar'; });
-  const variasEmpresas = new Set(detalle.map(d => d.empresa_nif)).size > 1;
+  personalGlobal.departamentos.forEach(d => { mapaDepto[d.empresa_nif + '|' + d.num_empleado] = d.departamento || 'Personal sin clasificar'; });
+  const mapaDeptoExtras = {};
+  personalGlobal.extrasDepartamentos.forEach(d => { mapaDeptoExtras[d.nombre] = d.departamento || 'Extras sin clasificar'; });
+  const variasEmpresas = new Set(personalGlobal.detalle.map(d => d.empresa_nif)).size > 1;
   const meses = Array.from(informePersonalMeses).sort((a, b) => a - b);
   const matriz = {};
-  detalle.forEach(d => {
-    if (!meses.includes(parseInt(d.mes))) return;
-    const fila = informePersonalAgrupacion === 'departamento'
-      ? (mapaDepto[d.empresa_nif + '|' + d.num_empleado] || 'Sin clasificar')
-      : d.nombre + (variasEmpresas ? ' (' + d.empresa_nombre + ')' : '');
-    if (!matriz[fila]) matriz[fila] = {};
-    matriz[fila][d.mes] = (matriz[fila][d.mes] || 0) + (parseFloat(d.coste_total) || 0);
-  });
+  if (informePersonalFuente !== 'extras') {
+    personalGlobal.detalle.forEach(d => {
+      if (!meses.includes(parseInt(d.mes))) return;
+      const fila = informePersonalAgrupacion === 'departamento'
+        ? (mapaDepto[d.empresa_nif + '|' + d.num_empleado] || 'Personal sin clasificar')
+        : d.nombre + (variasEmpresas ? ' (' + d.empresa_nombre + ')' : '');
+      if (!matriz[fila]) matriz[fila] = {};
+      matriz[fila][d.mes] = (matriz[fila][d.mes] || 0) + (parseFloat(d.coste_total) || 0);
+    });
+  }
+  if (informePersonalFuente !== 'nominas') {
+    personalGlobal.extras.forEach(e => {
+      if (!meses.includes(parseInt(e.mes))) return;
+      const fila = informePersonalAgrupacion === 'departamento'
+        ? (mapaDeptoExtras[e.nombre] || 'Extras sin clasificar')
+        : e.nombre + ' · Extras';
+      if (!matriz[fila]) matriz[fila] = {};
+      matriz[fila][e.mes] = (matriz[fila][e.mes] || 0) + (parseFloat(e.importe) || 0);
+    });
+  }
   const filas = Object.keys(matriz).sort((a, b) => a.localeCompare(b));
   if (filas.length === 0 || meses.length === 0) {
     cont.innerHTML = '<p style="padding:1.5rem; color:#9a988f; font-size:13px;">Selecciona al menos un mes con datos.</p>';
@@ -1739,15 +1827,73 @@ function renderTablaInformePersonal() {
   `;
 }
 
-// ── Pestaña Extras: pendiente del enlace de la hoja de Sheets ──
+// ── Pestaña Extras: lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña
+// "PAGOS <MES> <AÑO>" de cada mes) mediante un botón de sincronización
+// manual — igual criterio que "Actualizar facturas" en Facturas
+// Proveedores, para no depender de Google en cada carga de la página.
 function pintarPersonalExtras() {
   const cont = document.getElementById('personal-tab-body');
+  const grupos = {};
+  personalGlobal.extras.forEach(e => {
+    if (!grupos[e.mes]) grupos[e.mes] = { mes: e.mes, num_trabajadores: 0, total_importe: 0 };
+    grupos[e.mes].num_trabajadores++;
+    grupos[e.mes].total_importe += parseFloat(e.importe) || 0;
+  });
+  const filas = Object.values(grupos).sort((a, b) => a.mes - b.mes);
+  const filasHtml = filas.map(g => `
+    <tr>
+      <td>${MESES_ES_FACTURAS[g.mes]}</td>
+      <td style="text-align:right;">${g.num_trabajadores}</td>
+      <td style="text-align:right; font-weight:500;">${euros(g.total_importe)}</td>
+    </tr>
+  `).join('');
   cont.innerHTML = `
-    <div style="background:#FAEEDA; border:0.5px solid #F0DCB0; border-radius:8px; padding:1.25rem;">
-      <p style="font-size:14px; font-weight:500; margin:0 0 6px;">Pendiente de conectar</p>
-      <p style="font-size:13px; color:#6b6a64; margin:0;">Falta el enlace de la hoja de Sheets donde se llevan los extras para leerla aquí y sumarla al coste de Personal (nóminas ya está en marcha).</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1.25rem; margin-bottom:1.5rem;">
+      <p style="font-size:14px; font-weight:500; margin:0 0 4px;">Sincronizar extras del año ${personalGlobal.anio}</p>
+      <p style="font-size:12px; color:#6b6a64; margin:0 0 12px;">Lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña "PAGOS &lt;mes&gt; ${personalGlobal.anio}" de cada mes) y guarda el total por trabajador. Los meses que aún no tengan esa pestaña se saltan sin dar error.</p>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button onclick="sincronizarExtras()" style="border:none; background:#1a1a18; color:#fff; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px;">Sincronizar</button>
+        <span id="estado-sync-extras" style="font-size:12px;"></span>
+      </div>
+      <div id="aviso-sin-departamento-extras"></div>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+      <table>
+        <thead><tr><th>Mes</th><th style="text-align:right;">Trabajadores</th><th style="text-align:right;">Total pagado</th></tr></thead>
+        <tbody>${filasHtml || '<tr><td colspan="3" style="padding:1.5rem 4px; color:#9a988f;">Sin extras sincronizados para ' + personalGlobal.anio + '. Pulsa "Sincronizar".</td></tr>'}</tbody>
+      </table>
     </div>
   `;
+}
+async function sincronizarExtras() {
+  const estado = document.getElementById('estado-sync-extras');
+  estado.textContent = 'Sincronizando (lee 12 meses de la hoja)...';
+  estado.style.color = '#6b6a64';
+  try {
+    const resp = await fetch('/api/extras/sincronizar?anio=' + personalGlobal.anio, { method: 'POST' });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    await recargarDatosPersonal();
+    pintarPersonalExtras();
+    const estado2 = document.getElementById('estado-sync-extras');
+    const nombresMeses = data.meses_sincronizados.map(m => MESES_ES_FACTURAS[m]).join(', ') || 'ninguno';
+    estado2.textContent = '✓ Sincronizado: ' + nombresMeses + ' (' + data.total_trabajadores + ' trabajadores distintos)';
+    estado2.style.color = '#27500A';
+    // Los "sin clasificar" nuevos de Extras se detectan comparando contra lo
+    // ya cargado, no viene de vuelta en la respuesta de /sincronizar.
+    const sinClasificar = personalGlobal.extrasDepartamentos.filter(e => !e.departamento);
+    if (sinClasificar.length > 0) {
+      document.getElementById('aviso-sin-departamento-extras').innerHTML = `
+        <div style="margin-top:12px; background:#FCEBEB; border:0.5px solid #F3C9C9; border-radius:8px; padding:0.85rem 1rem; cursor:pointer;" onclick="cambiarPestanaPersonal('config')">
+          <p style="font-size:13px; color:#A32D2D; margin:0; font-weight:500;">⚠️ ${sinClasificar.length} trabajador(es) de Extras sin departamento asignado</p>
+          <p style="font-size:11px; color:#854F0B; margin:2px 0 0;">Haz clic para asignarlos en Config. Departamentos</p>
+        </div>
+      `;
+    }
+  } catch (err) {
+    estado.textContent = 'Error: ' + err.message;
+    estado.style.color = '#A32D2D';
+  }
 }
 // ================================================================
 // FIANZAS — estado en vivo desde Rentman. Objetivo del usuario: cuando
