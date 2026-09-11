@@ -100,6 +100,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .num-proy:hover{background:#f0f0ea;}
 .num-proy.copiado{color:#1D9E75;}
 .btn-material{background:#EEEDFE;color:#3C3489;border:none;border-radius:4px;padding:1px 5px;cursor:pointer;font-size:10px;margin-left:2px;vertical-align:middle;}
+/* Semaforo de pago junto al numero de proyecto */
+.pago-dot{width:9px;height:9px;border-radius:50%;display:inline-block;vertical-align:middle;margin-left:4px;cursor:default;flex-shrink:0;}
+.pago-dot.pago-rojo{background:#D9534F;}
+.pago-dot.pago-amarillo{background:#E8B339;}
+.pago-dot.pago-verde{background:#1D9E75;}
+.pago-dot.pago-azul{background:#378ADD;}
+.btn-servicios{background:#FFF3D6;color:#8B6F00;border:none;border-radius:4px;padding:1px 5px;cursor:pointer;font-size:10px;margin-left:2px;vertical-align:middle;}
 .td-cli{font-size:12px;font-weight:500;color:#1a1a18;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .td-loc{color:#6b6a64;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .a-maps{font-size:10px;background:#E6F1FB;color:#185FA5;border:none;border-radius:4px;padding:1px 5px;cursor:pointer;text-decoration:none;white-space:nowrap;margin-left:3px;}
@@ -291,6 +298,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
 </div>
 
+<!-- Modal servicios extra del proyecto (montaje, desplazamiento, domingo/festivo...) -->
+<div id="modal-servicios" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;">
+  <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:0 0 2rem;max-height:80vh;overflow-y:auto;">
+    <div style="padding:14px 16px;border-bottom:.5px solid #e2e2de;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;">
+      <h2 style="font-size:15px;font-weight:500;" id="modal-servicios-titulo">Servicios extra</h2>
+      <button onclick="cerrarModalServicios()" style="background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:14px 16px;" id="modal-servicios-body">
+      <div class="load">Cargando...</div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal cambiar vehiculo de todas las paradas de un grupo -->
 <div id="modal-cambiar-veh" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;">
   <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:420px;padding:0 0 2rem;max-height:70vh;overflow-y:auto;">
@@ -343,6 +363,7 @@ var NOMBRE_USUARIO=''; // nombre de la persona conectada, segun su PIN — se en
 var VEHS=['NISSAN','IVECO','VOLKSWAGEN','RENAULT','AZUL','FURGO NDL','FURGO NCW','NAVE MONDA','ALQUILADO 1','ALQUILADO 2'];
 var NOMBRE_HISTORIAL_PERMITIDO='Sergio'; // solo esta persona ve la pestaña de historial
 var pin='', modo='hoy', paradas=[];
+var estadoPago={}; // proyecto_id -> {estado_pago, detalle_pago, servicios_extra}
 // Conductores: lista global editable y asignaciones por vehículo+vuelta+día
 var CHOFERES=['Adrian Cuesta','Antonio Jimenez','Carlos Maldonado','Jesus Aguilera','Jesus Calero','Joaquin','Jorge Cuesta','Jose Enriquez','Jose Ortiz','Juan Rios','Leo Ferreyra','Leo Haro','Nourdin','Rafa Perez','Ruben Romo','Sergio Gonzalez','Wilson'];
 var asignacionesConductores={}; // clave: "fecha_vehiculo_vuelta" → [nombres]
@@ -449,17 +470,20 @@ function load(){
   var urlConductores='/api/rutas/conductores?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
   var urlEstadoVeh='/api/rutas/estado-vehiculos?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
   var urlEstadosParada='/api/rutas/estados-parada?token=ORUMx2026RutasPublic&t='+Date.now();
+  var urlEstadoPago='/api/rutas/estado-pago?token=ORUMx2026RutasPublic&t='+Date.now();
 
   Promise.all([
     fetch(urlParadas).then(function(res){return res.json();}),
     fetch(urlConductores).then(function(res){return res.json();}).catch(function(){return{};}),
     fetch(urlEstadoVeh).then(function(res){return res.json();}).catch(function(){return{};}),
-    fetch(urlEstadosParada).then(function(res){return res.json();}).catch(function(){return{};})
+    fetch(urlEstadosParada).then(function(res){return res.json();}).catch(function(){return{};}),
+    fetch(urlEstadoPago).then(function(res){return res.json();}).catch(function(){return{};})
   ]).then(function(resultados){
     var data=resultados[0];
     var dataCond=resultados[1];
     var dataEstadoVeh=resultados[2];
     var dataEstadosParada=resultados[3];
+    var dataEstadoPago=resultados[4];
 
     if(data.error){document.getElementById('body').innerHTML='<div class="load">Error: '+data.error+'</div>';return;}
     paradas=data.paradas||[];
@@ -485,6 +509,9 @@ function load(){
     (dataEstadosParada.estados||[]).forEach(function(a){
       estadosParada[a.clave]={preparado:!!a.preparado,cargado:!!a.cargado,incidencia:!!a.incidencia,incidencia_texto:a.incidencia_texto||''};
     });
+
+    // Cargar estado de pago + servicios extra por proyecto
+    estadoPago=dataEstadoPago.estado_pago||{};
 
     render();
     var ahora=new Date();
@@ -769,6 +796,11 @@ function renderFila(idx,gkey){
   // CAMBIO 4: número de proyecto
   var numH=p.numero?('<span class="num-proy" onclick="copiarNum(this,\''+p.numero+'\')" title="Clic para copiar">#'+p.numero+'</span>'):'<span style="color:#ccc">—</span>';
   var materialBtn=p.proyecto_id?('<button class="btn-material" onclick="event.stopPropagation();abrirModalMaterial(\''+p.proyecto_id+'\',\''+(p.numero||'')+'\')" title="Ver material del proyecto">&#128230;</button>'):'';
+  // Semaforo de pago (rojo/amarillo/verde/azul) + boton de servicios extra
+  var epInfo=p.proyecto_id?estadoPago[String(p.proyecto_id)]:null;
+  var pagoDotH=epInfo?('<span class="pago-dot pago-'+epInfo.estado_pago+'" title="'+tituloPago(epInfo)+'"></span>'):'';
+  var tieneServiciosExtra=epInfo&&epInfo.servicios_extra&&epInfo.servicios_extra.length>0;
+  var serviciosBtn=tieneServiciosExtra?('<button class="btn-servicios" onclick="event.stopPropagation();abrirModalServicios(\''+p.proyecto_id+'\',\''+(p.numero||'')+'\')" title="Ver servicios extra contratados">&#9733;</button>'):'';
   // CAMBIO 2: mostrar vehículos asignados (puede ser múltiple)
   var vehsActuales=getVehsParada(p);
   var vehTexto=vehsActuales.length>0?vehsActuales.join(', '):'<span style="color:#ccc">—</span>';
@@ -799,7 +831,7 @@ function renderFila(idx,gkey){
   html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span></td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
   // CAMBIO 4: columna número independiente
-  html+='<td class="td-num">'+numH+materialBtn+'</td>';
+  html+='<td class="td-num">'+numH+materialBtn+serviciosBtn+pagoDotH+'</td>';
   html+='<td class="td-cli"><div class="cli-nom">'+(p.cliente||'—')+'</div></td>';
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
@@ -935,7 +967,7 @@ function bindEvents(){
   // Expand fila
   document.querySelectorAll('.fila').forEach(function(fila){
     fila.addEventListener('click',function(e){
-      if(e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.num-proy')||e.target.closest('.btn-material'))return;
+      if(e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.num-proy')||e.target.closest('.btn-material')||e.target.closest('.btn-servicios'))return;
       var idx=fila.getAttribute('data-idx');
       var gkey=(fila.getAttribute('data-gkey')||'').replace(/[^a-zA-Z0-9]/g,'');
       var det=document.getElementById('det-p'+idx+'_'+gkey);
@@ -1417,6 +1449,47 @@ function abrirModalMaterial(proyectoId, numero){
 }
 function cerrarModalMaterial(){
   document.getElementById('modal-material').style.display='none';
+  document.body.style.overflow='';
+}
+
+// ── SEMAFORO DE PAGO + SERVICIOS EXTRA (junto al numero de proyecto) ──
+function euros(n){
+  var v=parseFloat(n)||0;
+  return v.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+}
+function tituloPago(info){
+  var d=info.detalle_pago||{};
+  if(info.estado_pago==='azul')return d.motivo||'Cliente con pago a 30 dias';
+  if(d.es_pnc){
+    if(info.estado_pago==='rojo')return 'PNC — nada confirmado en Caja todavia';
+    if(info.estado_pago==='amarillo')return 'PNC — confirmado en Caja '+euros(d.confirmado_en_caja)+' de '+euros(d.valor_esperado);
+    return 'PNC — importe confirmado en Caja ('+euros(d.confirmado_en_caja)+')';
+  }
+  if(info.estado_pago==='rojo')return 'Sin factura emitida';
+  if(info.estado_pago==='amarillo')return 'Factura emitida — pendiente de cobro: '+euros(d.pendiente_cobro);
+  return 'Factura emitida y cobrada ('+euros(d.total_facturado)+')';
+}
+function abrirModalServicios(proyectoId, numero){
+  document.getElementById('modal-servicios-titulo').textContent='Servicios extra'+(numero?' — Proyecto #'+numero:'');
+  var body=document.getElementById('modal-servicios-body');
+  var info=estadoPago[String(proyectoId)];
+  var lista=(info&&info.servicios_extra)||[];
+  if(lista.length===0){
+    body.innerHTML='<div class="load">Sin servicios extra registrados</div>';
+  }else{
+    var html='';
+    lista.forEach(function(s){
+      html+='<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid #f0f0ea;font-size:13px;">'+
+        '<span>'+(s.servicio||'')+' <span style="color:#9a988f;">× '+(s.cantidad||0)+'</span></span>'+
+        '<span style="font-weight:600;">'+euros(s.importe)+'</span></div>';
+    });
+    body.innerHTML=html;
+  }
+  document.getElementById('modal-servicios').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+function cerrarModalServicios(){
+  document.getElementById('modal-servicios').style.display='none';
   document.body.style.overflow='';
 }
 

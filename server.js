@@ -1499,6 +1499,95 @@ app.get('/api/rutas/material', async (req, res) => {
   }
 });
 
+// ── ESTADO DE PAGO + SERVICIOS EXTRA por proyecto (App de Rutas) ──
+// Pedido por el usuario (11 sep 2026): que Leo, al organizar la ruta, vea
+// si el proyecto está pagado antes de sacarlo de almacén, y si tiene
+// servicios extra de personal contratados (montaje, desplazamiento,
+// domingo/festivo...).
+// Semáforo (mismo criterio que /api/financiero):
+//   rojo     → no hay factura emitida (PNC: nada confirmado en Caja)
+//   amarillo → factura emitida pero no cobrada del todo (PNC: confirmado parcial)
+//   verde    → factura emitida y cobrada del todo (PNC: importe esperado ya confirmado en Caja)
+//   azul     → cliente con condición de pago a 30 días (pendiente: el
+//              usuario aún no ha decidido cómo identificar a estos
+//              clientes — la lista de abajo queda vacía a propósito hasta
+//              que la defina; el resto del semáforo ya funciona igual).
+const CLIENTES_PAGO_30_DIAS = []; // TODO: rellenar cuando el usuario decida cómo identificarlos (ver conversación 11 sep 2026)
+app.get('/api/rutas/estado-pago', async (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const [proyectosResp, facturasResp, cajaResp, serviciosResp] = await Promise.all([
+      llamarOrumCentral('proyectos'),
+      llamarOrumCentral('facturas'),
+      llamarOrumCentral('caja'),
+      llamarOrumCentral('servicios')
+    ]);
+    const proyectos = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI');
+    const facturas = facturasResp.data || [];
+    const ncConfirmaciones = cajaResp.nc_confirmaciones || [];
+    const servicios = serviciosResp.data || [];
+
+    const facturasPorProyectoId = {};
+    facturas.forEach(f => {
+      const pid = String(f.proyecto_id);
+      if (!facturasPorProyectoId[pid]) facturasPorProyectoId[pid] = [];
+      facturasPorProyectoId[pid].push(f);
+    });
+    // Solo cuenta lo que Contabilidad ya confirmó como recibido en Caja
+    // (caja_nc_confirmaciones), no el formulario en bruto de cobro.
+    const ncConfirmadoPorNumero = {};
+    ncConfirmaciones.forEach(c => {
+      if (c.confirmado !== true && c.confirmado !== 'SI') return;
+      const num = String(c.numero);
+      ncConfirmadoPorNumero[num] = (ncConfirmadoPorNumero[num] || 0) + (parseFloat(c.importe) || 0);
+    });
+    const serviciosPorProyectoId = {};
+    servicios.forEach(s => {
+      if (!esServicioExtraRelevante(s.servicio)) return;
+      const pid = String(s.proyecto_id);
+      if (!serviciosPorProyectoId[pid]) serviciosPorProyectoId[pid] = [];
+      serviciosPorProyectoId[pid].push({ servicio: s.servicio, cantidad: s.cantidad, importe: s.importe });
+    });
+
+    const resultado = {};
+    proyectos.forEach(p => {
+      const esPNC = p.es_abrebotellas === 'SI' || p.es_abrebotellas === true;
+      let estadoPago, detallePago;
+      if (CLIENTES_PAGO_30_DIAS.some(c => normalizarTexto(c) === normalizarTexto(p.cliente || ''))) {
+        estadoPago = 'azul';
+        detallePago = { motivo: 'Cliente con pago a 30 días — confirmar con Administración antes de sacar el proyecto' };
+      } else if (esPNC) {
+        const valorEsperado = parseFloat(p.valor) || 0;
+        const confirmado = ncConfirmadoPorNumero[String(p.numero)] || 0;
+        if (confirmado <= 0) estadoPago = 'rojo';
+        else if (confirmado + 0.05 < valorEsperado) estadoPago = 'amarillo';
+        else estadoPago = 'verde';
+        detallePago = { es_pnc: true, valor_esperado: Math.round(valorEsperado * 100) / 100, confirmado_en_caja: Math.round(confirmado * 100) / 100 };
+      } else {
+        const facturasProyecto = facturasPorProyectoId[String(p.id)] || [];
+        if (facturasProyecto.length === 0) {
+          estadoPago = 'rojo';
+          detallePago = { es_pnc: false, total_facturado: 0, pendiente_cobro: 0 };
+        } else {
+          const totalFacturado = facturasProyecto.reduce((s, f) => s + (parseFloat(f.importe_con_iva) || 0), 0);
+          const pendiente = facturasProyecto.reduce((s, f) => s + (parseFloat(f.pendiente_cobro) || 0), 0);
+          estadoPago = pendiente > 0.05 ? 'amarillo' : 'verde';
+          detallePago = { es_pnc: false, total_facturado: Math.round(totalFacturado * 100) / 100, pendiente_cobro: Math.round(pendiente * 100) / 100 };
+        }
+      }
+      const serviciosExtra = serviciosPorProyectoId[String(p.id)] || [];
+      resultado[String(p.id)] = { estado_pago: estadoPago, detalle_pago: detallePago, servicios_extra: serviciosExtra };
+    });
+
+    res.json({ ok: true, estado_pago: resultado });
+  } catch (err) {
+    console.error('Error en GET /api/rutas/estado-pago:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── ESTADÍSTICAS DE RUTAS & CONDUCTORES ──
 // GET /api/rutas/estadisticas?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
 // Entregas/recogidas por conductor y por vehículo en un rango de fechas.
