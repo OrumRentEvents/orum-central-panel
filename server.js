@@ -1921,6 +1921,7 @@ app.delete('/api/gastos-anuales/:id', requiereLogin, bloquearComercial, async (r
 //     mes integer not null,
 //     empresa_nif text not null,
 //     empresa_nombre text not null,
+//     formato_origen text not null default 'nominas_gestoria',
 //     num_empleado integer not null,
 //     nombre text not null,
 //     bruto numeric not null default 0,
@@ -1936,23 +1937,51 @@ app.delete('/api/gastos-anuales/:id', requiereLogin, bloquearComercial, async (r
 //     subido_por text,
 //     created_at timestamptz not null default now(),
 //     updated_at timestamptz not null default now(),
-//     unique (anio, mes, empresa_nif, num_empleado)
+//     unique (anio, mes, empresa_nif, formato_origen, num_empleado)
 //   );
 //   create table empleados_departamento (
 //     id bigint generated always as identity primary key,
 //     empresa_nif text not null,
 //     empresa_nombre text not null,
+//     formato_origen text not null default 'nominas_gestoria',
 //     num_empleado integer not null,
 //     nombre text not null,
 //     departamento text,
 //     updated_at timestamptz not null default now(),
-//     unique (empresa_nif, num_empleado)
+//     unique (empresa_nif, formato_origen, num_empleado)
 //   );
+//   -- "Fusiona" un trabajador de un formato antiguo (ej. Resumen Contable
+//   -- 2025, código propio de esa gestoría) con su equivalente en el
+//   -- formato actual, para poder comparar a la misma persona entre años en
+//   -- el Informe. Solo afecta a la vista "por trabajador" - el reparto por
+//   -- departamento (Cierre Mensual) NO depende de esto, ya funciona bien
+//   -- con formato_origen en la clave de empleados_departamento.
+//   create table empleados_alias (
+//     empresa_nif text not null,
+//     formato_origen text not null,
+//     num_empleado integer not null,
+//     num_empleado_canonico integer,
+//     updated_at timestamptz not null default now(),
+//     primary key (empresa_nif, formato_origen, num_empleado)
+//   );
+//
+//   -- MIGRACIÓN si nominas_detalle/empleados_departamento ya existían de
+//   -- antes (11 sep 2026, antes de añadir formato_origen) - ejecutar UNA
+//   -- VEZ, sustituye a los "create table" de arriba para esas 2 tablas:
+//   alter table nominas_detalle add column if not exists formato_origen text not null default 'nominas_gestoria';
+//   alter table nominas_detalle drop constraint if exists nominas_detalle_anio_mes_empresa_nif_num_empleado_key;
+//   alter table nominas_detalle add constraint nominas_detalle_anio_mes_empresa_nif_formato_num_key unique (anio, mes, empresa_nif, formato_origen, num_empleado);
+//   alter table empleados_departamento add column if not exists formato_origen text not null default 'nominas_gestoria';
+//   alter table empleados_departamento drop constraint if exists empleados_departamento_empresa_nif_num_empleado_key;
+//   alter table empleados_departamento add constraint empleados_departamento_empresa_nif_formato_origen_num_empleado_key unique (empresa_nif, formato_origen, num_empleado);
 // ================================================================
 const uploadNomina = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 function normalizarCabeceraNomina(v) {
-  return String(v == null ? '' : v).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // NFD + quitar diacríticos ANTES de tirar lo no alfanumérico, si no "Cód."
+  // quedaría "CD" en vez de "COD" (mismo motivo que en el matching de
+  // nombres del frontend, ver normalizarTokensPersona en index.html).
+  return String(v == null ? '' : v).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]/g, '');
 }
 
 // Parsea el .xls de nóminas (formato fijo de la gestoría, ver memoria del
@@ -2028,7 +2057,129 @@ function parsearNominaXLS(buffer) {
   }
   if (empleados.length === 0) throw new Error('No se encontró ninguna fila de trabajador con datos en el archivo.');
 
-  return { anio, mes, empresaNombre, empresaNif, empleados };
+  return { anio, mes, empresaNombre, empresaNif, empleados, formatoOrigen: 'nominas_gestoria' };
+}
+
+const MESES_ES_MAYUS = MESES_ES.map(m => m ? m.toUpperCase() : m);
+
+// Segundo formato, usado antes del cambio de gestoría (2025 - abril 2026,
+// ver memoria del proyecto): "Resumen Contable" en vez de listado de
+// nóminas. Cabecera "Empresa: <nombre> ... Cif: <nif>" (con Cif, no NIF) y
+// "Período" con el mes en texto ("Enero del 2025" / "OCTUBRE del Ejercicio
+// 2025" - la redacción varía según el mes exportado). Columnas: Cód.,
+// Nombre, Centro, Departamento (siempre vacía en la práctica), Tipo, Días,
+// Base C.C., Base C.P., Retribuc., Costes Trab., Valor Esp., Deducción,
+// Costes Emp., Base IRPF, Ret. IRPF, Otras Ret., Líquido.
+//
+// OJO — los códigos ("Cód.") de este formato NO son los mismos que los del
+// formato nuevo (parsearNominaXLS) para la misma persona: cambiaron de
+// sistema de nóminas en algún punto entre abril y agosto de 2026 y
+// reasignaron numeración desde cero. Ej.: Jesús Aguilera Martín es código
+// 3044 aquí pero 1 en el formato nuevo — y peor, un código puede
+// corresponder a una persona distinta en cada formato (código 6 = Arrocha
+// Melgar aquí, pero = Calero Valero en el formato nuevo). Por eso
+// nominas_detalle y empleados_departamento llevan formato_origen como parte
+// de la clave — nunca tratar num_empleado como único sin también mirar
+// formato_origen. La fusión "es la misma persona" entre formatos se hace
+// aparte y a mano en empleados_alias (Config · Personal), nunca automática.
+//
+// No trae columna de coste total explícita — se calcula como
+// Retribuc. + Costes Emp. (confirmado con el usuario 11 sep 2026,
+// cuadrando contra la fila "Total de la cuenta" de varios meses).
+function parsearResumenContableXLS(buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const hoja = wb.Sheets[wb.SheetNames[0]];
+  const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: true, defval: null });
+
+  const rePeriodo = new RegExp('(' + MESES_ES_MAYUS.filter(Boolean).join('|') + ')\\s+del\\s+(?:Ejercicio\\s+)?(\\d{4})', 'i');
+  // "Empresa: ..." y "Cif: ..." van en celdas SEPARADAS de la misma fila
+  // (no en un único texto como en parsearNominaXLS) — se busca cada trozo
+  // por su cuenta y se combinan si aparecen en la misma fila.
+  const reEmpresaNombre = /Empresa:\s*(.+)/i;
+  const reEmpresaCif = /Cif:\s*([A-Z0-9]+)/i;
+  let mes = null, anio = null, empresaNombre = null, empresaNif = null, filaCabecera = -1;
+
+  for (let i = 0; i < filas.length; i++) {
+    const fila = filas[i] || [];
+    let tieneCod = false, tieneNombre = false, nombreEnFila = null, cifEnFila = null;
+    for (const celda of fila) {
+      if (celda == null) continue;
+      const texto = String(celda);
+      if (!mes) {
+        const m = texto.match(rePeriodo);
+        if (m) { mes = MESES_ES_MAYUS.indexOf(m[1].toUpperCase()); anio = parseInt(m[2]); }
+      }
+      const mNombre = texto.match(reEmpresaNombre);
+      if (mNombre) nombreEnFila = mNombre[1].trim();
+      const mCif = texto.match(reEmpresaCif);
+      if (mCif) cifEnFila = mCif[1].trim();
+      const n = normalizarCabeceraNomina(celda);
+      if (n === 'COD') tieneCod = true;
+      if (n === 'NOMBRE') tieneNombre = true;
+    }
+    if (!empresaNif && nombreEnFila && cifEnFila) { empresaNombre = nombreEnFila; empresaNif = cifEnFila; }
+    if (tieneCod && tieneNombre) { filaCabecera = i; break; }
+  }
+
+  if (filaCabecera < 0) throw new Error('No se encontró la cabecera "Cód. / Nombre" — no tiene pinta de "Resumen Contable".');
+  if (!mes || !anio) throw new Error('No se encontró el periodo ("<Mes> del <Año>") en el archivo.');
+  if (!empresaNif) throw new Error('No se encontró la línea "Empresa: ... Cif: ..." en el archivo.');
+
+  const col = {};
+  (filas[filaCabecera] || []).forEach((celda, idx) => {
+    const n = normalizarCabeceraNomina(celda);
+    if (n === 'COD') col.numero = idx;
+    else if (n === 'NOMBRE') col.nombre = idx;
+    else if (n === 'RETRIBUC') col.retribuc = idx;
+    else if (n === 'COSTESTRAB') col.costes_trab = idx;
+    else if (n === 'VALORESP') col.valor_esp = idx;
+    else if (n === 'COSTESEMP') col.costes_emp = idx;
+    else if (n === 'RETIRPF') col.ret_irpf = idx;
+    else if (n === 'OTRASRET') col.otras_ret = idx;
+    else if (n === 'LIQUIDO') col.liquido = idx;
+  });
+  ['numero', 'nombre', 'retribuc', 'costes_emp', 'liquido'].forEach(k => {
+    if (col[k] === undefined) throw new Error('No se reconoce el formato "Resumen Contable": falta la columna "' + k + '".');
+  });
+
+  const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : Math.round(n * 100) / 100; };
+  const empleados = [];
+  for (let i = filaCabecera + 2; i < filas.length; i++) { // +2: se salta la fila en blanco tras la cabecera
+    const fila = filas[i] || [];
+    const numero = fila[col.numero];
+    const nombre = fila[col.nombre];
+    if (numero == null || nombre == null || String(nombre).trim() === '' || /^total/i.test(String(nombre).trim())) continue;
+    const numeroInt = parseInt(numero);
+    if (isNaN(numeroInt)) continue;
+    const retribuc = num(fila[col.retribuc]), costesEmp = num(fila[col.costes_emp]), liquido = num(fila[col.liquido]);
+    empleados.push({
+      num_empleado: numeroInt, nombre: String(nombre).trim(),
+      bruto: retribuc,
+      dcto_irpf: -num(fila[col.ret_irpf]), otros_desc: -num(fila[col.otras_ret]),
+      total_desctos: Math.round((liquido - retribuc) * 100) / 100, // negativo: Líquido - Retribuc.
+      neto: liquido, bonificacion: num(fila[col.valor_esp]),
+      prestac_it: 0, ss_empresa: costesEmp, total_ss: Math.round((costesEmp + num(fila[col.costes_trab])) * 100) / 100,
+      coste_total: Math.round((retribuc + costesEmp) * 100) / 100
+    });
+  }
+  if (empleados.length === 0) throw new Error('No se encontró ninguna fila de trabajador con datos en el archivo.');
+
+  return { anio, mes, empresaNombre, empresaNif, empleados, formatoOrigen: 'resumen_contable' };
+}
+
+// Prueba un formato y, si no cuadra ("no tiene pinta de..."), el otro —
+// así el usuario puede seleccionar de golpe archivos de ambos formatos (el
+// histórico 2025/2026 mezcla los dos) sin tener que separarlos a mano.
+function parsearArchivoNomina(buffer) {
+  try {
+    return parsearNominaXLS(buffer);
+  } catch (errNominas) {
+    try {
+      return parsearResumenContableXLS(buffer);
+    } catch (errResumen) {
+      throw new Error('No coincide con ningún formato conocido. Como nóminas: ' + errNominas.message + ' Como Resumen Contable: ' + errResumen.message);
+    }
+  }
 }
 
 // GET del año completo de TODO Personal (nóminas + extras) + las 2 listas
@@ -2038,19 +2189,24 @@ function parsearNominaXLS(buffer) {
 app.get('/api/nominas/anio', requiereLogin, soloPersonal, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
-    const [detalleResp, deptoResp, extrasResp, extrasDeptoResp] = await Promise.all([
+    const [detalleResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp, empleadosAliasResp] = await Promise.all([
       supabase.from('nominas_detalle').select('*').eq('anio', anio).order('mes').order('empresa_nombre').order('nombre'),
       supabase.from('empleados_departamento').select('*').order('empresa_nombre').order('nombre'),
       supabase.from('extras_detalle').select('*').eq('anio', anio).order('mes').order('nombre'),
-      supabase.from('extras_departamento').select('*').order('nombre')
+      supabase.from('extras_departamento').select('*').order('nombre'),
+      supabase.from('extras_alias').select('*').order('nombre'),
+      supabase.from('empleados_alias').select('*')
     ]);
     if (detalleResp.error) throw detalleResp.error;
     if (deptoResp.error) throw deptoResp.error;
     if (extrasResp.error) throw extrasResp.error;
     if (extrasDeptoResp.error) throw extrasDeptoResp.error;
+    if (extrasAliasResp.error) throw extrasAliasResp.error;
+    if (empleadosAliasResp.error) throw empleadosAliasResp.error;
     res.json({
       ok: true, anio, detalle: detalleResp.data || [], departamentos: deptoResp.data || [],
-      extras: extrasResp.data || [], extras_departamentos: extrasDeptoResp.data || []
+      extras: extrasResp.data || [], extras_departamentos: extrasDeptoResp.data || [], extras_alias: extrasAliasResp.data || [],
+      empleados_alias: empleadosAliasResp.data || []
     });
   } catch (err) {
     console.error('Error en /api/nominas/anio:', err);
@@ -2058,50 +2214,80 @@ app.get('/api/nominas/anio', requiereLogin, soloPersonal, async (req, res) => {
   }
 });
 
+// Admite varios archivos a la vez (histórico: seleccionar de golpe todos
+// los .xls de 2025 + lo que falte de 2026, en vez de subirlos uno a uno).
+// Cada archivo es independiente — si uno falla (formato raro, mes duplicado
+// con datos distintos...) no aborta el resto, se reporta por archivo.
 app.post('/api/nominas/subir', requiereLogin, soloPersonal, (req, res, next) => {
-  uploadNomina.single('archivo')(req, res, (err) => {
-    if (err) return res.status(400).json({ error: 'Error al subir el archivo: ' + err.message });
+  uploadNomina.array('archivos', 40)(req, res, (err) => {
+    if (err) return res.status(400).json({ error: 'Error al subir los archivos: ' + err.message });
     next();
   });
 }, async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No se ha recibido ningún archivo.' });
-    const { anio, mes, empresaNombre, empresaNif, empleados } = parsearNominaXLS(req.file.buffer);
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No se han recibido archivos.' });
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
     const ahora = new Date().toISOString();
 
-    const filasNominas = empleados.map(e => ({
-      anio, mes, empresa_nif: empresaNif, empresa_nombre: empresaNombre,
-      num_empleado: e.num_empleado, nombre: e.nombre,
-      bruto: e.bruto, dcto_irpf: e.dcto_irpf, otros_desc: e.otros_desc, total_desctos: e.total_desctos,
-      neto: e.neto, bonificacion: e.bonificacion, prestac_it: e.prestac_it, ss_empresa: e.ss_empresa,
-      total_ss: e.total_ss, coste_total: e.coste_total, subido_por: usuario, updated_at: ahora
-    }));
-    const { error: errNominas } = await supabase.from('nominas_detalle')
-      .upsert(filasNominas, { onConflict: 'anio,mes,empresa_nif,num_empleado' });
-    if (errNominas) throw errNominas;
+    const resultados = [];
+    const filasNominas = [];
+    // Clave "empresa_nif|formato_origen" — el número de trabajador SOLO es
+    // único dentro del mismo formato (ver comentario junto a
+    // parsearResumenContableXLS: el mismo código puede ser una persona
+    // distinta en cada formato).
+    const empleadosPorFormato = new Map();
+    const empresasNifVistos = new Set();
 
-    // Trabajadores nuevos entran en la config sin departamento (ignoreDuplicates
-    // respeta el departamento ya asignado si el trabajador ya existía).
-    const { error: errEmp } = await supabase.from('empleados_departamento')
-      .upsert(
-        empleados.map(e => ({ empresa_nif: empresaNif, empresa_nombre: empresaNombre, num_empleado: e.num_empleado, nombre: e.nombre })),
-        { onConflict: 'empresa_nif,num_empleado', ignoreDuplicates: true }
-      );
-    if (errEmp) throw errEmp;
+    for (const archivo of req.files) {
+      try {
+        const { anio, mes, empresaNombre, empresaNif, empleados, formatoOrigen } = parsearArchivoNomina(archivo.buffer);
+        empleados.forEach(e => filasNominas.push({
+          anio, mes, empresa_nif: empresaNif, empresa_nombre: empresaNombre, formato_origen: formatoOrigen,
+          num_empleado: e.num_empleado, nombre: e.nombre,
+          bruto: e.bruto, dcto_irpf: e.dcto_irpf, otros_desc: e.otros_desc, total_desctos: e.total_desctos,
+          neto: e.neto, bonificacion: e.bonificacion, prestac_it: e.prestac_it, ss_empresa: e.ss_empresa,
+          total_ss: e.total_ss, coste_total: e.coste_total, subido_por: usuario, updated_at: ahora
+        }));
+        const claveFormato = empresaNif + '|' + formatoOrigen;
+        if (!empleadosPorFormato.has(claveFormato)) empleadosPorFormato.set(claveFormato, new Map());
+        const mapaEmp = empleadosPorFormato.get(claveFormato);
+        empleados.forEach(e => mapaEmp.set(e.num_empleado, {
+          empresa_nif: empresaNif, empresa_nombre: empresaNombre, formato_origen: formatoOrigen,
+          num_empleado: e.num_empleado, nombre: e.nombre
+        }));
+        empresasNifVistos.add(empresaNif);
+        const totalCoste = Math.round(empleados.reduce((s, e) => s + e.coste_total, 0) * 100) / 100;
+        resultados.push({ archivo: archivo.originalname, ok: true, anio, mes, empresa: empresaNombre, formato: formatoOrigen, num_empleados: empleados.length, total_coste: totalCoste });
+      } catch (errArchivo) {
+        resultados.push({ archivo: archivo.originalname, ok: false, error: errArchivo.message });
+      }
+    }
 
-    const { data: sinClasificar, error: errSin } = await supabase.from('empleados_departamento')
-      .select('num_empleado, nombre').eq('empresa_nif', empresaNif).is('departamento', null);
-    if (errSin) throw errSin;
+    if (filasNominas.length > 0) {
+      const { error: errNominas } = await supabase.from('nominas_detalle')
+        .upsert(filasNominas, { onConflict: 'anio,mes,empresa_nif,formato_origen,num_empleado' });
+      if (errNominas) throw errNominas;
 
-    const totalCoste = Math.round(empleados.reduce((s, e) => s + e.coste_total, 0) * 100) / 100;
-    res.json({
-      ok: true, anio, mes, empresa: empresaNombre, empresa_nif: empresaNif,
-      num_empleados: empleados.length, total_coste: totalCoste, sin_departamento: sinClasificar || []
-    });
+      // Trabajadores nuevos entran en la config sin departamento (ignoreDuplicates
+      // respeta el departamento ya asignado si el trabajador ya existía).
+      const todosEmpleados = [...empleadosPorFormato.values()].flatMap(m => [...m.values()]);
+      const { error: errEmp } = await supabase.from('empleados_departamento')
+        .upsert(todosEmpleados, { onConflict: 'empresa_nif,formato_origen,num_empleado', ignoreDuplicates: true });
+      if (errEmp) throw errEmp;
+    }
+
+    let sinClasificar = [];
+    if (empresasNifVistos.size > 0) {
+      const { data, error: errSin } = await supabase.from('empleados_departamento')
+        .select('empresa_nif, formato_origen, num_empleado, nombre').in('empresa_nif', [...empresasNifVistos]).is('departamento', null);
+      if (errSin) throw errSin;
+      sinClasificar = data || [];
+    }
+
+    res.json({ ok: true, resultados, sin_departamento: sinClasificar });
   } catch (err) {
     console.error('Error en /api/nominas/subir:', err);
-    res.status(500).json({ error: 'Error al procesar la nómina: ' + err.message });
+    res.status(500).json({ error: 'Error al procesar las nóminas: ' + err.message });
   }
 });
 
@@ -2109,9 +2295,11 @@ app.post('/api/nominas/subir', requiereLogin, soloPersonal, (req, res, next) => 
 // volver a subir el mismo mes ya sustituye los datos fila a fila).
 app.delete('/api/nominas/mes', requiereLogin, soloPersonal, async (req, res) => {
   try {
-    const anio = parseInt(req.query.anio), mes = parseInt(req.query.mes), empresaNif = req.query.empresa_nif;
+    const anio = parseInt(req.query.anio), mes = parseInt(req.query.mes), empresaNif = req.query.empresa_nif, formatoOrigen = req.query.formato_origen;
     if (!anio || !mes || !empresaNif) return res.status(400).json({ error: 'Faltan parámetros (anio, mes, empresa_nif).' });
-    const { error } = await supabase.from('nominas_detalle').delete().eq('anio', anio).eq('mes', mes).eq('empresa_nif', empresaNif);
+    let q = supabase.from('nominas_detalle').delete().eq('anio', anio).eq('mes', mes).eq('empresa_nif', empresaNif);
+    if (formatoOrigen) q = q.eq('formato_origen', formatoOrigen);
+    const { error } = await q;
     if (error) throw error;
     res.json({ ok: true });
   } catch (err) {
@@ -2125,14 +2313,37 @@ app.post('/api/empleados-departamento', requiereLogin, soloPersonal, async (req,
     const asignaciones = req.body.asignaciones || [];
     if (!Array.isArray(asignaciones) || asignaciones.length === 0) return res.status(400).json({ error: 'Nada que guardar.' });
     const filas = asignaciones.map(a => ({
-      empresa_nif: a.empresa_nif, empresa_nombre: a.empresa_nombre, num_empleado: parseInt(a.num_empleado),
-      nombre: a.nombre, departamento: a.departamento || null, updated_at: new Date().toISOString()
+      empresa_nif: a.empresa_nif, empresa_nombre: a.empresa_nombre, formato_origen: a.formato_origen || 'nominas_gestoria',
+      num_empleado: parseInt(a.num_empleado), nombre: a.nombre, departamento: a.departamento || null, updated_at: new Date().toISOString()
     }));
-    const { error } = await supabase.from('empleados_departamento').upsert(filas, { onConflict: 'empresa_nif,num_empleado' });
+    const { error } = await supabase.from('empleados_departamento').upsert(filas, { onConflict: 'empresa_nif,formato_origen,num_empleado' });
     if (error) throw error;
     res.json({ ok: true, guardadas: filas.length });
   } catch (err) {
     console.error('Error en POST /api/empleados-departamento:', err);
+    res.status(500).json({ error: 'Error al guardar: ' + err.message });
+  }
+});
+
+// Fusiona un trabajador de un formato antiguo (ej. código de Resumen
+// Contable 2025) con su equivalente en el formato actual — solo afecta a
+// cómo se agrupa "por trabajador" en el Informe, NO al reparto por
+// departamento de Cierre Mensual (ese ya es correcto con formato_origen en
+// la clave de empleados_departamento, se fusione o no a la persona).
+app.post('/api/empleados-alias', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const asignaciones = req.body.asignaciones || [];
+    if (!Array.isArray(asignaciones) || asignaciones.length === 0) return res.status(400).json({ error: 'Nada que guardar.' });
+    const filas = asignaciones.map(a => ({
+      empresa_nif: a.empresa_nif, formato_origen: a.formato_origen, num_empleado: parseInt(a.num_empleado),
+      num_empleado_canonico: a.num_empleado_canonico ? parseInt(a.num_empleado_canonico) : null,
+      updated_at: new Date().toISOString()
+    }));
+    const { error } = await supabase.from('empleados_alias').upsert(filas, { onConflict: 'empresa_nif,formato_origen,num_empleado' });
+    if (error) throw error;
+    res.json({ ok: true, guardadas: filas.length });
+  } catch (err) {
+    console.error('Error en POST /api/empleados-alias:', err);
     res.status(500).json({ error: 'Error al guardar: ' + err.message });
   }
 });
@@ -2150,10 +2361,16 @@ app.post('/api/empleados-departamento', requiereLogin, soloPersonal, async (req,
 //
 // Los nombres en esta hoja son informales ("Conchi", "Joaquin", sin
 // apellidos) y no se corresponden 1:1 con el "APELLIDOS, Nombre" de
-// nominas_detalle - se decidió (11 sep 2026) NO intentar casarlos por
-// nombre (poco fiable) sino llevar un reparto a departamento
-// independiente, propio de Extras (tabla extras_departamento, clave =
-// nombre tal cual aparece en la hoja).
+// nominas_detalle. Primera versión (11 sep 2026) los llevaba en un reparto a
+// departamento independiente sin cruzarlos; a petición del usuario (mismo
+// día) se añadió extras_alias para vincular cada nombre de Extras a un
+// trabajador concreto de Nóminas — el departamento entonces se hereda del
+// trabajador vinculado (empleados_departamento) y extras_departamento queda
+// como reserva solo para quien aparece en Extras pero no tiene nómina
+// vinculada (personal eventual, por ejemplo). El emparejamiento se sugiere
+// en el frontend por coincidencia de palabras del nombre (ver
+// sugerirEmpleadoParaExtra en index.html) pero SIEMPRE requiere confirmar y
+// Guardar — nunca se vincula solo.
 //
 // Tablas Supabase nuevas - crear UNA VEZ desde el SQL editor de Supabase:
 //   create table extras_detalle (
@@ -2169,6 +2386,13 @@ app.post('/api/empleados-departamento', requiereLogin, soloPersonal, async (req,
 //   create table extras_departamento (
 //     nombre text primary key,
 //     departamento text,
+//     updated_at timestamptz not null default now()
+//   );
+//   create table extras_alias (
+//     nombre text primary key,
+//     empresa_nif text,
+//     formato_origen text,
+//     num_empleado integer,
 //     updated_at timestamptz not null default now()
 //   );
 // ================================================================
@@ -2251,6 +2475,10 @@ app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res
       const { error: errDepto } = await supabase.from('extras_departamento')
         .upsert([...nombresVistos.keys()].map(nombre => ({ nombre })), { onConflict: 'nombre', ignoreDuplicates: true });
       if (errDepto) throw errDepto;
+      // Placeholder sin vincular — ignoreDuplicates respeta un vínculo ya guardado.
+      const { error: errAlias } = await supabase.from('extras_alias')
+        .upsert([...nombresVistos.keys()].map(nombre => ({ nombre })), { onConflict: 'nombre', ignoreDuplicates: true });
+      if (errAlias) throw errAlias;
     }
 
     res.json({ ok: true, anio, meses_sincronizados: mesesSincronizados, meses_sin_datos: mesesSinDatos, total_trabajadores: nombresVistos.size });
@@ -2274,27 +2502,54 @@ app.post('/api/extras-departamento', requiereLogin, soloPersonal, async (req, re
   }
 });
 
+// Vincula un nombre de Extras a un trabajador concreto de Nóminas (para que
+// herede su departamento en vez de necesitar uno propio). asignaciones con
+// empresa_nif/num_empleado en null desvinculan (vuelve a depender de
+// extras_departamento como reserva).
+app.post('/api/extras-alias', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const asignaciones = req.body.asignaciones || [];
+    if (!Array.isArray(asignaciones) || asignaciones.length === 0) return res.status(400).json({ error: 'Nada que guardar.' });
+    const filas = asignaciones.map(a => ({
+      nombre: a.nombre,
+      empresa_nif: a.empresa_nif || null,
+      formato_origen: a.formato_origen || null,
+      num_empleado: a.num_empleado ? parseInt(a.num_empleado) : null,
+      updated_at: new Date().toISOString()
+    }));
+    const { error } = await supabase.from('extras_alias').upsert(filas, { onConflict: 'nombre' });
+    if (error) throw error;
+    res.json({ ok: true, guardadas: filas.length });
+  } catch (err) {
+    console.error('Error en POST /api/extras-alias:', err);
+    res.status(500).json({ error: 'Error al guardar: ' + err.message });
+  }
+});
+
 // ================================================================
 // CIERRE MENSUAL (10 sep 2026, ampliado 11 sep 2026) — Financiero → Cierre
 // Mensual. Ingresos = facturas de Rentman vía ORUM CENTRAL. Gastos =
 // Facturas Proveedores repartidas por departamento + Gastos Anuales
 // repartidos entre 12 meses + Personal: nóminas_detalle (repartido según
-// empleados_departamento) + extras_detalle (repartido según
-// extras_departamento — sincronizado con el botón manual de Personal ·
-// Extras, no en vivo en cada carga de Cierre Mensual).
+// empleados_departamento) + extras_detalle — si el nombre de Extras está
+// vinculado a un trabajador de Nóminas (extras_alias) hereda SU
+// departamento; si no, cae en extras_departamento como reserva propia.
+// Extras se sincroniza con el botón manual de Personal · Extras, no en vivo
+// en cada carga de Cierre Mensual.
 // ================================================================
 app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
 
-    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp] = await Promise.all([
+    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp] = await Promise.all([
       llamarOrumCentral('facturas'),
       obtenerFacturasProveedoresEnriquecidas(),
       supabase.from('gastos_anuales').select('*').eq('anio', anio),
-      supabase.from('nominas_detalle').select('mes, empresa_nif, num_empleado, coste_total').eq('anio', anio),
-      supabase.from('empleados_departamento').select('empresa_nif, num_empleado, departamento'),
+      supabase.from('nominas_detalle').select('mes, empresa_nif, formato_origen, num_empleado, coste_total').eq('anio', anio),
+      supabase.from('empleados_departamento').select('empresa_nif, formato_origen, num_empleado, departamento'),
       supabase.from('extras_detalle').select('mes, nombre, importe').eq('anio', anio),
-      supabase.from('extras_departamento').select('nombre, departamento')
+      supabase.from('extras_departamento').select('nombre, departamento'),
+      supabase.from('extras_alias').select('nombre, empresa_nif, formato_origen, num_empleado')
     ]);
     const facturas = facturasResp.data || [];
     const { facturasEnriquecidas: facturasProveedores } = provResult;
@@ -2304,12 +2559,18 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     if (deptoResp.error) throw deptoResp.error;
     if (extrasResp.error) throw extrasResp.error;
     if (extrasDeptoResp.error) throw extrasDeptoResp.error;
+    if (extrasAliasResp.error) throw extrasAliasResp.error;
     const nominas = nominasResp.data || [];
     const extras = extrasResp.data || [];
+    // Clave "empresa_nif|formato_origen|num_empleado" — imprescindible
+    // incluir formato_origen: el mismo número puede ser una persona
+    // distinta según el formato del archivo de origen (ver parsearResumenContableXLS).
     const mapaDeptoEmpleado = {};
-    (deptoResp.data || []).forEach(d => { mapaDeptoEmpleado[d.empresa_nif + '|' + d.num_empleado] = d.departamento; });
+    (deptoResp.data || []).forEach(d => { mapaDeptoEmpleado[d.empresa_nif + '|' + d.formato_origen + '|' + d.num_empleado] = d.departamento; });
     const mapaDeptoExtras = {};
     (extrasDeptoResp.data || []).forEach(d => { mapaDeptoExtras[d.nombre] = d.departamento; });
+    const mapaAliasExtras = {};
+    (extrasAliasResp.data || []).forEach(a => { if (a.empresa_nif && a.formato_origen && a.num_empleado) mapaAliasExtras[a.nombre] = a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado; });
 
     const meses = Array.from({ length: 12 }, (_, i) => ({
       mes: i + 1, nombre: MESES_ES[i + 1],
@@ -2348,19 +2609,20 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       if (mes < 1 || mes > 12) return;
       const coste = parseFloat(n.coste_total) || 0;
       meses[mes - 1].gastos += coste;
-      const depto = mapaDeptoEmpleado[n.empresa_nif + '|' + n.num_empleado] || 'Personal sin clasificar';
+      const depto = mapaDeptoEmpleado[n.empresa_nif + '|' + n.formato_origen + '|' + n.num_empleado] || 'Personal sin clasificar';
       meses[mes - 1].gastos_por_departamento[depto] = (meses[mes - 1].gastos_por_departamento[depto] || 0) + coste;
     });
 
-    // Extras: mismo criterio, pero el reparto es por nombre (extras_departamento)
-    // en vez de por empresa+número — la hoja de extras no usa la numeración
-    // de la gestoría (ver comentario en /api/extras/sincronizar).
+    // Extras: si el nombre está vinculado a un trabajador de Nóminas
+    // (extras_alias) hereda SU departamento; si no, cae en
+    // extras_departamento (reserva propia de Extras) o "sin clasificar".
     extras.forEach(e => {
       const mes = parseInt(e.mes);
       if (mes < 1 || mes > 12) return;
       const importe = parseFloat(e.importe) || 0;
       meses[mes - 1].gastos += importe;
-      const depto = mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
+      const claveEmpleado = mapaAliasExtras[e.nombre];
+      const depto = (claveEmpleado && mapaDeptoEmpleado[claveEmpleado]) || mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
       meses[mes - 1].gastos_por_departamento[depto] = (meses[mes - 1].gastos_por_departamento[depto] || 0) + importe;
     });
 

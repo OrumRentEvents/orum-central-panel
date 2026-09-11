@@ -1446,7 +1446,8 @@ async function anadirGastoAnual() {
 // entero) con cualquiera de las dos agrupaciones, todo en el cliente sobre
 // los datos ya cargados del año, sin más peticiones al servidor.
 // ================================================================
-let personalGlobal = { anio: new Date().getFullYear(), detalle: [], departamentos: [], extras: [], extrasDepartamentos: [], tab: 'nominas' };
+let personalGlobal = { anio: new Date().getFullYear(), detalle: [], departamentos: [], extras: [], extrasDepartamentos: [], extrasAlias: [], empleadosAlias: [], tab: 'nominas' };
+const ETIQUETA_FORMATO_ORIGEN = { nominas_gestoria: 'Nóminas', resumen_contable: 'Resumen Contable' };
 let informePersonalMeses = new Set(Array.from({ length: 12 }, (_, i) => i + 1));
 let informePersonalAgrupacion = 'departamento';
 let informePersonalFuente = 'ambos'; // 'nominas' | 'extras' | 'ambos'
@@ -1470,6 +1471,8 @@ async function recargarDatosPersonal() {
   personalGlobal.departamentos = data.departamentos || [];
   personalGlobal.extras = data.extras || [];
   personalGlobal.extrasDepartamentos = data.extras_departamentos || [];
+  personalGlobal.extrasAlias = data.extras_alias || [];
+  personalGlobal.empleadosAlias = data.empleados_alias || [];
 }
 function cambiarAnioPersonal(anio) {
   personalGlobal.anio = parseInt(anio);
@@ -1516,8 +1519,8 @@ function pintarPersonalNominas() {
   const cont = document.getElementById('personal-tab-body');
   const grupos = {};
   personalGlobal.detalle.forEach(d => {
-    const key = d.mes + '|' + d.empresa_nif;
-    if (!grupos[key]) grupos[key] = { mes: d.mes, empresa_nif: d.empresa_nif, empresa_nombre: d.empresa_nombre, num_empleados: 0, total_coste: 0 };
+    const key = d.mes + '|' + d.empresa_nif + '|' + d.formato_origen;
+    if (!grupos[key]) grupos[key] = { mes: d.mes, empresa_nif: d.empresa_nif, empresa_nombre: d.empresa_nombre, formato_origen: d.formato_origen, num_empleados: 0, total_coste: 0 };
     grupos[key].num_empleados++;
     grupos[key].total_coste += parseFloat(d.coste_total) || 0;
   });
@@ -1526,65 +1529,93 @@ function pintarPersonalNominas() {
     <tr>
       <td>${MESES_ES_FACTURAS[g.mes]}</td>
       <td>${g.empresa_nombre}</td>
+      <td><span style="font-size:11px; padding:2px 6px; border-radius:4px; background:${g.formato_origen === 'resumen_contable' ? '#FAEEDA' : '#EAF3DE'}; color:${g.formato_origen === 'resumen_contable' ? '#854F0B' : '#27500A'};">${ETIQUETA_FORMATO_ORIGEN[g.formato_origen] || g.formato_origen}</span></td>
       <td style="text-align:right;">${g.num_empleados}</td>
       <td style="text-align:right; font-weight:500;">${euros(g.total_coste)}</td>
-      <td style="text-align:center;"><button onclick="eliminarNominaMes(${g.mes}, '${g.empresa_nif}', '${g.empresa_nombre.replace(/'/g, "\\'")}')" title="Eliminar" style="border:none; background:transparent; color:#A32D2D; cursor:pointer; font-size:14px;">🗑️</button></td>
+      <td style="text-align:center;"><button onclick="eliminarNominaMes(${g.mes}, '${g.empresa_nif}', '${g.formato_origen}', '${g.empresa_nombre.replace(/'/g, "\\'")}')" title="Eliminar" style="border:none; background:transparent; color:#A32D2D; cursor:pointer; font-size:14px;">🗑️</button></td>
     </tr>
   `).join('');
   cont.innerHTML = `
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1.25rem; margin-bottom:1.5rem;">
-      <p style="font-size:14px; font-weight:500; margin:0 0 4px;">Subir nómina del mes</p>
-      <p style="font-size:12px; color:#6b6a64; margin:0 0 12px;">Sube el .xls que pasa la gestoría. Se detecta el mes, la empresa y se guarda el coste de cada trabajador. Si ese mes/empresa ya existía, se sustituye.</p>
+      <p style="font-size:14px; font-weight:500; margin:0 0 4px;">Subir nóminas</p>
+      <p style="font-size:12px; color:#6b6a64; margin:0 0 12px;">Sube uno o varios archivos a la vez (para el histórico, selecciona de golpe todos los meses/años que tengas — se reconocen ambos formatos, el actual y el "Resumen Contable" antiguo). Se detecta mes/empresa/formato por archivo; si un mes/empresa/formato ya existía, se sustituye.</p>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <input type="file" id="input-archivo-nomina" accept=".xls,.xlsx">
+        <input type="file" id="input-archivo-nomina" accept=".xls,.xlsx" multiple>
         <button onclick="subirNomina()" style="border:none; background:#1a1a18; color:#fff; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px;">Subir</button>
         <span id="estado-subida-nomina" style="font-size:12px;"></span>
       </div>
+      <div id="resultado-subida-nomina"></div>
       <div id="aviso-sin-departamento"></div>
     </div>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
       <table>
-        <thead><tr><th>Mes</th><th>Empresa</th><th style="text-align:right;">Trabajadores</th><th style="text-align:right;">Coste total</th><th></th></tr></thead>
-        <tbody>${filasHtml || '<tr><td colspan="5" style="padding:1.5rem 4px; color:#9a988f;">Sin nóminas subidas para ' + personalGlobal.anio + '.</td></tr>'}</tbody>
+        <thead><tr><th>Mes</th><th>Empresa</th><th>Formato</th><th style="text-align:right;">Trabajadores</th><th style="text-align:right;">Coste total</th><th></th></tr></thead>
+        <tbody>${filasHtml || '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">Sin nóminas subidas para ' + personalGlobal.anio + '.</td></tr>'}</tbody>
       </table>
     </div>
   `;
 }
 async function subirNomina() {
   const input = document.getElementById('input-archivo-nomina');
-  const estado = document.getElementById('estado-subida-nomina');
-  if (!input.files || !input.files[0]) { estado.textContent = 'Selecciona un archivo primero.'; estado.style.color = '#A32D2D'; return; }
-  estado.textContent = 'Subiendo y procesando...';
-  estado.style.color = '#6b6a64';
+  if (!input.files || input.files.length === 0) {
+    const estado = document.getElementById('estado-subida-nomina');
+    estado.textContent = 'Selecciona uno o varios archivos primero.'; estado.style.color = '#A32D2D';
+    return;
+  }
+  document.getElementById('estado-subida-nomina').textContent = 'Subiendo y procesando ' + input.files.length + ' archivo(s)...';
+  document.getElementById('estado-subida-nomina').style.color = '#6b6a64';
+  document.getElementById('resultado-subida-nomina').innerHTML = '';
+  document.getElementById('aviso-sin-departamento').innerHTML = '';
   try {
     const formData = new FormData();
-    formData.append('archivo', input.files[0]);
+    for (const f of input.files) formData.append('archivos', f);
     const resp = await fetch('/api/nominas/subir', { method: 'POST', body: formData });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    personalGlobal.anio = data.anio;
+
+    const okCount = data.resultados.filter(r => r.ok).length;
+    const failCount = data.resultados.length - okCount;
+    const textoEstado = '✓ ' + okCount + ' archivo(s) procesados' + (failCount ? ', ' + failCount + ' con error' : '');
+    const colorEstado = failCount ? '#854F0B' : '#27500A';
+    const htmlResultado = `
+      <div style="margin-top:12px; background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+        <table>
+          <thead><tr><th>Archivo</th><th>Mes</th><th>Empresa</th><th>Formato</th><th style="text-align:right;">Trabajadores</th><th style="text-align:right;">Coste</th></tr></thead>
+          <tbody>${data.resultados.map(r => r.ok
+            ? `<tr><td>${r.archivo}</td><td>${MESES_ES_FACTURAS[r.mes]} ${r.anio}</td><td>${r.empresa}</td><td>${ETIQUETA_FORMATO_ORIGEN[r.formato] || r.formato}</td><td style="text-align:right;">${r.num_empleados}</td><td style="text-align:right;">${euros(r.total_coste)}</td></tr>`
+            : `<tr style="background:#FCEBEB;"><td>${r.archivo}</td><td colspan="5" style="color:#A32D2D;">Error: ${r.error}</td></tr>`
+          ).join('')}</tbody>
+        </table>
+      </div>
+    `;
+    const htmlAviso = (data.sin_departamento && data.sin_departamento.length > 0) ? `
+      <div style="margin-top:12px; background:#FCEBEB; border:0.5px solid #F3C9C9; border-radius:8px; padding:0.85rem 1rem; cursor:pointer;" onclick="cambiarPestanaPersonal('config')">
+        <p style="font-size:13px; color:#A32D2D; margin:0; font-weight:500;">⚠️ ${data.sin_departamento.length} trabajador(es) nuevo(s) sin departamento asignado</p>
+        <p style="font-size:11px; color:#854F0B; margin:2px 0 0;">Haz clic para asignarlos en Config. Departamentos</p>
+      </div>
+    ` : '';
+
+    // Si todos los archivos subidos son del mismo año, saltamos directamente
+    // a verlo; si mezclan años (histórico de varios de golpe), se deja el
+    // selector de año tal cual para que el usuario navegue entre ellos.
+    const aniosVistos = [...new Set(data.resultados.filter(r => r.ok).map(r => r.anio))];
+    if (aniosVistos.length === 1) personalGlobal.anio = aniosVistos[0];
     await recargarDatosPersonal();
-    pintarPersonal();
-    const estado2 = document.getElementById('estado-subida-nomina');
-    estado2.textContent = '✓ ' + data.empresa + ' · ' + MESES_ES_FACTURAS[data.mes] + ' ' + data.anio + ' — ' + data.num_empleados + ' trabajadores, ' + euros(data.total_coste);
-    estado2.style.color = '#27500A';
-    if (data.sin_departamento && data.sin_departamento.length > 0) {
-      document.getElementById('aviso-sin-departamento').innerHTML = `
-        <div style="margin-top:12px; background:#FCEBEB; border:0.5px solid #F3C9C9; border-radius:8px; padding:0.85rem 1rem; cursor:pointer;" onclick="cambiarPestanaPersonal('config')">
-          <p style="font-size:13px; color:#A32D2D; margin:0; font-weight:500;">⚠️ ${data.sin_departamento.length} trabajador(es) nuevo(s) sin departamento asignado</p>
-          <p style="font-size:11px; color:#854F0B; margin:2px 0 0;">Haz clic para asignarlos en Config. Departamentos</p>
-        </div>
-      `;
-    }
+    pintarPersonal(); // reconstruye toda la pestaña — los divs de abajo son nuevos
+
+    document.getElementById('estado-subida-nomina').textContent = textoEstado;
+    document.getElementById('estado-subida-nomina').style.color = colorEstado;
+    document.getElementById('resultado-subida-nomina').innerHTML = htmlResultado;
+    document.getElementById('aviso-sin-departamento').innerHTML = htmlAviso;
   } catch (err) {
-    estado.textContent = 'Error: ' + err.message;
-    estado.style.color = '#A32D2D';
+    document.getElementById('estado-subida-nomina').textContent = 'Error: ' + err.message;
+    document.getElementById('estado-subida-nomina').style.color = '#A32D2D';
   }
 }
-async function eliminarNominaMes(mes, empresaNif, empresaNombre) {
-  if (!confirm('¿Eliminar la nómina de ' + MESES_ES_FACTURAS[mes] + ' de ' + empresaNombre + '? Borra el detalle de todos los trabajadores de ese mes. No se puede deshacer.')) return;
+async function eliminarNominaMes(mes, empresaNif, formatoOrigen, empresaNombre) {
+  if (!confirm('¿Eliminar la nómina de ' + MESES_ES_FACTURAS[mes] + ' de ' + empresaNombre + ' (' + (ETIQUETA_FORMATO_ORIGEN[formatoOrigen] || formatoOrigen) + ')? Borra el detalle de todos los trabajadores de ese mes. No se puede deshacer.')) return;
   try {
-    const resp = await fetch('/api/nominas/mes?anio=' + personalGlobal.anio + '&mes=' + mes + '&empresa_nif=' + encodeURIComponent(empresaNif), { method: 'DELETE' });
+    const resp = await fetch('/api/nominas/mes?anio=' + personalGlobal.anio + '&mes=' + mes + '&empresa_nif=' + encodeURIComponent(empresaNif) + '&formato_origen=' + encodeURIComponent(formatoOrigen), { method: 'DELETE' });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     await recargarDatosPersonal();
@@ -1602,11 +1633,28 @@ function pintarPersonalConfig() {
     return (a.empresa_nombre || '').localeCompare(b.empresa_nombre || '') || (a.nombre || '').localeCompare(b.nombre || '');
   });
   const filasHtml = lista.map(filaEmpleadoDeptoHtml).join('');
+  const aliasPorNombre = {};
+  personalGlobal.extrasAlias.forEach(a => { aliasPorNombre[a.nombre] = a; });
   const listaExtras = [...personalGlobal.extrasDepartamentos].sort((a, b) => {
-    if (!a.departamento !== !b.departamento) return a.departamento ? 1 : -1;
+    const aVinculado = !!(aliasPorNombre[a.nombre] && aliasPorNombre[a.nombre].empresa_nif);
+    const bVinculado = !!(aliasPorNombre[b.nombre] && aliasPorNombre[b.nombre].empresa_nif);
+    if (!aVinculado !== !bVinculado) return aVinculado ? 1 : -1; // sin vincular primero
     return (a.nombre || '').localeCompare(b.nombre || '');
   });
-  const filasExtrasHtml = listaExtras.map(filaExtraDeptoHtml).join('');
+  const filasExtrasHtml = listaExtras.map(e => filaExtraDeptoHtml(e, aliasPorNombre[e.nombre] || null, personalGlobal.departamentos)).join('');
+
+  const aliasEmpleadoPorClave = {};
+  personalGlobal.empleadosAlias.forEach(a => { aliasEmpleadoPorClave[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] = a; });
+  const listaLegacy = personalGlobal.departamentos
+    .filter(d => d.formato_origen && d.formato_origen !== 'nominas_gestoria')
+    .sort((a, b) => {
+      const aVinc = !!(aliasEmpleadoPorClave[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] || {}).num_empleado_canonico;
+      const bVinc = !!(aliasEmpleadoPorClave[b.empresa_nif + '|' + b.formato_origen + '|' + b.num_empleado] || {}).num_empleado_canonico;
+      if (!aVinc !== !bVinc) return aVinc ? 1 : -1; // sin fusionar primero
+      return (a.nombre || '').localeCompare(b.nombre || '');
+    });
+  const filasLegacyHtml = listaLegacy.map(e => filaFusionEmpleadoHtml(e, aliasEmpleadoPorClave, personalGlobal.departamentos)).join('');
+
   cont.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
       <p style="font-size:14px; font-weight:500; margin:0;">Nóminas</p>
@@ -1615,13 +1663,29 @@ function pintarPersonalConfig() {
         <button onclick="guardarConfigPersonal()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
       </div>
     </div>
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Se rellena solo, "sin clasificar", al subir una nómina con gente nueva.</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Se rellena solo, "sin clasificar", al subir una nómina con gente nueva. Trabajadores del formato "Resumen Contable" antiguo también aparecen aquí — se clasifican igual, y además se pueden fusionar con su equivalente actual más abajo.</p>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden; margin-bottom:2rem;">
       <table>
-        <thead><tr><th>Empresa</th><th>Nº</th><th>Trabajador</th><th>Departamento</th></tr></thead>
-        <tbody id="tabla-personal-config-body">${filasHtml || '<tr><td colspan="4" style="padding:1.5rem 4px; color:#9a988f;">Sube una nómina primero para ver aquí a los trabajadores.</td></tr>'}</tbody>
+        <thead><tr><th>Empresa</th><th>Nº</th><th>Formato</th><th>Trabajador</th><th>Departamento</th></tr></thead>
+        <tbody id="tabla-personal-config-body">${filasHtml || '<tr><td colspan="5" style="padding:1.5rem 4px; color:#9a988f;">Sube una nómina primero para ver aquí a los trabajadores.</td></tr>'}</tbody>
       </table>
     </div>
+    ${listaLegacy.length > 0 ? `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
+      <p style="font-size:14px; font-weight:500; margin:0;">Fusionar histórico con Nóminas actual</p>
+      <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
+        <span id="estado-guardar-fusion" style="font-size:12px;"></span>
+        <button onclick="guardarFusionEmpleados()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
+      </div>
+    </div>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Los códigos de trabajador cambiaron al migrar de gestoría — vincula cada trabajador del formato antiguo con quién es hoy para poder comparar su coste año a año en el Informe. No afecta al reparto por departamento (ya funciona bien sin esto). Sugerido cuando el nombre coincide claramente; revisa antes de guardar.</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden; margin-bottom:2rem;">
+      <table>
+        <thead><tr><th>Trabajador (histórico)</th><th>Formato</th><th>Es hoy...</th></tr></thead>
+        <tbody id="tabla-personal-fusion-body">${filasLegacyHtml}</tbody>
+      </table>
+    </div>
+    ` : ''}
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
       <p style="font-size:14px; font-weight:500; margin:0;">Extras</p>
       <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
@@ -1629,48 +1693,114 @@ function pintarPersonalConfig() {
         <button onclick="guardarConfigExtras()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
       </div>
     </div>
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Nombres tal cual vienen de la hoja de Extras — no se cruzan con la lista de Nóminas de arriba (formatos distintos), así que se clasifican aparte.</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Vincula cada nombre de Extras a su trabajador de Nóminas — así hereda su departamento sin tener que asignarlo dos veces. Si alguien solo aparece en Extras (sin nómina, ej. personal eventual), déjalo "Sin vincular" y asígnale departamento directamente. Sugerido automáticamente cuando el nombre coincide claramente; siempre revisa antes de guardar.</p>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
       <table>
-        <thead><tr><th>Trabajador (Extras)</th><th>Departamento</th></tr></thead>
-        <tbody id="tabla-personal-config-extras-body">${filasExtrasHtml || '<tr><td colspan="2" style="padding:1.5rem 4px; color:#9a988f;">Sincroniza Extras primero (pestaña Extras) para ver aquí a los trabajadores.</td></tr>'}</tbody>
+        <thead><tr><th>Trabajador (Extras)</th><th>Vincular a Nóminas</th><th>Departamento</th></tr></thead>
+        <tbody id="tabla-personal-config-extras-body">${filasExtrasHtml || '<tr><td colspan="3" style="padding:1.5rem 4px; color:#9a988f;">Sincroniza Extras primero (pestaña Extras) para ver aquí a los trabajadores.</td></tr>'}</tbody>
       </table>
     </div>
   `;
 }
-function filaExtraDeptoHtml(e) {
-  const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === e.departamento ? 'selected' : ''}>${d}</option>`).join('');
-  const sinClasificar = !e.departamento;
+// Heurística de sugerencia: compara palabras del nombre (sin acentos) entre
+// el nombre informal de Extras y el "APELLIDOS, Nombre" de cada trabajador
+// de Nóminas. Si hay un único trabajador con al menos 1 palabra en común y
+// nadie más empata, se sugiere — nunca se vincula solo, es solo el valor
+// preseleccionado en el desplegable, hay que Guardar para confirmarlo.
+function normalizarTokensPersona(s) {
+  return (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z\s]/g, ' ').split(/\s+/).filter(Boolean);
+}
+function sugerirEmpleadoParaExtra(nombreExtra, empleadosNominas) {
+  const tokensExtra = new Set(normalizarTokensPersona(nombreExtra));
+  let mejor = null, mejorScore = 0, empatados = 0;
+  empleadosNominas.forEach(emp => {
+    const score = normalizarTokensPersona(emp.nombre).filter(t => tokensExtra.has(t)).length;
+    if (score > mejorScore) { mejorScore = score; mejor = emp; empatados = 1; }
+    else if (score > 0 && score === mejorScore) { empatados++; }
+  });
+  return (mejorScore > 0 && empatados === 1) ? mejor : null;
+}
+function filaExtraDeptoHtml(e, alias, empleadosNominasTodos) {
+  // Solo el roster ACTUAL (formato_origen 'nominas_gestoria') — vincular
+  // contra un código del histórico "Resumen Contable" sería ambiguo, el
+  // mismo número puede ser otra persona en ese formato.
+  const empleadosNominas = empleadosNominasTodos.filter(emp => (emp.formato_origen || 'nominas_gestoria') === 'nominas_gestoria');
+  const vinculado = !!(alias && alias.empresa_nif && alias.num_empleado);
+  const sugerido = !vinculado ? sugerirEmpleadoParaExtra(e.nombre, empleadosNominas) : null;
+  const valorSeleccionado = vinculado ? (alias.empresa_nif + '|' + alias.num_empleado) : (sugerido ? (sugerido.empresa_nif + '|' + sugerido.num_empleado) : '');
+  const porEmpresa = {};
+  empleadosNominas.forEach(emp => { (porEmpresa[emp.empresa_nombre] = porEmpresa[emp.empresa_nombre] || []).push(emp); });
+  const optgroups = Object.keys(porEmpresa).sort().map(empresa => `
+    <optgroup label="${empresa}">
+      ${porEmpresa[empresa].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(emp => {
+        const val = emp.empresa_nif + '|' + emp.num_empleado;
+        return `<option value="${val}" ${val === valorSeleccionado ? 'selected' : ''}>${emp.nombre}</option>`;
+      }).join('')}
+    </optgroup>
+  `).join('');
+  const empleadoActivo = valorSeleccionado ? empleadosNominas.find(emp => (emp.empresa_nif + '|' + emp.num_empleado) === valorSeleccionado) : null;
+  const textoHeredado = empleadoActivo ? ('Hereda: ' + (empleadoActivo.departamento || 'sin clasificar en Nóminas')) : '';
+  const mostrarHeredado = !!valorSeleccionado;
+  const opcionesDepto = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === e.departamento ? 'selected' : ''}>${d}</option>`).join('');
   return `
-    <tr data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${sinClasificar ? 'style="background:#FCEBEB;"' : ''}>
-      <td>${e.nombre || ''}</td>
+    <tr data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${!mostrarHeredado && !e.departamento ? 'style="background:#FCEBEB;"' : ''}>
+      <td>${e.nombre || ''}${sugerido && !vinculado ? ' <span style="color:#9a988f; font-size:11px;">(sugerido)</span>' : ''}</td>
       <td>
-        <select class="select-depto-extras" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">
+        <select class="select-alias-extras" onchange="actualizarFilaAliasExtra(this)" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:220px;">
+          <option value="">— Sin vincular —</option>
+          ${optgroups}
+        </select>
+      </td>
+      <td>
+        <span class="depto-heredado-extras" style="display:${mostrarHeredado ? 'inline' : 'none'}; font-size:12px; color:#6b6a64;">${textoHeredado}</span>
+        <select class="select-depto-extras" style="display:${mostrarHeredado ? 'none' : 'inline-block'}; font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">
           <option value="">Sin clasificar</option>
-          ${opciones}
+          ${opcionesDepto}
         </select>
       </td>
     </tr>
   `;
 }
+function actualizarFilaAliasExtra(selectEl) {
+  const fila = selectEl.closest('tr');
+  const deptoSelect = fila.querySelector('.select-depto-extras');
+  const deptoSpan = fila.querySelector('.depto-heredado-extras');
+  const valor = selectEl.value;
+  if (valor) {
+    const [empresaNif, numEmpleado] = valor.split('|');
+    const empleado = personalGlobal.departamentos.find(d => d.empresa_nif === empresaNif && (d.formato_origen || 'nominas_gestoria') === 'nominas_gestoria' && String(d.num_empleado) === numEmpleado);
+    deptoSpan.textContent = 'Hereda: ' + (empleado && empleado.departamento ? empleado.departamento : 'sin clasificar en Nóminas');
+    deptoSpan.style.display = 'inline';
+    deptoSelect.style.display = 'none';
+  } else {
+    deptoSpan.style.display = 'none';
+    deptoSelect.style.display = 'inline-block';
+  }
+}
 async function guardarConfigExtras() {
   const filas = document.querySelectorAll('#tabla-personal-config-extras-body tr[data-nombre]');
-  const asignaciones = [];
+  const asignacionesDepto = [], asignacionesAlias = [];
   filas.forEach(fila => {
-    asignaciones.push({ nombre: fila.dataset.nombre, departamento: fila.querySelector('.select-depto-extras').value || null });
+    const nombre = fila.dataset.nombre;
+    const valorAlias = fila.querySelector('.select-alias-extras').value;
+    const [empresaNif, numEmpleado] = valorAlias ? valorAlias.split('|') : [null, null];
+    asignacionesAlias.push({ nombre, empresa_nif: empresaNif, formato_origen: empresaNif ? 'nominas_gestoria' : null, num_empleado: numEmpleado });
+    asignacionesDepto.push({ nombre, departamento: fila.querySelector('.select-depto-extras').value || null });
   });
   const estado = document.getElementById('estado-guardar-depto-extras');
   estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
   try {
-    const resp = await fetch('/api/extras-departamento', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ asignaciones })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    estado.textContent = '✓ Guardado (' + data.guardadas + ')';
+    const [respAlias, respDepto] = await Promise.all([
+      fetch('/api/extras-alias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asignaciones: asignacionesAlias }) }),
+      fetch('/api/extras-departamento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asignaciones: asignacionesDepto }) })
+    ]);
+    const dataAlias = await respAlias.json(), dataDepto = await respDepto.json();
+    if (dataAlias.error) throw new Error(dataAlias.error);
+    if (dataDepto.error) throw new Error(dataDepto.error);
+    estado.textContent = '✓ Guardado (' + dataDepto.guardadas + ')';
     estado.style.color = '#27500A';
     await recargarDatosPersonal();
+    pintarPersonalConfig();
   } catch (err) {
     estado.textContent = 'Error: ' + err.message;
     estado.style.color = '#A32D2D';
@@ -1680,9 +1810,10 @@ function filaEmpleadoDeptoHtml(e) {
   const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === e.departamento ? 'selected' : ''}>${d}</option>`).join('');
   const sinClasificar = !e.departamento;
   return `
-    <tr data-empresa-nif="${e.empresa_nif}" data-empresa-nombre="${(e.empresa_nombre || '').replace(/"/g, '&quot;')}" data-num="${e.num_empleado}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${sinClasificar ? 'style="background:#FCEBEB;"' : ''}>
+    <tr data-empresa-nif="${e.empresa_nif}" data-empresa-nombre="${(e.empresa_nombre || '').replace(/"/g, '&quot;')}" data-formato="${e.formato_origen || 'nominas_gestoria'}" data-num="${e.num_empleado}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${sinClasificar ? 'style="background:#FCEBEB;"' : ''}>
       <td>${e.empresa_nombre || ''}</td>
       <td>${e.num_empleado}</td>
+      <td><span style="font-size:11px; color:#6b6a64;">${ETIQUETA_FORMATO_ORIGEN[e.formato_origen] || e.formato_origen || 'Nóminas'}</span></td>
       <td>${e.nombre || ''}</td>
       <td>
         <select class="select-depto-personal" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">
@@ -1693,12 +1824,63 @@ function filaEmpleadoDeptoHtml(e) {
     </tr>
   `;
 }
+// Sugiere qué trabajador del roster actual (formato "nominas_gestoria") es
+// probablemente la misma persona que un trabajador del histórico — misma
+// heurística que sugerirEmpleadoParaExtra (palabras del nombre en común).
+function filaFusionEmpleadoHtml(e, aliasPorClave, deptoTodos) {
+  const rosterActual = deptoTodos.filter(d => d.formato_origen === 'nominas_gestoria' && d.empresa_nif === e.empresa_nif);
+  const alias = aliasPorClave[e.empresa_nif + '|' + e.formato_origen + '|' + e.num_empleado];
+  const vinculado = alias && alias.num_empleado_canonico;
+  const sugerido = !vinculado ? sugerirEmpleadoParaExtra(e.nombre, rosterActual) : null;
+  const valorSeleccionado = vinculado ? String(alias.num_empleado_canonico) : (sugerido ? String(sugerido.num_empleado) : '');
+  const opciones = rosterActual.slice().sort((a, b) => a.nombre.localeCompare(b.nombre))
+    .map(emp => `<option value="${emp.num_empleado}" ${String(emp.num_empleado) === valorSeleccionado ? 'selected' : ''}>${emp.nombre}</option>`).join('');
+  return `
+    <tr data-empresa-nif="${e.empresa_nif}" data-formato="${e.formato_origen}" data-num="${e.num_empleado}">
+      <td>${e.nombre}${sugerido && !vinculado ? ' <span style="color:#9a988f; font-size:11px;">(sugerido)</span>' : ''}</td>
+      <td><span style="font-size:11px; color:#854F0B;">${ETIQUETA_FORMATO_ORIGEN[e.formato_origen] || e.formato_origen}</span></td>
+      <td>
+        <select class="select-fusion-empleado" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:260px;">
+          <option value="">— No fusionar (persona distinta / ya no trabaja aquí) —</option>
+          ${opciones}
+        </select>
+      </td>
+    </tr>
+  `;
+}
+async function guardarFusionEmpleados() {
+  const filas = document.querySelectorAll('#tabla-personal-fusion-body tr[data-num]');
+  if (filas.length === 0) return;
+  const asignaciones = [];
+  filas.forEach(fila => {
+    asignaciones.push({
+      empresa_nif: fila.dataset.empresaNif, formato_origen: fila.dataset.formato, num_empleado: fila.dataset.num,
+      num_empleado_canonico: fila.querySelector('.select-fusion-empleado').value || null
+    });
+  });
+  const estado = document.getElementById('estado-guardar-fusion');
+  estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
+  try {
+    const resp = await fetch('/api/empleados-alias', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asignaciones })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    estado.textContent = '✓ Guardado (' + data.guardadas + ')';
+    estado.style.color = '#27500A';
+    await recargarDatosPersonal();
+    pintarPersonalConfig();
+  } catch (err) {
+    estado.textContent = 'Error: ' + err.message;
+    estado.style.color = '#A32D2D';
+  }
+}
 async function guardarConfigPersonal() {
   const filas = document.querySelectorAll('#tabla-personal-config-body tr[data-num]');
   const asignaciones = [];
   filas.forEach(fila => {
     asignaciones.push({
-      empresa_nif: fila.dataset.empresaNif, empresa_nombre: fila.dataset.empresaNombre,
+      empresa_nif: fila.dataset.empresaNif, empresa_nombre: fila.dataset.empresaNombre, formato_origen: fila.dataset.formato,
       num_empleado: fila.dataset.num, nombre: fila.dataset.nombre,
       departamento: fila.querySelector('.select-depto-personal').value || null
     });
@@ -1750,9 +1932,44 @@ function pintarPersonalInforme() {
       </div>
       <div>${mesesHtml}</div>
     </div>
+    <div id="grafico-informe-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;"></div>
     <div id="tabla-informe-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;"></div>
   `;
   renderTablaInformePersonal();
+}
+const PALETA_DEPARTAMENTOS = ['#4C8C2B', '#C24545', '#B8956A', '#3D7C9E', '#8A6D1E', '#7A4C9E', '#C27A45', '#4C9E8C', '#9E4C7A', '#6B6A64'];
+function colorParaFila(nombre, indice) { return PALETA_DEPARTAMENTOS[indice % PALETA_DEPARTAMENTOS.length]; }
+// Barras apiladas por mes (una franja de color por fila = departamento o
+// trabajador) — mismo estilo SVG a mano que ya usa Cierre Mensual
+// (barrasCierreSVG), sin librería de gráficos.
+function graficoInformePersonalSVG(meses, filas, matriz) {
+  if (meses.length === 0 || filas.length === 0) return '';
+  const w = 900, h = 240, padL = 10, padR = 10, padT = 10, padB = 28;
+  const areaW = w - padL - padR, areaH = h - padT - padB;
+  const totalesPorMes = meses.map(m => filas.reduce((s, f) => s + (matriz[f][m] || 0), 0));
+  const max = Math.max(1, ...totalesPorMes);
+  const grupoW = areaW / meses.length;
+  const barW = grupoW * 0.55;
+  // Con muchas filas (ej. "por trabajador" con 20+ personas) apilar todo se
+  // vuelve ilegible — a partir de 12 se colapsa a una sola barra (Total).
+  const demasiadasFilas = filas.length > 12;
+  let barras = '';
+  meses.forEach((m, i) => {
+    const cx = padL + grupoW * i + grupoW / 2;
+    let y = padT + areaH;
+    const segmentos = demasiadasFilas ? [['Total', totalesPorMes[i]]] : filas.map(f => [f, matriz[f][m] || 0]);
+    segmentos.forEach(([nombre, valor], idxFila) => {
+      const hSeg = (valor / max) * areaH;
+      y -= hSeg;
+      barras += `<rect x="${cx - barW / 2}" y="${y}" width="${barW}" height="${hSeg}" fill="${colorParaFila(nombre, idxFila)}" opacity="0.9"><title>${nombre}: ${euros(valor)}</title></rect>`;
+    });
+    barras += `<text x="${cx}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#6b6a64">${MESES_ES_FACTURAS[m].slice(0, 3)}</text>`;
+  });
+  const leyenda = demasiadasFilas ? '' : `
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;">
+      ${filas.map((f, idx) => `<span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#6b6a64;"><span style="width:9px; height:9px; border-radius:2px; background:${colorParaFila(f, idx)}; display:inline-block;"></span>${f}</span>`).join('')}
+    </div>`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${barras}</svg>${leyenda}`;
 }
 function toggleMesInforme(m) {
   if (informePersonalMeses.has(m)) informePersonalMeses.delete(m); else informePersonalMeses.add(m);
@@ -1770,26 +1987,43 @@ function cambiarFuenteInforme(fuente) {
   informePersonalFuente = fuente;
   pintarPersonalInforme();
 }
-// Nóminas y Extras no comparten identidad de trabajador (nombres en formato
-// distinto, ver comentario junto a /api/extras/sincronizar en server.js),
-// así que en "Por trabajador" cada fuente aporta sus propias filas (con
-// etiqueta "· Extras" para no confundirlas); en "Por departamento" sí se
-// suman juntas porque ambas usan la misma lista DEPARTAMENTOS_ORUM.
+// Por departamento: Nóminas + Extras se suman juntas (misma lista
+// DEPARTAMENTOS_ORUM) usando formato_origen en la clave — el mismo número
+// de trabajador puede ser otra persona según el formato del archivo.
+// Por trabajador: se agrupa por nombre ACTUAL (roster "nominas_gestoria")
+// cuando hay fusión guardada (empleados_alias / extras_alias) — así el
+// histórico de Resumen Contable 2025 y los extras vinculados aparecen bajo
+// la misma fila que la persona hoy, permitiendo comparar años. Sin
+// fusionar, cada fuente/formato aporta su propia fila etiquetada aparte.
 function renderTablaInformePersonal() {
   const cont = document.getElementById('tabla-informe-personal');
   const mapaDepto = {};
-  personalGlobal.departamentos.forEach(d => { mapaDepto[d.empresa_nif + '|' + d.num_empleado] = d.departamento || 'Personal sin clasificar'; });
+  personalGlobal.departamentos.forEach(d => { mapaDepto[d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado] = d.departamento || 'Personal sin clasificar'; });
   const mapaDeptoExtras = {};
   personalGlobal.extrasDepartamentos.forEach(d => { mapaDeptoExtras[d.nombre] = d.departamento || 'Extras sin clasificar'; });
+  const mapaAliasEmpleado = {};
+  personalGlobal.empleadosAlias.forEach(a => { if (a.num_empleado_canonico) mapaAliasEmpleado[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] = a.num_empleado_canonico; });
+  const mapaAliasExtras = {};
+  personalGlobal.extrasAlias.forEach(a => { if (a.empresa_nif && a.num_empleado) mapaAliasExtras[a.nombre] = a.empresa_nif + '|' + a.num_empleado; });
+  const nombreActualPorClave = {};
+  personalGlobal.departamentos.filter(d => (d.formato_origen || 'nominas_gestoria') === 'nominas_gestoria')
+    .forEach(d => { nombreActualPorClave[d.empresa_nif + '|' + d.num_empleado] = d.nombre; });
   const variasEmpresas = new Set(personalGlobal.detalle.map(d => d.empresa_nif)).size > 1;
   const meses = Array.from(informePersonalMeses).sort((a, b) => a - b);
   const matriz = {};
   if (informePersonalFuente !== 'extras') {
     personalGlobal.detalle.forEach(d => {
       if (!meses.includes(parseInt(d.mes))) return;
-      const fila = informePersonalAgrupacion === 'departamento'
-        ? (mapaDepto[d.empresa_nif + '|' + d.num_empleado] || 'Personal sin clasificar')
-        : d.nombre + (variasEmpresas ? ' (' + d.empresa_nombre + ')' : '');
+      let fila;
+      if (informePersonalAgrupacion === 'departamento') {
+        fila = mapaDepto[d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado] || 'Personal sin clasificar';
+      } else if ((d.formato_origen || 'nominas_gestoria') !== 'nominas_gestoria') {
+        const canonico = mapaAliasEmpleado[d.empresa_nif + '|' + d.formato_origen + '|' + d.num_empleado];
+        const nombreFusionado = canonico != null ? nombreActualPorClave[d.empresa_nif + '|' + canonico] : null;
+        fila = nombreFusionado || (d.nombre + ' (histórico, sin fusionar)');
+      } else {
+        fila = d.nombre + (variasEmpresas ? ' (' + d.empresa_nombre + ')' : '');
+      }
       if (!matriz[fila]) matriz[fila] = {};
       matriz[fila][d.mes] = (matriz[fila][d.mes] || 0) + (parseFloat(d.coste_total) || 0);
     });
@@ -1797,18 +2031,27 @@ function renderTablaInformePersonal() {
   if (informePersonalFuente !== 'nominas') {
     personalGlobal.extras.forEach(e => {
       if (!meses.includes(parseInt(e.mes))) return;
-      const fila = informePersonalAgrupacion === 'departamento'
-        ? (mapaDeptoExtras[e.nombre] || 'Extras sin clasificar')
-        : e.nombre + ' · Extras';
+      let fila;
+      if (informePersonalAgrupacion === 'departamento') {
+        const empresaNumEmpleado = mapaAliasExtras[e.nombre]; // "empresaNif|numEmpleado", siempre nominas_gestoria
+        const claveDepto = empresaNumEmpleado ? empresaNumEmpleado.replace('|', '|nominas_gestoria|') : null;
+        fila = (claveDepto && mapaDepto[claveDepto]) || mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
+      } else {
+        const claveEmpleado = mapaAliasExtras[e.nombre]; // "empresaNif|numEmpleado", siempre nominas_gestoria
+        fila = (claveEmpleado && nombreActualPorClave[claveEmpleado]) || (e.nombre + ' · Extras');
+      }
       if (!matriz[fila]) matriz[fila] = {};
       matriz[fila][e.mes] = (matriz[fila][e.mes] || 0) + (parseFloat(e.importe) || 0);
     });
   }
   const filas = Object.keys(matriz).sort((a, b) => a.localeCompare(b));
+  const graficoDiv = document.getElementById('grafico-informe-personal');
   if (filas.length === 0 || meses.length === 0) {
     cont.innerHTML = '<p style="padding:1.5rem; color:#9a988f; font-size:13px;">Selecciona al menos un mes con datos.</p>';
+    if (graficoDiv) graficoDiv.innerHTML = '';
     return;
   }
+  if (graficoDiv) graficoDiv.innerHTML = graficoInformePersonalSVG(meses, filas, matriz);
   const cabeceraMeses = meses.map(m => `<th style="text-align:right;">${MESES_ES_FACTURAS[m].slice(0, 3)}</th>`).join('');
   const filasHtml = filas.map(f => {
     const celdas = meses.map(m => `<td style="text-align:right;">${euros(matriz[f][m] || 0)}</td>`).join('');
