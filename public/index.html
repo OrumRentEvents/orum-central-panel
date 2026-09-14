@@ -2319,7 +2319,13 @@ function pintarMantenimiento(json) {
       </div>
       <span id="mant-contador" style="font-size:12px; color:var(--text-muted); margin-left:auto;"></span>
     </div>
-    <style>#mant-grupos table th { top: 54px; }</style>
+    <!-- Cabeceras de columna NO sticky aquí: con 20+ mini-tablas apiladas (una
+         por tipo), un th sticky por tabla junto con border-collapse pinta la
+         cabecera encima de la primera fila de datos (bug de renderizado
+         conocido en esa combinación). Cada grupo ya tiene su título justo
+         encima, así que no hace falta - solo la barra de búsqueda de arriba
+         queda fija al hacer scroll. -->
+    <style>#mant-grupos table th { position: static; box-shadow: none; }</style>
     <div id="mant-grupos"></div>
   `;
   aplicarFiltroMantenimiento();
