@@ -1078,6 +1078,16 @@ function categoriaEspecialCuidado(articulo) {
   return CATEGORIAS_ESPECIAL_CUIDADO.find(c => c.palabras.every(palabra => a.indexOf(palabra) !== -1)) || null;
 }
 
+// Piezas/accesorios que van SIEMPRE pegados al artículo principal (p.ej. el
+// pie y el protector de una sombrilla) - comparten palabra clave con la
+// categoría pero no son un modelo en sí mismo, así que no se muestran como
+// fila propia (si no, "sombrilla" salía 3 veces por cada sombrilla real).
+const PALABRAS_ACCESORIO = ['pie', 'protector', 'funda', 'soporte', 'cajon', 'base', 'peana', 'anclaje', 'lastre', 'contrapeso'].map(normalizarTexto);
+function esAccesorio(articulo) {
+  const a = normalizarTexto(articulo);
+  return PALABRAS_ACCESORIO.some(palabra => a.indexOf(palabra) !== -1);
+}
+
 app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
@@ -1099,43 +1109,44 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
     const hoy = inicioDelDia(new Date());
     const limite = new Date(hoy); limite.setDate(limite.getDate() + 14);
 
-    // Un mismo artículo "especial" suele venir partido en varias líneas de
-    // Rentman (p.ej. sombrilla + pie + protector, las 3 con la palabra
-    // "sombrilla" y la MISMA cantidad) - se agrupan aquí por proyecto +
-    // categoría en una sola salida, con la cantidad máxima vista (evita
-    // sumar 3 veces lo que es 1 unidad física) y la lista de artículos
-    // reales como detalle.
-    const gruposPorProyectoYCategoria = {};
+    // Los accesorios (pie, protector...) no cuentan como fila propia. El
+    // artículo principal a veces aparece DUPLICADO tal cual en Rentman
+    // (misma línea repetida) - se agrupan aquí por proyecto + categoría +
+    // artículo EXACTO, con la cantidad máxima vista entre esos duplicados
+    // (nunca sumada, para no inflar por el duplicado). Cada modelo distinto
+    // (p.ej. dos sombrillas diferentes en el mismo proyecto) sí se queda
+    // como su propia fila - es justo lo que se quiere ver por separado.
+    const gruposPorProyectoYArticulo = {};
     (equipmentResp.data || []).forEach(e => {
       const categoria = categoriaEspecialCuidado(e.articulo);
       if (!categoria) return;
+      if (esAccesorio(e.articulo)) return;
       const proyecto = proyectoPorId[String(e.proyecto_id)];
       if (!proyecto) return;
       const fecha = parsearFechaDDMMYYYY(proyecto.entrega_fecha);
       if (!fecha) return;
       const fechaDia = inicioDelDia(fecha);
       if (fechaDia < hoy || fechaDia > limite) return;
-      const key = String(e.proyecto_id) + '::' + categoria.etiqueta;
-      if (!gruposPorProyectoYCategoria[key]) {
-        gruposPorProyectoYCategoria[key] = { proyecto, categoria: categoria.etiqueta, cantidad: 0, articulos: new Set() };
+      const key = String(e.proyecto_id) + '::' + categoria.etiqueta + '::' + normalizarTexto(e.articulo);
+      if (!gruposPorProyectoYArticulo[key]) {
+        gruposPorProyectoYArticulo[key] = { proyecto, categoria: categoria.etiqueta, articulo: e.articulo, cantidad: 0 };
       }
-      const grupo = gruposPorProyectoYCategoria[key];
+      const grupo = gruposPorProyectoYArticulo[key];
       const cantidad = parseFloat(e.cantidad) || 0;
       if (cantidad > grupo.cantidad) grupo.cantidad = cantidad;
-      grupo.articulos.add(e.articulo);
     });
 
     // Agrupado por tipo de material (categoría) - dentro de cada tipo, una
-    // fila por salida (proyecto), ordenadas por fecha.
+    // fila por artículo real y salida (proyecto), ordenadas por fecha.
     const tiposPorEtiqueta = {};
-    Object.values(gruposPorProyectoYCategoria).forEach(g => {
+    Object.values(gruposPorProyectoYArticulo).forEach(g => {
       if (!tiposPorEtiqueta[g.categoria]) tiposPorEtiqueta[g.categoria] = { tipo: g.categoria, total_unidades: 0, pendientes: 0, salidas: [] };
       const tipo = tiposPorEtiqueta[g.categoria];
-      // Clave = proyecto + categoría: identifica ESA salida concreta. Si el
-      // mismo tipo de material vuelve a salir en otro proyecto más
-      // adelante, es una clave distinta y aparece sin marcar - revisión
-      // "por salida concreta", no permanente.
-      const clave = String(g.proyecto.id) + '::' + g.categoria;
+      // Clave = proyecto + categoría + artículo real: identifica ESE modelo
+      // en ESA salida concreta. Si el mismo modelo vuelve a salir en otro
+      // proyecto más adelante, es una clave distinta y aparece sin marcar -
+      // revisión "por salida concreta", no permanente.
+      const clave = String(g.proyecto.id) + '::' + g.categoria + '::' + normalizarTexto(g.articulo);
       const check = checksPorClave[clave];
       const revisado = !!(check && check.revisado);
       tipo.total_unidades += g.cantidad;
@@ -1148,8 +1159,8 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
         localizacion: g.proyecto.localizacion,
         google_maps_url: g.proyecto.google_maps_url || null,
         fecha_entrega: g.proyecto.entrega_fecha,
+        articulo: g.articulo,
         cantidad: g.cantidad,
-        articulos: Array.from(g.articulos),
         revisado,
         revisado_por: check ? check.revisado_por : null
       });
@@ -1166,16 +1177,17 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
 });
 
 // Marca/desmarca la revisión de mantenimiento de una salida concreta
-// (proyecto + tipo de material). Sin fila en la tabla = no revisado; con
-// fila y revisado=true = comprobado por mantenimiento para ESA salida.
+// (proyecto + categoría + artículo real). Sin fila en la tabla = no
+// revisado; con fila y revisado=true = comprobado por mantenimiento para
+// ESE modelo en ESA salida.
 app.post('/api/mantenimiento/check', requiereLogin, async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
-    const { clave, proyecto_id, tipo, revisado } = req.body || {};
-    if (!clave || !proyecto_id || !tipo) return res.status(400).json({ error: 'Faltan datos' });
+    const { clave, proyecto_id, articulo, revisado } = req.body || {};
+    if (!clave || !proyecto_id || !articulo) return res.status(400).json({ error: 'Faltan datos' });
     if (revisado) {
       const { error } = await supabase.from('mantenimiento_checks').upsert({
-        clave, proyecto_id: String(proyecto_id), articulo: tipo,
+        clave, proyecto_id: String(proyecto_id), articulo,
         revisado: true,
         revisado_por: req.session.usuario.nombre || req.session.usuario.usuario,
         revisado_ts: new Date().toISOString(),

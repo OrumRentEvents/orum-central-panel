@@ -2351,7 +2351,7 @@ function aplicarFiltroMantenimiento() {
       (s.cliente || '').toLowerCase().includes(busqueda) ||
       String(s.proyecto_numero || '').includes(busqueda) ||
       (s.localizacion || '').toLowerCase().includes(busqueda) ||
-      s.articulos.some(a => a.toLowerCase().includes(busqueda))
+      (s.articulo || '').toLowerCase().includes(busqueda)
     );
     return Object.assign({}, t, { salidas });
   }).filter(t => t.salidas.length > 0);
@@ -2380,6 +2380,7 @@ function renderGruposMantenimiento(tipos) {
         <thead>
           <tr>
             <th>Salida</th>
+            <th>Artículo (Rentman)</th>
             <th style="text-align:right;">Cantidad</th>
             <th>Cliente</th>
             <th>Nº Proyecto</th>
@@ -2398,6 +2399,7 @@ function filaMantenimiento(s) {
   return `
     <tr style="${s.revisado ? 'background:#EAF3DE;' : ''}">
       <td>${s.fecha_entrega || '—'}</td>
+      <td>${s.articulo || '—'}</td>
       <td style="text-align:right;">${s.cantidad || '—'}</td>
       <td>${s.cliente || '—'}</td>
       <td>${s.proyecto_numero ? '<span class="celda-copiable" onclick="copiarAlPortapapeles(\'' + s.proyecto_numero + '\', event)" title="Clic para copiar">' + s.proyecto_numero + '</span>' : '—'}</td>
@@ -2422,7 +2424,7 @@ async function marcarRevisadoMantenimiento(clave, revisado) {
     const resp = await fetch('/api/mantenimiento/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clave: salida.clave, proyecto_id: salida.proyecto_id, tipo: tipoLabel, revisado })
+      body: JSON.stringify({ clave: salida.clave, proyecto_id: salida.proyecto_id, articulo: salida.articulo, revisado })
     });
     const json = await resp.json();
     if (json.error) { alert('Error al guardar: ' + json.error); aplicarFiltroMantenimiento(); return; }
