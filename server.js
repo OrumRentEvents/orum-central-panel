@@ -1038,23 +1038,44 @@ async function construirRespuestaPreparacion(vista) {
 // MANTENIMIENTO — Fase 1: aviso de material de "especial cuidado"
 // ================================================================
 // Rentman no tiene ninguna marca de "especial cuidado" en el material (sin
-// tags, sin categoría dedicada) - la lista de abajo son palabras clave que
-// se buscan como subcadena dentro del nombre del artículo. Para una palabra
-// clave de varias palabras (p.ej. "mesa vintage") deben aparecer TODAS,
-// en cualquier orden - así "sombrilla" encuentra todos los modelos de
-// sombrilla, y "mesa vintage" no confunde con otras mesas. Lista abierta:
-// se amplía a mano según lo vaya pidiendo Logística.
-const PALABRAS_ESPECIAL_CUIDADO = [
-  'nevera torre', 'paellera', 'fogon', 'microondas', 'freidora', 'congelador',
-  'nevera botellero', 'barbacoa', 'armario caliente', 'horno', 'induccion',
-  'estufa', 'sombrilla', 'sofa', 'puff', 'barra', 'mesa vintage', 'mesa isabel',
-  'mesa teka', 'sillon emmanuel', 'mesa bambu', 'mesa tijera', 'mesa donut',
-  'mesa ola vintage'
-].map(normalizarTexto);
+// tags, sin categoría dedicada) - cada categoría de abajo se detecta
+// buscando que TODAS sus palabras (normalizadas, sin acentos) aparezcan en
+// el nombre del artículo, en cualquier orden - así "sombrilla" encuentra
+// todos los modelos de sombrilla, y "mesa vintage" no confunde con otras
+// mesas. Las categorías con más palabras van primero (p.ej. "Mesa Ola
+// Vintage" antes que "Mesa Vintage") para que un artículo que cumple ambas
+// caiga en la más específica. Lista abierta: se amplía a mano según lo
+// vaya pidiendo Logística.
+const CATEGORIAS_ESPECIAL_CUIDADO = [
+  { etiqueta: 'Nevera torre', palabras: ['nevera', 'torre'] },
+  { etiqueta: 'Nevera botellero', palabras: ['nevera', 'botellero'] },
+  { etiqueta: 'Paellera', palabras: ['paellera'] },
+  { etiqueta: 'Fogón', palabras: ['fogon'] },
+  { etiqueta: 'Microondas', palabras: ['microondas'] },
+  { etiqueta: 'Freidora', palabras: ['freidora'] },
+  { etiqueta: 'Congelador', palabras: ['congelador'] },
+  { etiqueta: 'Barbacoa', palabras: ['barbacoa'] },
+  { etiqueta: 'Armario caliente', palabras: ['armario', 'caliente'] },
+  { etiqueta: 'Horno', palabras: ['horno'] },
+  { etiqueta: 'Placa de inducción', palabras: ['induccion'] },
+  { etiqueta: 'Estufa', palabras: ['estufa'] },
+  { etiqueta: 'Sombrilla', palabras: ['sombrilla'] },
+  { etiqueta: 'Sofá', palabras: ['sofa'] },
+  { etiqueta: 'Puff', palabras: ['puff'] },
+  { etiqueta: 'Mesa Ola Vintage', palabras: ['mesa', 'ola', 'vintage'] },
+  { etiqueta: 'Mesa Vintage', palabras: ['mesa', 'vintage'] },
+  { etiqueta: 'Mesa Isabel', palabras: ['mesa', 'isabel'] },
+  { etiqueta: 'Mesa Teka', palabras: ['mesa', 'teka'] },
+  { etiqueta: 'Sillón Emmanuel', palabras: ['sillon', 'emmanuel'] },
+  { etiqueta: 'Mesa Bambú', palabras: ['mesa', 'bambu'] },
+  { etiqueta: 'Mesa Tijera', palabras: ['mesa', 'tijera'] },
+  { etiqueta: 'Mesa Donut', palabras: ['mesa', 'donut'] },
+  { etiqueta: 'Barra', palabras: ['barra'] },
+].map(c => ({ etiqueta: c.etiqueta, palabras: c.palabras.map(normalizarTexto) }));
 
-function palabraClaveEspecialCuidado(articulo) {
+function categoriaEspecialCuidado(articulo) {
   const a = normalizarTexto(articulo);
-  return PALABRAS_ESPECIAL_CUIDADO.find(clave => clave.split(' ').every(palabra => a.indexOf(palabra) !== -1)) || null;
+  return CATEGORIAS_ESPECIAL_CUIDADO.find(c => c.palabras.every(palabra => a.indexOf(palabra) !== -1)) || null;
 }
 
 app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
@@ -1078,39 +1099,66 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
     const hoy = inicioDelDia(new Date());
     const limite = new Date(hoy); limite.setDate(limite.getDate() + 14);
 
-    const items = [];
+    // Un mismo artículo "especial" suele venir partido en varias líneas de
+    // Rentman (p.ej. sombrilla + pie + protector, las 3 con la palabra
+    // "sombrilla" y la MISMA cantidad) - se agrupan aquí por proyecto +
+    // categoría en una sola salida, con la cantidad máxima vista (evita
+    // sumar 3 veces lo que es 1 unidad física) y la lista de artículos
+    // reales como detalle.
+    const gruposPorProyectoYCategoria = {};
     (equipmentResp.data || []).forEach(e => {
-      const palabraClave = palabraClaveEspecialCuidado(e.articulo);
-      if (!palabraClave) return;
+      const categoria = categoriaEspecialCuidado(e.articulo);
+      if (!categoria) return;
       const proyecto = proyectoPorId[String(e.proyecto_id)];
       if (!proyecto) return;
       const fecha = parsearFechaDDMMYYYY(proyecto.entrega_fecha);
       if (!fecha) return;
       const fechaDia = inicioDelDia(fecha);
       if (fechaDia < hoy || fechaDia > limite) return;
-      // Clave = proyecto + artículo: identifica ESA salida concreta. Si el
-      // mismo artículo vuelve a salir en otro proyecto más adelante, es una
-      // clave distinta y aparece sin marcar - revisión "por salida concreta".
-      const clave = String(e.proyecto_id) + '::' + normalizarTexto(e.articulo);
+      const key = String(e.proyecto_id) + '::' + categoria.etiqueta;
+      if (!gruposPorProyectoYCategoria[key]) {
+        gruposPorProyectoYCategoria[key] = { proyecto, categoria: categoria.etiqueta, cantidad: 0, articulos: new Set() };
+      }
+      const grupo = gruposPorProyectoYCategoria[key];
+      const cantidad = parseFloat(e.cantidad) || 0;
+      if (cantidad > grupo.cantidad) grupo.cantidad = cantidad;
+      grupo.articulos.add(e.articulo);
+    });
+
+    // Agrupado por tipo de material (categoría) - dentro de cada tipo, una
+    // fila por salida (proyecto), ordenadas por fecha.
+    const tiposPorEtiqueta = {};
+    Object.values(gruposPorProyectoYCategoria).forEach(g => {
+      if (!tiposPorEtiqueta[g.categoria]) tiposPorEtiqueta[g.categoria] = { tipo: g.categoria, total_unidades: 0, pendientes: 0, salidas: [] };
+      const tipo = tiposPorEtiqueta[g.categoria];
+      // Clave = proyecto + categoría: identifica ESA salida concreta. Si el
+      // mismo tipo de material vuelve a salir en otro proyecto más
+      // adelante, es una clave distinta y aparece sin marcar - revisión
+      // "por salida concreta", no permanente.
+      const clave = String(g.proyecto.id) + '::' + g.categoria;
       const check = checksPorClave[clave];
-      items.push({
+      const revisado = !!(check && check.revisado);
+      tipo.total_unidades += g.cantidad;
+      if (!revisado) tipo.pendientes++;
+      tipo.salidas.push({
         clave,
-        proyecto_id: e.proyecto_id,
-        proyecto_numero: proyecto.numero,
-        cliente: proyecto.cliente,
-        localizacion: proyecto.localizacion,
-        fecha_entrega: proyecto.entrega_fecha,
-        entrega_hora: proyecto.entrega_hora,
-        articulo: e.articulo,
-        cantidad: parseFloat(e.cantidad) || 0,
-        palabra_clave: palabraClave,
-        revisado: !!(check && check.revisado),
-        revisado_por: check ? check.revisado_por : null,
-        revisado_ts: check ? check.revisado_ts : null
+        proyecto_id: g.proyecto.id,
+        proyecto_numero: g.proyecto.numero,
+        cliente: g.proyecto.cliente,
+        localizacion: g.proyecto.localizacion,
+        google_maps_url: g.proyecto.google_maps_url || null,
+        fecha_entrega: g.proyecto.entrega_fecha,
+        cantidad: g.cantidad,
+        articulos: Array.from(g.articulos),
+        revisado,
+        revisado_por: check ? check.revisado_por : null
       });
     });
 
-    res.json({ ok: true, data: items, ultima_actualizacion: proyectosResp.ultima_actualizacion });
+    const tipos = Object.values(tiposPorEtiqueta).sort((a, b) => a.tipo.localeCompare(b.tipo));
+    tipos.forEach(t => t.salidas.sort((a, b) => parsearFechaDDMMYYYY(a.fecha_entrega) - parsearFechaDDMMYYYY(b.fecha_entrega)));
+
+    res.json({ ok: true, tipos, ultima_actualizacion: proyectosResp.ultima_actualizacion });
   } catch (err) {
     console.error('Error en /api/mantenimiento:', err);
     res.status(500).json({ error: 'Error al leer mantenimiento: ' + err.message });
@@ -1118,16 +1166,16 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
 });
 
 // Marca/desmarca la revisión de mantenimiento de una salida concreta
-// (proyecto + artículo). Sin fila en la tabla = no revisado; con fila y
-// revisado=true = comprobado por mantenimiento para ESA salida.
+// (proyecto + tipo de material). Sin fila en la tabla = no revisado; con
+// fila y revisado=true = comprobado por mantenimiento para ESA salida.
 app.post('/api/mantenimiento/check', requiereLogin, async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
-    const { clave, proyecto_id, articulo, revisado } = req.body || {};
-    if (!clave || !proyecto_id || !articulo) return res.status(400).json({ error: 'Faltan datos' });
+    const { clave, proyecto_id, tipo, revisado } = req.body || {};
+    if (!clave || !proyecto_id || !tipo) return res.status(400).json({ error: 'Faltan datos' });
     if (revisado) {
       const { error } = await supabase.from('mantenimiento_checks').upsert({
-        clave, proyecto_id: String(proyecto_id), articulo,
+        clave, proyecto_id: String(proyecto_id), articulo: tipo,
         revisado: true,
         revisado_por: req.session.usuario.nombre || req.session.usuario.usuario,
         revisado_ts: new Date().toISOString(),

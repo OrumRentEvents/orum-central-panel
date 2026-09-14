@@ -2308,89 +2308,126 @@ async function cargarMantenimiento() {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-let ordenMantenimiento = { campo: 'fecha_entrega', asc: true };
 function pintarMantenimiento(json) {
   const body = document.getElementById('content-body');
-  const datos = json.data || [];
-  const pendientes = datos.filter(m => !m.revisado).length;
-  const html = `
-    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1.5rem;">
-      ${kpiCard('Salidas con material especial', datos.length)}
-      ${kpiCard('Pendientes de revisar', pendientes)}
-      ${kpiCard('Revisadas', datos.length - pendientes)}
+  window.mantenimientoTiposOriginal = json.tipos || [];
+  body.innerHTML = `
+    <div id="mant-kpis" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;"></div>
+    <div style="position:sticky; top:0; z-index:5; background:var(--bg-main); padding:8px 0 14px; display:flex; align-items:center; gap:10px;">
+      <div class="search-box" style="flex:1; max-width:380px;">
+        <input type="text" id="buscador-mantenimiento" placeholder="Buscar tipo, artículo, cliente, proyecto o localización..." oninput="aplicarFiltroMantenimiento()">
+      </div>
+      <span id="mant-contador" style="font-size:12px; color:var(--text-muted); margin-left:auto;"></span>
     </div>
-    <div style="overflow-x:auto;">
-    <table>
-      <thead>
-        <tr>
-          <th style="cursor:pointer;" onclick="cambiarOrdenMantenimiento('fecha_entrega')">Salida${flechaOrdenMantenimiento('fecha_entrega')}</th>
-          <th style="cursor:pointer;" onclick="cambiarOrdenMantenimiento('articulo')">Artículo${flechaOrdenMantenimiento('articulo')}</th>
-          <th style="text-align:right;">Cantidad</th>
-          <th style="cursor:pointer;" onclick="cambiarOrdenMantenimiento('cliente')">Cliente${flechaOrdenMantenimiento('cliente')}</th>
-          <th>Nº Proyecto</th>
-          <th>Localización</th>
-          <th style="text-align:center;">Revisado por mantenimiento</th>
-        </tr>
-      </thead>
-      <tbody id="tabla-mantenimiento-body"></tbody>
-    </table>
-    </div>
+    <style>#mant-grupos table th { top: 54px; }</style>
+    <div id="mant-grupos"></div>
   `;
-  body.innerHTML = html;
-  window.mantenimientoDataActual = datos;
-  renderTablaMantenimiento(datos);
+  aplicarFiltroMantenimiento();
 }
-function cambiarOrdenMantenimiento(campo) {
-  if (ordenMantenimiento.campo === campo) ordenMantenimiento.asc = !ordenMantenimiento.asc;
-  else { ordenMantenimiento.campo = campo; ordenMantenimiento.asc = true; }
-  renderTablaMantenimiento(window.mantenimientoDataActual);
+function renderKpisMantenimiento() {
+  const cont = document.getElementById('mant-kpis');
+  if (!cont) return;
+  const tipos = window.mantenimientoTiposOriginal || [];
+  const totalSalidas = tipos.reduce((s, t) => s + t.salidas.length, 0);
+  const totalPendientes = tipos.reduce((s, t) => s + t.pendientes, 0);
+  cont.innerHTML =
+    kpiCard('Salidas con material especial', totalSalidas) +
+    kpiCard('Pendientes de revisar', totalPendientes) +
+    kpiCard('Revisadas', totalSalidas - totalPendientes);
 }
-function flechaOrdenMantenimiento(campo) {
-  if (ordenMantenimiento.campo !== campo) return '';
-  return ordenMantenimiento.asc ? ' ▲' : ' ▼';
+function aplicarFiltroMantenimiento() {
+  renderKpisMantenimiento();
+  const inputEl = document.getElementById('buscador-mantenimiento');
+  const busqueda = inputEl ? inputEl.value.toLowerCase().trim() : '';
+  const tiposFiltrados = (window.mantenimientoTiposOriginal || []).map(t => {
+    const salidas = !busqueda ? t.salidas : t.salidas.filter(s =>
+      t.tipo.toLowerCase().includes(busqueda) ||
+      (s.cliente || '').toLowerCase().includes(busqueda) ||
+      String(s.proyecto_numero || '').includes(busqueda) ||
+      (s.localizacion || '').toLowerCase().includes(busqueda) ||
+      s.articulos.some(a => a.toLowerCase().includes(busqueda))
+    );
+    return Object.assign({}, t, { salidas });
+  }).filter(t => t.salidas.length > 0);
+  renderGruposMantenimiento(tiposFiltrados);
+  const contador = document.getElementById('mant-contador');
+  if (contador) {
+    const totalVisible = tiposFiltrados.reduce((s, t) => s + t.salidas.length, 0);
+    contador.textContent = totalVisible + ' salida' + (totalVisible === 1 ? '' : 's');
+  }
 }
-function renderTablaMantenimiento(lista) {
-  const tbody = document.getElementById('tabla-mantenimiento-body');
-  if (!tbody) return;
-  const ordenada = ordenarLista(lista || [], ordenMantenimiento);
-  if (ordenada.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="padding:1.5rem 4px; color:#9a988f;">No hay material de especial cuidado saliendo en los próximos 14 días.</td></tr>';
+function renderGruposMantenimiento(tipos) {
+  const cont = document.getElementById('mant-grupos');
+  if (!cont) return;
+  if (tipos.length === 0) {
+    cont.innerHTML = '<p style="color:#9a988f; padding:1.5rem 4px;">No hay material de especial cuidado saliendo en los próximos 14 días.</p>';
     return;
   }
-  tbody.innerHTML = ordenada.map(m => `
-    <tr>
-      <td>${m.fecha_entrega || '—'}${m.entrega_hora ? ' · ' + m.entrega_hora : ''}</td>
-      <td>${m.articulo || '—'}</td>
-      <td style="text-align:right;">${m.cantidad || '—'}</td>
-      <td>${m.cliente || '—'}</td>
-      <td>${m.proyecto_numero ?? '—'}</td>
-      <td>${m.localizacion || '—'}</td>
+  cont.innerHTML = tipos.map(t => `
+    <div style="margin-bottom:1.75rem;">
+      <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:6px;">
+        <h3 style="font-size:15px; font-weight:700; margin:0;">${t.tipo}</h3>
+        <span style="font-size:12px; color:var(--text-muted);">${t.salidas.length} salida${t.salidas.length === 1 ? '' : 's'} · ${t.total_unidades} uds${t.pendientes > 0 ? ' · ' + t.pendientes + ' pendiente' + (t.pendientes === 1 ? '' : 's') : ''}</span>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Salida</th>
+            <th style="text-align:right;">Cantidad</th>
+            <th>Cliente</th>
+            <th>Nº Proyecto</th>
+            <th>Localización</th>
+            <th style="text-align:center;">Revisado por mantenimiento</th>
+          </tr>
+        </thead>
+        <tbody>${t.salidas.map(filaMantenimiento).join('')}</tbody>
+      </table>
+      </div>
+    </div>
+  `).join('');
+}
+function filaMantenimiento(s) {
+  const mapsUrl = s.google_maps_url || (s.localizacion ? ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.localizacion)) : null);
+  return `
+    <tr style="${s.revisado ? 'background:#EAF3DE;' : ''}">
+      <td>${s.fecha_entrega || '—'}</td>
+      <td style="text-align:right;">${s.cantidad || '—'}</td>
+      <td>${s.cliente || '—'}</td>
+      <td>${s.proyecto_numero ? '<span class="celda-copiable" onclick="copiarAlPortapapeles(\'' + s.proyecto_numero + '\', event)" title="Clic para copiar">' + s.proyecto_numero + '</span>' : '—'}</td>
+      <td>${s.localizacion || '—'}${mapsUrl ? ' · <a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent-dark); text-decoration:none; font-weight:600;">📍 Maps</a>' : ''}</td>
       <td style="text-align:center;">
         <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
-          <input type="checkbox" ${m.revisado ? 'checked' : ''} onchange="marcarRevisadoMantenimiento('${m.clave}', this.checked)">
-          ${m.revisado && m.revisado_por ? '<span style="font-size:11px; color:var(--text-muted);">✓ ' + m.revisado_por + '</span>' : ''}
+          <input type="checkbox" ${s.revisado ? 'checked' : ''} onchange="marcarRevisadoMantenimiento('${s.clave}', this.checked)">
+          ${s.revisado && s.revisado_por ? '<span style="font-size:11px; color:var(--text-muted);">✓ ' + s.revisado_por + '</span>' : ''}
         </label>
       </td>
     </tr>
-  `).join('');
+  `;
 }
 async function marcarRevisadoMantenimiento(clave, revisado) {
-  const item = (window.mantenimientoDataActual || []).find(m => m.clave === clave);
-  if (!item) return;
+  let salida = null, tipoLabel = null;
+  (window.mantenimientoTiposOriginal || []).forEach(t => {
+    const encontrada = t.salidas.find(s => s.clave === clave);
+    if (encontrada) { salida = encontrada; tipoLabel = t.tipo; }
+  });
+  if (!salida) return;
   try {
     const resp = await fetch('/api/mantenimiento/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clave: item.clave, proyecto_id: item.proyecto_id, articulo: item.articulo, revisado })
+      body: JSON.stringify({ clave: salida.clave, proyecto_id: salida.proyecto_id, tipo: tipoLabel, revisado })
     });
     const json = await resp.json();
-    if (json.error) { alert('Error al guardar: ' + json.error); renderTablaMantenimiento(window.mantenimientoDataActual); return; }
-    item.revisado = revisado;
-    item.revisado_por = revisado ? (usuarioActual && usuarioActual.nombre) : null;
-    renderTablaMantenimiento(window.mantenimientoDataActual);
+    if (json.error) { alert('Error al guardar: ' + json.error); aplicarFiltroMantenimiento(); return; }
+    salida.revisado = revisado;
+    salida.revisado_por = revisado ? (usuarioActual && usuarioActual.nombre) : null;
+    const tipoObj = (window.mantenimientoTiposOriginal || []).find(t => t.tipo === tipoLabel);
+    if (tipoObj) tipoObj.pendientes = tipoObj.salidas.filter(s => !s.revisado).length;
+    aplicarFiltroMantenimiento();
   } catch (err) {
     alert('Error de conexión al guardar la revisión.');
-    renderTablaMantenimiento(window.mantenimientoDataActual);
+    aplicarFiltroMantenimiento();
   }
 }
 async function cargarFinancieroAuditoria() {
