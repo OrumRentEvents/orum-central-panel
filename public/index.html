@@ -817,7 +817,7 @@ const MENU = [
       { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
   ]},
   { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
-  { id: 'mantenimiento', icon: '🔧', label: 'Mantenimiento', onClick: () => renderProximamente('Mantenimiento') },
+  { id: 'mantenimiento', icon: '🔧', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
   { id: 'muelle', icon: '🚛', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
   { id: 'sync-status', icon: '🔄', label: 'Estado Sincronización', especial: true, onClick: () => {
       window.open('/sync-status', '_blank');
@@ -2289,6 +2289,109 @@ function renderTablaFianzas(listaOriginal) {
       </tr>
     `;
   }).join('');
+}
+// ================================================================
+// MANTENIMIENTO — Fase 1: aviso de material de "especial cuidado"
+// ================================================================
+async function cargarMantenimiento() {
+  document.getElementById('content-title').textContent = 'Mantenimiento · Especial cuidado (próximos 14 días)';
+  marcarMenuActivo('menu-item-mantenimiento');
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando material de especial cuidado...</p>';
+  try {
+    const resp = await fetch('/api/mantenimiento');
+    const json = await resp.json();
+    if (json.error) { body.innerHTML = '<p class="loading-text">Error: ' + json.error + '</p>'; return; }
+    actualizarIndicadorFecha(json.ultima_actualizacion);
+    pintarMantenimiento(json);
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+let ordenMantenimiento = { campo: 'fecha_entrega', asc: true };
+function pintarMantenimiento(json) {
+  const body = document.getElementById('content-body');
+  const datos = json.data || [];
+  const pendientes = datos.filter(m => !m.revisado).length;
+  const html = `
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1.5rem;">
+      ${kpiCard('Salidas con material especial', datos.length)}
+      ${kpiCard('Pendientes de revisar', pendientes)}
+      ${kpiCard('Revisadas', datos.length - pendientes)}
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th style="cursor:pointer;" onclick="cambiarOrdenMantenimiento('fecha_entrega')">Salida${flechaOrdenMantenimiento('fecha_entrega')}</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenMantenimiento('articulo')">Artículo${flechaOrdenMantenimiento('articulo')}</th>
+          <th style="text-align:right;">Cantidad</th>
+          <th style="cursor:pointer;" onclick="cambiarOrdenMantenimiento('cliente')">Cliente${flechaOrdenMantenimiento('cliente')}</th>
+          <th>Nº Proyecto</th>
+          <th>Localización</th>
+          <th style="text-align:center;">Revisado por mantenimiento</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-mantenimiento-body"></tbody>
+    </table>
+    </div>
+  `;
+  body.innerHTML = html;
+  window.mantenimientoDataActual = datos;
+  renderTablaMantenimiento(datos);
+}
+function cambiarOrdenMantenimiento(campo) {
+  if (ordenMantenimiento.campo === campo) ordenMantenimiento.asc = !ordenMantenimiento.asc;
+  else { ordenMantenimiento.campo = campo; ordenMantenimiento.asc = true; }
+  renderTablaMantenimiento(window.mantenimientoDataActual);
+}
+function flechaOrdenMantenimiento(campo) {
+  if (ordenMantenimiento.campo !== campo) return '';
+  return ordenMantenimiento.asc ? ' ▲' : ' ▼';
+}
+function renderTablaMantenimiento(lista) {
+  const tbody = document.getElementById('tabla-mantenimiento-body');
+  if (!tbody) return;
+  const ordenada = ordenarLista(lista || [], ordenMantenimiento);
+  if (ordenada.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:1.5rem 4px; color:#9a988f;">No hay material de especial cuidado saliendo en los próximos 14 días.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ordenada.map(m => `
+    <tr>
+      <td>${m.fecha_entrega || '—'}${m.entrega_hora ? ' · ' + m.entrega_hora : ''}</td>
+      <td>${m.articulo || '—'}</td>
+      <td style="text-align:right;">${m.cantidad || '—'}</td>
+      <td>${m.cliente || '—'}</td>
+      <td>${m.proyecto_numero ?? '—'}</td>
+      <td>${m.localizacion || '—'}</td>
+      <td style="text-align:center;">
+        <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" ${m.revisado ? 'checked' : ''} onchange="marcarRevisadoMantenimiento('${m.clave}', this.checked)">
+          ${m.revisado && m.revisado_por ? '<span style="font-size:11px; color:var(--text-muted);">✓ ' + m.revisado_por + '</span>' : ''}
+        </label>
+      </td>
+    </tr>
+  `).join('');
+}
+async function marcarRevisadoMantenimiento(clave, revisado) {
+  const item = (window.mantenimientoDataActual || []).find(m => m.clave === clave);
+  if (!item) return;
+  try {
+    const resp = await fetch('/api/mantenimiento/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave: item.clave, proyecto_id: item.proyecto_id, articulo: item.articulo, revisado })
+    });
+    const json = await resp.json();
+    if (json.error) { alert('Error al guardar: ' + json.error); renderTablaMantenimiento(window.mantenimientoDataActual); return; }
+    item.revisado = revisado;
+    item.revisado_por = revisado ? (usuarioActual && usuarioActual.nombre) : null;
+    renderTablaMantenimiento(window.mantenimientoDataActual);
+  } catch (err) {
+    alert('Error de conexión al guardar la revisión.');
+    renderTablaMantenimiento(window.mantenimientoDataActual);
+  }
 }
 async function cargarFinancieroAuditoria() {
   document.getElementById('content-title').textContent = 'Financiero · Auditoría / Alertas';

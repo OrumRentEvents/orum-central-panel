@@ -1034,6 +1034,117 @@ async function construirRespuestaPreparacion(vista) {
   return respuesta;
 }
 
+// ================================================================
+// MANTENIMIENTO — Fase 1: aviso de material de "especial cuidado"
+// ================================================================
+// Rentman no tiene ninguna marca de "especial cuidado" en el material (sin
+// tags, sin categoría dedicada) - la lista de abajo son palabras clave que
+// se buscan como subcadena dentro del nombre del artículo. Para una palabra
+// clave de varias palabras (p.ej. "mesa vintage") deben aparecer TODAS,
+// en cualquier orden - así "sombrilla" encuentra todos los modelos de
+// sombrilla, y "mesa vintage" no confunde con otras mesas. Lista abierta:
+// se amplía a mano según lo vaya pidiendo Logística.
+const PALABRAS_ESPECIAL_CUIDADO = [
+  'nevera torre', 'paellera', 'fogon', 'microondas', 'freidora', 'congelador',
+  'nevera botellero', 'barbacoa', 'armario caliente', 'horno', 'induccion',
+  'estufa', 'sombrilla', 'sofa', 'puff', 'barra', 'mesa vintage', 'mesa isabel',
+  'mesa teka', 'sillon emmanuel', 'mesa bambu', 'mesa tijera', 'mesa donut',
+  'mesa ola vintage'
+].map(normalizarTexto);
+
+function palabraClaveEspecialCuidado(articulo) {
+  const a = normalizarTexto(articulo);
+  return PALABRAS_ESPECIAL_CUIDADO.find(clave => clave.split(' ').every(palabra => a.indexOf(palabra) !== -1)) || null;
+}
+
+app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
+    const [proyectosResp, equipmentResp, checksResp] = await Promise.all([
+      llamarOrumCentral('proyectos'),
+      llamarOrumCentral('equipment'),
+      supabase.from('mantenimiento_checks').select('*')
+    ]);
+    if (checksResp.error) throw checksResp.error;
+
+    const proyectosConfirmados = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI' && !ESTADOS_EXCLUIR_NOMBRE.includes(normalizarTexto(p.estado)));
+    const proyectoPorId = {};
+    proyectosConfirmados.forEach(p => { proyectoPorId[String(p.id)] = p; });
+
+    const checksPorClave = {};
+    (checksResp.data || []).forEach(c => { checksPorClave[c.clave] = c; });
+
+    // Ventana de 14 días (2 semanas) desde hoy, pedida explícitamente.
+    const hoy = inicioDelDia(new Date());
+    const limite = new Date(hoy); limite.setDate(limite.getDate() + 14);
+
+    const items = [];
+    (equipmentResp.data || []).forEach(e => {
+      const palabraClave = palabraClaveEspecialCuidado(e.articulo);
+      if (!palabraClave) return;
+      const proyecto = proyectoPorId[String(e.proyecto_id)];
+      if (!proyecto) return;
+      const fecha = parsearFechaDDMMYYYY(proyecto.entrega_fecha);
+      if (!fecha) return;
+      const fechaDia = inicioDelDia(fecha);
+      if (fechaDia < hoy || fechaDia > limite) return;
+      // Clave = proyecto + artículo: identifica ESA salida concreta. Si el
+      // mismo artículo vuelve a salir en otro proyecto más adelante, es una
+      // clave distinta y aparece sin marcar - revisión "por salida concreta".
+      const clave = String(e.proyecto_id) + '::' + normalizarTexto(e.articulo);
+      const check = checksPorClave[clave];
+      items.push({
+        clave,
+        proyecto_id: e.proyecto_id,
+        proyecto_numero: proyecto.numero,
+        cliente: proyecto.cliente,
+        localizacion: proyecto.localizacion,
+        fecha_entrega: proyecto.entrega_fecha,
+        entrega_hora: proyecto.entrega_hora,
+        articulo: e.articulo,
+        cantidad: parseFloat(e.cantidad) || 0,
+        palabra_clave: palabraClave,
+        revisado: !!(check && check.revisado),
+        revisado_por: check ? check.revisado_por : null,
+        revisado_ts: check ? check.revisado_ts : null
+      });
+    });
+
+    res.json({ ok: true, data: items, ultima_actualizacion: proyectosResp.ultima_actualizacion });
+  } catch (err) {
+    console.error('Error en /api/mantenimiento:', err);
+    res.status(500).json({ error: 'Error al leer mantenimiento: ' + err.message });
+  }
+});
+
+// Marca/desmarca la revisión de mantenimiento de una salida concreta
+// (proyecto + artículo). Sin fila en la tabla = no revisado; con fila y
+// revisado=true = comprobado por mantenimiento para ESA salida.
+app.post('/api/mantenimiento/check', requiereLogin, async (req, res) => {
+  try {
+    if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
+    const { clave, proyecto_id, articulo, revisado } = req.body || {};
+    if (!clave || !proyecto_id || !articulo) return res.status(400).json({ error: 'Faltan datos' });
+    if (revisado) {
+      const { error } = await supabase.from('mantenimiento_checks').upsert({
+        clave, proyecto_id: String(proyecto_id), articulo,
+        revisado: true,
+        revisado_por: req.session.usuario.nombre || req.session.usuario.usuario,
+        revisado_ts: new Date().toISOString(),
+        updated_raw: new Date().toISOString()
+      });
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('mantenimiento_checks').delete().eq('clave', clave);
+      if (error) throw error;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error en /api/mantenimiento/check:', err);
+    res.status(500).json({ error: 'Error al guardar la revisión: ' + err.message });
+  }
+});
+
 app.get('/api/preparacion', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const vista = req.query.vista || 'almacen';
