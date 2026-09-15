@@ -2905,28 +2905,6 @@ app.get('/api/facturas-proveedores/:fileId/historial', requiereLogin, bloquearCo
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// NUEVO (15 sep 2026): ver el PDF escaneado de una factura desde el propio
-// panel. Reutiliza la acción "descargarArchivo" del Apps Script (la misma
-// que ya usa la extracción por IA), así que no hace falta tocar ni
-// redesplegar el Apps Script. Se sirve con Content-Disposition inline para
-// que el navegador lo abra directamente en una pestaña nueva.
-app.get('/api/facturas-proveedores/:fileId/archivo', requiereLogin, bloquearComercial, async (req, res) => {
-  try {
-    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId: req.params.fileId });
-    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
-    const data = await resp.json();
-    if (data.error) return res.status(500).json({ error: data.error });
-    const buffer = Buffer.from(data.base64, 'base64');
-    const nombreArchivo = String(data.nombreArchivo || 'factura.pdf').replace(/"/g, '');
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${nombreArchivo}"`);
-    res.send(buffer);
-  } catch (err) {
-    console.error('Error en /api/facturas-proveedores/:fileId/archivo:', err);
-    res.status(500).json({ error: 'Error al obtener el archivo: ' + err.message });
-  }
-});
-
 // ================================================================
 // SERVICIOS ISABELLA — apoyo logístico/de personal de ORUM al grupo
 // Isabella (VMS Horeca, Isabella Mobiliario, Isabella al Carbón, Isabella

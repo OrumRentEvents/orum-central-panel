@@ -3762,10 +3762,14 @@ function renderTablaFacturasProveedores(lista) {
   html += '</tbody></table>';
   cont.innerHTML = html;
 }
-// 📄: abre el PDF escaneado de la factura en una pestaña nueva, tal cual
-// se subió a Drive (sin pasar por la IA ni por el listado - solo el archivo).
+// 📄: abre el PDF escaneado directo desde Google Drive (visor nativo de
+// Google, instantáneo). ANTES pasaba por /api/.../archivo, que reenviaba el
+// PDF a través del Apps Script en base64 (doble codificación + doble salto
+// de red) - con archivos grandes tardaba muchísimo. Como quien lo abre ya
+// tiene acceso a esa carpeta de Drive (es la misma donde se suben las
+// facturas a mano), el enlace directo funciona sin pasar por nuestro server.
 function verArchivoFactura(fileId) {
-  window.open('/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo', '_blank');
+  window.open('https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/view', '_blank');
 }
 // Lápiz: activa/desactiva edición en la propia línea para Proveedor/Nº
 // Factura/Fecha/Base/IVA/Total (los que extrae la IA). Sin modal - se
