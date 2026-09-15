@@ -3912,8 +3912,13 @@ async function sincronizarFacturasProveedores() {
       estadoSync.textContent = 'Error: ' + data.error;
       estadoSync.style.color = '#A32D2D';
     } else {
-      estadoSync.textContent = `✓ ${data.procesadas} facturas nuevas procesadas${data.con_error > 0 ? ', ' + data.con_error + ' con error' : ''}.`;
-      estadoSync.style.color = '#27500A';
+      // NUEVO (15 sep 2026): antes solo se veía "X con error" sin detalle -
+      // para diagnosticar qué PDFs concretos fallan (y por qué) hay que
+      // mostrar la lista, no solo el contador.
+      const detalleErrores = (data.errores || []).map(e => `${e.nombreArchivo}: ${e.error}`).join('\n');
+      estadoSync.innerHTML = `✓ ${data.procesadas} facturas nuevas procesadas${data.con_error > 0 ? ', ' + data.con_error + ' con error' : ''}.` +
+        (data.con_error > 0 ? `<br><span style="font-size:12px; white-space:pre-line;">${detalleErrores.replace(/</g, '&lt;')}</span>` : '');
+      estadoSync.style.color = data.con_error > 0 ? '#9C6500' : '#27500A';
       await cargarFacturasProveedores();
       return;
     }
@@ -4106,6 +4111,10 @@ function renderTablaFacturasProveedores(lista) {
       `<span class="badge badge-neutral" style="font-size:11px;" title="${euros(d.importe)}">${d.departamento}${d.porcentaje < 100 ? ' ' + d.porcentaje + '%' : ''}</span>`
     ).join(' ');
     const idAttr = String(f.fileId).replace(/"/g, '&quot;');
+    // "fila" (nº de fila real en FACTURAS_LOG) identifica esta línea en
+    // concreto para editar/guardar - fileId ya no basta porque una factura
+    // con varios meses en el mismo PDF ocupa varias filas con el mismo fileId.
+    const filaAttr = String(f.fila).replace(/"/g, '&quot;');
     const formaPagoOpts = FORMAS_PAGO_FACTURA.map(v => `<option value="${v}" ${v === (f.formaPago || '') ? 'selected' : ''}>${v || '—'}</option>`).join('');
     // Matrícula: si el valor guardado coincide con una de la flota fija, el desplegable
     // la selecciona; si no (o está vacío), cae en "Otro" y el texto queda en la nota libre.
@@ -4118,10 +4127,10 @@ function renderTablaFacturasProveedores(lista) {
     // la IA (Proveedor/Nº Factura/Fecha/Base/IVA/Total) - nada de modal.
     const editando = facturasEnEdicion.has(idAttr);
     const celdaTexto = (campo, valor, ancho) => editando
-      ? `<input type="text" value="${String(valor || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:${ancho}px;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','${campo}')">`
+      ? `<input type="text" value="${String(valor || '').replace(/"/g, '&quot;')}" style="font-size:12px; width:${ancho}px;" onblur="actualizarCampoFacturaUI(this,'${filaAttr}','${campo}')">`
       : String(valor || '—');
     const celdaNumero = (campo, valor, ancho) => editando
-      ? `<input type="number" step="0.01" value="${valor != null ? valor : ''}" style="font-size:12px; width:${ancho}px; text-align:right;" onblur="actualizarCampoFacturaUI(this,'${idAttr}','${campo}')">`
+      ? `<input type="number" step="0.01" value="${valor != null ? valor : ''}" style="font-size:12px; width:${ancho}px; text-align:right;" onblur="actualizarCampoFacturaUI(this,'${filaAttr}','${campo}')">`
       : euros(valor);
     html += `
       <tr>
@@ -4133,12 +4142,12 @@ function renderTablaFacturasProveedores(lista) {
         <td style="text-align:right; font-weight:500;">${celdaNumero('importeTotal', f.importeTotal, 75)}</td>
         <td>${departamentosHtml}</td>
         <td>${badgeConfianza}</td>
-        <td><select style="font-size:12px;" onchange="actualizarCampoFacturaUI(this,'${idAttr}','formaPago')">${formaPagoOpts}</select></td>
-        <td style="text-align:center; width:28px;" title="Contabilizada"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} title="Contabilizada" onchange="actualizarCampoFacturaUI(this,'${idAttr}','contabilizada')"></td>
-        <td style="text-align:center; width:28px;" title="Digitalizada"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} title="Digitalizada" onchange="actualizarCampoFacturaUI(this,'${idAttr}','digitalizada')"></td>
+        <td><select style="font-size:12px;" onchange="actualizarCampoFacturaUI(this,'${filaAttr}','formaPago')">${formaPagoOpts}</select></td>
+        <td style="text-align:center; width:28px;" title="Contabilizada"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} title="Contabilizada" onchange="actualizarCampoFacturaUI(this,'${filaAttr}','contabilizada')"></td>
+        <td style="text-align:center; width:28px;" title="Digitalizada"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} title="Digitalizada" onchange="actualizarCampoFacturaUI(this,'${filaAttr}','digitalizada')"></td>
         <td>
-          <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${idAttr}')">${matriculaOpts}</select>
-          <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${idAttr}','matricula')">
+          <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${filaAttr}')">${matriculaOpts}</select>
+          <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${filaAttr}','matricula')">
         </td>
         <td style="color:#9a988f; font-size:12px; white-space:nowrap;" title="Fecha en la que se importó/sincronizó desde la carpeta de Drive">${formatoFechaImportada(f.procesadoEn)}</td>
         <td style="white-space:nowrap;">
@@ -4173,17 +4182,20 @@ function toggleEdicionFactura(fileId) {
 }
 // Guarda un campo (manual o de los extraídos por IA) al vuelo, sin recargar
 // toda la tabla - así se puede ir marcando/corrigiendo sin perder el sitio.
-async function actualizarCampoFacturaUI(el, fileId, campo) {
+// ACTUALIZADO (15 sep 2026): se direcciona por "fila" (nº de fila real en
+// FACTURAS_LOG) en vez de por fileId - una factura con varias líneas/meses
+// en el mismo PDF ocupa varias filas que comparten fileId.
+async function actualizarCampoFacturaUI(el, fila, campo) {
   const valor = el.type === 'checkbox' ? el.checked : el.value;
   el.disabled = true;
   try {
     const resp = await fetch('/api/facturas-proveedores/actualizar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileId, campo, valor })
+      body: JSON.stringify({ fila, campo, valor })
     });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fileId) === String(fileId));
+    const f = (facturasProveedoresDataGlobal.facturas || []).find(x => String(x.fila) === String(fila));
     if (f) f[campo] = valor;
   } catch (err) {
     alert('Error al guardar: ' + err.message);
@@ -4194,7 +4206,7 @@ async function actualizarCampoFacturaUI(el, fileId, campo) {
 // Cuando se elige una matrícula fija de la flota, se guarda directo (no hace
 // falta nota); al elegir "Otro" se muestra el campo de texto para la nota y
 // se guarda cuando el usuario termine de escribirla (onblur del input).
-function onMatriculaSelectChange(sel, fileId) {
+function onMatriculaSelectChange(sel, fila) {
   const notaInput = sel.nextElementSibling;
   if (sel.value === '__otro__') {
     notaInput.style.display = '';
@@ -4202,7 +4214,7 @@ function onMatriculaSelectChange(sel, fileId) {
     notaInput.focus();
   } else {
     notaInput.style.display = 'none';
-    actualizarCampoFacturaUI(sel, fileId, 'matricula');
+    actualizarCampoFacturaUI(sel, fila, 'matricula');
   }
 }
 // NUEVO (3 sep 2026): histórico de importaciones - agrupa las facturas ya
