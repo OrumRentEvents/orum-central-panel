@@ -1876,12 +1876,19 @@ async function sincronizarFacturasProveedoresInterno(anio) {
   const pendientes = dataLista.pendientes || [];
   const resultados = [], errores = [];
 
-  for (const item of pendientes) {
+  // NUEVO (15 sep 2026): antes se procesaba una factura a la vez (descarga +
+  // IA + guardado, en serie), así que con varias pendientes el botón podía
+  // tardar minutos. El guardado en la Sheet ya va protegido por LockService
+  // en el Apps Script, así que es seguro lanzar varias en paralelo - se
+  // procesan en bloques de CONCURRENCIA para no saturar la API de Claude ni
+  // el Apps Script con demasiadas peticiones simultáneas.
+  const CONCURRENCIA = 4;
+  async function procesarPendiente(item) {
     try {
       const paramsDescarga = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId: item.fileId });
       const respDescarga = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsDescarga.toString()}`);
       const dataDescarga = await respDescarga.json();
-      if (dataDescarga.error) { errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); continue; }
+      if (dataDescarga.error) { errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
 
       const extraido = await extraerDatosFactura(dataDescarga.base64, item.nombreArchivo, item.proveedor);
       await fetch(APPS_SCRIPT_FACTURAS_URL, {
@@ -1892,6 +1899,11 @@ async function sincronizarFacturasProveedoresInterno(anio) {
     } catch (errItem) {
       errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: errItem.message });
     }
+  }
+
+  for (let i = 0; i < pendientes.length; i += CONCURRENCIA) {
+    const bloque = pendientes.slice(i, i + CONCURRENCIA);
+    await Promise.all(bloque.map(procesarPendiente));
   }
 
   return { total_pendientes: pendientes.length, procesadas: resultados.length, con_error: errores.length, resultados, errores };
