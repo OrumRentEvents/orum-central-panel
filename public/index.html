@@ -3529,9 +3529,17 @@ function eventosCronologicosCliente(facturas) {
     // silenciosa que solo se nota como un salto raro más adelante.
     const diferencia = Math.round((f.cobrado - cobradoSegunCaja) * 100) / 100;
     if (Math.abs(diferencia) > 0.005) {
+      // Distingue el motivo: si Caja no tiene NINGÚN registro para esta
+      // factura (típico en facturas muy recientes que Rentman ya da por
+      // pagadas pero nadie ha anotado aún en Caja) es "Sin registro en
+      // Caja" - mismo texto que ya usa Control de pagos (sin_registro_caja)
+      // para el mismo caso. Si SÍ hay registros pero no suman lo que dice
+      // Rentman (ej. un duplicado o un registro de más/de menos), es
+      // "Ajuste" a secas.
+      const etiquetaAjuste = cobradoSegunCaja === 0 ? 'Sin registro en Caja' : 'Ajuste';
       eventos.push({
         fecha: f.fecha_emision, fechaOrden: parsearFechaDDMMYYYY(f.fecha_emision),
-        numero_factura: f.numero_factura, forma_pago: 'Ajuste',
+        numero_factura: f.numero_factura, forma_pago: etiquetaAjuste,
         debe: diferencia < 0 ? -diferencia : 0, haber: diferencia > 0 ? diferencia : 0
       });
     }
