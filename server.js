@@ -1995,6 +1995,16 @@ const MESES_ES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Ju
 // Sacado a función aparte (10 sep 2026) para poder reutilizarla también desde
 // /api/cierre-mensual (Gastos del cierre = mismas facturas de proveedores ya
 // clasificadas por departamento, agregadas por mes en vez de listadas suelta).
+// NUEVO (16 sep 2026): departamentos "externos" - su % del reparto no es un
+// centro de coste interno de ORUM, sino la parte de una factura compartida
+// que en realidad paga/usa otra empresa (p.ej. Isabella Premium Group usa
+// parte de las líneas de móvil de una factura de Vodafone que paga ORUM).
+// Esa parte no debe sumar en los totales de gasto propio de ORUM (ni en las
+// tarjetas de Facturas Proveedores ni en el Cierre Mensual), aunque sigue
+// apareciendo en el desglose por departamento de cada factura para dejar
+// constancia de a quién corresponde.
+const DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN = ['Isabella Premium Group'];
+
 async function obtenerFacturasProveedoresEnriquecidas() {
   const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
   const paramsReparto = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
@@ -2015,11 +2025,29 @@ async function obtenerFacturasProveedoresEnriquecidas() {
 
   const facturasEnriquecidas = facturas.map(f => {
     const base = parseFloat(f.importeBase) || 0;
+    const iva = parseFloat(f.iva) || 0;
+    const total = parseFloat(f.importeTotal) || 0;
     const reglas = repartoPorProveedor[String(f.proveedor)] || null;
     const desglose = reglas
       ? reglas.map(r => ({ departamento: r.departamento, porcentaje: r.porcentaje, importe: Math.round(base * (r.porcentaje / 100) * 100) / 100 }))
       : [{ departamento: 'Sin clasificar', porcentaje: 100, importe: base }];
-    return { ...f, desglose_departamentos: desglose };
+
+    // % de la factura que corresponde a un departamento externo - se aplica
+    // por igual a base/IVA/total (reparto proporcional) para que los 3
+    // importes "propios" resultantes sean coherentes entre sí.
+    const porcentajeExterno = reglas
+      ? reglas.filter(r => DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN.includes(r.departamento)).reduce((sum, r) => sum + r.porcentaje, 0)
+      : 0;
+    const factorPropio = Math.max(0, 1 - porcentajeExterno / 100);
+
+    return {
+      ...f,
+      desglose_departamentos: desglose,
+      porcentaje_externo: porcentajeExterno,
+      importeBase_propio: Math.round(base * factorPropio * 100) / 100,
+      iva_propio: Math.round(iva * factorPropio * 100) / 100,
+      importeTotal_propio: Math.round(total * factorPropio * 100) / 100
+    };
   });
 
   return { facturasEnriquecidas, repartoPorProveedor };
@@ -2811,9 +2839,17 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     facturasProveedores.forEach(f => {
       const mes = parseInt(f.mes), anioFactura = parseInt(f.anio);
       if (anioFactura !== anio || mes < 1 || mes > 12) return;
-      const total = parseFloat(f.importeTotal) || 0;
+      // NUEVO (16 sep 2026): se usa importeTotal_propio (ya sin la parte
+      // repartida a un departamento externo como Isabella Premium Group) en
+      // vez del total completo de la factura - esa parte no es gasto de
+      // ORUM, la usa/paga un tercero aunque la factura venga a nuestro nombre.
+      const total = parseFloat(f.importeTotal_propio ?? f.importeTotal) || 0;
       meses[mes - 1].gastos += total;
       (f.desglose_departamentos || []).forEach(d => {
+        // Los departamentos externos (ver DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN)
+        // no son un centro de coste interno de ORUM - se excluyen aquí para
+        // que el desglose por departamento siga sumando lo mismo que "gastos".
+        if (DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN.includes(d.departamento)) return;
         // Reparto guardado sobre la base sin IVA - se escala proporcionalmente
         // al total con IVA para que el desglose por departamento sume el
         // mismo total que "gastos" (coherencia visual, mismo criterio que ya

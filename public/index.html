@@ -3946,8 +3946,13 @@ function pintarFacturasProveedores() {
   const body = document.getElementById('content-body');
   const data = facturasProveedoresDataGlobal;
   const facturas = data.facturas;
-  const totalBase = facturas.reduce((sum, f) => sum + (parseFloat(f.importeBase) || 0), 0);
-  const totalIva = facturas.reduce((sum, f) => sum + (parseFloat(f.iva) || 0), 0);
+  // NUEVO (16 sep 2026): se usa el importe "propio" (importeBase_propio/
+  // iva_propio, calculado en server.js) en vez del importe completo de la
+  // factura - así la parte repartida a un departamento externo (p.ej.
+  // Isabella Premium Group, que usa parte de unas líneas de móvil que paga
+  // ORUM) no infla el total de gasto propio mostrado aquí arriba.
+  const totalBase = facturas.reduce((sum, f) => sum + (parseFloat(f.importeBase_propio ?? f.importeBase) || 0), 0);
+  const totalIva = facturas.reduce((sum, f) => sum + (parseFloat(f.iva_propio ?? f.iva) || 0), 0);
   const nBaja = facturas.filter(f => f.confianza === 'baja').length;
   const nMedia = facturas.filter(f => f.confianza === 'media').length;
   const chipsDepartamento = data.resumen_departamentos.map(d => {
@@ -4357,7 +4362,11 @@ async function abrirHistorialFactura(fileId) {
     body.innerHTML = '<p style="color:#A32D2D; font-size:13px;">Error: ' + err.message + '</p>';
   }
 }
-const DEPARTAMENTOS_ORUM = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Vehículos', 'Otros Gastos'];
+// "Isabella Premium Group" no es un departamento interno de ORUM - es un
+// tercero que usa parte de algunas facturas compartidas (p.ej. líneas de
+// móvil). Su % se resta del gasto propio en vez de sumar como centro de
+// coste interno (ver DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN en server.js).
+const DEPARTAMENTOS_ORUM = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Vehículos', 'Otros Gastos', 'Isabella Premium Group'];
 let configProveedoresGlobal = { proveedores: [], reparto: [] };
 async function cargarConfiguracionProveedores() {
   document.getElementById('content-title').textContent = 'Facturas Proveedores · Configurar proveedores';
