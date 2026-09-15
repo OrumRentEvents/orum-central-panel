@@ -167,6 +167,10 @@
     .solo-impresion { display: block !important; }
     .main-content { padding: 0; }
     body { background: #fff; }
+    /* Márgenes propios de la página impresa - sin esto el navegador puede
+       recortar el contenido casi hasta el borde del papel (el logo/cabecera
+       de la derecha quedaban pegados al canto y a veces cortados). */
+    @page { margin: 1.6cm; }
   }
 </style>
 </head>
@@ -3333,6 +3337,17 @@ function onBuscarExtractoCliente() {
   renderResumenExtractoCliente();
 }
 
+// El número de factura de Rentman es correlativo a la fecha de emisión
+// (260092 antes que 260372, etc.), así que ordenar por número da el mismo
+// resultado que ordenar por fecha pero es más estable/legible para
+// contabilidad. Si algún número no es puramente numérico (caso raro), cae
+// a comparación de texto en vez de romper.
+function compararNumeroFactura(a, b) {
+  const na = parseInt(a, 10), nb = parseInt(b, 10);
+  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+  return String(a || '').localeCompare(String(b || ''), 'es');
+}
+
 // Estado por factura: usa pendiente_cobro/esta_pagada (misma fuente fiable
 // que ya usa Vencidas y morosidad, viene directo de Rentman) en vez de
 // recalcular a partir de los pagos de Caja, que a veces van por detrás de
@@ -3353,7 +3368,7 @@ function facturasDeCliente(cliente) {
       else estado = 'Pendiente';
       return { ...f, importe, pendiente, cobrado, estado };
     })
-    .sort((a, b) => parsearFechaDDMMYYYY(a.fecha_emision) - parsearFechaDDMMYYYY(b.fecha_emision));
+    .sort((a, b) => compararNumeroFactura(a.numero_factura, b.numero_factura));
 }
 
 function resumenExtractoCliente(facturas) {
@@ -3379,10 +3394,13 @@ function badgeEstadoExtracto(estado) {
 
 function cabeceraImpresionExtracto(subtitulo) {
   return `
-    <div class="solo-impresion" style="margin-bottom:1.25rem;">
-      <div style="font-weight:700; font-size:18px;">ORUM Events</div>
-      <div style="font-size:15px; margin-top:6px;">Extracto de cuenta${subtitulo ? ' — ' + subtitulo : ''}</div>
-      <div style="font-size:12px; color:#6b6a64;">Generado el ${new Date().toLocaleDateString('es-ES')}</div>
+    <div class="solo-impresion" style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem;">
+      <div>
+        <div style="font-weight:700; font-size:18px;">ORUM Events</div>
+        <div style="font-size:15px; margin-top:6px;">Extracto de cuenta${subtitulo ? ' — ' + subtitulo : ''}</div>
+        <div style="font-size:12px; color:#6b6a64;">Generado el ${new Date().toLocaleDateString('es-ES')}</div>
+      </div>
+      <img src="logo-orum-crown.png" alt="ORUM" style="height:52px; width:auto;">
     </div>
   `;
 }
@@ -3420,7 +3438,7 @@ function renderResumenExtractoCliente() {
         ${kpiCard('Pendiente de cobro', euros(r.total_pendiente))}
         ${kpiCard('Facturas', r.n_facturas + ' · ' + r.n_pagadas + ' pagadas · ' + r.n_parciales + ' parciales · ' + r.n_pendientes + ' pendientes')}
       </div>
-      <div style="overflow-x:auto;"><table>
+      <table>
         <thead>
           <tr>
             <th>Nº Factura</th><th>Fecha emisión</th><th>Vencimiento</th>
@@ -3429,13 +3447,14 @@ function renderResumenExtractoCliente() {
           </tr>
         </thead>
         <tbody>${filas}</tbody>
-      </table></div>
+      </table>
     </div>
   `;
 }
 
 function verDetalleExtractoCliente() {
   extractoClienteVista = 'detalle';
+  ordenDetalleExtracto = { campo: 'fecha', asc: true };
   renderDetalleExtractoCliente();
 }
 function volverResumenExtractoCliente() {
@@ -3443,16 +3462,20 @@ function volverResumenExtractoCliente() {
   renderResumenExtractoCliente();
 }
 
-// Mezcla facturas (cargo) + pagos de Caja (abono) de TODAS las facturas del
+// Mezcla facturas (Debe) + pagos de Caja (Haber) de TODAS las facturas del
 // cliente en una sola línea de tiempo, con saldo acumulado - así se ve, en
 // una sola tabla, cómo fue evolucionando la deuda del cliente factura a
 // factura y pago a pago (incluye pagos parciales, cada uno con su fecha).
+// El saldo se calcula SIEMPRE en orden cronológico real (independientemente
+// de en qué orden se esté mostrando la tabla - ver ordenarEventosDetalle):
+// es el saldo que había en la cuenta en el momento real de cada movimiento,
+// no debe recalcularse solo porque el usuario reordene la vista.
 function eventosCronologicosCliente(facturas) {
   const eventos = [];
   facturas.forEach(f => {
     eventos.push({
       fecha: f.fecha_emision, fechaOrden: parsearFechaDDMMYYYY(f.fecha_emision),
-      numero_factura: f.numero_factura, concepto: 'Factura emitida', cargo: f.importe, abono: 0
+      numero_factura: f.numero_factura, forma_pago: null, debe: f.importe, haber: 0
     });
     (f.pagos_caja || []).forEach(p => {
       const importePago = Math.round(Math.abs(parseFloat(p.importe) || 0) * 100) / 100;
@@ -3460,30 +3483,59 @@ function eventosCronologicosCliente(facturas) {
       eventos.push({
         fecha: p.fecha_pago, fechaOrden: parsearFechaDDMMYYYY(p.fecha_pago),
         numero_factura: f.numero_factura,
-        concepto: 'Pago' + (p.metodo_pago ? ' · ' + (ETIQUETAS_FORMA_PAGO[p.metodo_pago] || p.metodo_pago) : ''),
-        cargo: 0, abono: importePago
+        forma_pago: p.metodo_pago ? (ETIQUETAS_FORMA_PAGO[p.metodo_pago] || p.metodo_pago) : null,
+        debe: 0, haber: importePago
       });
     });
   });
   eventos.sort((a, b) => a.fechaOrden - b.fechaOrden);
   let saldo = 0;
-  eventos.forEach(e => { saldo = Math.round((saldo + e.cargo - e.abono) * 100) / 100; e.saldo = saldo; });
+  eventos.forEach(e => { saldo = Math.round((saldo + e.debe - e.haber) * 100) / 100; e.saldo = saldo; });
   return eventos;
+}
+
+// Orden de VISUALIZACIÓN únicamente (el saldo de cada fila ya viene fijo de
+// eventosCronologicosCliente). Por fecha es el orden cronológico real; por
+// Nº Factura agrupa cada factura con su(s) pago(s) justo debajo aunque el
+// pago haya llegado más tarde en el tiempo que facturas posteriores - así
+// se ve de un vistazo qué pago corresponde a qué factura ("casar" importes).
+let ordenDetalleExtracto = { campo: 'fecha', asc: true };
+function cambiarOrdenDetalleExtracto(campo) {
+  if (ordenDetalleExtracto.campo === campo) ordenDetalleExtracto.asc = !ordenDetalleExtracto.asc;
+  else { ordenDetalleExtracto.campo = campo; ordenDetalleExtracto.asc = true; }
+  renderDetalleExtractoCliente();
+}
+function flechaOrdenDetalleExtracto(campo) {
+  if (ordenDetalleExtracto.campo !== campo) return '';
+  return ordenDetalleExtracto.asc ? ' ▲' : ' ▼';
+}
+function ordenarEventosDetalle(eventos) {
+  const copia = eventos.slice();
+  if (ordenDetalleExtracto.campo === 'numero_factura') {
+    copia.sort((a, b) => {
+      const cmp = compararNumeroFactura(a.numero_factura, b.numero_factura);
+      const cmpDireccion = ordenDetalleExtracto.asc ? cmp : -cmp;
+      return cmpDireccion !== 0 ? cmpDireccion : a.fechaOrden - b.fechaOrden;
+    });
+  } else {
+    copia.sort((a, b) => ordenDetalleExtracto.asc ? a.fechaOrden - b.fechaOrden : b.fechaOrden - a.fechaOrden);
+  }
+  return copia;
 }
 
 function renderDetalleExtractoCliente() {
   const cliente = extractoClienteActual;
   const facturas = facturasDeCliente(cliente);
   const r = resumenExtractoCliente(facturas);
-  const eventos = eventosCronologicosCliente(facturas);
+  const eventos = ordenarEventosDetalle(eventosCronologicosCliente(facturas));
   const cont = document.getElementById('extracto-cliente-resultado');
   let filas = eventos.map(e => `
     <tr>
       <td>${e.fecha || '—'}</td>
       <td>${e.numero_factura || '—'}</td>
-      <td>${e.concepto}</td>
-      <td style="text-align:right;">${e.cargo > 0 ? euros(e.cargo) : ''}</td>
-      <td style="text-align:right; color:#27500A;">${e.abono > 0 ? euros(e.abono) : ''}</td>
+      <td style="text-align:right;">${e.debe > 0 ? euros(e.debe) : ''}</td>
+      <td style="text-align:right; color:#27500A;">${e.haber > 0 ? euros(e.haber) : ''}</td>
+      <td>${e.forma_pago || '<span style="color:#9a988f;">—</span>'}</td>
       <td style="text-align:right; font-weight:500;">${euros(e.saldo)}</td>
     </tr>
   `).join('');
@@ -3507,15 +3559,17 @@ function renderDetalleExtractoCliente() {
         ${kpiCard('Total cobrado', euros(r.total_cobrado))}
         ${kpiCard('Saldo pendiente', euros(r.total_pendiente))}
       </div>
-      <div style="overflow-x:auto;"><table>
+      <table>
         <thead>
           <tr>
-            <th>Fecha</th><th>Nº Factura</th><th>Concepto</th>
-            <th style="text-align:right;">Cargo</th><th style="text-align:right;">Abono</th><th style="text-align:right;">Saldo</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenDetalleExtracto('fecha')">Fecha${flechaOrdenDetalleExtracto('fecha')}</th>
+            <th style="cursor:pointer;" onclick="cambiarOrdenDetalleExtracto('numero_factura')">Nº Factura${flechaOrdenDetalleExtracto('numero_factura')}</th>
+            <th style="text-align:right;">Debe</th><th style="text-align:right;">Haber</th>
+            <th>Forma de pago</th><th style="text-align:right;">Saldo</th>
           </tr>
         </thead>
         <tbody>${filas}</tbody>
-      </table></div>
+      </table>
     </div>
   `;
 }
