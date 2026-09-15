@@ -2997,6 +2997,17 @@ const ETIQUETAS_FORMA_PAGO = {
   'tpv-marbella': 'TPV Marbella',
   'tpv-monda': 'TPV Monda'
 };
+// Códigos contables (subcuenta del plan contable de la gestoría) de cada
+// método de pago - configurados en Rentman > Métodos de pago (15 sep 2026).
+// Las variantes "fianza-..." y demás formas sin código en Rentman se dejan
+// sin mapear a propósito (celda en blanco) en vez de inventar un código.
+const CODIGOS_CONTABLES_FORMA_PAGO = {
+  'transferencia': '57200001',
+  'efectivo-marbella': '57000100',
+  'efectivo-monda': '57000200',
+  'tpv-marbella': '52000100',
+  'tpv-monda': '52000200'
+};
 function pintarFinanciero() {
   const data = financieroDataGlobal;
   const body = document.getElementById('content-body');
@@ -3511,7 +3522,8 @@ function eventosCronologicosCliente(facturas) {
       const evento = {
         fecha: p.fecha_pago, fechaOrden: parsearFechaDDMMYYYY(p.fecha_pago),
         numero_factura: f.numero_factura,
-        forma_pago: p.metodo_pago ? (ETIQUETAS_FORMA_PAGO[p.metodo_pago] || p.metodo_pago) : null
+        forma_pago: p.metodo_pago ? (ETIQUETAS_FORMA_PAGO[p.metodo_pago] || p.metodo_pago) : null,
+        codigo_contable: p.metodo_pago ? (CODIGOS_CONTABLES_FORMA_PAGO[p.metodo_pago] || null) : null
       };
       // Un registro de Caja con importe negativo es una devolución (dinero
       // que sale) - suma a lo pendiente (Debe) en vez de restar (Haber).
@@ -3592,10 +3604,11 @@ function renderDetalleExtractoCliente() {
       <td style="text-align:right;">${euros(e.debe)}</td>
       <td style="text-align:right; color:#27500A;">${euros(e.haber)}</td>
       <td>${e.forma_pago || '<span style="color:#9a988f;">—</span>'}</td>
+      <td>${e.codigo_contable || '<span style="color:#9a988f;">—</span>'}</td>
       <td style="text-align:right; font-weight:500;">${euros(e.saldo)}</td>
     </tr>
   `).join('');
-  if (eventos.length === 0) filas = '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">Sin movimientos.</td></tr>';
+  if (eventos.length === 0) filas = '<tr><td colspan="7" style="padding:1.5rem 4px; color:#9a988f;">Sin movimientos.</td></tr>';
 
   cont.innerHTML = `
     <div id="extracto-imprimible">
@@ -3621,7 +3634,7 @@ function renderDetalleExtractoCliente() {
             <th style="cursor:pointer;" onclick="cambiarOrdenDetalleExtracto('fecha')">Fecha${flechaOrdenDetalleExtracto('fecha')}</th>
             <th style="cursor:pointer;" onclick="cambiarOrdenDetalleExtracto('numero_factura')">Nº Factura${flechaOrdenDetalleExtracto('numero_factura')}</th>
             <th style="text-align:right;">Debe</th><th style="text-align:right;">Haber</th>
-            <th>Forma de pago</th><th style="text-align:right;">Saldo</th>
+            <th>Forma de pago</th><th>Código contable</th><th style="text-align:right;">Saldo</th>
           </tr>
         </thead>
         <tbody>${filas}</tbody>
