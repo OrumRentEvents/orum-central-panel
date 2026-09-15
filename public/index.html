@@ -257,6 +257,17 @@
   </div>
 </div>
 
+<!-- Modal errores de sincronización de facturas de proveedores -->
+<div id="modal-errores-facturas" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:6px; width:100%; max-width:640px; max-height:80vh; display:flex; flex-direction:column; margin:1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border);">
+      <h2 style="font-size:15px; font-weight:600; margin:0;">⚠️ Facturas con error al sincronizar</h2>
+      <span style="cursor:pointer; font-size:18px; color:var(--text-muted);" onclick="document.getElementById('modal-errores-facturas').style.display='none'">&times;</span>
+    </div>
+    <div style="padding:14px 16px; overflow-y:auto;" id="modal-errores-facturas-body"></div>
+  </div>
+</div>
+
 <script>
 let usuarioActual = null;
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -3953,6 +3964,7 @@ function pintarFacturasProveedores() {
       <div style="display:flex; gap:12px; align-items:center;">
         <button id="btn-sync-facturas" onclick="sincronizarFacturasProveedores()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🔄 Actualizar facturas</button>
         <button onclick="abrirHistoricoImportaciones()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#1a1a18; cursor:pointer;">📅 Histórico de importaciones</button>
+        <button onclick="abrirErroresFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#A32D2D; cursor:pointer;">⚠️ Ver errores</button>
         <span style="font-size:12px; color:#9a988f;">Se sincroniza sola todos los días a las 6:00 — este botón es para forzarlo antes</span>
         <span id="estado-sync-facturas" style="font-size:12px;"></span>
       </div>
@@ -4273,6 +4285,37 @@ function abrirHistoricoImportaciones() {
 function toggleDiaImportacion(id) {
   const el = document.getElementById(id);
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+// NUEVO (15 sep 2026): antes un fallo al procesar un PDF (JSON inválido de
+// la IA, PDF ilegible, fallo de red...) solo se veía un momento en el texto
+// junto al botón "Actualizar facturas" y se perdía al sincronizar de nuevo o
+// recargar la página - y la sincronización automática de las 6:00 no lo
+// mostraba a nadie. Ahora queda guardado en el servidor (pestaña
+// ERRORES_PROCESAMIENTO) y este botón lo consulta bajo demanda.
+async function abrirErroresFacturas() {
+  const modal = document.getElementById('modal-errores-facturas');
+  const body = document.getElementById('modal-errores-facturas-body');
+  body.innerHTML = '<p class="loading-text">Cargando errores...</p>';
+  modal.style.display = 'flex';
+  try {
+    const resp = await fetch('/api/facturas-proveedores/errores');
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    const errores = data.errores || [];
+    if (errores.length === 0) {
+      body.innerHTML = '<p style="color:#9a988f; font-size:13px;">Sin errores registrados. 🎉</p>';
+      return;
+    }
+    body.innerHTML = errores.map(e => `
+      <div style="padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;">
+        <div><strong>${e.nombreArchivo || '(sin nombre)'}</strong>${e.proveedor ? ' · ' + e.proveedor : ''}</div>
+        <div style="color:#A32D2D; margin-top:2px;">${String(e.error || '').replace(/</g, '&lt;')}</div>
+        <div style="color:#9a988f; font-size:12px; margin-top:2px;">${e.fecha ? new Date(e.fecha).toLocaleString('es-ES') : ''}</div>
+      </div>
+    `).join('');
+  } catch (err) {
+    body.innerHTML = '<p style="color:#A32D2D; font-size:13px;">Error: ' + err.message + '</p>';
+  }
 }
 const NOMBRES_CAMPO_HISTORIAL = {
   proveedor: 'Proveedor', numeroFactura: 'Nº Factura', fecha: 'Fecha',

@@ -1908,7 +1908,7 @@ async function sincronizarFacturasProveedoresInterno(anio) {
       const paramsDescarga = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId: item.fileId });
       const respDescarga = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsDescarga.toString()}`);
       const dataDescarga = await respDescarga.json();
-      if (dataDescarga.error) { errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
+      if (dataDescarga.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
 
       const lineas = await extraerDatosFactura(dataDescarga.base64, item.nombreArchivo, item.proveedor);
       const respGuardado = await fetch(APPS_SCRIPT_FACTURAS_URL, {
@@ -1916,16 +1916,33 @@ async function sincronizarFacturasProveedoresInterno(anio) {
         body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, lineas })
       });
       const dataGuardado = await respGuardado.json();
-      if (dataGuardado.error) { errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: dataGuardado.error }); return; }
+      if (dataGuardado.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataGuardado.error }); return; }
       resultados.push({ ...item, lineas, nLineas: lineas.length });
     } catch (errItem) {
-      errores.push({ fileId: item.fileId, nombreArchivo: item.nombreArchivo, error: errItem.message });
+      errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: errItem.message });
     }
   }
 
   for (let i = 0; i < pendientes.length; i += CONCURRENCIA) {
     const bloque = pendientes.slice(i, i + CONCURRENCIA);
     await Promise.all(bloque.map(procesarPendiente));
+  }
+
+  // NUEVO (15 sep 2026): antes de esto, un fallo aquí solo se veía en el
+  // contador "X con error" del botón manual - en la sincronización
+  // automática de las 6:00 no lo veía nadie y se perdía en cuanto se
+  // recargaba la página. Se guarda en su propia pestaña (ver
+  // ERRORES_PROCESAMIENTO / botón "Ver errores" del panel) para poder
+  // diagnosticar qué PDFs concretos fallan y por qué, sin que se pierda.
+  if (errores.length > 0) {
+    try {
+      await fetch(APPS_SCRIPT_FACTURAS_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'registrarErrores', errores })
+      });
+    } catch (errReg) {
+      console.error('No se pudieron registrar los errores de sincronización de facturas:', errReg.message);
+    }
   }
 
   return { total_pendientes: pendientes.length, procesadas: resultados.length, con_error: errores.length, resultados, errores };
@@ -2914,6 +2931,20 @@ app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercia
     if (!CAMPOS_FACTURA_EDITABLES.includes(campo)) return res.status(400).json({ error: 'Campo no editable: ' + campo });
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
     const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'actualizarCampo', fila, campo, valor, usuario }) });
+    const data = await resp.json();
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// NUEVO (15 sep 2026): consulta los fallos de sincronización guardados en
+// ERRORES_PROCESAMIENTO (ver sincronizarFacturasProveedoresInterno) - así se
+// puede revisar qué PDFs no se cargaron y por qué sin depender de haber
+// visto el aviso justo cuando se sincronizó.
+app.get('/api/facturas-proveedores/errores', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'erroresRecientes', limite: '200' });
+    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
     const data = await resp.json();
     if (data.error) return res.status(500).json({ error: data.error });
     res.json(data);
