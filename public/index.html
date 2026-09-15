@@ -3752,6 +3752,7 @@ function renderTablaFacturasProveedores(lista) {
         </td>
         <td style="color:#9a988f; font-size:12px; white-space:nowrap;" title="Fecha en la que se importó/sincronizó desde la carpeta de Drive">${formatoFechaImportada(f.procesadoEn)}</td>
         <td style="white-space:nowrap;">
+          <span onclick="verArchivoFactura('${idAttr}')" title="Ver factura escaneada" style="cursor:pointer; font-size:14px; margin-right:8px;">📄</span>
           <span onclick="toggleEdicionFactura('${idAttr}')" title="${editando ? 'Terminar de editar' : 'Corregir Proveedor/Nº Factura/Fecha/Importes'}" style="cursor:pointer; font-size:14px; margin-right:8px;">${editando ? '✅' : '✏️'}</span>
           <span onclick="abrirHistorialFactura('${idAttr}')" title="Ver quién ha tocado esta factura" style="cursor:pointer; font-size:14px;">🕓</span>
         </td>
@@ -3760,6 +3761,11 @@ function renderTablaFacturasProveedores(lista) {
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
+}
+// 📄: abre el PDF escaneado de la factura en una pestaña nueva, tal cual
+// se subió a Drive (sin pasar por la IA ni por el listado - solo el archivo).
+function verArchivoFactura(fileId) {
+  window.open('/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo', '_blank');
 }
 // Lápiz: activa/desactiva edición en la propia línea para Proveedor/Nº
 // Factura/Fecha/Base/IVA/Total (los que extrae la IA). Sin modal - se
