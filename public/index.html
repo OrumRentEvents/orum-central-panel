@@ -3473,19 +3473,34 @@ function volverResumenExtractoCliente() {
 function eventosCronologicosCliente(facturas) {
   const eventos = [];
   facturas.forEach(f => {
+    // f.importe puede ser negativo (rectificativa/nota de abono) - se deja
+    // tal cual en Debe (Debe negativo = abono), NO se filtra a 0 ni se
+    // esconde: antes una rectificativa se veía como fila "en blanco" que
+    // bajaba el saldo sin explicación visible.
     eventos.push({
       fecha: f.fecha_emision, fechaOrden: parsearFechaDDMMYYYY(f.fecha_emision),
       numero_factura: f.numero_factura, forma_pago: null, debe: f.importe, haber: 0
     });
     (f.pagos_caja || []).forEach(p => {
-      const importePago = Math.round(Math.abs(parseFloat(p.importe) || 0) * 100) / 100;
-      if (!importePago) return;
-      eventos.push({
+      // "factura0" es la marca que usa Caja para "esta factura se anuló con
+      // una rectificativa a 0, no hubo cobro real" (mismo criterio que
+      // es_rectificativa_a_cero/FORMAS_PAGO_REALES en /api/financiero) - si
+      // se cuenta aquí como Haber, se resta el importe DOS veces (una por
+      // la rectificativa en Debe, otra por este registro), reventando el
+      // saldo hacia negativo sin motivo real.
+      if (p.metodo_pago === 'factura0') return;
+      const importe = Math.round((parseFloat(p.importe) || 0) * 100) / 100;
+      if (!importe) return;
+      const evento = {
         fecha: p.fecha_pago, fechaOrden: parsearFechaDDMMYYYY(p.fecha_pago),
         numero_factura: f.numero_factura,
-        forma_pago: p.metodo_pago ? (ETIQUETAS_FORMA_PAGO[p.metodo_pago] || p.metodo_pago) : null,
-        debe: 0, haber: importePago
-      });
+        forma_pago: p.metodo_pago ? (ETIQUETAS_FORMA_PAGO[p.metodo_pago] || p.metodo_pago) : null
+      };
+      // Un registro de Caja con importe negativo es una devolución (dinero
+      // que sale) - suma a lo pendiente (Debe) en vez de restar (Haber).
+      if (importe >= 0) { evento.debe = 0; evento.haber = importe; }
+      else { evento.debe = -importe; evento.haber = 0; }
+      eventos.push(evento);
     });
   });
   eventos.sort((a, b) => a.fechaOrden - b.fechaOrden);
@@ -3533,8 +3548,8 @@ function renderDetalleExtractoCliente() {
     <tr>
       <td>${e.fecha || '—'}</td>
       <td>${e.numero_factura || '—'}</td>
-      <td style="text-align:right;">${e.debe > 0 ? euros(e.debe) : ''}</td>
-      <td style="text-align:right; color:#27500A;">${e.haber > 0 ? euros(e.haber) : ''}</td>
+      <td style="text-align:right;">${e.debe !== 0 ? euros(e.debe) : ''}</td>
+      <td style="text-align:right; color:#27500A;">${e.haber !== 0 ? euros(e.haber) : ''}</td>
       <td>${e.forma_pago || '<span style="color:#9a988f;">—</span>'}</td>
       <td style="text-align:right; font-weight:500;">${euros(e.saldo)}</td>
     </tr>
