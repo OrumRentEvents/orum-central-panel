@@ -156,6 +156,18 @@
   select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 2px; font-size: 13px; background: #fff; color: var(--text-primary); }
   .pnc-filtro-btn { font-size:13px; padding:6px 14px; border-radius:2px; background:#fff; color:var(--text-secondary); border:1px solid var(--border); cursor:pointer; }
   .btn-material { background: var(--accent-light); color: var(--accent-dark); border: none; border-radius: 4px; padding: 1px 5px; cursor: pointer; font-size: 10px; margin-left: 4px; vertical-align: middle; }
+  /* Extracto de Cliente (Financiero) - "Exportar PDF" usa window.print() en
+     vez de una librería: oculta el chrome de la app (sidebar/cabecera/
+     botones) y muestra solo la cabecera de documento (.solo-impresion),
+     así "Guardar como PDF" del propio diálogo de impresión del navegador
+     ya produce un documento limpio para mandar al cliente. */
+  .solo-impresion { display: none; }
+  @media print {
+    .sidebar, .main-header, .no-imprimir { display: none !important; }
+    .solo-impresion { display: block !important; }
+    .main-content { padding: 0; }
+    body { background: #fff; }
+  }
 </style>
 </head>
 <body>
@@ -767,6 +779,7 @@ const MENU = [
   { id: 'fin', icon: '💶', label: 'Financiero', submenu: [
       { id: 'fin-resumen', label: 'Resumen', onClick: () => cargarFinancieroResumen() },
       { id: 'fin-control-pagos', label: 'Control de pagos', onClick: () => cargarFinanciero() },
+      { id: 'fin-extracto-cliente', label: 'Extracto de Cliente', onClick: () => cargarExtractoCliente() },
       { id: 'fin-vencidas', label: 'Vencidas y morosidad', onClick: () => cargarFinancieroVencidas() },
       { id: 'fin-cierre-mensual', label: 'Cierre Mensual', onClick: () => cargarCierreMensual() },
       { id: 'fin-personal', label: 'Personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal() },
@@ -3253,6 +3266,260 @@ function renderTablaFacturas(lista) {
   html += '</tbody></table>';
   document.getElementById('financiero-tabla').innerHTML = html;
 }
+
+// ================================================================
+// EXTRACTO DE CLIENTE (15 sep 2026) — reutiliza financieroDataGlobal.
+// cruce_facturas (mismo dato que ya usa "Control de pagos"), así que no
+// hace falta ningún endpoint nuevo: solo se filtra por cliente y se
+// re-ordena. pagos_caja (dentro de cada factura) ya trae fecha/importe/
+// método de cada cobro real registrado en Caja - es lo que alimenta la
+// vista de detalle cronológico.
+// ================================================================
+let extractoClienteActual = null;
+let extractoClienteVista = 'resumen'; // 'resumen' | 'detalle'
+
+async function cargarExtractoCliente() {
+  marcarMenuActivo('menu-item-fin-extracto-cliente');
+  document.getElementById('content-title').textContent = 'Financiero · Extracto de Cliente';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando datos...</p>';
+  if (!financieroDataGlobal) {
+    const resp = await fetch('/api/financiero');
+    financieroDataGlobal = await resp.json();
+  }
+  extractoClienteActual = null;
+  extractoClienteVista = 'resumen';
+  pintarExtractoCliente();
+}
+
+function listaClientesExtracto() {
+  const data = financieroDataGlobal;
+  const nombres = [...new Set((data.cruce_facturas || []).map(f => f.cliente).filter(Boolean))];
+  return nombres.sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+function pintarExtractoCliente() {
+  const body = document.getElementById('content-body');
+  const clientes = listaClientesExtracto();
+  body.innerHTML = `
+    <div class="no-imprimir search-box" style="margin-bottom:1.25rem;">
+      <input type="text" id="buscador-extracto-cliente" list="lista-extracto-clientes" placeholder="Buscar cliente..." style="width:320px;" value="${extractoClienteActual ? String(extractoClienteActual).replace(/"/g, '&quot;') : ''}" oninput="onBuscarExtractoCliente()">
+    </div>
+    <datalist id="lista-extracto-clientes">
+      ${clientes.map(c => `<option value="${String(c).replace(/"/g, '&quot;')}">`).join('')}
+    </datalist>
+    <div id="extracto-cliente-resultado"></div>
+  `;
+  if (extractoClienteActual) {
+    if (extractoClienteVista === 'detalle') renderDetalleExtractoCliente();
+    else renderResumenExtractoCliente();
+  }
+}
+
+// Solo se dispara cuando el texto escrito coincide EXACTO con una opción del
+// datalist (así no se lanza el cálculo a cada tecla con un cliente a medio
+// escribir) - el <input list> del navegador ya filtra las sugerencias.
+function onBuscarExtractoCliente() {
+  const valor = document.getElementById('buscador-extracto-cliente').value.trim();
+  const clientes = listaClientesExtracto();
+  const cont = document.getElementById('extracto-cliente-resultado');
+  if (!clientes.includes(valor)) {
+    extractoClienteActual = null;
+    cont.innerHTML = valor ? '<p class="loading-text">Selecciona un cliente de la lista de sugerencias.</p>' : '';
+    return;
+  }
+  extractoClienteActual = valor;
+  extractoClienteVista = 'resumen';
+  renderResumenExtractoCliente();
+}
+
+// Estado por factura: usa pendiente_cobro/esta_pagada (misma fuente fiable
+// que ya usa Vencidas y morosidad, viene directo de Rentman) en vez de
+// recalcular a partir de los pagos de Caja, que a veces van por detrás de
+// Rentman unos minutos/horas - evita que el extracto contradiga al resto
+// del panel.
+function facturasDeCliente(cliente) {
+  const data = financieroDataGlobal;
+  return (data.cruce_facturas || [])
+    .filter(f => f.cliente === cliente)
+    .map(f => {
+      const importe = Math.round((parseFloat(f.importe_con_iva) || 0) * 100) / 100;
+      const pendiente = Math.round((parseFloat(f.pendiente_cobro) || 0) * 100) / 100;
+      const cobrado = Math.round((importe - pendiente) * 100) / 100;
+      let estado;
+      if (pendiente < -0.05) estado = 'Rectificativa';
+      else if (pendiente <= 0.05) estado = 'Pagada';
+      else if (cobrado > 0.05) estado = 'Parcial';
+      else estado = 'Pendiente';
+      return { ...f, importe, pendiente, cobrado, estado };
+    })
+    .sort((a, b) => parsearFechaDDMMYYYY(a.fecha_emision) - parsearFechaDDMMYYYY(b.fecha_emision));
+}
+
+function resumenExtractoCliente(facturas) {
+  const totalFacturado = Math.round(facturas.reduce((s, f) => s + f.importe, 0) * 100) / 100;
+  const totalPendiente = Math.round(facturas.reduce((s, f) => s + f.pendiente, 0) * 100) / 100;
+  return {
+    total_facturado: totalFacturado,
+    total_pendiente: totalPendiente,
+    total_cobrado: Math.round((totalFacturado - totalPendiente) * 100) / 100,
+    n_facturas: facturas.length,
+    n_pagadas: facturas.filter(f => f.estado === 'Pagada').length,
+    n_parciales: facturas.filter(f => f.estado === 'Parcial').length,
+    n_pendientes: facturas.filter(f => f.estado === 'Pendiente').length
+  };
+}
+
+function badgeEstadoExtracto(estado) {
+  if (estado === 'Pagada') return '<span class="badge badge-success">Pagada</span>';
+  if (estado === 'Parcial') return '<span class="badge badge-warning">Parcial</span>';
+  if (estado === 'Rectificativa') return '<span class="badge badge-neutral">Rectificativa</span>';
+  return '<span class="badge badge-danger">Pendiente</span>';
+}
+
+function cabeceraImpresionExtracto(subtitulo) {
+  return `
+    <div class="solo-impresion" style="margin-bottom:1.25rem;">
+      <div style="font-weight:700; font-size:18px;">ORUM Events</div>
+      <div style="font-size:15px; margin-top:6px;">Extracto de cuenta${subtitulo ? ' — ' + subtitulo : ''}</div>
+      <div style="font-size:12px; color:#6b6a64;">Generado el ${new Date().toLocaleDateString('es-ES')}</div>
+    </div>
+  `;
+}
+
+function renderResumenExtractoCliente() {
+  const cliente = extractoClienteActual;
+  const facturas = facturasDeCliente(cliente);
+  const r = resumenExtractoCliente(facturas);
+  const cont = document.getElementById('extracto-cliente-resultado');
+  let filas = facturas.map(f => `
+    <tr>
+      <td>${f.numero_factura || '—'}</td>
+      <td>${f.fecha_emision || '—'}</td>
+      <td>${f.fecha_vencimiento || '—'}</td>
+      <td style="text-align:right;">${euros(f.importe)}</td>
+      <td style="text-align:right; color:#27500A;">${euros(f.cobrado)}</td>
+      <td style="text-align:right; font-weight:500;">${euros(f.pendiente)}</td>
+      <td>${badgeEstadoExtracto(f.estado)}</td>
+    </tr>
+  `).join('');
+  if (facturas.length === 0) filas = '<tr><td colspan="7" style="padding:1.5rem 4px; color:#9a988f;">Este cliente no tiene facturas.</td></tr>';
+
+  cont.innerHTML = `
+    <div id="extracto-imprimible">
+      ${cabeceraImpresionExtracto(cliente)}
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:8px;">
+        <h3 style="margin:0; font-size:17px;">${cliente}</h3>
+        <div class="no-imprimir">
+          <button onclick="verDetalleExtractoCliente()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">📋 Ver detalle cronológico</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1.25rem;">
+        ${kpiCard('Total facturado', euros(r.total_facturado))}
+        ${kpiCard('Total cobrado', euros(r.total_cobrado))}
+        ${kpiCard('Pendiente de cobro', euros(r.total_pendiente))}
+        ${kpiCard('Facturas', r.n_facturas + ' · ' + r.n_pagadas + ' pagadas · ' + r.n_parciales + ' parciales · ' + r.n_pendientes + ' pendientes')}
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead>
+          <tr>
+            <th>Nº Factura</th><th>Fecha emisión</th><th>Vencimiento</th>
+            <th style="text-align:right;">Importe</th><th style="text-align:right;">Cobrado</th>
+            <th style="text-align:right;">Pendiente</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
+function verDetalleExtractoCliente() {
+  extractoClienteVista = 'detalle';
+  renderDetalleExtractoCliente();
+}
+function volverResumenExtractoCliente() {
+  extractoClienteVista = 'resumen';
+  renderResumenExtractoCliente();
+}
+
+// Mezcla facturas (cargo) + pagos de Caja (abono) de TODAS las facturas del
+// cliente en una sola línea de tiempo, con saldo acumulado - así se ve, en
+// una sola tabla, cómo fue evolucionando la deuda del cliente factura a
+// factura y pago a pago (incluye pagos parciales, cada uno con su fecha).
+function eventosCronologicosCliente(facturas) {
+  const eventos = [];
+  facturas.forEach(f => {
+    eventos.push({
+      fecha: f.fecha_emision, fechaOrden: parsearFechaDDMMYYYY(f.fecha_emision),
+      numero_factura: f.numero_factura, concepto: 'Factura emitida', cargo: f.importe, abono: 0
+    });
+    (f.pagos_caja || []).forEach(p => {
+      const importePago = Math.round(Math.abs(parseFloat(p.importe) || 0) * 100) / 100;
+      if (!importePago) return;
+      eventos.push({
+        fecha: p.fecha_pago, fechaOrden: parsearFechaDDMMYYYY(p.fecha_pago),
+        numero_factura: f.numero_factura,
+        concepto: 'Pago' + (p.metodo_pago ? ' · ' + (ETIQUETAS_FORMA_PAGO[p.metodo_pago] || p.metodo_pago) : ''),
+        cargo: 0, abono: importePago
+      });
+    });
+  });
+  eventos.sort((a, b) => a.fechaOrden - b.fechaOrden);
+  let saldo = 0;
+  eventos.forEach(e => { saldo = Math.round((saldo + e.cargo - e.abono) * 100) / 100; e.saldo = saldo; });
+  return eventos;
+}
+
+function renderDetalleExtractoCliente() {
+  const cliente = extractoClienteActual;
+  const facturas = facturasDeCliente(cliente);
+  const r = resumenExtractoCliente(facturas);
+  const eventos = eventosCronologicosCliente(facturas);
+  const cont = document.getElementById('extracto-cliente-resultado');
+  let filas = eventos.map(e => `
+    <tr>
+      <td>${e.fecha || '—'}</td>
+      <td>${e.numero_factura || '—'}</td>
+      <td>${e.concepto}</td>
+      <td style="text-align:right;">${e.cargo > 0 ? euros(e.cargo) : ''}</td>
+      <td style="text-align:right; color:#27500A;">${e.abono > 0 ? euros(e.abono) : ''}</td>
+      <td style="text-align:right; font-weight:500;">${euros(e.saldo)}</td>
+    </tr>
+  `).join('');
+  if (eventos.length === 0) filas = '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">Sin movimientos.</td></tr>';
+
+  cont.innerHTML = `
+    <div id="extracto-imprimible">
+      ${cabeceraImpresionExtracto(cliente + ' — Detalle')}
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:8px;">
+        <div>
+          <h3 style="margin:0 0 2px; font-size:17px;">${cliente}</h3>
+          <div style="font-size:12px; color:#6b6a64;">Detalle cronológico de facturas y pagos</div>
+        </div>
+        <div class="no-imprimir" style="display:flex; gap:8px;">
+          <button onclick="volverResumenExtractoCliente()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer;">← Volver al resumen</button>
+          <button onclick="window.print()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🖨️ Exportar PDF</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1.25rem;">
+        ${kpiCard('Total facturado', euros(r.total_facturado))}
+        ${kpiCard('Total cobrado', euros(r.total_cobrado))}
+        ${kpiCard('Saldo pendiente', euros(r.total_pendiente))}
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead>
+          <tr>
+            <th>Fecha</th><th>Nº Factura</th><th>Concepto</th>
+            <th style="text-align:right;">Cargo</th><th style="text-align:right;">Abono</th><th style="text-align:right;">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table></div>
+    </div>
+  `;
+}
+
 let ordenProyectosFin = { campo: 'numero', asc: false };
 function pintarFiltrosYTablaProyectos() {
   const data = financieroDataGlobal;
