@@ -3337,6 +3337,12 @@ function onBuscarExtractoCliente() {
   renderResumenExtractoCliente();
 }
 
+// Los pagos de Caja a veces traen hora ("09/03/2026 00:00") y las fechas de
+// factura no - se muestra siempre solo la fecha, la hora no aporta nada aquí.
+function soloFecha(str) {
+  return str ? String(str).split(' ')[0] : '';
+}
+
 // El número de factura de Rentman es correlativo a la fecha de emisión
 // (260092 antes que 260372, etc.), así que ordenar por número da el mismo
 // resultado que ordenar por fecha pero es más estable/legible para
@@ -3413,8 +3419,8 @@ function renderResumenExtractoCliente() {
   let filas = facturas.map(f => `
     <tr>
       <td>${f.numero_factura || '—'}</td>
-      <td>${f.fecha_emision || '—'}</td>
-      <td>${f.fecha_vencimiento || '—'}</td>
+      <td>${soloFecha(f.fecha_emision) || '—'}</td>
+      <td>${soloFecha(f.fecha_vencimiento) || '—'}</td>
       <td style="text-align:right;">${euros(f.importe)}</td>
       <td style="text-align:right; color:#27500A;">${euros(f.cobrado)}</td>
       <td style="text-align:right; font-weight:500;">${euros(f.pendiente)}</td>
@@ -3546,7 +3552,7 @@ function renderDetalleExtractoCliente() {
   const cont = document.getElementById('extracto-cliente-resultado');
   let filas = eventos.map(e => `
     <tr>
-      <td>${e.fecha || '—'}</td>
+      <td>${soloFecha(e.fecha) || '—'}</td>
       <td>${e.numero_factura || '—'}</td>
       <td style="text-align:right;">${e.debe !== 0 ? euros(e.debe) : ''}</td>
       <td style="text-align:right; color:#27500A;">${e.haber !== 0 ? euros(e.haber) : ''}</td>
