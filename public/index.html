@@ -169,8 +169,17 @@
     body { background: #fff; }
     /* Márgenes propios de la página impresa - sin esto el navegador puede
        recortar el contenido casi hasta el borde del papel (el logo/cabecera
-       de la derecha quedaban pegados al canto y a veces cortados). */
+       de la derecha quedaban pegados al canto y a veces cortados). @page
+       depende de que el diálogo de impresión tenga "Márgenes: Predet." (si
+       el usuario dejó "Ninguno" de una impresión anterior, @page se ignora)
+       - el padding de #extracto-imprimible es un margen de seguridad propio
+       que no depende de esa opción del diálogo.
+       th{position:sticky} también se desactiva al imprimir: combinado con
+       la paginación puede solapar la cabecera con la primera fila de cada
+       página impresa - el navegador ya repite <thead> solo en cada página. */
     @page { margin: 1.6cm; }
+    #extracto-imprimible { padding: 0.4cm 0.6cm; }
+    th { position: static !important; box-shadow: none !important; }
   }
 </style>
 </head>
@@ -3487,6 +3496,7 @@ function eventosCronologicosCliente(facturas) {
       fecha: f.fecha_emision, fechaOrden: parsearFechaDDMMYYYY(f.fecha_emision),
       numero_factura: f.numero_factura, forma_pago: null, debe: f.importe, haber: 0
     });
+    let cobradoSegunCaja = 0;
     (f.pagos_caja || []).forEach(p => {
       // "factura0" es la marca que usa Caja para "esta factura se anuló con
       // una rectificativa a 0, no hubo cobro real" (mismo criterio que
@@ -3497,6 +3507,7 @@ function eventosCronologicosCliente(facturas) {
       if (p.metodo_pago === 'factura0') return;
       const importe = Math.round((parseFloat(p.importe) || 0) * 100) / 100;
       if (!importe) return;
+      cobradoSegunCaja = Math.round((cobradoSegunCaja + importe) * 100) / 100;
       const evento = {
         fecha: p.fecha_pago, fechaOrden: parsearFechaDDMMYYYY(p.fecha_pago),
         numero_factura: f.numero_factura,
@@ -3508,6 +3519,22 @@ function eventosCronologicosCliente(facturas) {
       else { evento.debe = -importe; evento.haber = 0; }
       eventos.push(evento);
     });
+    // Caja es un registro MANUAL, independiente de Rentman - puede tener
+    // registros de más/de menos (duplicados, pagos aún no anotados, etc.).
+    // Si lo que suman los registros de Caja de ESTA factura no coincide con
+    // lo que Rentman dice cobrado (f.cobrado = importe - pendiente_cobro,
+    // el dato autoritativo, mismo que ya usa Vencidas y morosidad), se añade
+    // un ajuste visible - así el saldo del extracto SIEMPRE cuadra con
+    // "Saldo pendiente" del resumen, en vez de arrastrar una diferencia
+    // silenciosa que solo se nota como un salto raro más adelante.
+    const diferencia = Math.round((f.cobrado - cobradoSegunCaja) * 100) / 100;
+    if (Math.abs(diferencia) > 0.005) {
+      eventos.push({
+        fecha: f.fecha_emision, fechaOrden: parsearFechaDDMMYYYY(f.fecha_emision),
+        numero_factura: f.numero_factura, forma_pago: 'Ajuste',
+        debe: diferencia < 0 ? -diferencia : 0, haber: diferencia > 0 ? diferencia : 0
+      });
+    }
   });
   eventos.sort((a, b) => a.fechaOrden - b.fechaOrden);
   let saldo = 0;
@@ -3554,8 +3581,8 @@ function renderDetalleExtractoCliente() {
     <tr>
       <td>${soloFecha(e.fecha) || '—'}</td>
       <td>${e.numero_factura || '—'}</td>
-      <td style="text-align:right;">${e.debe !== 0 ? euros(e.debe) : ''}</td>
-      <td style="text-align:right; color:#27500A;">${e.haber !== 0 ? euros(e.haber) : ''}</td>
+      <td style="text-align:right;">${euros(e.debe)}</td>
+      <td style="text-align:right; color:#27500A;">${euros(e.haber)}</td>
       <td>${e.forma_pago || '<span style="color:#9a988f;">—</span>'}</td>
       <td style="text-align:right; font-weight:500;">${euros(e.saldo)}</td>
     </tr>
