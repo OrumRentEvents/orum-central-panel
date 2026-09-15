@@ -3917,7 +3917,8 @@ async function sincronizarFacturasProveedores() {
   btn.textContent = '⏳ Sincronizando...';
   estadoSync.textContent = '';
   try {
-    const resp = await fetch('/api/facturas-proveedores/sincronizar?anio=2026', { method: 'POST' });
+    const anio = document.getElementById('filtro-fact-sync-anio').value;
+    const resp = await fetch('/api/facturas-proveedores/sincronizar?anio=' + encodeURIComponent(anio), { method: 'POST' });
     const data = await resp.json();
     if (data.error) {
       estadoSync.textContent = 'Error: ' + data.error;
@@ -3963,6 +3964,16 @@ function pintarFacturasProveedores() {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
       <div style="display:flex; gap:12px; align-items:center;">
         <button id="btn-sync-facturas" onclick="sincronizarFacturasProveedores()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🔄 Actualizar facturas</button>
+        <!-- NUEVO (15 sep 2026): el botón (y la sincronización automática de
+        las 6:00) solo mira la carpeta de Drive del año elegido aquí - por
+        defecto el año en curso, pero años atrasados (facturas subidas a la
+        carpeta 2024/2025 que nunca se sincronizaron) hay que forzarlos una
+        vez a mano eligiéndolos aquí. -->
+        <select id="filtro-fact-sync-anio" title="Año de la carpeta de Drive a sincronizar" style="width:auto; font-size:12px;">
+          <option value="2026" selected>Sincronizar año: 2026</option>
+          <option value="2025">Sincronizar año: 2025</option>
+          <option value="2024">Sincronizar año: 2024</option>
+        </select>
         <button onclick="abrirHistoricoImportaciones()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#1a1a18; cursor:pointer;">📅 Histórico de importaciones</button>
         <button onclick="abrirErroresFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#A32D2D; cursor:pointer;">⚠️ Ver errores</button>
         <span style="font-size:12px; color:#9a988f;">Se sincroniza sola todos los días a las 6:00 — este botón es para forzarlo antes</span>
