@@ -99,11 +99,25 @@
   }
   .sidebar-header .org-name .crown-mini { height: 22px; width: auto; vertical-align: middle; margin-right: 6px; }
   .sidebar-header .org-name { display: flex; align-items: center; }
-  .sidebar-header .user-name { font-size: 11px; color: var(--text-muted); margin-top: 4px; letter-spacing: 0.5px; }
+  .sidebar-user-block { display: flex; align-items: center; gap: 10px; margin-top: 0.9rem; }
+  .user-avatar {
+    width: 34px; height: 34px; border-radius: 50%; background: var(--black); color: #fff; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .sidebar-header .user-name { font-size: 12.5px; color: var(--text-primary); font-weight: 600; }
+  .role-badge {
+    display: inline-block; font-size: 9.5px; padding: 2px 8px; margin-top: 3px; border-radius: 10px;
+    background: var(--accent-light); color: var(--accent-dark); text-transform: uppercase;
+    letter-spacing: 0.6px; font-weight: 700;
+  }
   .nav-group-title {
     padding: 1.1rem 1.5rem 0.4rem; font-size: 10px; color: var(--gray-400);
     text-transform: uppercase; letter-spacing: 2px; font-weight: 600;
   }
+  .nav-group-title:not(:first-child) { border-top: 1px solid var(--border); margin-top: 0.6rem; padding-top: 1.1rem; }
+  .nav-icon { width: 16px; height: 16px; flex-shrink: 0; display: inline-flex; }
+  .nav-icon svg { width: 100%; height: 100%; }
   .nav-item {
     display: flex; align-items: center; gap: 10px; padding: 9px 1.5rem; font-size: 13px;
     color: var(--text-secondary); cursor: pointer; border-left: 2px solid transparent;
@@ -204,7 +218,13 @@
     <div class="sidebar">
       <div class="sidebar-header">
         <div class="org-name"><img class="crown-mini" src="logo-orum-crown.png" alt="ORUM"> Central</div>
-        <div class="user-name" id="sidebar-user-name"></div>
+        <div class="sidebar-user-block">
+          <div class="user-avatar" id="sidebar-user-avatar"></div>
+          <div>
+            <div class="user-name" id="sidebar-user-name"></div>
+            <div class="role-badge" id="sidebar-role-badge"></div>
+          </div>
+        </div>
       </div>
       <div id="nav-container"></div>
       <button class="logout-button" id="logout-btn">Cerrar sesión</button>
@@ -309,10 +329,18 @@ async function comprobarSesion() {
     }
   } catch (err) {}
 }
+const ETIQUETA_ROL = { Direccion: 'Dirección', Contabilidad: 'Contabilidad', Logistica: 'Logística', Comercial: 'Comercial' };
+function inicialesNombre(nombre) {
+  if (!nombre) return '?';
+  const partes = nombre.trim().split(/\s+/);
+  return ((partes[0] || '')[0] || '') + ((partes[1] || '')[0] || '');
+}
 function mostrarApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
   document.getElementById('sidebar-user-name').textContent = usuarioActual.nombre;
+  document.getElementById('sidebar-user-avatar').textContent = inicialesNombre(usuarioActual.nombre).toUpperCase();
+  document.getElementById('sidebar-role-badge').textContent = ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol;
   construirMenu();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
   else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
@@ -337,6 +365,25 @@ function renderProximamente(nombre) {
 // nuevo: reutiliza los mismos endpoints y funciones de gráfica que ya
 // usan Comercial·Resumen y Financiero·Resumen.
 // ================================================================
+function saludoHorario() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 20) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+function kpiCardDash(icono, color, etiqueta, valor) {
+  return `
+    <div style="flex:1; min-width:190px; background:#fff; border:1px solid var(--border); border-radius:6px; padding:1rem 1.1rem; display:flex; align-items:flex-start; gap:12px;">
+      <div style="width:34px; height:34px; border-radius:8px; background:${color}1a; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        ${iconoInline(icono, 18, color)}
+      </div>
+      <div style="min-width:0;">
+        <div style="font-size:20px; font-weight:700; color:var(--text-primary); line-height:1.2;">${valor}</div>
+        <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${etiqueta}</div>
+      </div>
+    </div>
+  `;
+}
 async function cargarResumenGeneral() {
   document.getElementById('content-title').textContent = 'Resumen';
   const body = document.getElementById('content-body');
@@ -390,13 +437,64 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
   const segmentosEstado = Object.entries(conteoEstados).sort((a, b) => b[1] - a[1]).slice(0, 7)
     .map(([etiqueta, valor], i) => ({ etiqueta, valor, color: paletaEstados[i % paletaEstados.length] }));
 
+  const fechaBonita = hoy.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const nombrePila = (usuarioActual.nombre || '').trim().split(/\s+/)[0] || usuarioActual.nombre;
+
+  // Panel "Requiere tu atención": junta en un solo sitio lo que antes estaba
+  // disperso (seguimiento comercial, vencidas, estado de sincronización) para
+  // que lo primero que se vea sea lo accionable, no solo métricas pasivas.
+  const hayFalloSync = !!(sync && sync.ok && Array.isArray(sync.cron) && sync.cron.some(c => c.exito === false));
+  const totalVencidas = (fin && !fin.error && fin.kpis) ? parseFloat(fin.kpis.total_vencidas) || 0 : 0;
+  const itemsAtencion = [];
+  if (alertasPresu.length > 0) {
+    itemsAtencion.push({ icono: 'star', texto: 'Presupuestos pendientes de seguimiento', valor: alertasPresu.length,
+      onclick: "marcarMenuActivo('menu-item-com-presupuestos'); cargarPresupuestos();" });
+  }
+  if (totalVencidas > 0) {
+    itemsAtencion.push({ icono: 'euro', texto: 'Facturas vencidas', valor: euros(totalVencidas),
+      onclick: "marcarMenuActivo('menu-item-fin-vencidas'); cargarFinancieroVencidas();" });
+  }
+  if (hayFalloSync) {
+    itemsAtencion.push({ icono: 'refresh', texto: 'Incidencia en la última sincronización', valor: 'Revisar',
+      onclick: "window.open('/sync-status','_blank')" });
+  }
+
   let html = `
+    <div style="margin-bottom:1.5rem;">
+      <div style="font-family:'Playfair Display', serif; font-size:26px; font-weight:700; color:var(--text-primary);">${saludoHorario()}, ${nombrePila}</div>
+      <div style="font-size:13px; color:var(--text-muted); margin-top:2px; text-transform:capitalize;">${fechaBonita}</div>
+    </div>
+  `;
+
+  html += itemsAtencion.length > 0 ? `
+    <div style="background:#fff; border:1px solid var(--accent); border-radius:6px; margin-bottom:1.75rem; overflow:hidden;">
+      <div style="padding:0.75rem 1.1rem; background:var(--accent-light); font-weight:700; font-size:11.5px; color:var(--accent-dark); text-transform:uppercase; letter-spacing:0.8px;">Requiere tu atención</div>
+      ${itemsAtencion.map(it => `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:0.8rem 1.1rem; border-top:1px solid var(--border); cursor:pointer;" onclick="${it.onclick}">
+          <div style="display:flex; align-items:center; gap:10px;">
+            ${iconoInline(it.icono, 18, 'var(--accent-dark)')}
+            <span style="font-size:13.5px; color:var(--text-primary);">${it.texto}</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-weight:700; font-size:13.5px; color:var(--accent-dark);">${it.valor}</span>
+            <span style="color:var(--gray-400); font-size:13px;">→</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : `
+    <div style="background:#EAF3DE; border:1px solid #cfe3b8; border-radius:6px; padding:0.8rem 1.1rem; margin-bottom:1.75rem; font-size:13px; color:#27500A;">
+      ✓ Todo al día — no hay pendientes urgentes.
+    </div>
+  `;
+
+  html += `
     <div style="font-weight:600; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">Proyectos</div>
     <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-      ${kpiCard('Proyectos activos', activos.length)}
-      ${kpiCard('Entregas próx. 7 días', entregas7.length)}
-      ${kpiCard('Entregas próx. 30 días', entregas30.length)}
-      ${kpiCard('Realizados este mes', realizadosMes.length)}
+      ${kpiCardDash('folder', '#b8956a', 'Proyectos activos', activos.length)}
+      ${kpiCardDash('truck', '#b8956a', 'Entregas próx. 7 días', entregas7.length)}
+      ${kpiCardDash('truck', '#b8956a', 'Entregas próx. 30 días', entregas30.length)}
+      ${kpiCardDash('chart', '#b8956a', 'Realizados este mes', realizadosMes.length)}
     </div>
   `;
 
@@ -405,10 +503,10 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
     html += `
       <div style="font-weight:600; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">Financiero</div>
       <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-        ${kpiCard('Total facturado', euros(k.total_facturado))}
-        ${kpiCard('Cobrado', euros(k.total_cobrado))}
-        ${kpiCard('Pendiente de cobro', euros(k.total_pendiente))}
-        ${kpiCard('Vencidas', euros(k.total_vencidas))}
+        ${kpiCardDash('euro', '#2e7d52', 'Total facturado', euros(k.total_facturado))}
+        ${kpiCardDash('euro', '#2e7d52', 'Cobrado', euros(k.total_cobrado))}
+        ${kpiCardDash('euro', '#2e7d52', 'Pendiente de cobro', euros(k.total_pendiente))}
+        ${kpiCardDash('alert', '#A32D2D', 'Vencidas', euros(k.total_vencidas))}
       </div>
     `;
   }
@@ -416,20 +514,20 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
   html += `
     <div style="font-weight:600; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:0.6rem;">Comercial</div>
     <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-      ${kpiCard('Presupuestos pendientes de seguimiento', alertasPresu.length)}
-      ${kpiCard('Leads recibidos', leads.length)}
-      ${kpiCard('Importe presupuestos en juego', formatearEuros(importeEnJuego))}
+      ${kpiCardDash('alert', '#c0620a', 'Presupuestos pendientes de seguimiento', alertasPresu.length)}
+      ${kpiCardDash('star', '#c0620a', 'Leads recibidos', leads.length)}
+      ${kpiCardDash('euro', '#c0620a', 'Importe presupuestos en juego', formatearEuros(importeEnJuego))}
     </div>
   `;
 
   html += `
-    <div style="display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:1; min-width:280px; display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap;">
+    <div style="display:flex; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
+      <div style="background:#fff; border:1px solid var(--border); border-radius:6px; padding:1rem; flex:1; min-width:280px; display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap;">
         <div style="font-weight:600; width:100%;">Proyectos por estado</div>
         ${donutSVG(segmentosEstado)}
         <div style="flex:1; min-width:140px;">${leyendaDonut(segmentosEstado)}</div>
       </div>
-      <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; flex:2; min-width:340px;">
+      <div style="background:#fff; border:1px solid var(--border); border-radius:6px; padding:1rem; flex:2; min-width:340px;">
         <div style="font-weight:600; margin-bottom:8px;">Evolución de presupuestos (desde enero)</div>
         ${graficoBarrasMensuales(evolucionMensualPresupuestos(presupuestos))}
       </div>
@@ -437,32 +535,29 @@ function pintarResumenGeneral(proyectos, presupuestos, leads, fin, sync) {
   `;
 
   html += `
-    <div style="background:var(--accent-light); border:1px solid var(--accent); border-radius:4px; padding:0.85rem 1rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="marcarMenuActivo('menu-item-analisis-rutas'); cargarEstadisticasRutas();">
-      <span style="font-weight:600; color:var(--accent-dark);">🚛 Rutas & Conductores</span>
-      <span style="font-size:13px; color:var(--accent-dark);">Ver estadísticas →</span>
-    </div>
-    <div style="background:#fff; border:1px solid var(--border); border-radius:4px; padding:1rem; margin-bottom:1rem;">
-      <div style="font-weight:600; margin-bottom:8px; cursor:pointer;" onclick="marcarMenuActivo('menu-item-proyectos'); cargarProyectos();">📦 Próximas entregas →</div>
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        ${proximas.length === 0 ? '<div style="font-size:13px; color:var(--text-muted);">No hay entregas próximas.</div>' : proximas.map(p => `
-          <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
-            <span>${p.numero || ''} — ${p.cliente || ''}</span>
-            <span style="color:var(--text-muted);">${p._fecha.toLocaleDateString('es-ES')}</span>
-          </div>
-        `).join('')}
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:stretch;">
+      <div style="flex:2; min-width:320px; background:#fff; border:1px solid var(--border); border-radius:6px; padding:1rem;">
+        <div style="font-weight:600; margin-bottom:8px; cursor:pointer; display:flex; align-items:center; gap:8px;" onclick="marcarMenuActivo('menu-item-proyectos'); cargarProyectos();">
+          ${iconoInline('folder', 15, 'var(--text-secondary)')} Próximas entregas
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          ${proximas.length === 0 ? '<div style="font-size:13px; color:var(--text-muted);">No hay entregas próximas.</div>' : proximas.map(p => `
+            <div style="display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--border);">
+              <span>${p.numero || ''} — ${p.cliente || ''}</span>
+              <span style="color:var(--text-muted);">${p._fecha.toLocaleDateString('es-ES')}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div style="flex:1; min-width:220px; background:var(--accent-light); border:1px solid var(--accent); border-radius:6px; padding:1rem; display:flex; flex-direction:column; justify-content:space-between; cursor:pointer;" onclick="marcarMenuActivo('menu-item-analisis-rutas'); cargarEstadisticasRutas();">
+        <div>
+          <div style="font-weight:700; color:var(--accent-dark); margin-bottom:4px; display:flex; align-items:center; gap:8px;">${iconoInline('truck', 16, 'var(--accent-dark)')} Rutas & Conductores</div>
+          <div style="font-size:12.5px; color:var(--accent-dark); opacity:0.85;">Estadísticas de reparto y conductores.</div>
+        </div>
+        <div style="font-size:13px; color:var(--accent-dark); font-weight:600; margin-top:10px;">Ver estadísticas →</div>
       </div>
     </div>
   `;
-
-  if (sync && sync.ok && Array.isArray(sync.cron)) {
-    const hayFallo = sync.cron.some(c => c.exito === false);
-    html += `
-      <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px; cursor:pointer; width:fit-content;" onclick="window.open('/sync-status','_blank')">
-        <span style="width:8px; height:8px; border-radius:50%; background:${hayFallo ? '#A32D2D' : '#4c8c1f'}; display:inline-block;"></span>
-        Sincronización: ${hayFallo ? 'hay algo que revisar' : 'todo correcto'} — ver detalle
-      </div>
-    `;
-  }
 
   body.innerHTML = html;
 }
@@ -797,10 +892,34 @@ function pintarEstadisticasMaterial(data, familiaFiltro) {
   body.innerHTML = html;
 }
 
+// Iconos de línea (estilo Feather/Lucide) en vez de emojis: se pintan con
+// stroke="currentColor" así que heredan el color del nav-item automáticamente
+// (gris normal, dorado cuando está activo) sin necesidad de una librería externa.
+const ICONOS_MENU = {
+  home: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>',
+  euro: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7.2a6.8 6.8 0 1 0 0 9.6"/><path d="M4 10h9"/><path d="M4 14h8"/></svg>',
+  star: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 15 9.5l7 .9-5.1 4.8 1.4 6.9L12 18.8 5.7 22.1l1.4-6.9L2 10.4l7-.9Z"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>',
+  flask: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3h5"/><path d="M10.5 3v6.2L4.9 18a1.8 1.8 0 0 0 1.5 2.8h11.2a1.8 1.8 0 0 0 1.5-2.8L13.5 9.2V3"/><path d="M7.5 15h9"/></svg>',
+  box: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v9l9 5 9-5V8"/><path d="M12 13v9"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20.5h20L12 3Z"/><path d="M12 9.5v4.5"/><circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none"/></svg>',
+  wrench: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.9 5.6L3 14.7 6.3 18l5.8-5.8a4.5 4.5 0 0 0 5.6-5.9l-3 3-2.5-2.5 3-3Z"/></svg>',
+  truck: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7.5" cy="18.5" r="1.6"/><circle cx="17.5" cy="18.5" r="1.6"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M3 16v-4h4"/><path d="M21 8v4h-4"/></svg>',
+};
+function iconoMenuHtml(nombre) {
+  return '<span class="nav-icon">' + (ICONOS_MENU[nombre] || '') + '</span>';
+}
+// Uso genérico de los mismos iconos fuera del menú (dashboard, tarjetas KPI...)
+// con tamaño y color a medida — el SVG hereda "color" vía currentColor.
+function iconoInline(nombre, size, color) {
+  return '<span style="display:inline-flex; width:' + size + 'px; height:' + size + 'px; color:' + (color || 'currentColor') + '; flex-shrink:0;">' + (ICONOS_MENU[nombre] || '') + '</span>';
+}
 const MENU = [
-  { id: 'resumen', icon: '🏠', label: 'Resumen', onClick: () => cargarResumenGeneral() },
-  { id: 'proyectos', icon: '📁', label: 'Proyectos', onClick: () => cargarProyectos() },
-  { id: 'fin', icon: '💶', label: 'Financiero', submenu: [
+  { id: 'resumen', icon: 'home', group: 'principal', label: 'Resumen', onClick: () => cargarResumenGeneral() },
+  { id: 'proyectos', icon: 'folder', group: 'principal', label: 'Proyectos', onClick: () => cargarProyectos() },
+  { id: 'fin', icon: 'euro', group: 'gestion', label: 'Financiero', submenu: [
       { id: 'fin-resumen', label: 'Resumen', onClick: () => cargarFinancieroResumen() },
       { id: 'fin-control-pagos', label: 'Control de pagos', onClick: () => cargarFinanciero() },
       { id: 'fin-extracto-cliente', label: 'Extracto de Cliente', onClick: () => cargarExtractoCliente() },
@@ -817,7 +936,7 @@ const MENU = [
       { id: 'fin-fact-config', label: 'Config. Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
       { id: 'fin-gastos-anuales', label: 'Config. Pagos Anuales', onClick: () => cargarGastosAnuales() },
   ]},
-  { id: 'comercial', icon: '⭐', label: 'Comercial', submenu: [
+  { id: 'comercial', icon: 'star', group: 'gestion', label: 'Comercial', submenu: [
       { id: 'com-resumen', label: 'Resumen', onClick: () => cargarResumenComercial() },
       { id: 'com-proyectos', label: 'Proyectos', onClick: () => cargarProyectos() },
       { id: 'com-presupuestos', label: 'Presupuestos', onClick: () => cargarPresupuestos() },
@@ -825,15 +944,15 @@ const MENU = [
       { id: 'com-fianzas', label: 'Fianzas', onClick: () => renderProximamente('Fianzas') },
       { id: 'com-comisiones', label: 'Comisiones', onClick: () => renderProximamente('Comisiones') },
   ]},
-  { id: 'informe', icon: '📊', label: 'Informe Mensual', especial: true, onClick: () => {
+  { id: 'informe', icon: 'chart', group: 'gestion', label: 'Informe Mensual', especial: true, onClick: () => {
       const hoy = new Date();
       window.open('/api/reporte-mes?mes=' + (hoy.getMonth() + 1) + '&año=' + hoy.getFullYear(), '_blank');
   }},
-  { id: 'analisis', icon: '🔬', label: 'Análisis', submenu: [
+  { id: 'analisis', icon: 'flask', group: 'gestion', label: 'Análisis', submenu: [
       { id: 'analisis-material', label: 'Material', onClick: () => cargarEstadisticasMaterial() },
       { id: 'analisis-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
   ]},
-  { id: 'log', icon: '🧺', label: 'Logística', submenu: [
+  { id: 'log', icon: 'box', group: 'operaciones', label: 'Logística', submenu: [
       { id: 'log-resumen', label: 'Inicio', onClick: () => cargarResumenLogistica() },
       { id: 'log-servicios-extra', label: 'Servicios Extra (15 días)', onClick: () => cargarServiciosExtra() },
       { id: 'log-isabella', label: 'Servicios Isabella', onClick: () => cargarIsabellaServicios() },
@@ -853,12 +972,18 @@ const MENU = [
       { id: 'log-preparacion', label: 'Preparación', onClick: () => cargarPreparacion('almacen') },
       { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
   ]},
-  { id: 'incidencias', icon: '⚠️', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
-  { id: 'mantenimiento', icon: '🔧', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
-  { id: 'muelle', icon: '🚛', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
-  { id: 'sync-status', icon: '🔄', label: 'Estado Sincronización', especial: true, onClick: () => {
+  { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
+  { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
+  { id: 'muelle', icon: 'truck', group: 'operaciones', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
+  { id: 'sync-status', icon: 'refresh', group: 'sistema', label: 'Estado Sincronización', especial: true, onClick: () => {
       window.open('/sync-status', '_blank');
   }},
+];
+const GRUPOS_MENU = [
+  { id: 'principal', label: 'Principal' },
+  { id: 'gestion', label: 'Gestión' },
+  { id: 'operaciones', label: 'Operaciones' },
+  { id: 'sistema', label: 'Sistema' },
 ];
 function construirMenu() {
   const nav = document.getElementById('nav-container');
@@ -870,64 +995,84 @@ function construirMenu() {
   searchWrap.innerHTML = '<input type="text" id="menu-search-input" placeholder="🔍 Buscar en el menú..." style="width:100%; padding:7px 10px; font-size:12px; border:1px solid var(--border); border-radius:4px; background:#fff; color:var(--text-primary);">';
   nav.appendChild(searchWrap);
 
-  const grupoTitle = document.createElement('div');
-  grupoTitle.className = 'nav-group-title';
-  grupoTitle.textContent = usuarioActual.rol;
-  nav.appendChild(grupoTitle);
   // Rol Comercial: solo ve el apartado Comercial. Rol Logística: el apartado
   // Logística completo (incluye Servicios Isabella) + Incidencias,
   // Mantenimiento y Pantalla Muelle (pedido explícito del usuario — hoy son
   // placeholders "próximamente", pero deben ser visibles para Logística
   // desde ya). Nada más del menú en ninguno de los dos casos.
+  const rolRestringido = usuarioActual.rol === 'Comercial' || usuarioActual.rol === 'Logistica';
   const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
     : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'muelle'].includes(item.id))
     : MENU;
-  menuVisible.forEach(item => {
-    const itemEl = document.createElement('div');
-    itemEl.className = 'nav-item';
-    itemEl.id = 'menu-item-' + item.id;
-    itemEl.dataset.label = item.label.toLowerCase();
-    itemEl.style.fontWeight = '500';
-    itemEl.style.cursor = 'pointer';
-    if (item.submenu && !item.especial) {
-      itemEl.style.justifyContent = 'space-between';
-      itemEl.innerHTML = '<span>' + item.icon + ' ' + item.label + '</span><span class="nav-chevron" style="font-size:10px; color:var(--gray-400); transition:transform .15s;">▸</span>';
-    } else {
-      itemEl.textContent = item.icon + ' ' + item.label;
-    }
-    if (item.especial) {
-      itemEl.onclick = item.onClick;
-    } else if (item.submenu) {
-      // Contraído por defecto: pinchar en el grupo solo despliega/repliega sus
-      // submenús (no navega), así el menú no queda tan extenso de entrada.
-      itemEl.onclick = () => toggleGrupoMenu(item.id);
-    } else {
-      itemEl.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
-    }
-    nav.appendChild(itemEl);
-    if (item.submenu) {
-      const submenuEl = document.createElement('div');
-      submenuEl.id = 'submenu-' + item.id;
-      submenuEl.style.cssText = 'padding-left:1.25rem; display:none;';
-      item.submenu.filter(sub => !sub.rolesPermitidos || sub.rolesPermitidos.includes(usuarioActual.rol)).forEach(sub => {
-        const subEl = document.createElement('div');
-        subEl.className = 'nav-subitem';
-        subEl.id = 'menu-item-' + sub.id;
-        subEl.dataset.label = sub.label.toLowerCase();
-        subEl.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:var(--text-secondary);';
-        subEl.textContent = sub.label;
-        subEl.onclick = () => { marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); };
-        submenuEl.appendChild(subEl);
-      });
-      nav.appendChild(submenuEl);
-    }
-  });
+
+  if (rolRestringido) {
+    // Con un único apartado visible, una sección temática no aporta nada:
+    // se mantiene el título plano de siempre con el nombre del rol.
+    const grupoTitle = document.createElement('div');
+    grupoTitle.className = 'nav-group-title';
+    grupoTitle.textContent = ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol;
+    nav.appendChild(grupoTitle);
+    menuVisible.forEach(item => renderItemMenu(nav, item));
+  } else {
+    // Menú completo (Dirección/Contabilidad...): agrupado por sección temática
+    // en vez de una lista plana, para que se lea de un vistazo.
+    GRUPOS_MENU.forEach(grupo => {
+      const itemsGrupo = menuVisible.filter(item => item.group === grupo.id);
+      if (itemsGrupo.length === 0) return;
+      const grupoTitle = document.createElement('div');
+      grupoTitle.className = 'nav-group-title';
+      grupoTitle.textContent = grupo.label;
+      nav.appendChild(grupoTitle);
+      itemsGrupo.forEach(item => renderItemMenu(nav, item));
+    });
+  }
+
   document.getElementById('menu-search-input').addEventListener('input', (e) => filtrarMenuLateral(e.target.value));
   marcarMenuActivo(usuarioActual.rol === 'Comercial' ? 'menu-item-com-resumen' : usuarioActual.rol === 'Logistica' ? 'menu-item-log-resumen' : 'menu-item-resumen');
   // El grupo del item activo por defecto empieza desplegado (si no, Comercial/Logística
   // aterrizarían con su único grupo cerrado y no verían nada al entrar).
   if (usuarioActual.rol === 'Comercial') abrirGrupoMenu('comercial');
   else if (usuarioActual.rol === 'Logistica') abrirGrupoMenu('log');
+}
+function renderItemMenu(nav, item) {
+  const itemEl = document.createElement('div');
+  itemEl.className = 'nav-item';
+  itemEl.id = 'menu-item-' + item.id;
+  itemEl.dataset.label = item.label.toLowerCase();
+  itemEl.style.fontWeight = '500';
+  itemEl.style.cursor = 'pointer';
+  if (item.submenu && !item.especial) {
+    itemEl.style.justifyContent = 'space-between';
+    itemEl.innerHTML = '<span style="display:flex; align-items:center; gap:10px;">' + iconoMenuHtml(item.icon) + '<span>' + item.label + '</span></span><span class="nav-chevron" style="font-size:10px; color:var(--gray-400); transition:transform .15s;">▸</span>';
+  } else {
+    itemEl.innerHTML = iconoMenuHtml(item.icon) + '<span>' + item.label + '</span>';
+  }
+  if (item.especial) {
+    itemEl.onclick = item.onClick;
+  } else if (item.submenu) {
+    // Contraído por defecto: pinchar en el grupo solo despliega/repliega sus
+    // submenús (no navega), así el menú no queda tan extenso de entrada.
+    itemEl.onclick = () => toggleGrupoMenu(item.id);
+  } else {
+    itemEl.onclick = () => { marcarMenuActivo('menu-item-' + item.id); item.onClick(); };
+  }
+  nav.appendChild(itemEl);
+  if (item.submenu) {
+    const submenuEl = document.createElement('div');
+    submenuEl.id = 'submenu-' + item.id;
+    submenuEl.style.cssText = 'padding-left:1.25rem; display:none;';
+    item.submenu.filter(sub => !sub.rolesPermitidos || sub.rolesPermitidos.includes(usuarioActual.rol)).forEach(sub => {
+      const subEl = document.createElement('div');
+      subEl.className = 'nav-subitem';
+      subEl.id = 'menu-item-' + sub.id;
+      subEl.dataset.label = sub.label.toLowerCase();
+      subEl.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:var(--text-secondary);';
+      subEl.textContent = sub.label;
+      subEl.onclick = () => { marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); };
+      submenuEl.appendChild(subEl);
+    });
+    nav.appendChild(submenuEl);
+  }
 }
 function toggleGrupoMenu(groupId) {
   const submenuEl = document.getElementById('submenu-' + groupId);
@@ -964,6 +1109,18 @@ function filtrarMenuLateral(query) {
     });
     itemEl.style.display = (groupMatch || anySubMatch) ? '' : 'none';
     if (q && (groupMatch || anySubMatch)) submenuEl.style.display = 'block';
+  });
+  // Con el menú agrupado por secciones (Principal/Gestión/...), una cabecera
+  // de sección sin ningún item visible debajo se queda huérfana: se oculta
+  // también en ese caso (recorre los hermanos hasta la siguiente cabecera).
+  document.querySelectorAll('#nav-container .nav-group-title').forEach(tituloEl => {
+    let hayVisible = false;
+    let sib = tituloEl.nextElementSibling;
+    while (sib && !sib.classList.contains('nav-group-title')) {
+      if (sib.style.display !== 'none') { hayVisible = true; break; }
+      sib = sib.nextElementSibling;
+    }
+    tituloEl.style.display = hayVisible ? '' : 'none';
   });
 }
 function marcarMenuActivo(idActivo) {
