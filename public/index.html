@@ -899,6 +899,7 @@ const ICONOS_MENU = {
   home: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>',
   folder: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>',
   euro: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7.2a6.8 6.8 0 1 0 0 9.6"/><path d="M4 10h9"/><path d="M4 14h8"/></svg>',
+  users: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></svg>',
   star: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 15 9.5l7 .9-5.1 4.8 1.4 6.9L12 18.8 5.7 22.1l1.4-6.9L2 10.4l7-.9Z"/></svg>',
   chart: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg>',
   flask: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3h5"/><path d="M10.5 3v6.2L4.9 18a1.8 1.8 0 0 0 1.5 2.8h11.2a1.8 1.8 0 0 0 1.5-2.8L13.5 9.2V3"/><path d="M7.5 15h9"/></svg>',
@@ -925,7 +926,6 @@ const MENU = [
       { id: 'fin-extracto-cliente', label: 'Extracto de Cliente', onClick: () => cargarExtractoCliente() },
       { id: 'fin-vencidas', label: 'Vencidas y morosidad', onClick: () => cargarFinancieroVencidas() },
       { id: 'fin-cierre-mensual', label: 'Cierre Mensual', onClick: () => cargarCierreMensual() },
-      { id: 'fin-personal', label: 'Personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal() },
       { id: 'fin-fianzas', label: 'Fianzas', onClick: () => cargarFianzas() },
       { id: 'fin-historico', label: 'Histórico mensual', onClick: () => renderProximamente('Financiero · Histórico mensual') },
       { id: 'fin-auditoria', label: 'Auditoría / Alertas', onClick: () => cargarFinancieroAuditoria() },
@@ -935,6 +935,18 @@ const MENU = [
       { id: 'fin-fact-listado', label: 'Facturas Proveedores', onClick: () => cargarFacturasProveedores() },
       { id: 'fin-fact-config', label: 'Config. Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
       { id: 'fin-gastos-anuales', label: 'Config. Pagos Anuales', onClick: () => cargarGastosAnuales() },
+  ]},
+  // Personal (28 sep 2026): antes Financiero → Personal; ahora módulo propio
+  // (nóminas, informes, extras, análisis, histórico y comparador). Solo
+  // Dirección y Contabilidad (mismo criterio que soloPersonal en server.js).
+  { id: 'per', icon: 'users', group: 'gestion', label: 'Personal', submenu: [
+      { id: 'per-nominas', label: 'Nóminas', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('nominas') },
+      { id: 'per-informe', label: 'Informe', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('informe') },
+      { id: 'per-extras', label: 'Extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('extras') },
+      { id: 'per-analisis', label: 'Análisis', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('analisis') },
+      { id: 'per-historico', label: 'Histórico de personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('historico') },
+      { id: 'per-comparador', label: 'Comparador', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('comparador') },
+      { id: 'per-config', label: 'Configuración', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('config') },
   ]},
   { id: 'comercial', icon: 'star', group: 'gestion', label: 'Comercial', submenu: [
       { id: 'com-resumen', label: 'Resumen', onClick: () => cargarResumenComercial() },
@@ -1651,9 +1663,20 @@ let informePersonalFuente = 'ambos'; // 'nominas' | 'extras' | 'ambos'
 let informePersonalMetrica = 'importe'; // 'importe' | 'personas' | 'medio'
 let informePersonalAniosComparar = new Set(); // años a comparar además del seleccionado
 let informePersonalDepto = null; // null = todos; si no, detalle de ese departamento por trabajador
+let informePersonalEstado = 'todos'; // 'todos' | 'activo' | 'baja' | 'eventual' (ver construirRegistroPersonal)
 
-async function cargarPersonal() {
-  document.getElementById('content-title').textContent = 'Financiero · Personal';
+// Módulo Personal (28 sep 2026: sale de Financiero a módulo propio en el
+// menú). Cada apartado es una entrada del submenú "Personal"; la navegación
+// interna (enlaces "ir a Config"...) usa cambiarPestanaPersonal, que también
+// marca el submenú. Histórico y Comparador trabajan con TODOS los años.
+const SECCIONES_PERSONAL = {
+  nominas: 'Nóminas', informe: 'Informe', extras: 'Extras', analisis: 'Análisis',
+  historico: 'Histórico de personal', comparador: 'Comparador', config: 'Configuración'
+};
+const SECCIONES_PERSONAL_SIN_ANIO = ['historico', 'comparador', 'config'];
+async function cargarPersonal(seccion) {
+  if (seccion) personalGlobal.tab = seccion;
+  document.getElementById('content-title').textContent = 'Personal · ' + (SECCIONES_PERSONAL[personalGlobal.tab] || '');
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando...</p>';
   try {
@@ -1683,22 +1706,15 @@ function cambiarAnioPersonal(anio) {
 }
 function pintarPersonal() {
   const body = document.getElementById('content-body');
-  const anioActual = new Date().getFullYear();
-  const opcionesAnio = [anioActual - 1, anioActual, anioActual + 1].map(a => `<option value="${a}" ${a === personalGlobal.anio ? 'selected' : ''}>${a}</option>`).join('');
+  const anios = new Set([...personalGlobal.aniosDisponibles, new Date().getFullYear(), personalGlobal.anio]);
+  const opcionesAnio = [...anios].sort((a, b) => b - a).map(a => `<option value="${a}" ${a === personalGlobal.anio ? 'selected' : ''}>${a}</option>`).join('');
   body.innerHTML = `
     <div class="no-imprimir" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; gap:1rem;">
       <p style="font-size:13px; color:#6b6a64; margin:0;">Nóminas + extras. El coste repercute en <span style="cursor:pointer; text-decoration:underline;" onclick="marcarMenuActivo('menu-item-fin-cierre-mensual'); cargarCierreMensual();">Cierre Mensual</span> según el departamento asignado a cada trabajador.</p>
-      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+      <div id="selector-anio-personal" style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
         <label style="font-size:13px; color:#6b6a64;">Año</label>
         <select onchange="cambiarAnioPersonal(this.value)" style="font-size:13px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesAnio}</select>
       </div>
-    </div>
-    <div class="no-imprimir" style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
-      <div id="tab-personal-nominas" onclick="cambiarPestanaPersonal('nominas')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
-      <div id="tab-personal-config" onclick="cambiarPestanaPersonal('config')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
-      <div id="tab-personal-informe" onclick="cambiarPestanaPersonal('informe')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
-      <div id="tab-personal-extras" onclick="cambiarPestanaPersonal('extras')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
-      <div id="tab-personal-analisis" onclick="cambiarPestanaPersonal('analisis')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
     </div>
     <div id="personal-tab-body"></div>
   `;
@@ -1706,16 +1722,16 @@ function pintarPersonal() {
 }
 function cambiarPestanaPersonal(tab) {
   personalGlobal.tab = tab;
-  const etiquetas = { nominas: 'Nóminas', config: 'Config. Departamentos', informe: 'Informe', analisis: 'Análisis', extras: 'Extras' };
-  Object.keys(etiquetas).forEach(t => {
-    const el = document.getElementById('tab-personal-' + t);
-    el.textContent = etiquetas[t];
-    el.style.cssText = 'padding:8px 16px; font-size:13px; cursor:pointer;' + estiloTab(t === tab);
-  });
+  document.getElementById('content-title').textContent = 'Personal · ' + (SECCIONES_PERSONAL[tab] || '');
+  marcarMenuActivo('menu-item-per-' + tab);
+  const selector = document.getElementById('selector-anio-personal');
+  if (selector) selector.style.display = SECCIONES_PERSONAL_SIN_ANIO.includes(tab) ? 'none' : 'flex';
   if (tab === 'nominas') pintarPersonalNominas();
   else if (tab === 'config') pintarPersonalConfig();
   else if (tab === 'informe') pintarPersonalInforme();
   else if (tab === 'analisis') pintarPersonalAnalisis();
+  else if (tab === 'historico') pintarPersonalHistorico();
+  else if (tab === 'comparador') pintarPersonalComparador();
   else pintarPersonalExtras();
 }
 
@@ -2172,6 +2188,9 @@ function pintarPersonalInforme() {
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-top:0.5px solid #efeee9; padding-top:10px;">
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          <span style="font-size:12px; color:#6b6a64; margin-right:4px;">Personal:</span>
+          ${['todos', 'activo', 'baja', 'eventual'].map(e => botonSegmentoInforme(informePersonalEstado === e, `cambiarEstadoInforme('${e}')`, e === 'todos' ? 'Todos' : (e === 'activo' ? 'Activos' : e === 'baja' ? 'Bajas' : 'Eventuales'))).join('')}
+          <span style="width:1px; height:18px; background:#e2e2de; margin:0 6px;"></span>
           <span style="font-size:12px; color:#6b6a64; margin-right:4px;">Comparar ${personalGlobal.anio} con:</span>
           ${chipsAnios || '<span style="font-size:12px; color:#9a988f;">no hay otros años con datos</span>'}
           ${aniosOpc.length > 1 ? `<button onclick="marcarTodosAniosInforme(true)" style="font-size:11px; padding:3px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer; margin-left:6px;">Todos</button><button onclick="marcarTodosAniosInforme(false)" style="font-size:11px; padding:3px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">Ninguno</button>` : ''}
@@ -2286,6 +2305,7 @@ function cuboInformePersonal(detalle, extras, meses, ctx) {
       if (!meses.includes(mes)) return;
       const { fila, persona, depto } = claveNominaInforme(d, ctx);
       if (informePersonalDepto && depto !== informePersonalDepto) return;
+      if (informePersonalEstado !== 'todos' && (personalGlobal.estadoPorPersona || {})[persona] !== informePersonalEstado) return;
       const v = parseFloat(d.coste_total) || 0;
       c.totalNominas += v;
       sumar(fila, persona, mes, v);
@@ -2302,6 +2322,7 @@ function cuboInformePersonal(detalle, extras, meses, ctx) {
       if (!meses.includes(mes)) return;
       const { fila, persona, depto } = claveExtraInforme(e, ctx);
       if (informePersonalDepto && depto !== informePersonalDepto) return;
+      if (informePersonalEstado !== 'todos' && (personalGlobal.estadoPorPersona || {})[persona] !== informePersonalEstado) return;
       const v = parseFloat(e.importe) || 0;
       c.totalExtras += v;
       sumar(fila, persona, mes, v);
@@ -2461,6 +2482,7 @@ function marcarTodosMesesInforme(todos) {
 function cambiarAgrupacionInforme(tipo) { informePersonalAgrupacion = tipo; pintarPersonalInforme(); }
 function cambiarFuenteInforme(fuente) { informePersonalFuente = fuente; pintarPersonalInforme(); }
 function cambiarMetricaInforme(metrica) { informePersonalMetrica = metrica; pintarPersonalInforme(); }
+function cambiarEstadoInforme(estado) { informePersonalEstado = estado; pintarPersonalInforme(); }
 function cambiarDeptoInforme(depto) { informePersonalDepto = depto || null; pintarPersonalInforme(); }
 function toggleAnioCompararInforme(anio) {
   if (informePersonalAniosComparar.has(anio)) informePersonalAniosComparar.delete(anio); else informePersonalAniosComparar.add(anio);
@@ -2508,9 +2530,11 @@ function renderTablaInformePersonal() {
   const desgloseDiv = document.getElementById('desglose-informe-personal');
   const cabeceraDiv = document.getElementById('cabecera-informe-personal');
   const aniosComparar = [...informePersonalAniosComparar].filter(a => a !== personalGlobal.anio).sort((a, b) => a - b);
-  if (aniosComparar.some(a => !personalGlobal.otrosAnios[a])) {
-    cont.innerHTML = '<p class="loading-text" style="padding:1.5rem;">Cargando ' + aniosComparar.filter(a => !personalGlobal.otrosAnios[a]).join(', ') + '...</p>';
-    asegurarAniosCompararPersonal(aniosComparar).then(renderTablaInformePersonal).catch(err => {
+  // Siempre todos los años: el estado activo/baja de cada persona sale del histórico completo.
+  const aniosNecesarios = aniosConDatosPersonal().filter(a => a !== personalGlobal.anio);
+  if (aniosNecesarios.some(a => !personalGlobal.otrosAnios[a])) {
+    cont.innerHTML = '<p class="loading-text" style="padding:1.5rem;">Cargando histórico...</p>';
+    asegurarAniosCompararPersonal(aniosNecesarios).then(renderTablaInformePersonal).catch(err => {
       alert('No se pudieron cargar los años a comparar: ' + err.message);
       informePersonalAniosComparar = new Set();
       pintarPersonalInforme();
@@ -2518,6 +2542,9 @@ function renderTablaInformePersonal() {
     return;
   }
   const ctx = contextoInformePersonal();
+  const registro = construirRegistroPersonal(ctx);
+  personalGlobal.estadoPorPersona = {};
+  registro.personas.forEach(p => { personalGlobal.estadoPorPersona[p.persona] = p.estado; });
   const datosAnio = (a) => a === personalGlobal.anio ? personalGlobal : personalGlobal.otrosAnios[a];
   const mesesSeleccionados = Array.from(informePersonalMeses).sort((a, b) => a - b);
   const todosAnios = [...aniosComparar, personalGlobal.anio].sort((a, b) => a - b);
@@ -2580,7 +2607,8 @@ function renderTablaInformePersonal() {
   const celdaFila = (f) => {
     if (clicable) return `<td><span onclick="abrirDeptoInforme('${escaparAtributoInforme(f)}')" style="cursor:pointer; color:#1a1a18; text-decoration:underline; text-decoration-color:#c9c7bf;" title="Ver el detalle por trabajador">${f}</span></td>`;
     const persona = personaDeFila(f);
-    return persona ? `<td><span onclick="abrirFichaTrabajador('${escaparAtributoInforme(persona)}')" style="cursor:pointer; color:#1a1a18; text-decoration:underline; text-decoration-color:#c9c7bf;" title="Ver la ficha del trabajador">${f}</span></td>` : `<td>${f}</td>`;
+    const estado = persona ? (personalGlobal.estadoPorPersona || {})[persona] : null;
+    return persona ? `<td><span onclick="abrirFichaTrabajador('${escaparAtributoInforme(persona)}')" style="cursor:pointer; color:#1a1a18; text-decoration:underline; text-decoration-color:#c9c7bf;" title="Ver la ficha del trabajador">${f}</span> ${estado && estado !== 'activo' ? badgeEstadoPersonal(estado) : ''}</td>` : `<td>${f}</td>`;
   };
   const subtituloMetrica = informePersonalMetrica === 'importe' ? '' : (informePersonalMetrica === 'personas' ? ' (media mensual)' : ' (por persona y mes)');
   const numExport = (v) => v == null ? '' : v;
@@ -3187,6 +3215,7 @@ async function abrirFichaTrabajador(persona) {
     if (Object.keys(r.meses).length || r.movs.length) porAnio[a] = r;
   });
   const aniosFicha = Object.keys(porAnio).map(Number).sort((a, b) => a - b);
+  const fichaReg = construirRegistroPersonal(ctx).personas.find(p => p.persona === persona) || null;
   if (!aniosFicha.length) {
     modal.innerHTML = '<div style="background:#fff; border-radius:10px; padding:1.5rem;">Sin datos para este trabajador. <button onclick="cerrarFichaTrabajador()">Cerrar</button></div>';
     return;
@@ -3225,6 +3254,7 @@ async function abrirFichaTrabajador(persona) {
         <div>
           <p style="font-size:18px; font-weight:600; margin:0;">${nombre || persona}</p>
           <p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">${depto || 'Sin departamento'}${empresa ? ' · ' + empresa : ''}${persona.startsWith('extra|') ? ' · solo extras (sin nómina vinculada)' : ''}</p>
+          ${fichaReg ? `<p style="font-size:12px; margin:6px 0 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">${badgeEstadoPersonal(fichaReg.estado)} <span>Inicio: <strong>${textoInicioPersonal(fichaReg)}</strong></span><span>Fin: <strong>${textoFinPersonal(fichaReg)}</strong></span><span>${fichaReg.mesesTrabajados} meses con nómina</span><span>Coste total histórico: <strong>${euros(fichaReg.total.coste)}</strong></span></p>` : ''}
         </div>
         <button onclick="cerrarFichaTrabajador()" style="border:none; background:#f0efea; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px;">✕ Cerrar</button>
       </div>
@@ -3241,6 +3271,463 @@ async function abrirFichaTrabajador(persona) {
 function cerrarFichaTrabajador() {
   const modal = document.getElementById('modal-ficha-trabajador');
   if (modal) modal.style.display = 'none';
+}
+
+// ── Registro de TODO el personal (28 sep 2026) ──
+// Une todos los años cargados en una ficha por persona (misma clave de
+// persona que el Informe: fusiones entre formatos de gestoría y extras
+// vinculados cuentan como la misma persona). Las nóminas no traen fecha de
+// alta/baja, así que:
+//   inicio = primer mes con nómina subida; fin = último mes con nómina;
+//   activo = tiene nómina en el último mes subido (el más reciente de todos);
+//   baja   = tuvo nómina pero no en ese último mes;
+//   eventual = solo aparece en extras (sin nómina vinculada).
+// Si el primer mes coincide con el primer mes del que hay datos, la persona
+// ya estaba antes ("≤ ene 2025").
+function claveYM(anio, mes) { return anio * 100 + mes; }
+function textoYM(ym) { return ym ? MESES_ES_FACTURAS[ym % 100].slice(0, 3) + ' ' + Math.floor(ym / 100) : '—'; }
+function sumarMesesYM(ym, n) { const t = Math.floor(ym / 100) * 12 + (ym % 100) - 1 + n; return Math.floor(t / 12) * 100 + (t % 12) + 1; }
+async function asegurarTodosLosAniosPersonal() {
+  await asegurarAniosCompararPersonal(aniosConDatosPersonal().filter(a => a !== personalGlobal.anio));
+}
+const CAMPOS_MES_PERSONAL = ['coste', 'nominas', 'extras', 'bruto', 'neto', 'ssEmp', 'ssTrab', 'irpf', 'horas', 'festivos', 'nocturnos', 'plus', 'descansos'];
+function construirRegistroPersonal(ctx) {
+  const personas = {};
+  let ultimoMesNomina = 0, primerMesNomina = Infinity;
+  const get = (persona) => personas[persona] = personas[persona] || { persona, nombre: null, nombreExtra: null, depto: null, deptoYM: 0, empresa: null, mesesNomina: new Set(), meses: {} };
+  const mesDe = (p, ym) => {
+    if (!p.meses[ym]) { p.meses[ym] = {}; CAMPOS_MES_PERSONAL.forEach(k => { p.meses[ym][k] = 0; }); }
+    return p.meses[ym];
+  };
+  aniosConDatosPersonal().forEach(a => {
+    const d = datosAnioPersonal(a);
+    if (!d) return;
+    d.detalle.forEach(x => {
+      const { persona, depto } = claveNominaInforme(x, ctx);
+      const ym = claveYM(a, parseInt(x.mes));
+      const p = get(persona);
+      if (ym >= p.deptoYM || !p.mesesNomina.size) { p.depto = depto; p.deptoYM = ym; p.nombre = nombrePersonaNomina(x, ctx); p.empresa = x.empresa_nombre; }
+      p.mesesNomina.add(ym);
+      const m = mesDe(p, ym), coste = parseFloat(x.coste_total) || 0, bruto = parseFloat(x.bruto) || 0;
+      m.nominas += coste; m.coste += coste; m.bruto += bruto; m.neto += parseFloat(x.neto) || 0;
+      m.ssEmp += coste - bruto; m.ssTrab += (parseFloat(x.total_ss) || 0) - (parseFloat(x.ss_empresa) || 0); m.irpf += Math.abs(parseFloat(x.dcto_irpf) || 0);
+      if (ym > ultimoMesNomina) ultimoMesNomina = ym;
+      if (ym < primerMesNomina) primerMesNomina = ym;
+    });
+    d.extras.forEach(x => {
+      const { persona, depto } = claveExtraInforme(x, ctx);
+      const ym = claveYM(a, parseInt(x.mes));
+      const p = get(persona);
+      if (!p.mesesNomina.size) { p.depto = depto; p.nombreExtra = x.nombre; }
+      if (!p.nombre) p.nombre = personaDeNombreExtra(x.nombre, ctx).nombre;
+      const m = mesDe(p, ym), v = parseFloat(x.importe) || 0;
+      m.extras += v; m.coste += v;
+    });
+    (d.movimientos || []).forEach(mv => {
+      const { persona, nombre } = personaDeNombreExtra(mv.nombre, ctx);
+      const p = get(persona);
+      if (!p.nombre) p.nombre = nombre;
+      if (!p.nombreExtra) p.nombreExtra = mv.nombre;
+      const m = mesDe(p, claveYM(a, parseInt(mv.mes))), c = categoriaMovimientoExtra(mv);
+      if (c.cat === 'horas') m.horas += c.horas; else if (c.cat === 'festivo') m.festivos++; else if (c.cat === 'nocturno') m.nocturnos++; else if (c.cat === 'plus') m.plus += c.importe; else if (c.cat === 'descanso') m.descansos++;
+    });
+  });
+  const lista = Object.values(personas).map(p => {
+    const nom = [...p.mesesNomina].sort((x, y) => x - y);
+    const conCoste = Object.keys(p.meses).map(Number).filter(ym => p.meses[ym].coste).sort((x, y) => x - y);
+    p.conNomina = nom.length > 0;
+    p.primer = nom.length ? nom[0] : (conCoste[0] || null);
+    p.ultimo = nom.length ? nom[nom.length - 1] : (conCoste[conCoste.length - 1] || null);
+    p.estado = p.conNomina ? (p.ultimo === ultimoMesNomina ? 'activo' : 'baja') : 'eventual';
+    p.yaEstabaAlInicio = p.conNomina && p.primer === primerMesNomina;
+    p.mesesTrabajados = nom.length;
+    if (!p.depto) p.depto = ctx.mapaDeptoExtras[p.nombreExtra] || 'Extras sin clasificar';
+    p.total = {};
+    CAMPOS_MES_PERSONAL.forEach(k => { p.total[k] = Object.values(p.meses).reduce((s, m) => s + m[k], 0); });
+    p.porAnio = {};
+    Object.keys(p.meses).forEach(ym => { const a = Math.floor(ym / 100); p.porAnio[a] = (p.porAnio[a] || 0) + p.meses[ym].coste; });
+    p.mesesConCoste = conCoste.length;
+    return p;
+  }).filter(p => p.conNomina || p.total.coste);
+  return { personas: lista, ultimoMesNomina, primerMesNomina: isFinite(primerMesNomina) ? primerMesNomina : null };
+}
+const ESTADO_PERSONAL = {
+  activo: { texto: 'Activo', bg: '#E9F5EC', color: '#1E6B34' },
+  baja: { texto: 'Baja', bg: '#f0efea', color: '#6b6a64' },
+  eventual: { texto: 'Eventual', bg: '#FDF3E0', color: '#854F0B' }
+};
+function badgeEstadoPersonal(estado) {
+  const e = ESTADO_PERSONAL[estado];
+  return e ? `<span style="font-size:10.5px; padding:1px 6px; border-radius:4px; background:${e.bg}; color:${e.color}; white-space:nowrap;">${e.texto}</span>` : '';
+}
+function textoInicioPersonal(p) { return p.primer ? (p.yaEstabaAlInicio ? '≤ ' : '') + textoYM(p.primer) : '—'; }
+function textoFinPersonal(p) { return p.estado === 'activo' ? 'Actualidad' : textoYM(p.ultimo); }
+function linkFichaPersonal(p) {
+  return `<span onclick="abrirFichaTrabajador('${escaparAtributoInforme(p.persona)}')" style="cursor:pointer; text-decoration:underline; text-decoration-color:#c9c7bf;">${p.nombre || p.persona}</span>`;
+}
+function descargarCSVPersonal(nombreArchivo, secciones) {
+  const celda = (v) => {
+    if (typeof v === 'number') return (Math.round(v * 100) / 100).toString().replace('.', ',');
+    const t = String(v == null ? '' : v);
+    return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  };
+  const lineas = [];
+  secciones.forEach(sec => {
+    if (sec.titulo) lineas.push(celda(sec.titulo));
+    lineas.push(sec.cabecera.map(celda).join(';'));
+    sec.filas.forEach(f => lineas.push(f.map(celda).join(';')));
+    lineas.push('');
+  });
+  const blob = new Blob(['﻿' + lineas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombreArchivo;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── Histórico de personal: todo el personal que ha pasado por la empresa ──
+let historicoPersonal = { estado: 'todos', depto: '', q: '', orden: { campo: 'coste', asc: false } };
+let historicoPersonalExport = null;
+async function pintarPersonalHistorico() {
+  const cont = document.getElementById('personal-tab-body');
+  cont.innerHTML = '<p class="loading-text">Cargando todos los años...</p>';
+  try { await asegurarTodosLosAniosPersonal(); } catch (err) { cont.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p>'; return; }
+  if (personalGlobal.tab !== 'historico') return;
+  const ctx = contextoInformePersonal();
+  const reg = construirRegistroPersonal(ctx);
+  const cuenta = (e) => reg.personas.filter(p => p.estado === e).length;
+  const opcionesDepto = ['<option value="">Todos los departamentos</option>'].concat(ctx.listaDeptos.map(d => `<option value="${d.replace(/"/g, '&quot;')}" ${d === historicoPersonal.depto ? 'selected' : ''}>${d}</option>`)).join('');
+  const chip = (valor, texto) => botonSegmentoInforme(historicoPersonal.estado === valor, `cambiarFiltroHistorico('estado', '${valor}')`, texto);
+  cont.innerHTML = `
+    <div class="solo-impresion" style="margin-bottom:12px;"><p style="font-size:18px; font-weight:600; margin:0;">Histórico de personal</p><p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">Datos de ${textoYM(reg.primerMesNomina)} a ${textoYM(reg.ultimoMesNomina)} · generado ${new Date().toLocaleDateString('es-ES')}</p></div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;">
+      ${kpiCard('Personas en el histórico', String(reg.personas.length))}
+      ${kpiCard('Activas', String(cuenta('activo')) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">con nómina en ${textoYM(reg.ultimoMesNomina)}</div>`)}
+      ${kpiCard('Bajas', String(cuenta('baja')))}
+      ${kpiCard('Eventuales (solo extras)', String(cuenta('eventual')))}
+      ${kpiCard('Coste total histórico', euros(reg.personas.reduce((s, p) => s + p.total.coste, 0)) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">${textoYM(reg.primerMesNomina)} – ${textoYM(reg.ultimoMesNomina)}</div>`)}
+    </div>
+    ${(() => {
+      // Trabajadores del formato antiguo de gestoría sin fusionar: salen
+      // duplicados (una "baja" histórica + su ficha actual).
+      const sinFusionar = reg.personas.filter(p => /\(histórico\)$/.test(p.nombre || '')).length;
+      return sinFusionar ? `<div class="no-imprimir" onclick="cambiarPestanaPersonal('config')" style="background:#FDF3E0; border:0.5px solid #F0D9B0; border-radius:8px; padding:0.6rem 0.9rem; margin-bottom:1rem; font-size:12px; color:#854F0B; cursor:pointer;">⚠️ ${sinFusionar} persona(s) marcadas "(histórico)" son del formato antiguo de nóminas sin fusionar con su ficha actual: si siguen en la empresa aparecen dos veces (una como baja). Fusiónalas en Configuración para que el histórico, las bajas y los costes por persona sean reales.</div>` : '';
+    })()}
+    <div id="grafico-plantilla-historico" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;">${graficoPlantillaHistoricoSVG(reg, ctx)}</div>
+    <div class="no-imprimir" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:0.8rem 1.25rem; margin-bottom:1rem; display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+        ${chip('todos', 'Todos')}${chip('activo', 'Activos')}${chip('baja', 'Bajas')}${chip('eventual', 'Eventuales')}
+        <select onchange="cambiarFiltroHistorico('depto', this.value)" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesDepto}</select>
+        <input type="text" placeholder="Buscar trabajador..." value="${historicoPersonal.q.replace(/"/g, '&quot;')}" oninput="cambiarFiltroHistorico('q', this.value, true)" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de; width:180px;">
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button onclick="exportarHistoricoPersonal()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">⬇️ Excel</button>
+        <button onclick="window.print()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🖨️ Imprimir / PDF</button>
+      </div>
+    </div>
+    <div id="tabla-historico-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;"></div>
+  `;
+  personalGlobal.registroCache = reg;
+  renderTablaHistoricoPersonal();
+}
+function cambiarFiltroHistorico(campo, valor, soloTabla) {
+  historicoPersonal[campo] = valor;
+  if (soloTabla) renderTablaHistoricoPersonal(); else pintarPersonalHistorico();
+}
+function ordenarHistorico(campo) {
+  historicoPersonal.orden = { campo, asc: historicoPersonal.orden.campo === campo ? !historicoPersonal.orden.asc : (campo === 'nombre' || campo === 'depto') };
+  renderTablaHistoricoPersonal();
+}
+function renderTablaHistoricoPersonal() {
+  const cont = document.getElementById('tabla-historico-personal');
+  const reg = personalGlobal.registroCache;
+  if (!cont || !reg) return;
+  const q = historicoPersonal.q.trim().toLowerCase();
+  const anios = aniosConDatosPersonal();
+  let lista = reg.personas.filter(p =>
+    (historicoPersonal.estado === 'todos' || p.estado === historicoPersonal.estado) &&
+    (!historicoPersonal.depto || p.depto === historicoPersonal.depto) &&
+    (!q || (p.nombre || '').toLowerCase().includes(q)));
+  const valorOrden = (p, campo) => {
+    if (campo === 'nombre') return (p.nombre || '').toLowerCase();
+    if (campo === 'depto') return p.depto || '';
+    if (campo === 'estado') return p.estado;
+    if (campo === 'inicio') return p.primer || 0;
+    if (campo === 'fin') return p.estado === 'activo' ? 999999 : (p.ultimo || 0);
+    if (campo === 'meses') return p.mesesTrabajados;
+    if (campo === 'medio') return p.mesesConCoste ? p.total.coste / p.mesesConCoste : 0;
+    if (campo.startsWith('anio')) return p.porAnio[parseInt(campo.slice(4))] || 0;
+    return p.total[campo] || 0;
+  };
+  const { campo, asc } = historicoPersonal.orden;
+  lista.sort((x, y) => { const a = valorOrden(x, campo), b = valorOrden(y, campo); return (a < b ? -1 : a > b ? 1 : 0) * (asc ? 1 : -1); });
+  const th = (c, texto, derecha) => `<th onclick="ordenarHistorico('${c}')" style="cursor:pointer; ${derecha ? 'text-align:right;' : ''}">${texto}${campo === c ? (asc ? ' ▲' : ' ▼') : ''}</th>`;
+  const filas = lista.map(p => `<tr>
+      <td>${linkFichaPersonal(p)}</td><td style="color:#6b6a64;">${p.depto}</td><td>${badgeEstadoPersonal(p.estado)}</td>
+      <td>${textoInicioPersonal(p)}</td><td>${textoFinPersonal(p)}</td><td style="text-align:right;">${p.mesesTrabajados || '—'}</td>
+      <td style="text-align:right; font-weight:500;">${euros(p.total.coste)}</td><td style="text-align:right;">${p.mesesConCoste ? euros(p.total.coste / p.mesesConCoste) : '—'}</td>
+      <td style="text-align:right;">${p.total.extras ? euros(p.total.extras) : '—'}</td>
+      ${anios.map(a => `<td style="text-align:right; color:#4a4944;">${p.porAnio[a] ? euros(p.porAnio[a]) : '<span style="color:#c9c7bf;">—</span>'}</td>`).join('')}
+    </tr>`).join('');
+  const tot = (k) => lista.reduce((s, p) => s + p.total[k], 0);
+  cont.innerHTML = `
+    <p style="font-size:12px; color:#6b6a64; margin:0; padding:10px 12px 0;">${lista.length} personas. Inicio / fin = primer y último mes con nómina subida (las nóminas no traen fecha de alta); "≤" = ya estaba cuando empiezan los datos. Pulsa un nombre para ver su ficha.</p>
+    <table>
+      <thead><tr>${th('nombre', 'Trabajador')}${th('depto', 'Departamento')}${th('estado', 'Estado')}${th('inicio', 'Inicio')}${th('fin', 'Fin')}${th('meses', 'Meses nómina', true)}${th('coste', 'Coste total', true)}${th('medio', 'Coste medio/mes', true)}${th('extras', 'Extras', true)}${anios.map(a => th('anio' + a, String(a), true)).join('')}</tr></thead>
+      <tbody>${filas || `<tr><td colspan="${9 + anios.length}" style="padding:1.5rem 4px; color:#9a988f;">Nadie con esos filtros.</td></tr>`}</tbody>
+      <tfoot><tr style="background:#f7f6f2; font-weight:500;"><td colspan="6">Total (${lista.length})</td><td style="text-align:right;">${euros(tot('coste'))}</td><td></td><td style="text-align:right;">${euros(tot('extras'))}</td>${anios.map(a => `<td style="text-align:right;">${euros(lista.reduce((s, p) => s + (p.porAnio[a] || 0), 0))}</td>`).join('')}</tr></tfoot>
+    </table>`;
+  historicoPersonalExport = {
+    cabecera: ['Trabajador', 'Departamento', 'Estado', 'Inicio', 'Fin', 'Meses nómina', 'Coste total', 'Coste medio/mes', 'Extras', 'Bruto', 'Neto', 'Horas extra', ...anios.map(String)],
+    filas: lista.map(p => [p.nombre, p.depto, ESTADO_PERSONAL[p.estado].texto, textoInicioPersonal(p), textoFinPersonal(p), p.mesesTrabajados, p.total.coste, p.mesesConCoste ? p.total.coste / p.mesesConCoste : '', p.total.extras, p.total.bruto, p.total.neto, p.total.horas, ...anios.map(a => p.porAnio[a] || 0)])
+  };
+}
+function exportarHistoricoPersonal() {
+  if (!historicoPersonalExport) return;
+  descargarCSVPersonal('historico_personal.csv', [{ titulo: 'Histórico de personal', ...historicoPersonalExport }]);
+}
+// Plantilla con nómina mes a mes, apilada por departamento (departamento
+// actual de cada persona). Meses sin nóminas subidas quedan en blanco.
+function graficoPlantillaHistoricoSVG(reg, ctx) {
+  if (!reg.primerMesNomina) return '<p style="color:#9a988f; font-size:13px;">Sin nóminas.</p>';
+  const meses = [];
+  for (let ym = reg.primerMesNomina; ym <= reg.ultimoMesNomina; ym = sumarMesesYM(ym, 1)) meses.push(ym);
+  const deptos = ctx.listaDeptos.filter(d => reg.personas.some(p => p.depto === d && p.conNomina));
+  const cuenta = meses.map(ym => { const c = {}; reg.personas.forEach(p => { if (p.mesesNomina.has(ym)) c[p.depto] = (c[p.depto] || 0) + 1; }); return c; });
+  const totales = cuenta.map(c => Object.values(c).reduce((s, v) => s + v, 0));
+  const max = Math.max(1, ...totales);
+  const w = 900, h = 230, padT = 18, padB = 30, areaH = h - padT - padB, paso = (w - 20) / meses.length;
+  let svg = '';
+  meses.forEach((ym, i) => {
+    const x = 10 + paso * i + paso * 0.15, bw = paso * 0.7;
+    let y = padT + areaH;
+    if (!totales[i]) { svg += `<text x="${x + bw / 2}" y="${padT + areaH - 4}" text-anchor="middle" font-size="9" fill="#c24545">sin nóm.</text>`; }
+    deptos.forEach((d, j) => {
+      const v = cuenta[i][d] || 0;
+      if (!v) return;
+      const hs = v / max * areaH; y -= hs;
+      svg += `<rect x="${x}" y="${y}" width="${bw}" height="${hs}" fill="${colorParaFila(d, j)}"><title>${textoYM(ym)} · ${d}: ${v}</title></rect>`;
+    });
+    if (totales[i]) svg += `<text x="${x + bw / 2}" y="${y - 3}" text-anchor="middle" font-size="9.5" fill="#4a4944">${totales[i]}</text>`;
+    svg += `<text x="${x + bw / 2}" y="${h - 16}" text-anchor="middle" font-size="9" fill="#6b6a64">${MESES_ES_FACTURAS[ym % 100].slice(0, 1)}</text>`;
+    if (ym % 100 === 1 || i === 0) svg += `<text x="${x}" y="${h - 3}" font-size="10" fill="#1a1a18" font-weight="500">${Math.floor(ym / 100)}</text>`;
+  });
+  const leyenda = deptos.map((d, j) => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:9px; height:9px; border-radius:2px; background:${colorParaFila(d, j)}; display:inline-block;"></span>${d}</span>`).join('');
+  return `<p style="font-size:13px; font-weight:500; margin:0 0 6px;">Plantilla con nómina mes a mes, por departamento</p><svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${svg}</svg><div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:#6b6a64; margin-top:4px;">${leyenda}</div>`;
+}
+
+// ── Comparador: tabla dinámica a elegir (filas × columnas × métrica) ──
+const DIMENSIONES_COMPARADOR = {
+  ninguna: 'Nada (total)', anio: 'Año', trimestre: 'Trimestre', mes: 'Mes del año', anio_mes: 'Mes (año-mes)',
+  departamento: 'Departamento', trabajador: 'Trabajador', estado: 'Estado (activo/baja)'
+};
+const METRICAS_COMPARADOR = {
+  coste: 'Coste total (nóminas + extras)', nominas: 'Coste nóminas', extras: 'Extras (€)', bruto: 'Bruto', neto: 'Neto',
+  ssEmp: 'SS empresa', ssTrab: 'SS trabajador', irpf: 'IRPF', personas: 'Nº personas distintas', plantilla: 'Plantilla media (personas/mes)',
+  medio: 'Coste medio persona/mes', horas: 'Horas extra', festivos: 'Domingos / festivos', nocturnos: 'Nocturnos', plus: 'Pluses fijos (€)', descansos: 'Descansos disfrutados'
+};
+const METRICAS_EUROS_COMPARADOR = ['coste', 'nominas', 'extras', 'bruto', 'neto', 'ssEmp', 'ssTrab', 'irpf', 'medio', 'plus'];
+const METRICAS_NO_SUMABLES = ['personas', 'plantilla', 'medio'];
+let comparadorPersonal = { filas: 'departamento', columnas: 'anio', metrica: 'coste', vista: 'valor', anios: null, meses: new Set(Array.from({ length: 12 }, (_, i) => i + 1)), deptos: new Set(), estado: 'todos', q: '' };
+let comparadorPersonalExport = null;
+const PRESETS_COMPARADOR = [
+  { texto: 'Coste por departamento y año', filas: 'departamento', columnas: 'anio', metrica: 'coste' },
+  { texto: 'Plantilla por departamento, mes a mes', filas: 'departamento', columnas: 'anio_mes', metrica: 'plantilla' },
+  { texto: 'Coste medio por departamento y año', filas: 'departamento', columnas: 'anio', metrica: 'medio' },
+  { texto: 'Coste por trabajador y año', filas: 'trabajador', columnas: 'anio', metrica: 'coste' },
+  { texto: 'Extras por trabajador y año', filas: 'trabajador', columnas: 'anio', metrica: 'extras' },
+  { texto: 'Estacionalidad: coste por mes del año', filas: 'anio', columnas: 'mes', metrica: 'coste' },
+  { texto: 'Activos frente a bajas por año', filas: 'estado', columnas: 'anio', metrica: 'coste' }
+];
+async function pintarPersonalComparador() {
+  const cont = document.getElementById('personal-tab-body');
+  cont.innerHTML = '<p class="loading-text">Cargando todos los años...</p>';
+  try { await asegurarTodosLosAniosPersonal(); } catch (err) { cont.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p>'; return; }
+  if (personalGlobal.tab !== 'comparador') return;
+  const ctx = contextoInformePersonal();
+  personalGlobal.registroCache = construirRegistroPersonal(ctx);
+  const aniosTodos = aniosConDatosPersonal();
+  if (!comparadorPersonal.anios) comparadorPersonal.anios = new Set(aniosTodos);
+  const C = comparadorPersonal;
+  const select = (campo, opciones, valor) => `<select onchange="cambiarComparador('${campo}', this.value)" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${Object.keys(opciones).map(k => `<option value="${k}" ${k === valor ? 'selected' : ''}>${opciones[k]}</option>`).join('')}</select>`;
+  const chipSet = (campo, valor, texto, activo) => `<button onclick="toggleSetComparador('${campo}', ${typeof valor === 'number' ? valor : `'${escaparAtributoInforme(valor)}'`})" style="font-size:11.5px; padding:3px 9px; border-radius:12px; cursor:pointer; ${activo ? 'background:#3D7C9E; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">${texto}</button>`;
+  const lbl = (t) => `<span style="font-size:12px; color:#6b6a64; min-width:92px; display:inline-block;">${t}</span>`;
+  cont.innerHTML = `
+    <div class="no-imprimir" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; align-items:center;">
+        <span style="font-size:12px; color:#6b6a64;">Atajos:</span>
+        ${PRESETS_COMPARADOR.map((p, i) => `<button onclick="aplicarPresetComparador(${i})" style="font-size:11.5px; padding:4px 10px; border-radius:6px; border:0.5px solid #e2e2de; background:#f7f6f2; cursor:pointer;">${p.texto}</button>`).join('')}
+      </div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+        <span>${lbl('Filas')}${select('filas', DIMENSIONES_COMPARADOR, C.filas)}</span>
+        <span>${lbl('Columnas')}${select('columnas', DIMENSIONES_COMPARADOR, C.columnas)}</span>
+        <span>${lbl('Métrica')}${select('metrica', METRICAS_COMPARADOR, C.metrica)}</span>
+        <span>${lbl('Mostrar')}${select('vista', { valor: 'Valores', pct_fila: '% sobre el total de la fila', pct_col: '% sobre el total de la columna', delta: 'Δ % frente a la columna anterior' }, C.vista)}</span>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Años')}${aniosTodos.map(a => chipSet('anios', a, String(a), C.anios.has(a))).join('')}</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Meses')}${Array.from({ length: 12 }, (_, i) => i + 1).map(m => chipSet('meses', m, MESES_ES_FACTURAS[m].slice(0, 3), C.meses.has(m))).join('')}</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Departamentos')}${ctx.listaDeptos.map(d => chipSet('deptos', d, d, C.deptos.has(d))).join('')}<span style="font-size:11px; color:#9a988f;">${C.deptos.size ? '' : '(ninguno marcado = todos)'}</span></div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+        <div style="display:flex; gap:6px; align-items:center;">${lbl('Estado')}${['todos', 'activo', 'baja', 'eventual'].map(e => botonSegmentoInforme(C.estado === e, `cambiarComparador('estado', '${e}')`, e === 'todos' ? 'Todos' : ESTADO_PERSONAL[e].texto)).join('')}
+          <input type="text" placeholder="Filtrar trabajador..." value="${C.q.replace(/"/g, '&quot;')}" oninput="comparadorPersonal.q = this.value; renderResultadoComparador();" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de; width:170px; margin-left:8px;"></div>
+        <div style="display:flex; gap:6px;">
+          <button onclick="exportarComparadorPersonal()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">⬇️ Excel</button>
+          <button onclick="window.print()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🖨️ Imprimir / PDF</button>
+        </div>
+      </div>
+    </div>
+    <div id="resultado-comparador-personal"></div>
+  `;
+  renderResultadoComparador();
+}
+function cambiarComparador(campo, valor) { comparadorPersonal[campo] = valor; pintarPersonalComparador(); }
+function toggleSetComparador(campo, valor) {
+  const s = comparadorPersonal[campo];
+  if (s.has(valor)) s.delete(valor); else s.add(valor);
+  pintarPersonalComparador();
+}
+function aplicarPresetComparador(i) {
+  const p = PRESETS_COMPARADOR[i];
+  Object.assign(comparadorPersonal, { filas: p.filas, columnas: p.columnas, metrica: p.metrica, vista: 'valor' });
+  pintarPersonalComparador();
+}
+// Valor de dimensión de un hecho (persona × mes) → { clave (para ordenar), texto }
+function dimensionComparador(dim, f) {
+  switch (dim) {
+    case 'anio': return { k: f.anio, t: String(f.anio) };
+    case 'trimestre': { const q = Math.ceil(f.mes / 3); return { k: f.anio * 10 + q, t: 'T' + q + ' ' + f.anio }; }
+    case 'mes': return { k: f.mes, t: MESES_ES_FACTURAS[f.mes] };
+    case 'anio_mes': return { k: f.ym, t: textoYM(f.ym) };
+    case 'departamento': return { k: f.p.depto, t: f.p.depto };
+    case 'trabajador': return { k: f.p.persona, t: f.p.nombre || f.p.persona, p: f.p };
+    case 'estado': return { k: f.p.estado, t: ESTADO_PERSONAL[f.p.estado].texto };
+    default: return { k: 'total', t: 'Total' };
+  }
+}
+function nuevoAcumuladorComparador() { const a = { personas: new Set(), personaMes: 0, meses: new Set() }; CAMPOS_MES_PERSONAL.forEach(k => { a[k] = 0; }); return a; }
+function acumularComparador(a, f) {
+  CAMPOS_MES_PERSONAL.forEach(k => { a[k] += f.m[k]; });
+  if (f.m.coste || f.nomina) { a.personas.add(f.p.persona); a.personaMes++; }
+  a.meses.add(f.ym);
+}
+function valorAcumuladorComparador(a, metrica) {
+  if (!a) return null;
+  if (metrica === 'personas') return a.personas.size;
+  if (metrica === 'plantilla') return a.meses.size ? a.personaMes / a.meses.size : 0;
+  if (metrica === 'medio') return a.personaMes ? a.coste / a.personaMes : null;
+  return a[metrica];
+}
+function formatoComparador(v, metrica) {
+  if (v == null) return '—';
+  if (METRICAS_EUROS_COMPARADOR.includes(metrica)) return euros(v);
+  return v.toLocaleString('es-ES', { maximumFractionDigits: 1 });
+}
+function renderResultadoComparador() {
+  const cont = document.getElementById('resultado-comparador-personal');
+  const reg = personalGlobal.registroCache;
+  if (!cont || !reg) return;
+  const C = comparadorPersonal, q = C.q.trim().toLowerCase();
+  // Hechos filtrados
+  const hechos = [];
+  reg.personas.forEach(p => {
+    if (C.estado !== 'todos' && p.estado !== C.estado) return;
+    if (C.deptos.size && !C.deptos.has(p.depto)) return;
+    if (q && !(p.nombre || '').toLowerCase().includes(q)) return;
+    Object.keys(p.meses).forEach(k => {
+      const ym = Number(k), anio = Math.floor(ym / 100), mes = ym % 100;
+      if (!C.anios.has(anio) || !C.meses.has(mes)) return;
+      hechos.push({ p, ym, anio, mes, m: p.meses[ym], nomina: p.mesesNomina.has(ym) });
+    });
+  });
+  if (!hechos.length) { cont.innerHTML = '<div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1.5rem; color:#9a988f; font-size:13px;">Sin datos con estos filtros.</div>'; comparadorPersonalExport = null; return; }
+  const filas = new Map(), cols = new Map(), celdas = new Map(), totFila = new Map(), totCol = new Map(), total = nuevoAcumuladorComparador();
+  hechos.forEach(f => {
+    const df = dimensionComparador(C.filas, f), dc = dimensionComparador(C.columnas, f);
+    if (!filas.has(df.k)) filas.set(df.k, df);
+    if (!cols.has(dc.k)) cols.set(dc.k, dc);
+    const kc = df.k + '§' + dc.k;
+    if (!celdas.has(kc)) celdas.set(kc, nuevoAcumuladorComparador());
+    if (!totFila.has(df.k)) totFila.set(df.k, nuevoAcumuladorComparador());
+    if (!totCol.has(dc.k)) totCol.set(dc.k, nuevoAcumuladorComparador());
+    acumularComparador(celdas.get(kc), f); acumularComparador(totFila.get(df.k), f); acumularComparador(totCol.get(dc.k), f); acumularComparador(total, f);
+  });
+  const esTiempo = (d) => ['anio', 'trimestre', 'mes', 'anio_mes'].includes(d);
+  const M = C.metrica;
+  const ordenar = (mapa, dim, totales) => [...mapa.values()].sort((a, b) => esTiempo(dim) ? (a.k < b.k ? -1 : 1) : ((valorAcumuladorComparador(totales.get(b.k), 'coste') || 0) - (valorAcumuladorComparador(totales.get(a.k), 'coste') || 0)));
+  const listaFilas = ordenar(filas, C.filas, totFila), listaCols = ordenar(cols, C.columnas, totCol);
+  const hayCols = C.columnas !== 'ninguna';
+  const sumable = !METRICAS_NO_SUMABLES.includes(M);
+  const valorCelda = (df, dc) => valorAcumuladorComparador(celdas.get(df.k + '§' + dc.k), M);
+  const mostrar = (v, df, dc, i) => {
+    if (C.vista === 'valor' || v == null) return formatoComparador(v, M);
+    if (C.vista === 'pct_fila') { const t = valorAcumuladorComparador(totFila.get(df.k), M); return sumable && t ? pctES(v / t) : formatoComparador(v, M); }
+    if (C.vista === 'pct_col') { const t = valorAcumuladorComparador(totCol.get(dc.k), M); return sumable && t ? pctES(v / t) : formatoComparador(v, M); }
+    const prev = i > 0 ? valorCelda(df, listaCols[i - 1]) : null;
+    return formatoComparador(v, M) + (i > 0 && prev != null ? `<div style="font-size:10.5px;">${deltaInformeHtml(v, prev, METRICAS_EUROS_COMPARADOR.includes(M))}</div>` : '');
+  };
+  const nombreFila = (df) => df.p ? `<span onclick="abrirFichaTrabajador('${escaparAtributoInforme(df.p.persona)}')" style="cursor:pointer; text-decoration:underline; text-decoration-color:#c9c7bf;">${df.t}</span> ${df.p.estado !== 'activo' ? badgeEstadoPersonal(df.p.estado) : ''}` : df.t;
+  const cuerpo = listaFilas.map(df => `<tr><td>${nombreFila(df)}</td>${hayCols ? listaCols.map((dc, i) => `<td style="text-align:right;">${mostrar(valorCelda(df, dc), df, dc, i)}</td>`).join('') : ''}<td style="text-align:right; font-weight:500;">${formatoComparador(valorAcumuladorComparador(totFila.get(df.k), M), M)}</td>${hayCols && listaCols.length > 1 ? `<td style="white-space:nowrap;">${sparklineInforme(listaCols.map(dc => valorCelda(df, dc)))}</td>` : ''}</tr>`).join('');
+  const pie = `<tr style="background:#f7f6f2; font-weight:500;"><td>Total</td>${hayCols ? listaCols.map((dc, i) => {
+      const v = valorAcumuladorComparador(totCol.get(dc.k), M);
+      const prev = i > 0 ? valorAcumuladorComparador(totCol.get(listaCols[i - 1].k), M) : null;
+      return `<td style="text-align:right;">${formatoComparador(v, M)}${C.vista === 'delta' && i > 0 && prev != null ? `<div style="font-size:10.5px;">${deltaInformeHtml(v, prev, METRICAS_EUROS_COMPARADOR.includes(M))}</div>` : ''}</td>`;
+    }).join('') : ''}<td style="text-align:right;">${formatoComparador(valorAcumuladorComparador(total, M), M)}</td>${hayCols && listaCols.length > 1 ? `<td>${sparklineInforme(listaCols.map(dc => valorAcumuladorComparador(totCol.get(dc.k), M)))}</td>` : ''}</tr>`;
+  const etiquetaTotal = sumable ? 'Total' : (M === 'medio' ? 'Media' : M === 'plantilla' ? 'Media' : 'Total');
+  cont.innerHTML = `
+    <div class="solo-impresion" style="margin-bottom:12px;"><p style="font-size:18px; font-weight:600; margin:0;">Comparador de personal · ${METRICAS_COMPARADOR[M]}</p><p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">${DIMENSIONES_COMPARADOR[C.filas]} × ${DIMENSIONES_COMPARADOR[C.columnas]} · años ${[...C.anios].sort().join(', ')} · generado ${new Date().toLocaleDateString('es-ES')}</p></div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;">${graficoComparadorSVG(listaFilas, listaCols, hayCols, valorCelda, (df) => valorAcumuladorComparador(totFila.get(df.k), M), M)}</div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
+      <p style="font-size:12px; color:#6b6a64; margin:0; padding:10px 12px 0;">${METRICAS_COMPARADOR[M]} · ${DIMENSIONES_COMPARADOR[C.filas]}${hayCols ? ' × ' + DIMENSIONES_COMPARADOR[C.columnas] : ''} · ${listaFilas.length} filas.${sumable ? '' : ' Esta métrica no se suma: el total se recalcula sobre todo el grupo.'} Los años con meses sin nómina subida suman menos.</p>
+      <table>
+        <thead><tr><th>${DIMENSIONES_COMPARADOR[C.filas]}</th>${hayCols ? listaCols.map(dc => `<th style="text-align:right;">${dc.t}</th>`).join('') : ''}<th style="text-align:right;">${etiquetaTotal}</th>${hayCols && listaCols.length > 1 ? '<th>Evolución</th>' : ''}</tr></thead>
+        <tbody>${cuerpo}</tbody>
+        <tfoot>${pie}</tfoot>
+      </table>
+    </div>`;
+  comparadorPersonalExport = {
+    titulo: METRICAS_COMPARADOR[M] + ' · ' + DIMENSIONES_COMPARADOR[C.filas] + (hayCols ? ' × ' + DIMENSIONES_COMPARADOR[C.columnas] : ''),
+    cabecera: [DIMENSIONES_COMPARADOR[C.filas], ...(hayCols ? listaCols.map(dc => dc.t) : []), etiquetaTotal],
+    filas: [...listaFilas.map(df => [df.t, ...(hayCols ? listaCols.map(dc => { const v = valorCelda(df, dc); return v == null ? '' : v; }) : []), valorAcumuladorComparador(totFila.get(df.k), M)]),
+      ['Total', ...(hayCols ? listaCols.map(dc => valorAcumuladorComparador(totCol.get(dc.k), M)) : []), valorAcumuladorComparador(total, M)]]
+  };
+}
+function exportarComparadorPersonal() {
+  if (!comparadorPersonalExport) { alert('No hay datos que exportar.'); return; }
+  descargarCSVPersonal('comparador_personal.csv', [comparadorPersonalExport]);
+}
+// Gráfico del comparador: con columnas → una línea por fila (las 8 de más
+// peso) a lo largo de las columnas; sin columnas → barras horizontales.
+function graficoComparadorSVG(listaFilas, listaCols, hayCols, valorCelda, totalFila, M) {
+  const PAL = ['#3D7C9E', '#C24545', '#4C8C2B', '#B8956A', '#7A4C9E', '#C27A45', '#4C9E8C', '#9E4C7A'];
+  if (!hayCols || listaCols.length < 2) {
+    const top = listaFilas.slice(0, 20), max = Math.max(1, ...top.map(df => totalFila(df) || 0));
+    const alto = 22, w = 900, h = top.length * alto + 10;
+    const svg = top.map((df, i) => {
+      const v = totalFila(df) || 0, bw = v / max * 560;
+      return `<text x="270" y="${i * alto + 16}" text-anchor="end" font-size="11.5" fill="#1a1a18">${String(df.t).slice(0, 38)}</text><rect x="280" y="${i * alto + 4}" width="${bw}" height="15" fill="#3D7C9E" rx="2"><title>${df.t}: ${formatoComparador(v, M)}</title></rect><text x="${286 + bw}" y="${i * alto + 16}" font-size="11" fill="#4a4944">${formatoComparador(v, M)}</text>`;
+    }).join('');
+    return `<p style="font-size:13px; font-weight:500; margin:0 0 6px;">${METRICAS_COMPARADOR[M]}${listaFilas.length > 20 ? ' (las 20 primeras)' : ''}</p><svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${svg}</svg>`;
+  }
+  const top = listaFilas.slice(0, 8);
+  const w = 900, h = 260, padL = 50, padR = 20, padT = 14, padB = 34, areaW = w - padL - padR, areaH = h - padT - padB;
+  const vals = top.map(df => listaCols.map(dc => valorCelda(df, dc)));
+  const max = Math.max(1, ...vals.flat().filter(v => v != null));
+  const x = (i) => padL + (listaCols.length === 1 ? areaW / 2 : areaW * i / (listaCols.length - 1));
+  let svg = '';
+  [0, 0.5, 1].forEach(t => { const y = padT + areaH - t * areaH; svg += `<line x1="${padL}" x2="${w - padR}" y1="${y}" y2="${y}" stroke="#efeee9"/><text x="${padL - 6}" y="${y + 3}" text-anchor="end" font-size="9.5" fill="#9a988f">${formatoCompactoGenerico(max * t, M)}</text>`; });
+  const salto = Math.ceil(listaCols.length / 18);
+  listaCols.forEach((dc, i) => { if (i % salto === 0) svg += `<text x="${x(i)}" y="${h - 14}" text-anchor="middle" font-size="10" fill="#6b6a64">${dc.t}</text>`; });
+  vals.forEach((serie, j) => {
+    const pts = serie.map((v, i) => v == null ? null : [x(i), padT + areaH - v / max * areaH, v, i]).filter(Boolean);
+    if (pts.length > 1) svg += `<polyline points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}" fill="none" stroke="${PAL[j]}" stroke-width="2"/>`;
+    pts.forEach(p => { svg += `<circle cx="${p[0]}" cy="${p[1]}" r="2.8" fill="${PAL[j]}"><title>${top[j].t} · ${listaCols[p[3]].t}: ${formatoComparador(p[2], M)}</title></circle>`; });
+  });
+  const leyenda = top.map((df, j) => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:12px; height:3px; background:${PAL[j]}; display:inline-block;"></span>${df.t}</span>`).join('');
+  return `<p style="font-size:13px; font-weight:500; margin:0 0 6px;">${METRICAS_COMPARADOR[M]}${listaFilas.length > 8 ? ' (las 8 filas de más peso)' : ''}</p><svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${svg}</svg><div style="display:flex; flex-wrap:wrap; gap:12px; font-size:11px; color:#6b6a64;">${leyenda}</div>`;
+}
+function formatoCompactoGenerico(v, M) {
+  if (!METRICAS_EUROS_COMPARADOR.includes(M)) return v.toLocaleString('es-ES', { maximumFractionDigits: 1 });
+  return Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + 'k' : Math.round(v).toLocaleString('es-ES');
 }
 
 // ── Pestaña Extras: lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña
