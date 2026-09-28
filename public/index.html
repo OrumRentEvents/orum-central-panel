@@ -2211,8 +2211,11 @@ async function guardarConfigPersonal() {
 const ETIQUETA_METRICA_INFORME = { importe: 'Importe', personas: 'Nº personas', medio: 'Coste medio / persona' };
 const ETIQUETA_FUENTE_INFORME = { nominas: 'Nóminas', extras: 'Extras', ambos: 'Nóminas + extras' };
 // Del más antiguo (gris claro) al año seleccionado (azul).
-const COLORES_ANIOS_INFORME = ['#e2e0d8', '#c9c7bf', '#a8a69d', '#8aa9ba', '#5f93ad', '#3D7C9E'];
-function colorAnioInforme(idx, total) { return COLORES_ANIOS_INFORME[COLORES_ANIOS_INFORME.length - total + idx] || COLORES_ANIOS_INFORME[0]; }
+// Cada año tiene SIEMPRE el mismo color en todas las gráficas (sin rojo:
+// el rojo se reserva para la línea de tendencia de Análisis).
+const COLORES_POR_ANIO = { 2023: '#9E4C7A', 2024: '#D08A3E', 2025: '#4C8C2B', 2026: '#3D7C9E', 2027: '#7A4C9E', 2028: '#B8956A' };
+const COLORES_ANIO_EXTRA = ['#4C9E8C', '#8A6D1E', '#6B6A64'];
+function colorDeAnio(anio) { return COLORES_POR_ANIO[anio] || COLORES_ANIO_EXTRA[Math.abs(anio) % COLORES_ANIO_EXTRA.length]; }
 let informePersonalExport = []; // secciones [{titulo, cabecera, filas}] de lo último pintado, para Excel
 
 function botonSegmentoInforme(activo, onclick, texto) {
@@ -2538,7 +2541,7 @@ function graficoInformePersonalSVG(meses, c) {
 // (una por año) para ver en qué meses se produce la diferencia.
 function graficoMultiAnioPersonalSVG(meses, anios, cubos) {
   const n = anios.length;
-  const leyenda = `<div style="display:flex; gap:14px; margin-top:8px; font-size:11px; color:#6b6a64;">${anios.map((a, i) => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:9px; height:9px; border-radius:2px; background:${colorAnioInforme(i, n)}; display:inline-block;"></span>${a}</span>`).join('')}</div>`;
+  const leyenda = `<div style="display:flex; gap:14px; margin-top:8px; font-size:11px; color:#6b6a64;">${anios.map(a => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:9px; height:9px; border-radius:2px; background:${colorDeAnio(a)}; display:inline-block;"></span>${a}</span>`).join('')}</div>`;
   // Evolución anual
   const totales = anios.map(a => valorPeriodoInforme(cubos[a], null, meses) || 0);
   const wA = 900, hA = 150, padTA = 20, padBA = 24, areaHA = hA - padTA - padBA;
@@ -2549,7 +2552,7 @@ function graficoMultiAnioPersonalSVG(meses, anios, cubos) {
     const cx = 10 + ((wA - 20) / n) * i + ((wA - 20) / n) / 2;
     const hb = (totales[i] / maxA) * areaHA;
     const y = padTA + areaHA - hb;
-    barrasA += `<rect x="${cx - anchoA / 2}" y="${y}" width="${anchoA}" height="${hb}" fill="${colorAnioInforme(i, n)}"><title>${a}: ${formatoMetricaInforme(totales[i])}</title></rect>`;
+    barrasA += `<rect x="${cx - anchoA / 2}" y="${y}" width="${anchoA}" height="${hb}" fill="${colorDeAnio(a)}"><title>${a}: ${formatoMetricaInforme(totales[i])}</title></rect>`;
     const pct = i > 0 && totales[i - 1] ? ((totales[i] - totales[i - 1]) / Math.abs(totales[i - 1]) * 100) : null;
     barrasA += `<text x="${cx}" y="${y - 5}" text-anchor="middle" font-size="11" fill="#1a1a18" font-weight="500">${formatoCompactoInforme(totales[i])}${pct == null ? '' : ` (${pct > 0 ? '+' : ''}${pct.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %)`}</text>`;
     barrasA += `<text x="${cx}" y="${hA - 6}" text-anchor="middle" font-size="12" fill="#4a4944">${a}</text>`;
@@ -2568,7 +2571,7 @@ function graficoMultiAnioPersonalSVG(meses, anios, cubos) {
     anios.forEach((a, i) => {
       const v = valores[i][j];
       const hb = (v / max) * areaH;
-      barras += `<rect x="${x0 + barW * i}" y="${padT + areaH - hb}" width="${barW - 1}" height="${hb}" fill="${colorAnioInforme(i, n)}"><title>${MESES_ES_FACTURAS[m]} ${a}: ${formatoMetricaInforme(v)}</title></rect>`;
+      barras += `<rect x="${x0 + barW * i}" y="${padT + areaH - hb}" width="${barW - 1}" height="${hb}" fill="${colorDeAnio(a)}"><title>${MESES_ES_FACTURAS[m]} ${a}: ${formatoMetricaInforme(v)}</title></rect>`;
     });
     barras += `<text x="${cx}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#6b6a64">${MESES_ES_FACTURAS[m].slice(0, 3)}</text>`;
   });
@@ -3031,7 +3034,7 @@ function seccionTendenciaPrevision() {
   serie.forEach((p, i) => {
     const x = padL + paso * i + paso / 2;
     const hb = (p.coste / max) * areaH;
-    svg += `<rect x="${x - paso * 0.35}" y="${padT + areaH - hb}" width="${paso * 0.7}" height="${hb}" fill="${p.anio === anio ? '#3D7C9E' : '#c9c7bf'}"><title>${etiquetaMes(p)}: ${euros(p.coste)} (nóminas ${euros(p.nominas)} + extras ${euros(p.extras)})</title></rect>`;
+    svg += `<rect x="${x - paso * 0.35}" y="${padT + areaH - hb}" width="${paso * 0.7}" height="${hb}" fill="${colorDeAnio(p.anio)}" opacity="${p.anio === anio ? 1 : 0.75}"><title>${etiquetaMes(p)}: ${euros(p.coste)} (nóminas ${euros(p.nominas)} + extras ${euros(p.extras)})</title></rect>`;
     const v = sumaVentana(idx(p));
     if (v != null) linea.push(`${x},${padT + areaH - (v / 12 / max) * areaH}`);
     if (serie.length <= 24 || i % 2 === 0) svg += `<text x="${x}" y="${h - 14}" text-anchor="middle" font-size="9.5" fill="#6b6a64">${MESES_ES_FACTURAS[p.mes].slice(0, 3)}</text>`;
@@ -3040,8 +3043,7 @@ function seccionTendenciaPrevision() {
   if (linea.length > 1) svg += `<polyline points="${linea.join(' ')}" fill="none" stroke="#C24545" stroke-width="2"/>`;
   const grafico = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; margin-top:10px;">${svg}</svg>
     <div style="display:flex; gap:14px; font-size:11px; color:#6b6a64; margin-top:4px;">
-      <span><span style="display:inline-block; width:9px; height:9px; background:#3D7C9E; border-radius:2px;"></span> ${anio}</span>
-      <span><span style="display:inline-block; width:9px; height:9px; background:#c9c7bf; border-radius:2px;"></span> otros años</span>
+      ${[...new Set(serie.map(x => x.anio))].map(a => `<span><span style="display:inline-block; width:9px; height:9px; background:${colorDeAnio(a)}; border-radius:2px;"></span> ${a}</span>`).join('')}
       ${linea.length > 1 ? '<span><span style="display:inline-block; width:14px; height:2px; background:#C24545; vertical-align:middle;"></span> media mensual de los últimos 12 meses (tendencia sin estacionalidad)</span>' : ''}
     </div>`;
 
@@ -3288,7 +3290,7 @@ async function abrirFichaTrabajador(persona) {
     document.body.appendChild(modal);
   }
   modal.style.display = 'flex';
-  modal.innerHTML = '<div style="background:#fff; border-radius:10px; padding:1.5rem; width:min(980px, 100%);"><p class="loading-text">Cargando ficha...</p></div>';
+  modal.innerHTML = '<div style="background:#fff; border-radius:10px; padding:1.5rem; width:min(1480px, 96vw); box-sizing:border-box;"><p class="loading-text">Cargando ficha...</p></div>';
   try {
     await asegurarAniosCompararPersonal(aniosConDatosPersonal().filter(a => a !== personalGlobal.anio));
   } catch (err) {
@@ -3337,22 +3339,29 @@ async function abrirFichaTrabajador(persona) {
     const r = porAnio[a], mesesCon = Object.keys(r.meses).length, total = r.nominas + r.extras;
     const prev = i > 0 ? porAnio[aniosFicha[i - 1]] : null;
     const medio = mesesCon ? total / mesesCon : null, medioPrev = prev && Object.keys(prev.meses).length ? (prev.nominas + prev.extras) / Object.keys(prev.meses).length : null;
-    return `<tr><td style="font-weight:500;">${a}</td><td style="text-align:right;">${mesesCon}</td><td style="text-align:right;">${euros(r.bruto)}</td><td style="text-align:right; color:#6b6a64;">${euros(r.neto)}</td><td style="text-align:right;">${euros(r.nominas)}</td><td style="text-align:right;">${euros(r.extras)}</td><td style="text-align:right; font-weight:500;">${euros(total)}</td><td style="text-align:right;">${medio == null ? '—' : euros(medio)}${prev && medioPrev != null && medio != null ? `<div style="font-size:10.5px;">${deltaInformeHtml(medio, medioPrev, true)}</div>` : ''}</td><td style="text-align:right;">${r.horas ? numES(r.horas) + ' h' : '—'}</td><td style="text-align:right;">${r.festivos || '—'}</td><td style="text-align:right;">${r.nocturnos || '—'}</td><td style="text-align:right;">${r.descansos || '—'}</td></tr>`;
+    return `<tr><td style="font-weight:500;">${a}</td><td style="text-align:right;">${mesesCon}</td><td style="text-align:right;">${euros(r.bruto)}</td><td style="text-align:right; color:#6b6a64;">${euros(r.neto)}</td><td style="text-align:right;">${euros(r.extras)}</td><td style="text-align:right; font-weight:600; color:#1E6B34;">${euros(r.neto + r.extras)}</td><td style="text-align:right;">${euros(r.nominas)}</td><td style="text-align:right; font-weight:500;">${euros(total)}</td><td style="text-align:right;">${medio == null ? '—' : euros(medio)}${prev && medioPrev != null && medio != null ? `<div style="font-size:10.5px;">${deltaInformeHtml(medio, medioPrev, true)}</div>` : ''}</td><td style="text-align:right;">${r.horas ? numES(r.horas) + ' h' : '—'}</td><td style="text-align:right;">${r.festivos || '—'}</td><td style="text-align:right;">${r.nocturnos || '—'}</td><td style="text-align:right;">${r.descansos || '—'}</td></tr>`;
   }).join('');
   // Gráfico: coste mensual, una línea por año
-  const w = 900, h = 200, padL = 10, padR = 10, padT = 14, padB = 22;
+  // Eje Y ajustado a los valores (no desde 0) para que se vean las
+  // diferencias entre meses y años, con 3 líneas de referencia.
+  const w = 1100, h = 220, padL = 52, padR = 12, padT = 14, padB = 22;
   const areaW = w - padL - padR, areaH = h - padT - padB;
-  const max = Math.max(1, ...aniosFicha.flatMap(a => Object.values(porAnio[a].meses)));
+  const valoresFicha = aniosFicha.flatMap(a => Object.values(porAnio[a].meses));
+  const maxBruto = Math.max(1, ...valoresFicha), minBruto = Math.min(...valoresFicha);
+  const margenY = Math.max((maxBruto - minBruto) * 0.12, maxBruto * 0.05);
+  const yMin = Math.max(0, minBruto - margenY), yMax = maxBruto + margenY;
+  const yDe = (v) => padT + areaH - (v - yMin) / (yMax - yMin) * areaH;
   const xMes = (m) => padL + (areaW / 11) * (m - 1);
   let svg = '';
+  [0, 0.5, 1].forEach(t => { const v = yMin + (yMax - yMin) * t, y = yDe(v); svg += `<line x1="${padL}" x2="${w - padR}" y1="${y}" y2="${y}" stroke="#efeee9"/><text x="${padL - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="#9a988f">${Math.round(v).toLocaleString('es-ES')} €</text>`; });
   for (let m = 1; m <= 12; m++) svg += `<text x="${xMes(m)}" y="${h - 4}" text-anchor="middle" font-size="10.5" fill="#6b6a64">${MESES_ES_FACTURAS[m].slice(0, 3)}</text>`;
   aniosFicha.forEach((a, i) => {
-    const pts = Object.keys(porAnio[a].meses).map(Number).sort((x, y) => x - y).map(m => [xMes(m), padT + areaH - porAnio[a].meses[m] / max * areaH, m]);
-    const color = colorAnioInforme(i, n);
+    const pts = Object.keys(porAnio[a].meses).map(Number).sort((x, y) => x - y).map(m => [xMes(m), yDe(porAnio[a].meses[m]), m]);
+    const color = colorDeAnio(a);
     if (pts.length > 1) svg += `<polyline points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`;
     pts.forEach(p => { svg += `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="${color}"><title>${MESES_ES_FACTURAS[p[2]]} ${a}: ${euros(porAnio[a].meses[p[2]])}</title></circle>`; });
   });
-  const leyenda = aniosFicha.map((a, i) => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:12px; height:3px; background:${colorAnioInforme(i, n)}; display:inline-block;"></span>${a}</span>`).join('');
+  const leyenda = aniosFicha.map((a, i) => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:12px; height:3px; background:${colorDeAnio(a)}; display:inline-block;"></span>${a}</span>`).join('');
   const ultimoAnio = aniosFicha[n - 1];
   const movs = porAnio[ultimoAnio].movs.slice().sort((x, y) => String(y.fecha || '').localeCompare(String(x.fecha || '')) || y.mes - x.mes);
   const listaMovs = movs.length ? `<p style="font-size:13px; font-weight:500; margin:16px 0 4px;">Extras registrados en ${ultimoAnio} (${movs.length})</p>
@@ -3361,7 +3370,7 @@ async function abrirFichaTrabajador(persona) {
       <tbody>${movs.map(mv => `<tr><td>${mv.fecha ? mv.fecha.split('-').reverse().join('/') : MESES_ES_FACTURAS[mv.mes]}</td><td>${mv.tipo}</td><td style="text-align:right;">${parseFloat(mv.horas) ? numES(parseFloat(mv.horas)) : '—'}</td><td style="text-align:right;">${euros(mv.importe)}</td><td style="color:#6b6a64;">${mv.proyecto || ''}</td></tr>`).join('')}</tbody>
     </table></div>` : '';
   modal.innerHTML = `
-    <div style="background:#fff; border-radius:10px; padding:1.25rem 1.5rem; width:min(1040px, 100%);">
+    <div style="background:#fff; border-radius:10px; padding:1.25rem 1.5rem; width:min(1480px, 96vw); box-sizing:border-box;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
         <div>
           <p style="font-size:18px; font-weight:600; margin:0;">${nombre || persona}</p>
@@ -3370,10 +3379,11 @@ async function abrirFichaTrabajador(persona) {
         </div>
         <button onclick="cerrarFichaTrabajador()" style="border:none; background:#f0efea; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px;">✕ Cerrar</button>
       </div>
-      <div style="overflow:auto;"><table>
-        <thead><tr><th>Año</th><th style="text-align:right;">Meses</th><th style="text-align:right;">Bruto</th><th style="text-align:right;">Neto</th><th style="text-align:right;">Coste nóminas</th><th style="text-align:right;">Extras</th><th style="text-align:right;">Total</th><th style="text-align:right;">Coste medio/mes</th><th style="text-align:right;">Horas extra</th><th style="text-align:right;">Dom./fest.</th><th style="text-align:right;">Nocturnos</th><th style="text-align:right;">Descansos</th></tr></thead>
+      <div style="overflow:auto;"><table style="font-size:13px;">
+        <thead><tr><th>Año</th><th style="text-align:right;">Meses</th><th style="text-align:right;">Bruto</th><th style="text-align:right;" title="Líquido de la nómina: lo que cobra tras IRPF, su Seguridad Social y otras retenciones">Neto nómina</th><th style="text-align:right;">Extras</th><th style="text-align:right;" title="Lo que le ha llegado: neto de la nómina + extras">Cobrado (neto + extras)</th><th style="text-align:right;" title="Lo que le cuesta la nómina a la empresa: bruto + Seguridad Social de empresa">Coste nóminas</th><th style="text-align:right;" title="Coste para la empresa: coste de nóminas + extras">Coste total</th><th style="text-align:right;">Coste medio/mes</th><th style="text-align:right;">Horas extra</th><th style="text-align:right;">Dom./fest.</th><th style="text-align:right;">Nocturnos</th><th style="text-align:right;">Descansos</th></tr></thead>
         <tbody>${filasAnio}</tbody>
       </table></div>
+      <p style="font-size:11.5px; color:#6b6a64; margin:6px 0 0;"><strong>Neto nómina</strong> = líquido que cobra por nómina (tras IRPF, su Seguridad Social y otras retenciones). <strong>Cobrado</strong> = neto + extras, lo que le ha llegado. <strong>Coste total</strong> = lo que le cuesta a la empresa (bruto + Seguridad Social de empresa + extras).</p>
       <p style="font-size:13px; font-weight:500; margin:16px 0 4px;">Coste mensual (nómina + extras)</p>
       <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${svg}</svg>
       <div style="display:flex; gap:14px; font-size:11px; color:#6b6a64;">${leyenda}</div>
