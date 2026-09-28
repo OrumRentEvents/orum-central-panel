@@ -2445,7 +2445,7 @@ function parsearArchivoNomina(buffer) {
 let cachePersonalDatos = null; // { ts, data }
 const TTL_CACHE_PERSONAL_MS = 5 * 60 * 1000;
 app.use(['/api/nominas/subir', '/api/nominas/mes', '/api/empleados-departamento', '/api/empleados-alias',
-  '/api/extras/sincronizar', '/api/extras-departamento', '/api/extras-alias'], (req, res, next) => {
+  '/api/extras/sincronizar', '/api/extras-departamento', '/api/extras-alias', '/api/extras-form'], (req, res, next) => {
   if (req.method !== 'GET') {
     cachePersonalDatos = null;
     res.on('finish', () => { cachePersonalDatos = null; }); // por si alguien la rellenó mientras se escribía
@@ -2484,15 +2484,18 @@ app.get('/api/personal/datos', requiereLogin, soloPersonal, async (req, res) => 
     if (req.query.refrescar !== '1' && cachePersonalDatos && Date.now() - cachePersonalDatos.ts < TTL_CACHE_PERSONAL_MS) {
       return res.json(cachePersonalDatos.data);
     }
-    const [detalle, extras, movimientos, departamentos, extrasDepartamentos, extrasAlias, empleadosAlias] = await Promise.all([
+    const [detalle, extrasHoja, movimientosHoja, departamentos, extrasDepartamentos, extrasAlias, empleadosAlias, registrosFormulario, inicioFormulario] = await Promise.all([
       selectTodoPersonal('nominas_detalle', '*', ['anio', 'mes', 'empresa_nombre', 'nombre', 'id']),
       selectTodoPersonal('extras_detalle', '*', ['anio', 'mes', 'nombre']),
       selectTodoPersonal('extras_movimientos', 'anio, mes, nombre, fecha, tipo, horas, importe, proyecto, origen', ['id']),
       selectTodoPersonal('empleados_departamento', '*', ['empresa_nombre', 'nombre', 'id']),
       selectTodoPersonal('extras_departamento', '*', ['nombre']),
       selectTodoPersonal('extras_alias', '*', ['nombre']),
-      selectTodoPersonal('empleados_alias', '*', ['empresa_nif', 'formato_origen', 'num_empleado'])
+      selectTodoPersonal('empleados_alias', '*', ['empresa_nif', 'formato_origen', 'num_empleado']),
+      selectTodoPersonal('extras_registros', '*', ['id']),
+      leerInicioFormularioExtras()
     ]);
+    const { extras, movimientos } = combinarExtrasHojaYFormulario(extrasHoja, movimientosHoja, registrosFormulario, inicioFormulario.ym);
     const porAnio = {};
     const delAnio = (a) => (porAnio[a] = porAnio[a] || { detalle: [], extras: [], movimientos: [] });
     detalle.forEach(d => delAnio(d.anio).detalle.push(d));
@@ -2504,6 +2507,7 @@ app.get('/api/personal/datos', requiereLogin, soloPersonal, async (req, res) => 
     const data = {
       ok: true, por_anio: porAnio, anios_disponibles: aniosDisponibles, departamentos,
       extras_departamentos: extrasDepartamentos, extras_alias: extrasAlias, empleados_alias: empleadosAlias,
+      inicio_formulario_extras: inicioFormulario.texto,
       generado: new Date().toISOString()
     };
     cachePersonalDatos = { ts: Date.now(), data };
@@ -2611,10 +2615,11 @@ app.post('/api/nominas/subir', requiereLogin, soloPersonal, (req, res, next) => 
     const empleadosPorFormato = new Map();
     const empresasNifVistos = new Set();
 
-    for (const archivo of req.files) {
+    for (const [indiceArchivo, archivo] of req.files.entries()) {
       try {
         const { anio, mes, empresaNombre, empresaNif, empleados, formatoOrigen } = parsearArchivoNomina(archivo.buffer);
         empleados.forEach(e => filasNominas.push({
+          _archivo: indiceArchivo,
           anio, mes, empresa_nif: empresaNif, empresa_nombre: empresaNombre, formato_origen: formatoOrigen,
           num_empleado: e.num_empleado, nombre: e.nombre,
           bruto: e.bruto, dcto_irpf: e.dcto_irpf, otros_desc: e.otros_desc, total_desctos: e.total_desctos,
@@ -2636,9 +2641,28 @@ app.post('/api/nominas/subir', requiereLogin, soloPersonal, (req, res, next) => 
       }
     }
 
-    if (filasNominas.length > 0) {
+    // Un mismo trabajador puede venir en varias filas del mes (ej. dos
+    // nóminas: la ordinaria y atrasos/paga extra, o el mismo archivo elegido
+    // dos veces). Postgres no admite dos filas con la misma clave en un
+    // upsert ("ON CONFLICT DO UPDATE command cannot affect row a second
+    // time", julio 2026) → se suman en una sola fila, que es su coste real.
+    const CAMPOS_NUMERICOS_NOMINA = ['bruto', 'dcto_irpf', 'otros_desc', 'total_desctos', 'neto', 'bonificacion', 'prestac_it', 'ss_empresa', 'total_ss', 'coste_total'];
+    const porClaveNomina = new Map();
+    const archivosPorClave = new Map();
+    filasNominas.forEach((f, idx) => {
+      const k = [f.anio, f.mes, f.empresa_nif, f.formato_origen, f.num_empleado].join('|');
+      const previa = porClaveNomina.get(k);
+      // Repetido en OTRO archivo (mismo mes elegido dos veces): el último sustituye, no se suma.
+      if (!previa || previa._archivo !== f._archivo) { porClaveNomina.set(k, { ...f }); archivosPorClave.delete(k); return; }
+      CAMPOS_NUMERICOS_NOMINA.forEach(c => { previa[c] = Math.round(((previa[c] || 0) + (f[c] || 0)) * 100) / 100; });
+      archivosPorClave.set(k, (archivosPorClave.get(k) || 1) + 1);
+    });
+    const filasUnidas = [...porClaveNomina.values()].map(({ _archivo, ...resto }) => resto);
+    const unificados = [...archivosPorClave.entries()].map(([k, n]) => ({ nombre: porClaveNomina.get(k).nombre, mes: porClaveNomina.get(k).mes, filas: n }));
+
+    if (filasUnidas.length > 0) {
       const { error: errNominas } = await supabase.from('nominas_detalle')
-        .upsert(filasNominas, { onConflict: 'anio,mes,empresa_nif,formato_origen,num_empleado' });
+        .upsert(filasUnidas, { onConflict: 'anio,mes,empresa_nif,formato_origen,num_empleado' });
       if (errNominas) throw errNominas;
 
       // Trabajadores nuevos entran en la config sin departamento (ignoreDuplicates
@@ -2657,7 +2681,7 @@ app.post('/api/nominas/subir', requiereLogin, soloPersonal, (req, res, next) => 
       sinClasificar = data || [];
     }
 
-    res.json({ ok: true, resultados, sin_departamento: sinClasificar });
+    res.json({ ok: true, resultados, sin_departamento: sinClasificar, unificados });
   } catch (err) {
     console.error('Error en /api/nominas/subir:', err);
     res.status(500).json({ error: 'Error al procesar las nóminas: ' + err.message });
@@ -2883,8 +2907,11 @@ app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res
     if (anio < EXTRAS_PRIMER_ANIO_HOJA) return res.status(400).json({ error: 'Los extras de ' + anio + ' son histórico importado (fijo) y no se sincronizan desde la hoja.' });
     const mesesSincronizados = [], mesesSinDatos = [];
     const filasExtras = [], nombresVistos = new Map();
+    // Desde el mes de inicio del formulario de ORUM Central la hoja ya no manda.
+    const inicioFormulario = await leerInicioFormularioExtras();
 
     for (let mes = 1; mes <= 12; mes++) {
+      if (anio * 100 + mes >= inicioFormulario.ym) break;
       const { encontrado, empleados } = await leerPagosExtrasDelMes(anio, mes);
       if (!encontrado) { mesesSinDatos.push(mes); continue; }
       mesesSincronizados.push(mes);
@@ -2908,7 +2935,8 @@ app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res
 
     // Detalle del formulario: se reemplaza entero el del año (el formulario
     // es la fuente viva; borrar y reinsertar recoge ediciones y borrados).
-    const movimientos = await leerMovimientosExtras(anio);
+    const leidos = await leerMovimientosExtras(anio);
+    const movimientos = leidos ? leidos.filter(m => anio * 100 + m.mes < inicioFormulario.ym) : null;
     if (movimientos) {
       const { error: errDel } = await supabase.from('extras_movimientos').delete().eq('anio', anio).eq('origen', 'formulario');
       if (errDel) throw errDel;
@@ -2918,7 +2946,10 @@ app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res
       }
     }
 
-    res.json({ ok: true, anio, meses_sincronizados: mesesSincronizados, meses_sin_datos: mesesSinDatos, total_trabajadores: nombresVistos.size, movimientos: movimientos ? movimientos.length : null });
+    // Transición al formulario de ORUM Central: lo nuevo del Google Form desde el mes de inicio entra como pendiente.
+    const importadosFormulario = await importarGoogleFormAlFormularioOrum(anio, leidos, inicioFormulario.ym);
+
+    res.json({ ok: true, anio, meses_sincronizados: mesesSincronizados, meses_sin_datos: mesesSinDatos, total_trabajadores: nombresVistos.size, movimientos: movimientos ? movimientos.length : null, importados_formulario: importadosFormulario });
   } catch (err) {
     console.error('Error en /api/extras/sincronizar:', err);
     res.status(500).json({ error: 'Error al sincronizar extras: ' + err.message });
@@ -2968,6 +2999,356 @@ app.post('/api/extras-alias', requiereLogin, soloPersonal, async (req, res) => {
 });
 
 // ================================================================
+// FORMULARIO DE EXTRAS DE ORUM CENTRAL (28 sep 2026) — sustituye al Google
+// Form "HORAS EXTRAS 2026". Flujo: el responsable REGISTRA (rol Logística,
+// Dirección o Contabilidad) → Dirección/Contabilidad APRUEBA o RECHAZA → al
+// pagar el mes se marca PAGADO. Solo lo aprobado/pagado cuenta como coste
+// (Informe, Análisis, Histórico, Cierre Mensual).
+//
+// Tablas (sql/extras_formulario.sql): extras_tarifas (precios con vigencia:
+// cambiar un precio = fila nueva con vigente_desde, lo ya registrado
+// conserva su importe), extras_registros, extras_saldo_inicial (días de
+// descanso pendientes de antes del formulario), extras_config
+// (inicio_formulario = primer mes que ya NO se lee de la hoja de Google).
+//
+// Reglas (las mismas que tenía el Google Form): Hora Extra por horas
+// (admite negativas para descontar), Domingo/Festivo/Nocturno/Sábado tarde
+// importe fijo y generan 1 día de descanso, Descanso Disfrutado resta 1 día
+// del saldo (0 €), Plus/Descuento importe libre (Descuento siempre en negativo).
+// ================================================================
+const ROLES_REGISTRO_EXTRAS = ['Direccion', 'Contabilidad', 'Logistica'];
+function puedeRegistrarExtras(req, res, next) {
+  if (!ROLES_REGISTRO_EXTRAS.includes(req.session.usuario.rol)) return res.status(403).json({ error: 'No autorizado para registrar extras' });
+  next();
+}
+const esGestorExtras = (req) => ROLES_PERSONAL.includes(req.session.usuario.rol);
+const ESTADOS_EXTRAS_QUE_CUENTAN = ['aprobado', 'pagado'];
+
+async function leerInicioFormularioExtras() {
+  const { data } = await supabase.from('extras_config').select('valor').eq('clave', 'inicio_formulario').maybeSingle();
+  const v = (data && data.valor) || '2026-09';
+  const [a, m] = v.split('-').map(Number);
+  return { texto: v, ym: a * 100 + m };
+}
+function tarifaVigente(tarifas, tipo, fechaISO) {
+  return tarifas.filter(t => t.tipo === tipo && t.vigente_desde <= fechaISO)
+    .sort((a, b) => a.vigente_desde === b.vigente_desde ? b.id - a.id : (a.vigente_desde < b.vigente_desde ? 1 : -1))[0] || null;
+}
+// Calcula importe/horas/descanso de un registro según la tarifa vigente en su
+// fecha — el servidor no se fía del importe que mande el navegador salvo en
+// los tipos de importe libre.
+function calcularRegistroExtra(tarifas, { fecha, tipo, horas, importe }) {
+  const t = tarifaVigente(tarifas, tipo, fecha);
+  if (!t) throw new Error('No hay tarifa vigente para "' + tipo + '" el ' + fecha + '.');
+  if (!t.activo) throw new Error('El tipo "' + tipo + '" está desactivado.');
+  const h = Math.round((parseFloat(String(horas).replace(',', '.')) || 0) * 100) / 100;
+  const imp = Math.round((parseFloat(String(importe).replace(',', '.')) || 0) * 100) / 100;
+  if (t.modo === 'por_hora') {
+    if (!h) throw new Error('Indica el número de horas (en negativo para descontar).');
+    return { horas: h, importe: Math.round(h * parseFloat(t.importe) * 100) / 100, genera_descanso: !!t.genera_descanso };
+  }
+  if (t.modo === 'fijo') return { horas: 0, importe: parseFloat(t.importe), genera_descanso: !!t.genera_descanso };
+  if (t.modo === 'descanso') return { horas: 0, importe: 0, genera_descanso: false };
+  if (!imp) throw new Error('Indica el importe.');
+  return { horas: 0, importe: /descuento/i.test(tipo) ? -Math.abs(imp) : imp, genera_descanso: !!t.genera_descanso };
+}
+// Lista de trabajadores para el formulario: una entrada por persona (los del
+// formato antiguo ya fusionados no se repiten), activos = con nómina en el
+// último mes subido. Solo nombre y departamento — nada de sueldos, porque
+// también lo ve el rol Logística.
+async function trabajadoresParaExtras() {
+  const [depto, alias, ultimo] = await Promise.all([
+    selectTodoPersonal('empleados_departamento', 'empresa_nif, formato_origen, num_empleado, nombre, departamento, fijo_discontinuo', ['empresa_nombre', 'nombre', 'id']),
+    selectTodoPersonal('empleados_alias', '*', ['empresa_nif', 'formato_origen', 'num_empleado']),
+    consultaSupabaseConReintento(() => supabase.from('nominas_detalle').select('anio, mes').order('anio', { ascending: false }).order('mes', { ascending: false }).limit(1), 'ultimo mes nomina')
+  ]);
+  const ult = ultimo[0];
+  const presentes = new Set();
+  if (ult) {
+    const ultFilas = await consultaSupabaseConReintento(() => supabase.from('nominas_detalle').select('empresa_nif, formato_origen, num_empleado').eq('anio', ult.anio).eq('mes', ult.mes), 'nominas ultimo mes');
+    ultFilas.forEach(f => presentes.add(f.empresa_nif + '|' + (f.formato_origen || 'nominas_gestoria') + '|' + f.num_empleado));
+  }
+  const fusionados = new Set(alias.filter(a => a.num_empleado_canonico).map(a => a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado));
+  return depto.filter(d => !fusionados.has(d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado)).map(d => {
+    const f = d.formato_origen || 'nominas_gestoria';
+    const activo = presentes.has(d.empresa_nif + '|' + f + '|' + d.num_empleado);
+    return { empresa_nif: d.empresa_nif, formato_origen: f, num_empleado: d.num_empleado, nombre: d.nombre, departamento: d.departamento, estado: activo ? 'activo' : (d.fijo_discontinuo ? 'discontinuo' : 'baja') };
+  }).sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
+// Extras que cuentan como coste para un año: los de la hoja de Google SOLO
+// de los meses anteriores al inicio del formulario + los registros del
+// formulario aprobados/pagados. Devuelve filas con la misma forma que
+// extras_detalle / extras_movimientos; las del formulario llevan además la
+// clave del trabajador (empresa_nif, formato_origen, num_empleado) para no
+// depender de vincular nombres.
+function combinarExtrasHojaYFormulario(extrasHoja, movimientosHoja, registros, inicioYM) {
+  const antesDelInicio = (x) => parseInt(x.anio) * 100 + parseInt(x.mes) < inicioYM;
+  const extras = extrasHoja.filter(antesDelInicio);
+  const movimientos = movimientosHoja.filter(antesDelInicio);
+  registros.filter(r => ESTADOS_EXTRAS_QUE_CUENTAN.includes(r.estado)).forEach(r => {
+    const clave = r.empresa_nif ? { empresa_nif: r.empresa_nif, formato_origen: r.formato_origen, num_empleado: r.num_empleado } : {};
+    const nombre = r.nombre_libre || r.nombre_trabajador;
+    if (parseFloat(r.importe)) extras.push({ anio: r.anio, mes: r.mes, nombre, importe: parseFloat(r.importe), origen: 'formulario_orum', ...clave });
+    movimientos.push({ anio: r.anio, mes: r.mes, nombre, fecha: r.fecha, tipo: r.tipo, horas: parseFloat(r.horas) || 0, importe: parseFloat(r.importe) || 0, proyecto: r.proyecto, origen: 'formulario_orum', ...clave });
+  });
+  return { extras, movimientos };
+}
+
+// Transición: lo que se siga apuntando en el Google Form a partir del mes de
+// inicio se importa al formulario de ORUM Central como "pendiente" (se
+// llama desde Sincronizar). Sin duplicar: se cuentan los registros iguales
+// (fecha, trabajador, tipo, horas, importe, proyecto) ya importados y solo se
+// añaden los que falten — el Google Form tiene extras idénticos legítimos
+// (ej. dos pluses de 50 € el mismo día).
+async function importarGoogleFormAlFormularioOrum(anio, movimientosGoogle, inicioYM) {
+  const nuevos = (movimientosGoogle || []).filter(m => anio * 100 + m.mes >= inicioYM);
+  if (!nuevos.length) return 0;
+  const [alias, depto, tarifas, yaImportados] = await Promise.all([
+    selectTodoPersonal('extras_alias', 'nombre, empresa_nif, formato_origen, num_empleado', ['nombre']),
+    selectTodoPersonal('empleados_departamento', 'empresa_nif, formato_origen, num_empleado, nombre', ['id']),
+    selectTodoPersonal('extras_tarifas', '*', ['id']),
+    consultaSupabaseConReintento(() => supabase.from('extras_registros').select('fecha, empresa_nif, formato_origen, num_empleado, nombre_libre, tipo, horas, importe, proyecto').eq('anio', anio).eq('origen', 'google_form'), 'importados google')
+  ]);
+  const aliasPorNombre = {};
+  alias.forEach(a => { if (a.empresa_nif && a.num_empleado) aliasPorNombre[a.nombre] = a; });
+  const claveDedup = (r) => [r.fecha, r.empresa_nif ? r.empresa_nif + '|' + r.formato_origen + '|' + r.num_empleado : 'libre|' + r.nombre_libre, r.tipo, (Number(r.horas) || 0).toFixed(2), (Number(r.importe) || 0).toFixed(2), r.proyecto || ''].join('§');
+  const existentes = new Map();
+  yaImportados.forEach(r => { const k = claveDedup(r); existentes.set(k, (existentes.get(k) || 0) + 1); });
+  const filas = [];
+  nuevos.forEach(m => {
+    if (!m.fecha) return;
+    const a = aliasPorNombre[m.nombre];
+    const trab = a
+      ? { empresa_nif: a.empresa_nif, formato_origen: a.formato_origen || 'nominas_gestoria', num_empleado: a.num_empleado, nombre_libre: null }
+      : { empresa_nif: null, formato_origen: null, num_empleado: null, nombre_libre: m.nombre.trim().toUpperCase() };
+    const d = a ? depto.find(x => x.empresa_nif === trab.empresa_nif && (x.formato_origen || 'nominas_gestoria') === trab.formato_origen && x.num_empleado === trab.num_empleado) : null;
+    const fila = { ...trab, fecha: m.fecha, tipo: m.tipo, horas: m.horas || 0, importe: m.importe || 0, proyecto: m.proyecto || null };
+    const k = claveDedup(fila);
+    if (existentes.get(k)) { existentes.set(k, existentes.get(k) - 1); return; }
+    const t = tarifaVigente(tarifas, m.tipo, m.fecha);
+    filas.push({
+      ...fila, anio, mes: m.mes, nombre_trabajador: d ? d.nombre : (trab.nombre_libre || m.nombre),
+      genera_descanso: t ? !!t.genera_descanso : /^(domingo|festivo|nocturno|s[aá]bado)/i.test(m.tipo),
+      notas: 'Importado del formulario de Google', estado: 'pendiente',
+      registrado_por: 'formulario-google', registrado_por_nombre: 'Formulario de Google', origen: 'google_form'
+    });
+  });
+  if (!filas.length) return 0;
+  const { error } = await supabase.from('extras_registros').insert(filas);
+  if (error) throw error;
+  return filas.length;
+}
+
+// Contexto del formulario: trabajadores, tarifas, proyectos cercanos y mis
+// últimos registros.
+app.get('/api/extras-form/contexto', requiereLogin, puedeRegistrarExtras, async (req, res) => {
+  try {
+    const hoy = new Date();
+    const desde = new Date(hoy.getTime() - 60 * 864e5).toISOString(), hasta = new Date(hoy.getTime() + 30 * 864e5).toISOString();
+    const usuario = req.session.usuario.usuario;
+    const [trabajadores, tarifas, proyectos, misRegistros, nombresExtras, alias, inicio] = await Promise.all([
+      trabajadoresParaExtras(),
+      selectTodoPersonal('extras_tarifas', '*', ['orden', 'id']),
+      consultaSupabaseConReintento(() => supabase.from('proyectos').select('numero, nombre, cliente, evento_inicio_ts, entrega_ts')
+        .eq('cancelado', false).gte('entrega_ts', desde).lte('entrega_ts', hasta).order('entrega_ts', { ascending: false }).limit(400), 'proyectos'),
+      consultaSupabaseConReintento(() => supabase.from('extras_registros').select('*').eq('registrado_por', usuario)
+        .gte('fecha', new Date(hoy.getTime() - 120 * 864e5).toISOString().slice(0, 10)).order('fecha', { ascending: false }).order('id', { ascending: false }).limit(300), 'mis registros'),
+      selectTodoPersonal('extras_departamento', 'nombre', ['nombre']),
+      selectTodoPersonal('extras_alias', 'nombre, empresa_nif', ['nombre']),
+      leerInicioFormularioExtras()
+    ]);
+    // Eventuales ya conocidos (nombres de Extras sin trabajador de nómina)
+    const vinculados = new Set(alias.filter(a => a.empresa_nif).map(a => a.nombre));
+    const eventuales = nombresExtras.map(n => n.nombre).filter(n => !vinculados.has(n));
+    res.json({ ok: true, trabajadores, eventuales, tarifas, proyectos, registros: misRegistros, inicio: inicio.texto, puede_gestionar: esGestorExtras(req), usuario: { usuario, nombre: req.session.usuario.nombre, rol: req.session.usuario.rol } });
+  } catch (err) {
+    console.error('Error en /api/extras-form/contexto:', err);
+    res.status(500).json({ error: 'Error al cargar el formulario: ' + err.message });
+  }
+});
+
+// Crea uno o varios registros (mismo extra para varios trabajadores, ej. un
+// nocturno de un montaje con 4 personas).
+app.post('/api/extras-form/registros', requiereLogin, puedeRegistrarExtras, async (req, res) => {
+  try {
+    const { fecha, tipo, horas, importe, proyecto, notas, trabajadores } = req.body || {};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return res.status(400).json({ error: 'Fecha no válida.' });
+    if (!Array.isArray(trabajadores) || trabajadores.length === 0) return res.status(400).json({ error: 'Elige al menos un trabajador.' });
+    const [tarifas, depto] = await Promise.all([
+      selectTodoPersonal('extras_tarifas', '*', ['id']),
+      selectTodoPersonal('empleados_departamento', 'empresa_nif, formato_origen, num_empleado, nombre', ['id'])
+    ]);
+    const calc = calcularRegistroExtra(tarifas, { fecha, tipo, horas, importe });
+    const [anio, mes] = fecha.split('-').map(Number);
+    const u = req.session.usuario;
+    const filas = trabajadores.map(t => {
+      if (t.nombre_libre) {
+        const nombreLibre = String(t.nombre_libre).trim().toUpperCase();
+        if (!nombreLibre) throw new Error('Nombre del eventual vacío.');
+        return { nombre_trabajador: nombreLibre, nombre_libre: nombreLibre };
+      }
+      const d = depto.find(x => x.empresa_nif === t.empresa_nif && (x.formato_origen || 'nominas_gestoria') === t.formato_origen && String(x.num_empleado) === String(t.num_empleado));
+      if (!d) throw new Error('Trabajador no encontrado.');
+      return { empresa_nif: d.empresa_nif, formato_origen: d.formato_origen || 'nominas_gestoria', num_empleado: d.num_empleado, nombre_trabajador: d.nombre };
+    }).map(t => ({
+      ...t, fecha, anio, mes, tipo, ...calc,
+      proyecto: (proyecto || '').toString().trim() || null, notas: (notas || '').toString().trim() || null,
+      estado: 'pendiente', registrado_por: u.usuario, registrado_por_nombre: u.nombre, origen: 'panel'
+    }));
+    const { data, error } = await supabase.from('extras_registros').insert(filas).select();
+    if (error) throw error;
+    // Los eventuales nuevos aparecen en Configuración para asignarles departamento.
+    const libres = [...new Set(filas.filter(f => f.nombre_libre).map(f => f.nombre_libre))];
+    if (libres.length) {
+      await supabase.from('extras_departamento').upsert(libres.map(nombre => ({ nombre })), { onConflict: 'nombre', ignoreDuplicates: true });
+      await supabase.from('extras_alias').upsert(libres.map(nombre => ({ nombre })), { onConflict: 'nombre', ignoreDuplicates: true });
+    }
+    res.json({ ok: true, registros: data });
+  } catch (err) {
+    console.error('Error en POST /api/extras-form/registros:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Editar / borrar: Logística solo lo suyo y mientras está pendiente;
+// Dirección/Contabilidad cualquiera que no esté pagado.
+async function cargarRegistroEditable(req, id) {
+  const { data: r, error } = await supabase.from('extras_registros').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!r) throw new Error('Registro no encontrado.');
+  if (r.estado === 'pagado') throw new Error('Ya está pagado: no se puede modificar.');
+  if (!esGestorExtras(req) && (r.registrado_por !== req.session.usuario.usuario || r.estado !== 'pendiente')) throw new Error('Solo puedes cambiar tus registros mientras están pendientes de aprobar.');
+  return r;
+}
+app.put('/api/extras-form/registros/:id', requiereLogin, puedeRegistrarExtras, async (req, res) => {
+  try {
+    const r = await cargarRegistroEditable(req, parseInt(req.params.id));
+    const b = req.body || {};
+    const fecha = b.fecha || r.fecha, tipo = b.tipo || r.tipo;
+    const tarifas = await selectTodoPersonal('extras_tarifas', '*', ['id']);
+    const calc = calcularRegistroExtra(tarifas, { fecha, tipo, horas: b.horas != null ? b.horas : r.horas, importe: b.importe != null ? b.importe : r.importe });
+    const [anio, mes] = fecha.split('-').map(Number);
+    const cambios = { fecha, anio, mes, tipo, ...calc, proyecto: b.proyecto !== undefined ? ((b.proyecto || '').toString().trim() || null) : r.proyecto, notas: b.notas !== undefined ? ((b.notas || '').toString().trim() || null) : r.notas, updated_at: new Date().toISOString() };
+    const { data, error } = await supabase.from('extras_registros').update(cambios).eq('id', r.id).select().single();
+    if (error) throw error;
+    res.json({ ok: true, registro: data });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+app.delete('/api/extras-form/registros/:id', requiereLogin, puedeRegistrarExtras, async (req, res) => {
+  try {
+    const r = await cargarRegistroEditable(req, parseInt(req.params.id));
+    const { error } = await supabase.from('extras_registros').delete().eq('id', r.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Gestión (aprobar / pagar): registros del mes + saldo de descansos de cada
+// trabajador (saldo inicial + generados − disfrutados, contando solo lo
+// aprobado/pagado) + pendientes de otros meses.
+app.get('/api/extras-form/gestion', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio), mes = parseInt(req.query.mes);
+    if (!anio || !mes) return res.status(400).json({ error: 'Falta el mes.' });
+    const [delMes, todosDescanso, saldosIniciales, pendientes, trabajadores, tarifas, inicio] = await Promise.all([
+      consultaSupabaseConReintento(() => supabase.from('extras_registros').select('*').eq('anio', anio).eq('mes', mes).order('fecha').order('id'), 'registros mes'),
+      selectTodoPersonal('extras_registros', 'empresa_nif, formato_origen, num_empleado, nombre_libre, nombre_trabajador, tipo, genera_descanso, estado, anio, mes', ['id']),
+      selectTodoPersonal('extras_saldo_inicial', '*', ['id']),
+      consultaSupabaseConReintento(() => supabase.from('extras_registros').select('anio, mes').eq('estado', 'pendiente'), 'pendientes'),
+      trabajadoresParaExtras(),
+      selectTodoPersonal('extras_tarifas', '*', ['orden', 'id']),
+      leerInicioFormularioExtras()
+    ]);
+    const claveDe = (x) => x.empresa_nif ? x.empresa_nif + '|' + x.formato_origen + '|' + x.num_empleado : 'libre|' + (x.nombre_libre || '');
+    const saldos = {};
+    const s = (k, nombre) => (saldos[k] = saldos[k] || { clave: k, nombre, inicial: 0, generados: 0, disfrutados: 0 });
+    saldosIniciales.forEach(x => { s(claveDe(x), x.nombre_libre || null).inicial += parseFloat(x.dias) || 0; });
+    todosDescanso.filter(r => ESTADOS_EXTRAS_QUE_CUENTAN.includes(r.estado) && parseInt(r.anio) * 100 + parseInt(r.mes) <= anio * 100 + mes).forEach(r => {
+      const x = s(claveDe(r), r.nombre_libre || r.nombre_trabajador);
+      if (r.genera_descanso) x.generados++;
+      if (/^descanso/i.test(r.tipo)) x.disfrutados++;
+    });
+    trabajadores.forEach(t => { const k = claveDe(t); if (saldos[k]) saldos[k].nombre = t.nombre; });
+    const pendientesPorMes = {};
+    pendientes.forEach(p => { const k = p.anio + '-' + String(p.mes).padStart(2, '0'); pendientesPorMes[k] = (pendientesPorMes[k] || 0) + 1; });
+    res.json({ ok: true, anio, mes, registros: delMes, saldos: Object.values(saldos), pendientes_por_mes: pendientesPorMes, trabajadores, tarifas, inicio: inicio.texto });
+  } catch (err) {
+    console.error('Error en /api/extras-form/gestion:', err);
+    res.status(500).json({ error: 'Error al cargar la gestión de extras: ' + err.message });
+  }
+});
+// Cambiar estado: aprobar / rechazar / volver a pendiente / pagar / deshacer pago.
+app.post('/api/extras-form/estado', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const { ids, estado, motivo } = req.body || {};
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'Nada seleccionado.' });
+    const permitidos = { aprobado: ['pendiente', 'rechazado'], rechazado: ['pendiente', 'aprobado'], pendiente: ['aprobado', 'rechazado'], pagado: ['aprobado'], deshacer_pago: ['pagado'] };
+    if (!permitidos[estado]) return res.status(400).json({ error: 'Estado no válido.' });
+    const u = req.session.usuario, ahora = new Date().toISOString();
+    let cambios;
+    if (estado === 'pagado') cambios = { estado: 'pagado', pagado_por: u.nombre, pagado_en: ahora };
+    else if (estado === 'deshacer_pago') cambios = { estado: 'aprobado', pagado_por: null, pagado_en: null };
+    else cambios = { estado, revisado_por: u.nombre, revisado_en: ahora, motivo_rechazo: estado === 'rechazado' ? (motivo || null) : null };
+    cambios.updated_at = ahora;
+    const { data, error } = await supabase.from('extras_registros').update(cambios).in('id', ids.map(Number)).in('estado', permitidos[estado]).select('id');
+    if (error) throw error;
+    res.json({ ok: true, cambiados: (data || []).length, ignorados: ids.length - (data || []).length });
+  } catch (err) {
+    console.error('Error en /api/extras-form/estado:', err);
+    res.status(500).json({ error: 'Error al cambiar el estado: ' + err.message });
+  }
+});
+// Configuración: tarifas (nueva fila = nuevo precio desde una fecha), mes de
+// inicio del formulario y saldos iniciales de descanso.
+app.post('/api/extras-form/tarifas', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const { tipo, modo, importe, genera_descanso, vigente_desde, orden, activo } = req.body || {};
+    if (!tipo || !['por_hora', 'fijo', 'libre', 'descanso'].includes(modo) || !/^\d{4}-\d{2}-\d{2}$/.test(vigente_desde || '')) return res.status(400).json({ error: 'Datos de tarifa incompletos.' });
+    const { error } = await supabase.from('extras_tarifas').insert({
+      tipo: String(tipo).trim(), modo, importe: parseFloat(importe) || 0, genera_descanso: !!genera_descanso, vigente_desde,
+      orden: parseInt(orden) || 99, activo: activo !== false, creado_por: req.session.usuario.nombre
+    });
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+app.post('/api/extras-form/config', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const { inicio_formulario, saldos } = req.body || {};
+    if (inicio_formulario) {
+      if (!/^\d{4}-\d{2}$/.test(inicio_formulario)) return res.status(400).json({ error: 'Mes de inicio no válido.' });
+      const { error } = await supabase.from('extras_config').upsert({ clave: 'inicio_formulario', valor: inicio_formulario, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    }
+    if (Array.isArray(saldos)) {
+      for (const sld of saldos) {
+        let q = supabase.from('extras_saldo_inicial').delete();
+        q = sld.nombre_libre ? q.eq('nombre_libre', sld.nombre_libre).is('empresa_nif', null)
+          : q.eq('empresa_nif', sld.empresa_nif).eq('formato_origen', sld.formato_origen).eq('num_empleado', sld.num_empleado);
+        const { error: e1 } = await q;
+        if (e1) throw e1;
+        if (parseFloat(sld.dias)) {
+          const { error: e2 } = await supabase.from('extras_saldo_inicial').insert({
+            empresa_nif: sld.empresa_nif || null, formato_origen: sld.formato_origen || null, num_empleado: sld.num_empleado || null,
+            nombre_libre: sld.nombre_libre || null, dias: parseFloat(sld.dias), nota: 'Editado por ' + req.session.usuario.nombre
+          });
+          if (e2) throw e2;
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ================================================================
 // CIERRE MENSUAL (10 sep 2026, ampliado 11 sep 2026) — Financiero → Cierre
 // Mensual. Ingresos = facturas de Rentman vía ORUM CENTRAL. Gastos =
 // Facturas Proveedores repartidas por departamento + Gastos Anuales
@@ -2992,6 +3373,10 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       supabase.from('extras_departamento').select('nombre, departamento'),
       supabase.from('extras_alias').select('nombre, empresa_nif, formato_origen, num_empleado')
     ]);
+    const [registrosExtrasFormulario, inicioFormularioExtras] = await Promise.all([
+      selectTodoPersonal('extras_registros', '*', ['id']).then(rs => rs.filter(r => r.anio === anio)),
+      leerInicioFormularioExtras()
+    ]);
     const facturas = facturasResp.data || [];
     const { facturasEnriquecidas: facturasProveedores } = provResult;
     if (gastosAnualesResp.error) throw gastosAnualesResp.error;
@@ -3002,7 +3387,9 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     if (extrasDeptoResp.error) throw extrasDeptoResp.error;
     if (extrasAliasResp.error) throw extrasAliasResp.error;
     const nominas = nominasResp.data || [];
-    const extras = extrasResp.data || [];
+    // Extras = hoja de Google (meses anteriores al formulario de ORUM Central)
+    // + registros del formulario aprobados/pagados.
+    const extras = combinarExtrasHojaYFormulario((extrasResp.data || []).map(e => ({ ...e, anio })), [], registrosExtrasFormulario, inicioFormularioExtras.ym).extras;
     // Clave "empresa_nif|formato_origen|num_empleado" — imprescindible
     // incluir formato_origen: el mismo número puede ser una persona
     // distinta según el formato del archivo de origen (ver parsearResumenContableXLS).
@@ -3070,7 +3457,8 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       if (mes < 1 || mes > 12) return;
       const importe = parseFloat(e.importe) || 0;
       meses[mes - 1].gastos += importe;
-      const claveEmpleado = mapaAliasExtras[e.nombre];
+      // Los del formulario de ORUM Central ya traen la clave del trabajador.
+      const claveEmpleado = e.empresa_nif ? e.empresa_nif + '|' + e.formato_origen + '|' + e.num_empleado : mapaAliasExtras[e.nombre];
       const depto = (claveEmpleado && mapaDeptoEmpleado[claveEmpleado]) || mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
       meses[mes - 1].gastos_por_departamento[depto] = (meses[mes - 1].gastos_por_departamento[depto] || 0) + importe;
     });

@@ -942,6 +942,8 @@ const MENU = [
   { id: 'per', icon: 'users', group: 'gestion', label: 'Personal', submenu: [
       { id: 'per-nominas', label: 'Nóminas', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('nominas') },
       { id: 'per-informe', label: 'Informe', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('informe') },
+      { id: 'per-registrar-extras', label: 'Registrar extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarRegistrarExtras() },
+      { id: 'per-aprobar-extras', label: 'Aprobar y pagar extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarGestionExtras() },
       { id: 'per-extras', label: 'Extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('extras') },
       { id: 'per-analisis', label: 'Análisis', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('analisis') },
       { id: 'per-historico', label: 'Histórico de personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('historico') },
@@ -982,7 +984,9 @@ const MENU = [
       // menú. Aterriza en "almacen" porque es la vista más completa (incluye
       // Servicios y Logística además de Por proyecto/Por material).
       { id: 'log-preparacion', label: 'Preparación', onClick: () => cargarPreparacion('almacen') },
-      { id: 'log-extras', label: 'Extras & Descansos', onClick: () => renderProximamente('Extras & Descansos') },
+      // Formulario de extras de ORUM Central (28 sep 2026): los responsables
+      // registran horas de más, domingos, festivos y nocturnos; Dirección aprueba.
+      { id: 'log-extras', label: 'Registrar extras', onClick: () => cargarRegistrarExtras() },
   ]},
   { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
@@ -1715,6 +1719,7 @@ async function recargarDatosPersonal(forzar) {
   personalGlobal.extrasAlias = data.extras_alias || [];
   personalGlobal.empleadosAlias = data.empleados_alias || [];
   personalGlobal.aniosDisponibles = data.anios_disponibles || [];
+  personalGlobal.inicioFormularioExtras = data.inicio_formulario_extras || null;
   personalGlobal.cargadoEn = Date.now();
   aplicarAnioPersonal();
 }
@@ -1855,6 +1860,13 @@ async function subirNomina() {
         <p style="font-size:11px; color:#854F0B; margin:2px 0 0;">Haz clic para asignarlos en Config. Departamentos</p>
       </div>
     ` : '';
+    // Trabajadores que venían en varias filas del mismo archivo (dos nóminas
+    // en el mes): se han sumado en una — se avisa para poder revisarlo.
+    const htmlUnificados = (data.unificados && data.unificados.length) ? `
+      <div style="margin-top:12px; background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.85rem 1rem;">
+        <p style="font-size:13px; color:#2F6280; margin:0; font-weight:500;">ℹ️ ${data.unificados.length} trabajador(es) venían en varias filas del mismo mes y se han sumado en una:</p>
+        <p style="font-size:12px; color:#2F6280; margin:4px 0 0;">${data.unificados.map(u => u.nombre + ' (' + MESES_ES_FACTURAS[u.mes] + ', ' + u.filas + ' filas)').join(' · ')}</p>
+      </div>` : '';
 
     // Si todos los archivos subidos son del mismo año, saltamos directamente
     // a verlo; si mezclan años (histórico de varios de golpe), se deja el
@@ -1867,7 +1879,7 @@ async function subirNomina() {
     document.getElementById('estado-subida-nomina').textContent = textoEstado;
     document.getElementById('estado-subida-nomina').style.color = colorEstado;
     document.getElementById('resultado-subida-nomina').innerHTML = htmlResultado;
-    document.getElementById('aviso-sin-departamento').innerHTML = htmlAviso;
+    document.getElementById('aviso-sin-departamento').innerHTML = htmlAviso + htmlUnificados;
   } catch (err) {
     document.getElementById('estado-subida-nomina').textContent = 'Error: ' + err.message;
     document.getElementById('estado-subida-nomina').style.color = '#A32D2D';
@@ -2337,6 +2349,11 @@ function contextoInformePersonal() {
       nombreFila: nombreDeClave(a.empresa_nif, f, a.num_empleado, ' (histórico, sin fusionar)')
     };
   });
+  // Filas del formulario de ORUM Central: traen la clave del trabajador (sin vincular nombres).
+  const aliasDeClave = (nif, formato, num) => {
+    const f = formato || 'nominas_gestoria';
+    return { persona: personaDeClave(nif, f, num), claveDepto: nif + '|' + f + '|' + num, nombre: nombreDeClave(nif, f, num, ' (histórico)'), nombreFila: nombreDeClave(nif, f, num, ' (histórico, sin fusionar)') };
+  };
   const fijoDiscontinuoPorPersona = {};
   personalGlobal.departamentos.forEach(d => { if (d.fijo_discontinuo) fijoDiscontinuoPorPersona[personaDeClave(d.empresa_nif, d.formato_origen || 'nominas_gestoria', d.num_empleado)] = true; });
   const empresas = new Set(personalGlobal.detalle.map(d => d.empresa_nif));
@@ -2346,7 +2363,7 @@ function contextoInformePersonal() {
     const ia = DEPARTAMENTOS_ORUM.indexOf(a), ib = DEPARTAMENTOS_ORUM.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
-  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, nombreActualPorClave, nombrePorClaveCompleta, personaDeClave, fijoDiscontinuoPorPersona, variasEmpresas: empresas.size > 1, listaDeptos };
+  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, aliasDeClave, nombreActualPorClave, nombrePorClaveCompleta, personaDeClave, fijoDiscontinuoPorPersona, variasEmpresas: empresas.size > 1, listaDeptos };
 }
 // Fila del informe + departamento + identificador de PERSONA (para contar
 // plantilla sin duplicar: un trabajador con nómina y extras vinculados, o
@@ -2370,7 +2387,7 @@ function claveNominaInforme(d, ctx) {
   return { fila, persona, depto };
 }
 function claveExtraInforme(e, ctx) {
-  const alias = ctx.mapaAliasExtras[e.nombre]; // { persona, claveDepto, nombre, nombreFila } si está vinculado
+  const alias = e.empresa_nif ? ctx.aliasDeClave(e.empresa_nif, e.formato_origen, e.num_empleado) : ctx.mapaAliasExtras[e.nombre]; // { persona, claveDepto, nombre, nombreFila } si está vinculado
   const persona = alias ? alias.persona : ('extra|' + e.nombre);
   const depto = (alias && ctx.mapaDepto[alias.claveDepto]) || ctx.mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
   const fila = agrupacionEfectivaInforme() === 'departamento' ? depto : (alias ? alias.nombreFila : (e.nombre + ' · Extras'));
@@ -2879,8 +2896,12 @@ function nombrePersonaNomina(d, ctx) {
   const canonico = ctx.mapaAliasEmpleado[d.empresa_nif + '|' + formato + '|' + d.num_empleado];
   return (canonico != null && ctx.nombreActualPorClave[d.empresa_nif + '|' + canonico]) || (d.nombre + ' (histórico)');
 }
-function personaDeNombreExtra(nombre, ctx) {
-  const alias = ctx.mapaAliasExtras[nombre];
+// Acepta el nombre de Extras o la fila entera (las del formulario de ORUM
+// Central traen la clave del trabajador y no dependen de vincular nombres).
+function personaDeNombreExtra(nombreOFila, ctx) {
+  const fila = typeof nombreOFila === 'object' && nombreOFila ? nombreOFila : null;
+  const nombre = fila ? fila.nombre : nombreOFila;
+  const alias = fila && fila.empresa_nif ? ctx.aliasDeClave(fila.empresa_nif, fila.formato_origen, fila.num_empleado) : ctx.mapaAliasExtras[nombre];
   return alias ? { persona: alias.persona, nombre: alias.nombre, vinculado: true, claveDepto: alias.claveDepto } : { persona: 'extra|' + nombre, nombre, vinculado: false, claveDepto: null };
 }
 // Clasificación de un movimiento de extras. En el formulario 2026 muchas
@@ -2894,6 +2915,7 @@ function categoriaMovimientoExtra(m) {
   if (tipo.startsWith('descanso')) return { cat: 'descanso', horas: 0, importe };
   if (tipo.startsWith('nocturno')) return { cat: 'nocturno', horas: 0, importe };
   if (tipo.startsWith('domingo') || tipo.startsWith('festivo') || tipo.startsWith('sábado') || tipo.startsWith('sabado')) return { cat: 'festivo', horas: 0, importe };
+  if (tipo.startsWith('plus') || tipo.startsWith('descuento')) return { cat: 'plus', horas: 0, importe };
   if (horas !== 0) return { cat: 'horas', horas, importe, estimada: false };
   if (Math.abs(importe) < 50) return { cat: 'horas', horas: importe / 8, importe, estimada: true };
   return { cat: 'plus', horas: 0, importe };
@@ -3171,7 +3193,7 @@ function resumenMovimientosExtras(movs, ctx) {
     const c = categoriaMovimientoExtra(mv);
     const m = parseInt(mv.mes);
     const pm = porMes[m] = porMes[m] || { horas: 0, horasImp: 0, festivos: 0, festivosImp: 0, nocturnos: 0, nocturnosImp: 0, plus: 0, descansos: 0, total: 0, estimadas: 0 };
-    const { persona, nombre, vinculado, claveDepto } = personaDeNombreExtra(mv.nombre, ctx);
+    const { persona, nombre, vinculado, claveDepto } = personaDeNombreExtra(mv, ctx);
     const pp = porPersona[persona] = porPersona[persona] || { persona, nombre, vinculado, claveDepto, nombreExtra: mv.nombre, horas: 0, festivos: 0, nocturnos: 0, plus: 0, descansos: 0, total: 0 };
     if (c.cat === 'horas') { pm.horas += c.horas; pm.horasImp += c.importe; pp.horas += c.horas; if (c.estimada) pm.estimadas++; }
     else if (c.cat === 'festivo') { pm.festivos++; pm.festivosImp += c.importe; pp.festivos++; }
@@ -3291,13 +3313,13 @@ async function abrirFichaTrabajador(persona) {
     d.extras.forEach(x => {
       const k = claveExtraInforme(x, ctx);
       if (k.persona !== persona) return;
-      if (!nombre) { nombre = personaDeNombreExtra(x.nombre, ctx).nombre; }
+      if (!nombre) { nombre = personaDeNombreExtra(x, ctx).nombre; }
       if (!depto) depto = k.depto;
       const m = parseInt(x.mes), v = parseFloat(x.importe) || 0;
       r.meses[m] = (r.meses[m] || 0) + v; r.extras += v;
     });
     (d.movimientos || []).forEach(mv => {
-      if (personaDeNombreExtra(mv.nombre, ctx).persona !== persona) return;
+      if (personaDeNombreExtra(mv, ctx).persona !== persona) return;
       const c = categoriaMovimientoExtra(mv);
       if (c.cat === 'horas') r.horas += c.horas; else if (c.cat === 'festivo') r.festivos++; else if (c.cat === 'nocturno') r.nocturnos++; else if (c.cat === 'plus') r.plus += c.importe; else if (c.cat === 'descanso') r.descansos++;
       r.movs.push(mv);
@@ -3409,12 +3431,12 @@ function construirRegistroPersonal(ctx) {
       const ym = claveYM(a, parseInt(x.mes));
       const p = get(persona);
       if (!p.mesesNomina.size) { p.depto = depto; p.nombreExtra = x.nombre; }
-      if (!p.nombre) p.nombre = personaDeNombreExtra(x.nombre, ctx).nombre;
+      if (!p.nombre) p.nombre = personaDeNombreExtra(x, ctx).nombre;
       const m = mesDe(p, ym), v = parseFloat(x.importe) || 0;
       m.extras += v; m.coste += v;
     });
     (d.movimientos || []).forEach(mv => {
-      const { persona, nombre } = personaDeNombreExtra(mv.nombre, ctx);
+      const { persona, nombre } = personaDeNombreExtra(mv, ctx);
       const p = get(persona);
       if (!p.nombre) p.nombre = nombre;
       if (!p.nombreExtra) p.nombreExtra = mv.nombre;
@@ -3823,6 +3845,532 @@ function formatoCompactoGenerico(v, M) {
   return Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + 'k' : Math.round(v).toLocaleString('es-ES');
 }
 
+// ================================================================
+// FORMULARIO DE EXTRAS (28 sep 2026) — sustituye al Google Form.
+// "Registrar extras": responsables (Logística, Dirección, Contabilidad).
+// "Aprobar y pagar extras": Dirección y Contabilidad. Ver endpoints
+// /api/extras-form/* en server.js para reglas y permisos.
+// ================================================================
+const ESTADO_REGISTRO_EXTRA = {
+  pendiente: { texto: 'Pendiente', bg: '#FDF3E0', color: '#854F0B' },
+  aprobado: { texto: 'Aprobado', bg: '#E9F5EC', color: '#1E6B34' },
+  rechazado: { texto: 'Rechazado', bg: '#FCEBEB', color: '#A32D2D' },
+  pagado: { texto: 'Pagado', bg: '#E8F0F6', color: '#2F6280' }
+};
+function badgeRegistroExtra(estado) {
+  const e = ESTADO_REGISTRO_EXTRA[estado] || { texto: estado, bg: '#f0efea', color: '#6b6a64' };
+  return `<span style="font-size:11px; padding:2px 7px; border-radius:4px; background:${e.bg}; color:${e.color}; white-space:nowrap;">${e.texto}</span>`;
+}
+function hoyISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function fechaCorta(iso) { return iso ? iso.split('-').reverse().join('/') : ''; }
+function tarifaVigenteCliente(tarifas, tipo, fecha) {
+  return tarifas.filter(t => t.tipo === tipo && t.vigente_desde <= fecha)
+    .sort((a, b) => a.vigente_desde === b.vigente_desde ? b.id - a.id : (a.vigente_desde < b.vigente_desde ? 1 : -1))[0] || null;
+}
+// Tipos disponibles en una fecha: la tarifa vigente de cada tipo, si está activa.
+function tiposDisponiblesExtras(tarifas, fecha) {
+  const tipos = [...new Set(tarifas.map(t => t.tipo))];
+  return tipos.map(tipo => tarifaVigenteCliente(tarifas, tipo, fecha)).filter(t => t && t.activo).sort((a, b) => a.orden - b.orden);
+}
+function textoTarifa(t) {
+  if (!t) return '';
+  if (t.modo === 'por_hora') return euros(t.importe) + '/h';
+  if (t.modo === 'fijo') return euros(t.importe) + (t.genera_descanso ? ' + 1 día de descanso' : '');
+  if (t.modo === 'descanso') return 'resta 1 día del saldo';
+  return 'importe libre';
+}
+function valorTrabajadorExtra(t) { return t.empresa_nif + '|' + t.formato_origen + '|' + t.num_empleado; }
+
+// ── Registrar extras ──
+let registroExtras = { ctx: null, seleccion: new Set(), eventuales: [], editando: null, verBajas: false, filtro: '' };
+async function cargarRegistrarExtras() {
+  document.getElementById('content-title').textContent = 'Registrar extras';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetchConLimitePersonal('/api/extras-form/contexto', 30000);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    registroExtras.ctx = data;
+    pintarRegistrarExtras();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p><button onclick="cargarRegistrarExtras()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Reintentar</button>';
+  }
+}
+function pintarRegistrarExtras() {
+  const C = registroExtras.ctx, ed = registroExtras.editando;
+  const body = document.getElementById('content-body');
+  const fecha = ed ? ed.fecha : (document.getElementById('rx-fecha') || {}).value || hoyISO();
+  const tipos = tiposDisponiblesExtras(C.tarifas, fecha);
+  const tipoSel = ed ? ed.tipo : ((document.getElementById('rx-tipo') || {}).value || (tipos[0] || {}).tipo);
+  const opcionesTipo = tipos.map(t => `<option value="${t.tipo}" ${t.tipo === tipoSel ? 'selected' : ''}>${t.tipo} · ${textoTarifa(t)}</option>`).join('');
+  const proyectos = (C.proyectos || []).map(p => `<option value="${p.numero}">${p.numero} · ${(p.nombre || '').replace(/"/g, '')}${p.cliente ? ' (' + String(p.cliente).replace(/"/g, '') + ')' : ''}</option>`).join('');
+  const inp = 'font-size:15px; padding:9px 10px; border-radius:8px; border:1px solid #d9d7cf; width:100%; box-sizing:border-box;';
+  const lbl = (t) => `<label style="display:block; font-size:12px; color:#6b6a64; margin:0 0 4px;">${t}</label>`;
+  body.innerHTML = `
+    <div style="max-width:980px;">
+      <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Registra las horas de más, domingos, festivos y nocturnos de cada trabajador. Dirección los revisa y aprueba antes de pagarlos. Puedes elegir varios trabajadores a la vez si hicieron lo mismo.</p>
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:10px; padding:1.1rem 1.25rem; margin-bottom:1.25rem;">
+        ${ed ? `<div style="background:#E8F0F6; color:#2F6280; font-size:13px; padding:8px 12px; border-radius:6px; margin-bottom:12px;">Editando el registro de <strong>${ed.nombre_trabajador}</strong> del ${fechaCorta(ed.fecha)} · <span onclick="cancelarEdicionExtra()" style="text-decoration:underline; cursor:pointer;">cancelar</span></div>` : ''}
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:12px;">
+          <div>${lbl('Fecha')}<input type="date" id="rx-fecha" value="${fecha}" max="${hoyISO()}" onchange="pintarRegistrarExtras()" style="${inp}"></div>
+          <div>${lbl('Tipo de extra')}<select id="rx-tipo" onchange="actualizarCamposRegistroExtra()" style="${inp}">${opcionesTipo}</select></div>
+          <div id="rx-bloque-horas">${lbl('Horas (en negativo para descontar)')}<input type="number" step="0.25" id="rx-horas" value="${ed ? ed.horas || '' : ''}" oninput="actualizarResumenRegistroExtra()" placeholder="p. ej. 2,5" style="${inp}"></div>
+          <div id="rx-bloque-importe">${lbl('Importe (€)')}<input type="number" step="0.01" id="rx-importe" value="${ed ? Math.abs(ed.importe) || '' : ''}" oninput="actualizarResumenRegistroExtra()" placeholder="p. ej. 100" style="${inp}"></div>
+          <div>${lbl('Nº de proyecto (opcional)')}<input type="text" id="rx-proyecto" list="rx-lista-proyectos" value="${ed && ed.proyecto ? String(ed.proyecto).replace(/"/g, '&quot;') : ''}" placeholder="Busca por nº o nombre" style="${inp}"><datalist id="rx-lista-proyectos">${proyectos}</datalist></div>
+        </div>
+        <div style="margin-bottom:12px;">${lbl('Notas (opcional)')}<input type="text" id="rx-notas" value="${ed && ed.notas ? String(ed.notas).replace(/"/g, '&quot;') : ''}" placeholder="Qué se hizo, montaje, motivo del descuento..." style="${inp}"></div>
+        ${ed ? '' : `
+        <div style="border-top:0.5px solid #efeee9; padding-top:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+            <span style="font-size:13px; font-weight:600;">Trabajadores <span id="rx-num-sel" style="font-weight:400; color:#6b6a64;"></span></span>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <input type="text" id="rx-buscar" value="${registroExtras.filtro.replace(/"/g, '&quot;')}" oninput="registroExtras.filtro = this.value; pintarListaTrabajadoresExtra()" placeholder="Buscar..." style="font-size:14px; padding:7px 10px; border-radius:8px; border:1px solid #d9d7cf; width:170px;">
+              <label style="font-size:12px; color:#6b6a64; display:flex; gap:4px; align-items:center; cursor:pointer;"><input type="checkbox" ${registroExtras.verBajas ? 'checked' : ''} onchange="registroExtras.verBajas = this.checked; pintarListaTrabajadoresExtra()"> ver también bajas</label>
+            </div>
+          </div>
+          <div id="rx-lista-trabajadores" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:6px; max-height:320px; overflow:auto; padding:2px;"></div>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+            <input type="text" id="rx-eventual" list="rx-lista-eventuales" placeholder="Eventual sin nómina (APELLIDOS, NOMBRE)" style="font-size:14px; padding:7px 10px; border-radius:8px; border:1px solid #d9d7cf; flex:1 1 240px; min-width:0; max-width:360px; box-sizing:border-box;">
+            <datalist id="rx-lista-eventuales">${(C.eventuales || []).map(n => `<option value="${String(n).replace(/"/g, '')}">`).join('')}</datalist>
+            <button onclick="anadirEventualExtra()" style="font-size:13px; padding:7px 12px; border-radius:8px; border:0.5px solid #d9d7cf; background:#fff; cursor:pointer;">+ Añadir eventual</button>
+            <span id="rx-eventuales-sel" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+          </div>
+        </div>`}
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:0.5px solid #efeee9;">
+          <span id="rx-resumen" style="font-size:14px;"></span>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span id="rx-estado" style="font-size:13px;"></span>
+            <button onclick="guardarRegistroExtra()" style="font-size:15px; padding:10px 22px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">${ed ? 'Guardar cambios' : 'Registrar'}</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <p style="font-size:15px; font-weight:600; margin:0;">Mis registros (últimos 4 meses)</p>
+        ${C.puede_gestionar ? `<span onclick="marcarMenuActivo('menu-item-per-aprobar-extras'); cargarGestionExtras();" style="font-size:13px; color:#3D7C9E; cursor:pointer;">Ir a Aprobar y pagar →</span>` : ''}
+      </div>
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:10px; overflow:auto;">${tablaMisRegistrosExtras()}</div>
+    </div>`;
+  if (!ed) pintarListaTrabajadoresExtra();
+  actualizarCamposRegistroExtra();
+}
+function pintarListaTrabajadoresExtra() {
+  const cont = document.getElementById('rx-lista-trabajadores');
+  if (!cont) return;
+  const q = registroExtras.filtro.trim().toLowerCase();
+  const orden = { activo: 0, discontinuo: 1, baja: 2 };
+  const lista = registroExtras.ctx.trabajadores
+    .filter(t => registroExtras.verBajas || t.estado !== 'baja' || registroExtras.seleccion.has(valorTrabajadorExtra(t)))
+    .filter(t => !q || t.nombre.toLowerCase().includes(q))
+    .sort((a, b) => orden[a.estado] - orden[b.estado] || a.nombre.localeCompare(b.nombre));
+  cont.innerHTML = lista.map(t => {
+    const v = valorTrabajadorExtra(t), sel = registroExtras.seleccion.has(v);
+    return `<label style="display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13.5px; border:1px solid ${sel ? '#3D7C9E' : '#efeee9'}; background:${sel ? '#E8F0F6' : '#fff'};">
+      <input type="checkbox" ${sel ? 'checked' : ''} onchange="toggleTrabajadorExtra('${v}', this.checked)" style="width:17px; height:17px;">
+      <span style="flex:1;">${t.nombre}<span style="display:block; font-size:11px; color:#9a988f;">${t.departamento || 'Sin departamento'}${t.estado !== 'activo' ? ' · ' + (t.estado === 'discontinuo' ? 'fijo discontinuo' : 'baja') : ''}</span></span>
+    </label>`;
+  }).join('') || '<p style="font-size:13px; color:#9a988f; margin:6px;">Nadie coincide con la búsqueda.</p>';
+  actualizarResumenRegistroExtra();
+}
+function toggleTrabajadorExtra(v, marcado) {
+  if (marcado) registroExtras.seleccion.add(v); else registroExtras.seleccion.delete(v);
+  pintarListaTrabajadoresExtra();
+}
+function anadirEventualExtra() {
+  const input = document.getElementById('rx-eventual');
+  const nombre = (input.value || '').trim().toUpperCase();
+  if (!nombre) return;
+  if (!registroExtras.eventuales.includes(nombre)) registroExtras.eventuales.push(nombre);
+  input.value = '';
+  pintarEventualesSeleccionados();
+}
+function quitarEventualExtra(i) { registroExtras.eventuales.splice(i, 1); pintarEventualesSeleccionados(); }
+function pintarEventualesSeleccionados() {
+  const cont = document.getElementById('rx-eventuales-sel');
+  if (cont) cont.innerHTML = registroExtras.eventuales.map((n, i) => `<span style="font-size:12px; background:#FDF3E0; color:#854F0B; padding:4px 8px; border-radius:12px;">${n} <span onclick="quitarEventualExtra(${i})" style="cursor:pointer;">✕</span></span>`).join('');
+  actualizarResumenRegistroExtra();
+}
+function actualizarCamposRegistroExtra() {
+  const C = registroExtras.ctx;
+  const fecha = document.getElementById('rx-fecha').value, tipo = document.getElementById('rx-tipo').value;
+  const t = tarifaVigenteCliente(C.tarifas, tipo, fecha);
+  document.getElementById('rx-bloque-horas').style.display = t && t.modo === 'por_hora' ? '' : 'none';
+  document.getElementById('rx-bloque-importe').style.display = t && t.modo === 'libre' ? '' : 'none';
+  actualizarResumenRegistroExtra();
+}
+function importeRegistroExtraCliente() {
+  const C = registroExtras.ctx;
+  const fecha = document.getElementById('rx-fecha').value, tipo = document.getElementById('rx-tipo').value;
+  const t = tarifaVigenteCliente(C.tarifas, tipo, fecha);
+  if (!t) return { t: null, importe: 0 };
+  const horas = parseFloat(document.getElementById('rx-horas').value) || 0;
+  const imp = parseFloat(document.getElementById('rx-importe').value) || 0;
+  if (t.modo === 'por_hora') return { t, importe: Math.round(horas * parseFloat(t.importe) * 100) / 100, horas };
+  if (t.modo === 'fijo') return { t, importe: parseFloat(t.importe) };
+  if (t.modo === 'descanso') return { t, importe: 0 };
+  return { t, importe: /descuento/i.test(tipo) ? -Math.abs(imp) : imp };
+}
+function actualizarResumenRegistroExtra() {
+  const res = document.getElementById('rx-resumen');
+  if (!res) return;
+  const n = registroExtras.editando ? 1 : registroExtras.seleccion.size + registroExtras.eventuales.length;
+  const numSel = document.getElementById('rx-num-sel');
+  if (numSel) numSel.textContent = n ? '· ' + n + ' seleccionado' + (n > 1 ? 's' : '') : '';
+  const { t, importe } = importeRegistroExtraCliente();
+  if (!t) { res.textContent = 'No hay tarifa para ese tipo en esa fecha.'; return; }
+  const extra = t.genera_descanso ? ' · genera 1 día de descanso' + (n > 1 ? ' a cada uno' : '') : (t.modo === 'descanso' ? ' · resta 1 día del saldo' + (n > 1 ? ' a cada uno' : '') : '');
+  res.innerHTML = n ? `<strong>${n}</strong> × ${euros(importe)} = <strong>${euros(n * importe)}</strong>${extra}` : '<span style="color:#9a988f;">Elige al menos un trabajador</span>';
+}
+async function guardarRegistroExtra() {
+  const estado = document.getElementById('rx-estado');
+  const ed = registroExtras.editando;
+  const cuerpo = {
+    fecha: document.getElementById('rx-fecha').value, tipo: document.getElementById('rx-tipo').value,
+    horas: document.getElementById('rx-horas').value, importe: document.getElementById('rx-importe').value,
+    proyecto: document.getElementById('rx-proyecto').value, notas: document.getElementById('rx-notas').value
+  };
+  if (!ed) {
+    cuerpo.trabajadores = [...registroExtras.seleccion].map(v => { const [empresa_nif, formato_origen, num_empleado] = v.split('|'); return { empresa_nif, formato_origen, num_empleado }; })
+      .concat(registroExtras.eventuales.map(n => ({ nombre_libre: n })));
+    if (!cuerpo.trabajadores.length) { estado.textContent = 'Elige al menos un trabajador.'; estado.style.color = '#A32D2D'; return; }
+  }
+  estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
+  try {
+    const resp = await fetch(ed ? '/api/extras-form/registros/' + ed.id : '/api/extras-form/registros', { method: ed ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    const n = ed ? 1 : data.registros.length;
+    registroExtras.seleccion = new Set(); registroExtras.eventuales = []; registroExtras.editando = null;
+    personalGlobal.cargadoEn = 0; // los datos de Personal ya no están al día
+    await cargarRegistrarExtras();
+    const e2 = document.getElementById('rx-estado');
+    if (e2) { e2.textContent = '✓ ' + (ed ? 'Cambios guardados' : n + ' registro' + (n > 1 ? 's' : '') + ' enviado' + (n > 1 ? 's' : '') + ' a aprobar'); e2.style.color = '#27500A'; }
+  } catch (err) {
+    estado.textContent = 'Error: ' + err.message; estado.style.color = '#A32D2D';
+  }
+}
+function tablaMisRegistrosExtras() {
+  const regs = registroExtras.ctx.registros || [];
+  if (!regs.length) return '<p style="padding:1.2rem; color:#9a988f; font-size:13px; margin:0;">Todavía no has registrado nada.</p>';
+  return `<table>
+    <thead><tr><th>Fecha</th><th>Trabajador</th><th>Tipo</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Importe</th><th>Proyecto / notas</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${regs.map(r => `<tr>
+      <td>${fechaCorta(r.fecha)}</td><td>${r.nombre_trabajador}</td><td>${r.tipo}</td>
+      <td style="text-align:right;">${parseFloat(r.horas) ? String(parseFloat(r.horas)).replace('.', ',') : '—'}</td>
+      <td style="text-align:right;">${euros(r.importe)}</td>
+      <td style="font-size:12px; color:#6b6a64;">${[r.proyecto, r.notas].filter(Boolean).join(' · ')}</td>
+      <td>${badgeRegistroExtra(r.estado)}${r.estado === 'rechazado' && r.motivo_rechazo ? `<div style="font-size:11px; color:#A32D2D;">${r.motivo_rechazo}</div>` : ''}</td>
+      <td style="white-space:nowrap;">${r.estado === 'pendiente' || (registroExtras.ctx.puede_gestionar && r.estado !== 'pagado') ? `<span onclick="editarRegistroExtra(${r.id})" title="Editar" style="cursor:pointer; margin-right:8px;">✏️</span><span onclick="borrarRegistroExtra(${r.id})" title="Borrar" style="cursor:pointer;">🗑️</span>` : ''}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+function editarRegistroExtra(id) {
+  registroExtras.editando = (registroExtras.ctx.registros || []).find(r => r.id === id) || null;
+  pintarRegistrarExtras();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function cancelarEdicionExtra() { registroExtras.editando = null; pintarRegistrarExtras(); }
+async function borrarRegistroExtra(id, desdeGestion) {
+  if (!confirm('¿Borrar este registro de extra?')) return;
+  try {
+    const resp = await fetch('/api/extras-form/registros/' + id, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    personalGlobal.cargadoEn = 0;
+    if (desdeGestion) cargarGestionExtras(); else cargarRegistrarExtras();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+// ── Aprobar y pagar extras (Dirección / Contabilidad) ──
+let gestionExtras = { anio: new Date().getFullYear(), mes: new Date().getMonth() + 1, pestana: 'registros', filtro: 'pendiente', datos: null, seleccion: new Set() };
+async function cargarGestionExtras() {
+  document.getElementById('content-title').textContent = 'Aprobar y pagar extras';
+  const body = document.getElementById('content-body');
+  if (!gestionExtras.datos) body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetchConLimitePersonal('/api/extras-form/gestion?anio=' + gestionExtras.anio + '&mes=' + gestionExtras.mes, 30000);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    gestionExtras.datos = data;
+    gestionExtras.seleccion = new Set();
+    pintarGestionExtras();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p><button onclick="cargarGestionExtras()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Reintentar</button>';
+  }
+}
+function moverMesGestionExtras(delta) {
+  let m = gestionExtras.mes + delta, a = gestionExtras.anio;
+  if (m < 1) { m = 12; a--; } else if (m > 12) { m = 1; a++; }
+  gestionExtras.mes = m; gestionExtras.anio = a;
+  cargarGestionExtras();
+}
+function irAMesGestionExtras(clave) { const [a, m] = clave.split('-').map(Number); gestionExtras.anio = a; gestionExtras.mes = m; gestionExtras.filtro = 'pendiente'; gestionExtras.pestana = 'registros'; cargarGestionExtras(); }
+function pintarGestionExtras() {
+  const D = gestionExtras.datos, body = document.getElementById('content-body');
+  const pend = Object.entries(D.pendientes_por_mes || {}).sort();
+  const pestana = (id, texto) => `<div onclick="gestionExtras.pestana='${id}'; pintarGestionExtras();" style="padding:8px 16px; font-size:13px; cursor:pointer; ${estiloTab(gestionExtras.pestana === id)}">${texto}</div>`;
+  body.innerHTML = `
+    <div class="no-imprimir" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button onclick="moverMesGestionExtras(-1)" style="border:0.5px solid #e2e2de; background:#fff; border-radius:6px; padding:5px 10px; cursor:pointer;">‹</button>
+        <span style="font-size:16px; font-weight:600; min-width:150px; text-align:center;">${MESES_ES_FACTURAS[D.mes]} ${D.anio}</span>
+        <button onclick="moverMesGestionExtras(1)" style="border:0.5px solid #e2e2de; background:#fff; border-radius:6px; padding:5px 10px; cursor:pointer;">›</button>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        ${pend.length ? '<span style="font-size:12px; color:#854F0B;">Pendientes de aprobar:</span>' + pend.map(([k, n]) => { const [a, m] = k.split('-'); return `<button onclick="irAMesGestionExtras('${k}')" style="font-size:12px; padding:4px 10px; border-radius:12px; border:none; background:#FDF3E0; color:#854F0B; cursor:pointer;">${MESES_ES_FACTURAS[parseInt(m)].slice(0, 3)} ${a} (${n})</button>`; }).join('') : '<span style="font-size:12px; color:#27500A;">✓ Nada pendiente de aprobar</span>'}
+        <span onclick="marcarMenuActivo('menu-item-per-registrar-extras'); cargarRegistrarExtras();" style="font-size:13px; color:#3D7C9E; cursor:pointer; margin-left:8px;">+ Registrar extras</span>
+      </div>
+    </div>
+    ${D.anio * 100 + D.mes < parseInt(String(D.inicio).replace('-', '')) ? `<div class="no-imprimir" style="background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.7rem 1rem; margin-bottom:12px; font-size:12.5px; color:#2F6280;">${MESES_ES_FACTURAS[D.mes]} ${D.anio} es anterior al formulario (empieza en ${MESES_ES_FACTURAS[parseInt(D.inicio.split('-')[1])].toLowerCase()} ${D.inicio.split('-')[0]}): sus extras siguen saliendo de la hoja de Google (pestañas PAGOS) o del histórico de 2025, ya se dan por pagados y no pasan por aprobación. Aquí solo aparece lo que se haya registrado a posteriori con fecha de este mes, que se suma a lo de la hoja.</div>` : ''}
+    <div class="no-imprimir" style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">${pestana('registros', 'Registros')}${pestana('pagos', 'Pagos del mes y descansos')}${pestana('ajustes', 'Tarifas y ajustes')}</div>
+    <div id="gestion-extras-cuerpo"></div>`;
+  if (gestionExtras.pestana === 'registros') pintarRegistrosGestionExtras();
+  else if (gestionExtras.pestana === 'pagos') pintarPagosGestionExtras();
+  else pintarAjustesGestionExtras();
+}
+function pintarRegistrosGestionExtras() {
+  const D = gestionExtras.datos, cont = document.getElementById('gestion-extras-cuerpo');
+  const cuenta = (e) => D.registros.filter(r => e === 'todos' || r.estado === e).length;
+  const lista = D.registros.filter(r => gestionExtras.filtro === 'todos' || r.estado === gestionExtras.filtro);
+  const chip = (e, t) => botonSegmentoInforme(gestionExtras.filtro === e, `gestionExtras.filtro='${e}'; gestionExtras.seleccion=new Set(); pintarRegistrosGestionExtras();`, t + ' (' + cuenta(e) + ')');
+  const total = lista.reduce((s, r) => s + (parseFloat(r.importe) || 0), 0);
+  cont.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">${chip('pendiente', 'Pendientes')}${chip('aprobado', 'Aprobados')}${chip('rechazado', 'Rechazados')}${chip('pagado', 'Pagados')}${chip('todos', 'Todos')}</div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <span id="gx-num-sel" style="font-size:12px; color:#6b6a64;"></span>
+        <button onclick="cambiarEstadoExtras('aprobado')" style="font-size:12.5px; padding:7px 12px; border-radius:6px; border:none; background:#1E6B34; color:#fff; cursor:pointer;">✓ Aprobar</button>
+        <button onclick="cambiarEstadoExtras('rechazado')" style="font-size:12.5px; padding:7px 12px; border-radius:6px; border:none; background:#A32D2D; color:#fff; cursor:pointer;">✕ Rechazar</button>
+        <button onclick="cambiarEstadoExtras('pendiente')" style="font-size:12.5px; padding:7px 12px; border-radius:6px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">↺ A pendiente</button>
+      </div>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
+      <table>
+        <thead><tr><th style="width:28px;"><input type="checkbox" onchange="seleccionarTodosExtras(this.checked)"></th><th>Fecha</th><th>Trabajador</th><th>Tipo</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Importe</th><th>Proyecto / notas</th><th>Registrado por</th><th>Estado</th><th></th></tr></thead>
+        <tbody>${lista.map(r => `<tr>
+          <td><input type="checkbox" class="gx-check" data-id="${r.id}" ${gestionExtras.seleccion.has(r.id) ? 'checked' : ''} onchange="toggleSeleccionExtra(${r.id}, this.checked)"></td>
+          <td>${fechaCorta(r.fecha)}</td><td>${r.nombre_trabajador}${r.nombre_libre ? ' <span style="font-size:10.5px; color:#854F0B;">eventual</span>' : ''}</td><td>${r.tipo}</td>
+          <td style="text-align:right;">${parseFloat(r.horas) ? String(parseFloat(r.horas)).replace('.', ',') : '—'}</td>
+          <td style="text-align:right; font-weight:500;">${euros(r.importe)}</td>
+          <td style="font-size:12px; color:#6b6a64;">${[r.proyecto, r.notas].filter(Boolean).join(' · ')}</td>
+          <td style="font-size:12px; color:#6b6a64;">${r.registrado_por_nombre || r.registrado_por || ''}</td>
+          <td>${badgeRegistroExtra(r.estado)}${r.motivo_rechazo ? `<div style="font-size:11px; color:#A32D2D;">${r.motivo_rechazo}</div>` : ''}</td>
+          <td style="white-space:nowrap;">${r.estado === 'pendiente' ? `<span onclick="cambiarEstadoExtras('aprobado', [${r.id}])" title="Aprobar" style="cursor:pointer; color:#1E6B34; font-weight:600; margin-right:10px;">✓</span><span onclick="cambiarEstadoExtras('rechazado', [${r.id}])" title="Rechazar" style="cursor:pointer; color:#A32D2D; font-weight:600; margin-right:10px;">✕</span>` : ''}${r.estado !== 'pagado' ? `<span onclick="editarExtraDesdeGestion(${r.id})" title="Editar" style="cursor:pointer; margin-right:8px;">✏️</span><span onclick="borrarRegistroExtra(${r.id}, true)" title="Borrar" style="cursor:pointer;">🗑️</span>` : ''}</td>
+        </tr>`).join('') || '<tr><td colspan="10" style="padding:1.2rem 4px; color:#9a988f;">Nada en este estado este mes.</td></tr>'}</tbody>
+        ${lista.length ? `<tfoot><tr style="background:#f7f6f2; font-weight:500;"><td colspan="5">${lista.length} registros</td><td style="text-align:right;">${euros(total)}</td><td colspan="4"></td></tr></tfoot>` : ''}
+      </table>
+    </div>`;
+  actualizarSeleccionExtras();
+}
+function toggleSeleccionExtra(id, marcado) { if (marcado) gestionExtras.seleccion.add(id); else gestionExtras.seleccion.delete(id); actualizarSeleccionExtras(); }
+function seleccionarTodosExtras(marcado) {
+  document.querySelectorAll('.gx-check').forEach(c => { c.checked = marcado; toggleSeleccionExtra(parseInt(c.dataset.id), marcado); });
+}
+function actualizarSeleccionExtras() {
+  const el = document.getElementById('gx-num-sel');
+  if (el) el.textContent = gestionExtras.seleccion.size ? gestionExtras.seleccion.size + ' seleccionados' : 'Marca registros o usa ✓/✕ en cada fila';
+}
+async function cambiarEstadoExtras(estado, ids) {
+  ids = ids || [...gestionExtras.seleccion];
+  if (!ids.length) { alert('Marca primero algún registro.'); return; }
+  let motivo = null;
+  if (estado === 'rechazado') { motivo = prompt('Motivo del rechazo (lo verá quien lo registró):', ''); if (motivo === null) return; }
+  if (estado === 'pagado' && !confirm('¿Marcar como PAGADOS ' + ids.length + ' registros aprobados?')) return;
+  if (estado === 'deshacer_pago' && !confirm('¿Deshacer el pago de ' + ids.length + ' registros? Volverán a "aprobado".')) return;
+  try {
+    const resp = await fetch('/api/extras-form/estado', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, estado, motivo }) });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    personalGlobal.cargadoEn = 0;
+    if (data.ignorados) alert(data.cambiados + ' cambiados; ' + data.ignorados + ' no se podían cambiar desde su estado actual.');
+    cargarGestionExtras();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+// Edición desde gestión: reutiliza el formulario de registro.
+async function editarExtraDesdeGestion(id) {
+  const r = gestionExtras.datos.registros.find(x => x.id === id);
+  if (!r) return;
+  marcarMenuActivo('menu-item-per-registrar-extras');
+  await cargarRegistrarExtras();
+  registroExtras.editando = r;
+  pintarRegistrarExtras();
+}
+// Resumen para pagar: por trabajador, lo aprobado/pagado del mes + saldo de
+// descansos acumulado (saldo inicial + generados − disfrutados hasta este mes).
+function pintarPagosGestionExtras() {
+  const D = gestionExtras.datos, cont = document.getElementById('gestion-extras-cuerpo');
+  const cuentan = D.registros.filter(r => r.estado === 'aprobado' || r.estado === 'pagado');
+  const claveDe = (x) => x.empresa_nif ? x.empresa_nif + '|' + x.formato_origen + '|' + x.num_empleado : 'libre|' + (x.nombre_libre || '');
+  const porTrab = {};
+  cuentan.forEach(r => {
+    const k = claveDe(r);
+    const t = porTrab[k] = porTrab[k] || { nombre: r.nombre_trabajador, horas: 0, horasImp: 0, festivos: 0, nocturnos: 0, otros: 0, total: 0, generados: 0, disfrutados: 0, aprobadosIds: [], pagados: 0 };
+    const cat = categoriaMovimientoExtra(r);
+    if (cat.cat === 'horas') { t.horas += cat.horas; t.horasImp += cat.importe; }
+    else if (cat.cat === 'festivo') t.festivos++;
+    else if (cat.cat === 'nocturno') t.nocturnos++;
+    else if (cat.cat === 'plus') t.otros += cat.importe;
+    if (r.genera_descanso) t.generados++;
+    if (cat.cat === 'descanso') t.disfrutados++;
+    t.total += parseFloat(r.importe) || 0;
+    if (r.estado === 'aprobado') t.aprobadosIds.push(r.id); else t.pagados++;
+  });
+  const saldoPorClave = {};
+  (D.saldos || []).forEach(s => { saldoPorClave[s.clave] = s; });
+  const filas = Object.entries(porTrab).map(([k, t]) => ({ k, ...t, saldo: saldoPorClave[k] ? saldoPorClave[k].inicial + saldoPorClave[k].generados - saldoPorClave[k].disfrutados : 0 })).sort((a, b) => b.total - a.total);
+  const aprobadosIds = filas.flatMap(f => f.aprobadosIds);
+  const pagadosIds = cuentan.filter(r => r.estado === 'pagado').map(r => r.id);
+  const pendientes = D.registros.filter(r => r.estado === 'pendiente').length;
+  const total = filas.reduce((s, f) => s + f.total, 0), aPagar = cuentan.filter(r => r.estado === 'aprobado').reduce((s, r) => s + (parseFloat(r.importe) || 0), 0);
+  // Saldos de todos (también quien no tuvo extras este mes)
+  const saldosTodos = (D.saldos || []).map(s => ({ ...s, saldo: s.inicial + s.generados - s.disfrutados })).filter(s => s.saldo || s.generados || s.disfrutados || s.inicial).sort((a, b) => b.saldo - a.saldo || String(a.nombre).localeCompare(String(b.nombre)));
+  gestionExtras.exportPagos = { filas, saldosTodos };
+  cont.innerHTML = `
+    <div class="solo-impresion" style="margin-bottom:12px;"><p style="font-size:18px; font-weight:600; margin:0;">Pagos de extras · ${MESES_ES_FACTURAS[D.mes]} ${D.anio}</p><p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">Generado ${new Date().toLocaleDateString('es-ES')}</p></div>
+    ${pendientes ? `<div class="no-imprimir" style="background:#FDF3E0; border:0.5px solid #F0D9B0; border-radius:8px; padding:0.6rem 0.9rem; margin-bottom:10px; font-size:12.5px; color:#854F0B;">⚠️ Quedan ${pendientes} registros pendientes de aprobar este mes: no están incluidos aquí.</div>` : ''}
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;">
+      ${kpiCard('Total extras del mes', euros(total))}
+      ${kpiCard('Aprobado pendiente de pagar', euros(aPagar))}
+      ${kpiCard('Trabajadores', String(filas.length))}
+    </div>
+    <div class="no-imprimir" style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px;">
+      ${aprobadosIds.length ? `<button onclick="cambiarEstadoExtras('pagado', [${aprobadosIds.join(',')}])" style="font-size:13px; padding:8px 14px; border-radius:8px; border:none; background:#2F6280; color:#fff; cursor:pointer;">Marcar como pagado (${aprobadosIds.length})</button>` : ''}
+      ${pagadosIds.length ? `<button onclick="cambiarEstadoExtras('deshacer_pago', [${pagadosIds.join(',')}])" style="font-size:12px; padding:8px 12px; border-radius:8px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">Deshacer pago</button>` : ''}
+      <button onclick="exportarPagosExtras()" style="font-size:12px; padding:8px 12px; border-radius:8px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">⬇️ Excel</button>
+      <button onclick="window.print()" style="font-size:12px; padding:8px 12px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🖨️ Imprimir / PDF</button>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto; margin-bottom:1.25rem;">
+      <table>
+        <thead><tr><th>Trabajador</th><th style="text-align:right;">Horas</th><th style="text-align:right;">€ horas</th><th style="text-align:right;">Dom./fest.</th><th style="text-align:right;">Nocturnos</th><th style="text-align:right;">Pluses / desc.</th><th style="text-align:right;">A pagar</th><th>Estado</th><th style="text-align:right;">Descansos +/−</th><th style="text-align:right;">Saldo descanso</th></tr></thead>
+        <tbody>${filas.map(f => `<tr><td>${f.nombre}</td><td style="text-align:right;">${f.horas ? numES(f.horas) + ' h' : '—'}</td><td style="text-align:right;">${f.horasImp ? euros(f.horasImp) : '—'}</td><td style="text-align:right;">${f.festivos || '—'}</td><td style="text-align:right;">${f.nocturnos || '—'}</td><td style="text-align:right;">${f.otros ? euros(f.otros) : '—'}</td><td style="text-align:right; font-weight:600;">${euros(f.total)}</td><td>${f.aprobadosIds.length ? badgeRegistroExtra('aprobado') : ''} ${f.pagados ? badgeRegistroExtra('pagado') : ''}</td><td style="text-align:right;">${f.generados ? '+' + f.generados : ''}${f.disfrutados ? ' −' + f.disfrutados : ''}${!f.generados && !f.disfrutados ? '—' : ''}</td><td style="text-align:right; font-weight:500;">${numES(f.saldo)} día${Math.abs(f.saldo) === 1 ? '' : 's'}</td></tr>`).join('') || '<tr><td colspan="10" style="padding:1.2rem 4px; color:#9a988f;">Nada aprobado este mes todavía.</td></tr>'}</tbody>
+        ${filas.length ? `<tfoot><tr style="background:#f7f6f2; font-weight:500;"><td>Total</td><td style="text-align:right;">${numES(filas.reduce((s, f) => s + f.horas, 0))} h</td><td style="text-align:right;">${euros(filas.reduce((s, f) => s + f.horasImp, 0))}</td><td style="text-align:right;">${filas.reduce((s, f) => s + f.festivos, 0)}</td><td style="text-align:right;">${filas.reduce((s, f) => s + f.nocturnos, 0)}</td><td style="text-align:right;">${euros(filas.reduce((s, f) => s + f.otros, 0))}</td><td style="text-align:right;">${euros(total)}</td><td colspan="3"></td></tr></tfoot>` : ''}
+      </table>
+    </div>
+    <p style="font-size:14px; font-weight:600; margin:0 0 6px;">Saldo de días de descanso de todo el personal (a ${MESES_ES_FACTURAS[D.mes].toLowerCase()} ${D.anio})</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 8px;">Saldo inicial (lo que traían del formulario de Google) + días generados (domingos, festivos, nocturnos... aprobados) − descansos disfrutados. Negativo = ha disfrutado más de lo generado.</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
+      <table>
+        <thead><tr><th>Trabajador</th><th style="text-align:right;">Saldo inicial</th><th style="text-align:right;">Generados</th><th style="text-align:right;">Disfrutados</th><th style="text-align:right;">Saldo</th></tr></thead>
+        <tbody>${saldosTodos.map(s => `<tr><td>${s.nombre || s.clave}</td><td style="text-align:right;">${numES(s.inicial)}</td><td style="text-align:right;">${s.generados}</td><td style="text-align:right;">${s.disfrutados}</td><td style="text-align:right; font-weight:600; color:${s.saldo < 0 ? '#A32D2D' : '#1a1a18'};">${numES(s.saldo)}</td></tr>`).join('') || '<tr><td colspan="5" style="padding:1rem 4px; color:#9a988f;">Sin saldos.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+function exportarPagosExtras() {
+  const D = gestionExtras.datos, E = gestionExtras.exportPagos;
+  if (!E) return;
+  descargarCSVPersonal('pagos_extras_' + D.anio + '_' + String(D.mes).padStart(2, '0') + '.csv', [
+    { titulo: 'Pagos de extras · ' + MESES_ES_FACTURAS[D.mes] + ' ' + D.anio, cabecera: ['Trabajador', 'Horas', '€ horas', 'Domingos/festivos', 'Nocturnos', 'Pluses/descuentos', 'A pagar', 'Descansos generados', 'Descansos disfrutados', 'Saldo descanso'],
+      filas: E.filas.map(f => [f.nombre, f.horas, f.horasImp, f.festivos, f.nocturnos, f.otros, f.total, f.generados, f.disfrutados, f.saldo]) },
+    { titulo: 'Saldo de descansos', cabecera: ['Trabajador', 'Saldo inicial', 'Generados', 'Disfrutados', 'Saldo'], filas: E.saldosTodos.map(s => [s.nombre || s.clave, s.inicial, s.generados, s.disfrutados, s.saldo]) }
+  ]);
+}
+// Tarifas (con vigencia), mes de inicio del formulario y saldos iniciales.
+function pintarAjustesGestionExtras() {
+  const D = gestionExtras.datos, cont = document.getElementById('gestion-extras-cuerpo');
+  const hoy = hoyISO();
+  const tipos = [...new Set(D.tarifas.map(t => t.tipo))];
+  const vigentes = tipos.map(tipo => tarifaVigenteCliente(D.tarifas, tipo, hoy)).filter(Boolean).sort((a, b) => a.orden - b.orden);
+  const MODOS = { por_hora: 'Por hora', fijo: 'Importe fijo', libre: 'Importe libre', descanso: 'Descanso disfrutado' };
+  const inp = 'font-size:13px; padding:6px 8px; border-radius:6px; border:1px solid #d9d7cf;';
+  const saldoPorClave = {};
+  (D.saldos || []).forEach(s => { saldoPorClave[s.clave] = s; });
+  const trabajadores = D.trabajadores.filter(t => t.estado !== 'baja' || saldoPorClave[valorTrabajadorExtra(t)]);
+  cont.innerHTML = `
+    <p style="font-size:15px; font-weight:600; margin:0 0 6px;">Tarifas vigentes</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 8px;">Cambiar un precio no altera lo ya registrado: se guarda como un precio nuevo a partir de una fecha, y cada registro usa el precio vigente en su fecha.</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto; margin-bottom:10px;">
+      <table>
+        <thead><tr><th>Tipo</th><th>Cálculo</th><th style="text-align:right;">Importe</th><th>Genera descanso</th><th>Desde</th><th>Estado</th><th></th></tr></thead>
+        <tbody>${vigentes.map(t => `<tr><td>${t.tipo}</td><td>${MODOS[t.modo]}</td><td style="text-align:right;">${t.modo === 'libre' || t.modo === 'descanso' ? '—' : euros(t.importe) + (t.modo === 'por_hora' ? '/h' : '')}</td><td>${t.genera_descanso ? 'Sí' : 'No'}</td><td>${fechaCorta(t.vigente_desde)}</td><td>${t.activo ? 'Activo' : '<span style="color:#A32D2D;">Desactivado</span>'}</td><td><span onclick="prepararNuevaTarifa('${t.tipo.replace(/'/g, "\\'")}')" style="font-size:12px; color:#3D7C9E; cursor:pointer;">Cambiar</span></td></tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:0.9rem 1.1rem; margin-bottom:1.5rem;">
+      <p style="font-size:13px; font-weight:600; margin:0 0 8px;">Nuevo precio o nuevo tipo</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+        <label style="font-size:12px; color:#6b6a64;">Tipo<br><input id="tf-tipo" list="tf-tipos" style="${inp} width:160px;"><datalist id="tf-tipos">${tipos.map(t => `<option value="${t}">`).join('')}</datalist></label>
+        <label style="font-size:12px; color:#6b6a64;">Cálculo<br><select id="tf-modo" style="${inp}">${Object.entries(MODOS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+        <label style="font-size:12px; color:#6b6a64;">Importe (€)<br><input id="tf-importe" type="number" step="0.01" style="${inp} width:100px;"></label>
+        <label style="font-size:12px; color:#6b6a64; display:flex; gap:4px; align-items:center; padding-bottom:6px;"><input id="tf-descanso" type="checkbox"> genera descanso</label>
+        <label style="font-size:12px; color:#6b6a64; display:flex; gap:4px; align-items:center; padding-bottom:6px;"><input id="tf-activo" type="checkbox" checked> activo</label>
+        <label style="font-size:12px; color:#6b6a64;">Vigente desde<br><input id="tf-desde" type="date" value="${hoy}" style="${inp}"></label>
+        <button onclick="guardarNuevaTarifa()" style="font-size:13px; padding:8px 14px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
+        <span id="tf-estado" style="font-size:12px;"></span>
+      </div>
+    </div>
+    <p style="font-size:15px; font-weight:600; margin:0 0 6px;">Inicio del formulario</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 8px;">Primer mes cuyos extras salen de este formulario. Los meses anteriores siguen saliendo de la hoja de Google "HORAS EXTRAS 2026" (pestañas PAGOS), y el botón Sincronizar ya no lee de la hoja desde este mes.</p>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:1.5rem;">
+      <input id="cfg-inicio" type="month" value="${D.inicio}" style="${inp}">
+      <button onclick="guardarConfigExtrasForm({ inicio_formulario: document.getElementById('cfg-inicio').value }, 'cfg-inicio-estado')" style="font-size:13px; padding:7px 14px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
+      <span id="cfg-inicio-estado" style="font-size:12px;"></span>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <p style="font-size:15px; font-weight:600; margin:0;">Saldo inicial de días de descanso</p>
+      <div style="display:flex; gap:10px; align-items:center;"><span id="cfg-saldos-estado" style="font-size:12px;"></span><button onclick="guardarSaldosInicialesExtras()" style="font-size:13px; padding:7px 14px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar saldos</button></div>
+    </div>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 8px;">Días pendientes de antes del formulario (calculados del formulario de Google hasta agosto 2026: generados − disfrutados). Ajústalos si alguno no cuadra.</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
+      <table>
+        <thead><tr><th>Trabajador</th><th>Estado</th><th style="text-align:right;">Saldo inicial (días)</th></tr></thead>
+        <tbody id="tabla-saldos-iniciales">${trabajadores.map(t => { const s = saldoPorClave[valorTrabajadorExtra(t)]; return `<tr data-clave="${valorTrabajadorExtra(t)}"><td>${t.nombre}</td><td style="font-size:12px; color:#6b6a64;">${t.estado === 'activo' ? 'Activo' : t.estado === 'discontinuo' ? 'Fijo discontinuo' : 'Baja'}</td><td style="text-align:right;"><input type="number" step="0.5" class="input-saldo-inicial" data-inicial="${s ? s.inicial : 0}" value="${s ? s.inicial : 0}" style="${inp} width:80px; text-align:right;"></td></tr>`; }).join('')}
+          ${(D.saldos || []).filter(s => s.clave.startsWith('libre|')).map(s => `<tr data-clave="${s.clave.replace(/"/g, '&quot;')}"><td>${s.nombre || s.clave.slice(6)} <span style="font-size:10.5px; color:#854F0B;">eventual</span></td><td></td><td style="text-align:right;"><input type="number" step="0.5" class="input-saldo-inicial" data-inicial="${s.inicial}" value="${s.inicial}" style="${inp} width:80px; text-align:right;"></td></tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+}
+function prepararNuevaTarifa(tipo) {
+  const t = tarifaVigenteCliente(gestionExtras.datos.tarifas, tipo, hoyISO());
+  document.getElementById('tf-tipo').value = tipo;
+  if (t) {
+    document.getElementById('tf-modo').value = t.modo;
+    document.getElementById('tf-importe').value = t.importe;
+    document.getElementById('tf-descanso').checked = t.genera_descanso;
+    document.getElementById('tf-activo').checked = t.activo;
+  }
+  document.getElementById('tf-importe').focus();
+}
+async function guardarNuevaTarifa() {
+  const estado = document.getElementById('tf-estado');
+  const tipo = document.getElementById('tf-tipo').value.trim();
+  const previa = tarifaVigenteCliente(gestionExtras.datos.tarifas, tipo, hoyISO());
+  const cuerpo = {
+    tipo, modo: document.getElementById('tf-modo').value, importe: document.getElementById('tf-importe').value,
+    genera_descanso: document.getElementById('tf-descanso').checked, activo: document.getElementById('tf-activo').checked,
+    vigente_desde: document.getElementById('tf-desde').value, orden: previa ? previa.orden : 99
+  };
+  if (!tipo) { estado.textContent = 'Indica el tipo.'; estado.style.color = '#A32D2D'; return; }
+  try {
+    const resp = await fetch('/api/extras-form/tarifas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    await cargarGestionExtras();
+  } catch (err) { estado.textContent = 'Error: ' + err.message; estado.style.color = '#A32D2D'; }
+}
+async function guardarConfigExtrasForm(cuerpo, idEstado) {
+  const estado = document.getElementById(idEstado);
+  estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
+  try {
+    const resp = await fetch('/api/extras-form/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    personalGlobal.cargadoEn = 0;
+    await cargarGestionExtras();
+    const e2 = document.getElementById(idEstado);
+    if (e2) { e2.textContent = '✓ Guardado'; e2.style.color = '#27500A'; }
+  } catch (err) { estado.textContent = 'Error: ' + err.message; estado.style.color = '#A32D2D'; }
+}
+function guardarSaldosInicialesExtras() {
+  const saldos = [];
+  document.querySelectorAll('#tabla-saldos-iniciales tr[data-clave]').forEach(tr => {
+    const input = tr.querySelector('.input-saldo-inicial');
+    if (String(parseFloat(input.value) || 0) === String(parseFloat(input.dataset.inicial) || 0)) return; // sin cambios
+    const clave = tr.dataset.clave;
+    if (clave.startsWith('libre|')) saldos.push({ nombre_libre: clave.slice(6), dias: input.value });
+    else { const [empresa_nif, formato_origen, num_empleado] = clave.split('|'); saldos.push({ empresa_nif, formato_origen, num_empleado: parseInt(num_empleado), dias: input.value }); }
+  });
+  if (!saldos.length) { const e = document.getElementById('cfg-saldos-estado'); e.textContent = 'Sin cambios.'; e.style.color = '#6b6a64'; return; }
+  guardarConfigExtrasForm({ saldos }, 'cfg-saldos-estado');
+}
+
 // ── Pestaña Extras: lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña
 // "PAGOS <MES> <AÑO>" de cada mes) mediante un botón de sincronización
 // manual — igual criterio que "Actualizar facturas" en Facturas
@@ -3831,14 +4379,15 @@ function pintarPersonalExtras() {
   const cont = document.getElementById('personal-tab-body');
   const grupos = {};
   personalGlobal.extras.forEach(e => {
-    if (!grupos[e.mes]) grupos[e.mes] = { mes: e.mes, num_trabajadores: 0, total_importe: 0 };
-    grupos[e.mes].num_trabajadores++;
+    if (!grupos[e.mes]) grupos[e.mes] = { mes: e.mes, nombres: new Set(), total_importe: 0, formulario: false };
+    grupos[e.mes].nombres.add(e.empresa_nif ? e.empresa_nif + '|' + e.formato_origen + '|' + e.num_empleado : e.nombre);
     grupos[e.mes].total_importe += parseFloat(e.importe) || 0;
+    if (e.origen === 'formulario_orum') grupos[e.mes].formulario = true;
   });
-  const filas = Object.values(grupos).sort((a, b) => a.mes - b.mes);
+  const filas = Object.values(grupos).map(g => ({ ...g, num_trabajadores: g.nombres.size })).sort((a, b) => a.mes - b.mes);
   const filasHtml = filas.map(g => `
     <tr>
-      <td>${MESES_ES_FACTURAS[g.mes]}</td>
+      <td>${MESES_ES_FACTURAS[g.mes]}${g.formulario ? ' <span style="font-size:10.5px; color:#2F6280;">formulario ORUM</span>' : ''}</td>
       <td style="text-align:right;">${g.num_trabajadores}</td>
       <td style="text-align:right; font-weight:500;">${euros(g.total_importe)}</td>
     </tr>
@@ -3858,6 +4407,7 @@ function pintarPersonalExtras() {
       </table>
     </div>
   ` : `
+    ${personalGlobal.inicioFormularioExtras ? `<div style="background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.8rem 1rem; margin-bottom:1rem; font-size:12.5px; color:#2F6280;">Desde <strong>${MESES_ES_FACTURAS[parseInt(personalGlobal.inicioFormularioExtras.split('-')[1])]} ${personalGlobal.inicioFormularioExtras.split('-')[0]}</strong> los extras se registran en <span onclick="marcarMenuActivo('menu-item-per-registrar-extras'); cargarRegistrarExtras();" style="text-decoration:underline; cursor:pointer;">Registrar extras</span> y cuentan al aprobarlos en <span onclick="marcarMenuActivo('menu-item-per-aprobar-extras'); cargarGestionExtras();" style="text-decoration:underline; cursor:pointer;">Aprobar y pagar extras</span>. La hoja de Google solo se lee para los meses anteriores.</div>` : ''}
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1.25rem; margin-bottom:1.5rem;">
       <p style="font-size:14px; font-weight:500; margin:0 0 4px;">Sincronizar extras del año ${personalGlobal.anio}</p>
       <p style="font-size:12px; color:#6b6a64; margin:0 0 12px;">Lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña "PAGOS &lt;mes&gt; ${personalGlobal.anio}" de cada mes) y guarda el total por trabajador. Los meses que aún no tengan esa pestaña se saltan sin dar error.</p>
@@ -3887,7 +4437,8 @@ async function sincronizarExtras() {
     pintarPersonalExtras();
     const estado2 = document.getElementById('estado-sync-extras');
     const nombresMeses = data.meses_sincronizados.map(m => MESES_ES_FACTURAS[m]).join(', ') || 'ninguno';
-    estado2.textContent = '✓ Sincronizado: ' + nombresMeses + ' (' + data.total_trabajadores + ' trabajadores distintos)';
+    estado2.textContent = '✓ Sincronizado: ' + nombresMeses + ' (' + data.total_trabajadores + ' trabajadores distintos)'
+      + (data.importados_formulario ? ' · ' + data.importados_formulario + ' registros nuevos del formulario de Google pasados a "Aprobar y pagar extras" como pendientes' : '');
     estado2.style.color = '#27500A';
     // Los "sin clasificar" nuevos de Extras se detectan comparando contra lo
     // ya cargado, no viene de vuelta en la respuesta de /sincronizar.
