@@ -1638,13 +1638,19 @@ async function anadirGastoAnual() {
 // Pestaña Informe: tabla cruzada trabajador/departamento × meses
 // seleccionables — cualquier combinación de meses (uno, varios, el año
 // entero) con cualquiera de las dos agrupaciones, todo en el cliente sobre
-// los datos ya cargados del año, sin más peticiones al servidor.
+// los datos ya cargados del año. Métricas: importe, nº de personas y coste
+// medio por persona; comparable con uno o varios años (cada año extra se
+// pide una vez al marcarlo) y filtrable por departamento (detalle de sus
+// trabajadores). Exportable a Excel (CSV) e imprimible/PDF.
 // ================================================================
-let personalGlobal = { anio: new Date().getFullYear(), detalle: [], departamentos: [], extras: [], extrasDepartamentos: [], extrasAlias: [], empleadosAlias: [], tab: 'nominas' };
+let personalGlobal = { anio: new Date().getFullYear(), detalle: [], departamentos: [], extras: [], extrasDepartamentos: [], extrasAlias: [], empleadosAlias: [], tab: 'nominas', otrosAnios: {}, aniosDisponibles: [] };
 const ETIQUETA_FORMATO_ORIGEN = { nominas_gestoria: 'Nóminas', resumen_contable: 'Resumen Contable' };
 let informePersonalMeses = new Set(Array.from({ length: 12 }, (_, i) => i + 1));
 let informePersonalAgrupacion = 'departamento';
 let informePersonalFuente = 'ambos'; // 'nominas' | 'extras' | 'ambos'
+let informePersonalMetrica = 'importe'; // 'importe' | 'personas' | 'medio'
+let informePersonalAniosComparar = new Set(); // años a comparar además del seleccionado
+let informePersonalDepto = null; // null = todos; si no, detalle de ese departamento por trabajador
 
 async function cargarPersonal() {
   document.getElementById('content-title').textContent = 'Financiero · Personal';
@@ -1667,6 +1673,9 @@ async function recargarDatosPersonal() {
   personalGlobal.extrasDepartamentos = data.extras_departamentos || [];
   personalGlobal.extrasAlias = data.extras_alias || [];
   personalGlobal.empleadosAlias = data.empleados_alias || [];
+  personalGlobal.aniosDisponibles = data.anios_disponibles || [];
+  personalGlobal.movimientos = data.movimientos || [];
+  personalGlobal.otrosAnios = {}; // la config (deptos/alias) puede haber cambiado — se vuelven a pedir
 }
 function cambiarAnioPersonal(anio) {
   personalGlobal.anio = parseInt(anio);
@@ -1677,18 +1686,19 @@ function pintarPersonal() {
   const anioActual = new Date().getFullYear();
   const opcionesAnio = [anioActual - 1, anioActual, anioActual + 1].map(a => `<option value="${a}" ${a === personalGlobal.anio ? 'selected' : ''}>${a}</option>`).join('');
   body.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; gap:1rem;">
+    <div class="no-imprimir" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; gap:1rem;">
       <p style="font-size:13px; color:#6b6a64; margin:0;">Nóminas + extras. El coste repercute en <span style="cursor:pointer; text-decoration:underline;" onclick="marcarMenuActivo('menu-item-fin-cierre-mensual'); cargarCierreMensual();">Cierre Mensual</span> según el departamento asignado a cada trabajador.</p>
       <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
         <label style="font-size:13px; color:#6b6a64;">Año</label>
         <select onchange="cambiarAnioPersonal(this.value)" style="font-size:13px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesAnio}</select>
       </div>
     </div>
-    <div style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
+    <div class="no-imprimir" style="display:flex; gap:4px; border-bottom:0.5px solid #e2e2de; margin-bottom:1rem;">
       <div id="tab-personal-nominas" onclick="cambiarPestanaPersonal('nominas')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-personal-config" onclick="cambiarPestanaPersonal('config')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-personal-informe" onclick="cambiarPestanaPersonal('informe')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
       <div id="tab-personal-extras" onclick="cambiarPestanaPersonal('extras')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
+      <div id="tab-personal-analisis" onclick="cambiarPestanaPersonal('analisis')" style="padding:8px 16px; font-size:13px; cursor:pointer;"></div>
     </div>
     <div id="personal-tab-body"></div>
   `;
@@ -1696,7 +1706,7 @@ function pintarPersonal() {
 }
 function cambiarPestanaPersonal(tab) {
   personalGlobal.tab = tab;
-  const etiquetas = { nominas: 'Nóminas', config: 'Config. Departamentos', informe: 'Informe', extras: 'Extras' };
+  const etiquetas = { nominas: 'Nóminas', config: 'Config. Departamentos', informe: 'Informe', analisis: 'Análisis', extras: 'Extras' };
   Object.keys(etiquetas).forEach(t => {
     const el = document.getElementById('tab-personal-' + t);
     el.textContent = etiquetas[t];
@@ -1705,6 +1715,7 @@ function cambiarPestanaPersonal(tab) {
   if (tab === 'nominas') pintarPersonalNominas();
   else if (tab === 'config') pintarPersonalConfig();
   else if (tab === 'informe') pintarPersonalInforme();
+  else if (tab === 'analisis') pintarPersonalAnalisis();
   else pintarPersonalExtras();
 }
 
@@ -2099,88 +2110,104 @@ async function guardarConfigPersonal() {
 
 // ── Pestaña Informe: tabla cruzada (departamento|trabajador) × meses ──
 // seleccionables. Todo sobre personalGlobal.detalle ya cargado — cualquier
-// combinación de meses/agrupación se recalcula en el cliente al vuelo.
+// combinación de meses/agrupación/métrica se recalcula en el cliente al
+// vuelo. Comparativa multi-año: se marcan uno o varios años (cada uno se
+// pide al servidor una vez) y la tabla pasa a una columna por año + Δ vs
+// año anterior + tendencia, siempre sobre los meses con datos en TODOS los
+// años comparados (comparación homogénea, ej. ene–sep contra ene–sep).
+// Filtro de departamento: detalle de un departamento por trabajador (clic
+// en la fila del departamento o desde el desplegable).
+const ETIQUETA_METRICA_INFORME = { importe: 'Importe', personas: 'Nº personas', medio: 'Coste medio / persona' };
+const ETIQUETA_FUENTE_INFORME = { nominas: 'Nóminas', extras: 'Extras', ambos: 'Nóminas + extras' };
+// Del más antiguo (gris claro) al año seleccionado (azul).
+const COLORES_ANIOS_INFORME = ['#e2e0d8', '#c9c7bf', '#a8a69d', '#8aa9ba', '#5f93ad', '#3D7C9E'];
+function colorAnioInforme(idx, total) { return COLORES_ANIOS_INFORME[COLORES_ANIOS_INFORME.length - total + idx] || COLORES_ANIOS_INFORME[0]; }
+let informePersonalExport = []; // secciones [{titulo, cabecera, filas}] de lo último pintado, para Excel
+
+function botonSegmentoInforme(activo, onclick, texto) {
+  return `<button onclick="${onclick}" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${activo ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">${texto}</button>`;
+}
+function agrupacionEfectivaInforme() { return informePersonalDepto ? 'trabajador' : informePersonalAgrupacion; }
+function escaparAtributoInforme(t) { return String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
 function pintarPersonalInforme() {
   const cont = document.getElementById('personal-tab-body');
+  informePersonalAniosComparar.delete(personalGlobal.anio);
   const mesesHtml = Array.from({ length: 12 }, (_, i) => i + 1).map(m => `
     <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; margin-right:12px; cursor:pointer;">
       <input type="checkbox" ${informePersonalMeses.has(m) ? 'checked' : ''} onchange="toggleMesInforme(${m})"> ${MESES_ES_FACTURAS[m].slice(0, 3)}
     </label>
   `).join('');
+  const disponibles = personalGlobal.aniosDisponibles.length ? personalGlobal.aniosDisponibles : [personalGlobal.anio - 1];
+  const aniosOpc = disponibles.filter(a => a !== personalGlobal.anio);
+  const chipsAnios = aniosOpc.map(a => {
+    const activo = informePersonalAniosComparar.has(a);
+    return `<button onclick="toggleAnioCompararInforme(${a})" style="font-size:12px; padding:4px 10px; border-radius:12px; cursor:pointer; ${activo ? 'background:#3D7C9E; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">${a}</button>`;
+  }).join('');
+  const ctx = contextoInformePersonal();
+  const opcionesDepto = ['<option value="">Todos los departamentos</option>']
+    .concat(ctx.listaDeptos.map(d => `<option value="${d.replace(/"/g, '&quot;')}" ${d === informePersonalDepto ? 'selected' : ''}>${d}</option>`)).join('');
   cont.innerHTML = `
-    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;">
+    <div class="no-imprimir" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-        <div style="display:flex; gap:6px;">
-          <button onclick="cambiarAgrupacionInforme('departamento')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalAgrupacion === 'departamento' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Por departamento</button>
-          <button onclick="cambiarAgrupacionInforme('trabajador')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalAgrupacion === 'trabajador' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Por trabajador</button>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <select onchange="cambiarDeptoInforme(this.value)" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesDepto}</select>
+          ${informePersonalDepto ? '' : botonSegmentoInforme(informePersonalAgrupacion === 'departamento', "cambiarAgrupacionInforme('departamento')", 'Por departamento') + botonSegmentoInforme(informePersonalAgrupacion === 'trabajador', "cambiarAgrupacionInforme('trabajador')", 'Por trabajador')}
         </div>
         <div style="display:flex; gap:6px;">
-          <button onclick="cambiarFuenteInforme('nominas')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalFuente === 'nominas' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Nóminas</button>
-          <button onclick="cambiarFuenteInforme('extras')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalFuente === 'extras' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Extras</button>
-          <button onclick="cambiarFuenteInforme('ambos')" style="font-size:12px; padding:6px 12px; border-radius:6px; cursor:pointer; ${informePersonalFuente === 'ambos' ? 'background:#1a1a18; color:#fff; border:none;' : 'background:#fff; color:#4a4944; border:0.5px solid #e2e2de;'}">Ambos</button>
+          ${botonSegmentoInforme(informePersonalFuente === 'nominas', "cambiarFuenteInforme('nominas')", 'Nóminas')}
+          ${botonSegmentoInforme(informePersonalFuente === 'extras', "cambiarFuenteInforme('extras')", 'Extras')}
+          ${botonSegmentoInforme(informePersonalFuente === 'ambos', "cambiarFuenteInforme('ambos')", 'Ambos')}
         </div>
+        <div style="display:flex; gap:6px;">
+          ${Object.keys(ETIQUETA_METRICA_INFORME).map(k => botonSegmentoInforme(informePersonalMetrica === k, `cambiarMetricaInforme('${k}')`, ETIQUETA_METRICA_INFORME[k])).join('')}
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+        <div>${mesesHtml}</div>
         <div>
-          <button onclick="marcarTodosMesesInforme(true)" style="font-size:11px; padding:4px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer; margin-right:4px;">Todo el año</button>
+          <button onclick="marcarTodosMesesInforme(true)" style="font-size:11px; padding:4px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">Todo el año</button>
           <button onclick="marcarTodosMesesInforme(false)" style="font-size:11px; padding:4px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">Ninguno</button>
         </div>
       </div>
-      <div>${mesesHtml}</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-top:0.5px solid #efeee9; padding-top:10px;">
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          <span style="font-size:12px; color:#6b6a64; margin-right:4px;">Comparar ${personalGlobal.anio} con:</span>
+          ${chipsAnios || '<span style="font-size:12px; color:#9a988f;">no hay otros años con datos</span>'}
+          ${aniosOpc.length > 1 ? `<button onclick="marcarTodosAniosInforme(true)" style="font-size:11px; padding:3px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer; margin-left:6px;">Todos</button><button onclick="marcarTodosAniosInforme(false)" style="font-size:11px; padding:3px 8px; border-radius:4px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">Ninguno</button>` : ''}
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button onclick="exportarInformePersonalCSV()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">⬇️ Excel</button>
+          <button onclick="window.print()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🖨️ Imprimir / PDF</button>
+        </div>
+      </div>
     </div>
-    <div id="grafico-informe-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;"></div>
-    <div id="tabla-informe-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;"></div>
+    <div id="informe-personal-imprimible">
+      <div id="cabecera-informe-personal"></div>
+      <div id="kpis-informe-personal" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;"></div>
+      <div id="grafico-informe-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;"></div>
+      <div id="tabla-informe-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto; margin-bottom:1rem;"></div>
+      <div id="desglose-informe-personal" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;"></div>
+    </div>
   `;
   renderTablaInformePersonal();
 }
 const PALETA_DEPARTAMENTOS = ['#4C8C2B', '#C24545', '#B8956A', '#3D7C9E', '#8A6D1E', '#7A4C9E', '#C27A45', '#4C9E8C', '#9E4C7A', '#6B6A64'];
 function colorParaFila(nombre, indice) { return PALETA_DEPARTAMENTOS[indice % PALETA_DEPARTAMENTOS.length]; }
-// Barras apiladas por mes (una franja de color por fila = departamento o
-// trabajador) — mismo estilo SVG a mano que ya usa Cierre Mensual
-// (barrasCierreSVG), sin librería de gráficos.
-function graficoInformePersonalSVG(meses, filas, matriz) {
-  if (meses.length === 0 || filas.length === 0) return '';
-  const w = 900, h = 240, padL = 10, padR = 10, padT = 10, padB = 28;
-  const areaW = w - padL - padR, areaH = h - padT - padB;
-  const totalesPorMes = meses.map(m => filas.reduce((s, f) => s + (matriz[f][m] || 0), 0));
-  const max = Math.max(1, ...totalesPorMes);
-  const grupoW = areaW / meses.length;
-  const barW = grupoW * 0.55;
-  // Con muchas filas (ej. "por trabajador" con 20+ personas) apilar todo se
-  // vuelve ilegible — a partir de 12 se colapsa a una sola barra (Total).
-  const demasiadasFilas = filas.length > 12;
-  let barras = '';
-  meses.forEach((m, i) => {
-    const cx = padL + grupoW * i + grupoW / 2;
-    let y = padT + areaH;
-    const segmentos = demasiadasFilas ? [['Total', totalesPorMes[i]]] : filas.map(f => [f, matriz[f][m] || 0]);
-    segmentos.forEach(([nombre, valor], idxFila) => {
-      const hSeg = (valor / max) * areaH;
-      y -= hSeg;
-      barras += `<rect x="${cx - barW / 2}" y="${y}" width="${barW}" height="${hSeg}" fill="${colorParaFila(nombre, idxFila)}" opacity="0.9"><title>${nombre}: ${euros(valor)}</title></rect>`;
-    });
-    barras += `<text x="${cx}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#6b6a64">${MESES_ES_FACTURAS[m].slice(0, 3)}</text>`;
-  });
-  const leyenda = demasiadasFilas ? '' : `
-    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;">
-      ${filas.map((f, idx) => `<span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#6b6a64;"><span style="width:9px; height:9px; border-radius:2px; background:${colorParaFila(f, idx)}; display:inline-block;"></span>${f}</span>`).join('')}
-    </div>`;
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${barras}</svg>${leyenda}`;
+
+// Formato según métrica — tabla (completo) y etiquetas del gráfico (compacto).
+function formatoMetricaInforme(v) {
+  if (v == null) return '—';
+  if (informePersonalMetrica === 'personas') return v.toLocaleString('es-ES', { maximumFractionDigits: 1 });
+  return euros(v);
 }
-function toggleMesInforme(m) {
-  if (informePersonalMeses.has(m)) informePersonalMeses.delete(m); else informePersonalMeses.add(m);
-  renderTablaInformePersonal();
+function formatoCompactoInforme(v) {
+  if (v == null || v === 0) return '';
+  if (informePersonalMetrica === 'personas') return v.toLocaleString('es-ES', { maximumFractionDigits: 1 });
+  return Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + 'k' : Math.round(v).toLocaleString('es-ES');
 }
-function marcarTodosMesesInforme(todos) {
-  informePersonalMeses = new Set(todos ? Array.from({ length: 12 }, (_, i) => i + 1) : []);
-  pintarPersonalInforme();
-}
-function cambiarAgrupacionInforme(tipo) {
-  informePersonalAgrupacion = tipo;
-  pintarPersonalInforme();
-}
-function cambiarFuenteInforme(fuente) {
-  informePersonalFuente = fuente;
-  pintarPersonalInforme();
-}
+
+// Mapas de departamento/fusión (globales, no dependen del año):
 // Por departamento: Nóminas + Extras se suman juntas (misma lista
 // DEPARTAMENTOS_ORUM) usando formato_origen en la clave — el mismo número
 // de trabajador puede ser otra persona según el formato del archivo.
@@ -2189,8 +2216,7 @@ function cambiarFuenteInforme(fuente) {
 // histórico de Resumen Contable 2025 y los extras vinculados aparecen bajo
 // la misma fila que la persona hoy, permitiendo comparar años. Sin
 // fusionar, cada fuente/formato aporta su propia fila etiquetada aparte.
-function renderTablaInformePersonal() {
-  const cont = document.getElementById('tabla-informe-personal');
+function contextoInformePersonal() {
   const mapaDepto = {};
   personalGlobal.departamentos.forEach(d => { mapaDepto[d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado] = d.departamento || 'Personal sin clasificar'; });
   const mapaDeptoExtras = {};
@@ -2202,66 +2228,1019 @@ function renderTablaInformePersonal() {
   const nombreActualPorClave = {};
   personalGlobal.departamentos.filter(d => (d.formato_origen || 'nominas_gestoria') === 'nominas_gestoria')
     .forEach(d => { nombreActualPorClave[d.empresa_nif + '|' + d.num_empleado] = d.nombre; });
-  const variasEmpresas = new Set(personalGlobal.detalle.map(d => d.empresa_nif)).size > 1;
-  const meses = Array.from(informePersonalMeses).sort((a, b) => a - b);
-  const matriz = {};
+  const empresas = new Set(personalGlobal.detalle.map(d => d.empresa_nif));
+  Object.values(personalGlobal.otrosAnios).forEach(o => o.detalle.forEach(d => empresas.add(d.empresa_nif)));
+  const deptos = new Set([...Object.values(mapaDepto), ...Object.values(mapaDeptoExtras)]);
+  const listaDeptos = [...deptos].sort((a, b) => {
+    const ia = DEPARTAMENTOS_ORUM.indexOf(a), ib = DEPARTAMENTOS_ORUM.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, nombreActualPorClave, variasEmpresas: empresas.size > 1, listaDeptos };
+}
+// Fila del informe + departamento + identificador de PERSONA (para contar
+// plantilla sin duplicar: un trabajador con nómina y extras vinculados, o
+// fusionado entre formatos, cuenta una sola vez). Los extras sin vincular
+// (eventuales) cuentan como persona propia.
+function claveNominaInforme(d, ctx) {
+  const formato = d.formato_origen || 'nominas_gestoria';
+  const canonico = formato === 'nominas_gestoria' ? null : ctx.mapaAliasEmpleado[d.empresa_nif + '|' + formato + '|' + d.num_empleado];
+  let persona;
+  if (formato === 'nominas_gestoria') persona = d.empresa_nif + '|' + d.num_empleado;
+  else persona = canonico != null ? d.empresa_nif + '|' + canonico : formato + '|' + d.empresa_nif + '|' + d.num_empleado;
+  const depto = ctx.mapaDepto[d.empresa_nif + '|' + formato + '|' + d.num_empleado] || 'Personal sin clasificar';
+  let fila;
+  if (agrupacionEfectivaInforme() === 'departamento') fila = depto;
+  else if (formato !== 'nominas_gestoria') {
+    const nombreFusionado = canonico != null ? ctx.nombreActualPorClave[d.empresa_nif + '|' + canonico] : null;
+    fila = nombreFusionado || (d.nombre + ' (histórico, sin fusionar)');
+  } else {
+    fila = d.nombre + (ctx.variasEmpresas ? ' (' + d.empresa_nombre + ')' : '');
+  }
+  return { fila, persona, depto };
+}
+function claveExtraInforme(e, ctx) {
+  const claveEmpleado = ctx.mapaAliasExtras[e.nombre]; // "empresaNif|numEmpleado", siempre nominas_gestoria
+  const persona = claveEmpleado || ('extra|' + e.nombre);
+  const claveDepto = claveEmpleado ? claveEmpleado.replace('|', '|nominas_gestoria|') : null;
+  const depto = (claveDepto && ctx.mapaDepto[claveDepto]) || ctx.mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
+  const fila = agrupacionEfectivaInforme() === 'departamento' ? depto
+    : ((claveEmpleado && ctx.nombreActualPorClave[claveEmpleado]) || (e.nombre + ' · Extras'));
+  return { fila, persona, depto };
+}
+// Cubo fila × mes con importe y conjunto de personas, más totales por mes
+// y el desglose por fila (bruto / coste empresa / extras) del periodo.
+function cuboInformePersonal(detalle, extras, meses, ctx) {
+  const c = { importe: {}, personas: {}, importeMes: {}, personasMes: {}, personasPeriodo: new Set(), totalNominas: 0, totalExtras: 0, desglose: {}, personaFila: {} };
+  const sumar = (fila, persona, mes, valor) => {
+    if (!c.importe[fila]) { c.importe[fila] = {}; c.personas[fila] = {}; c.desglose[fila] = { bruto: 0, ssTrab: 0, irpf: 0, neto: 0, nominas: 0, extras: 0, personas: new Set() }; c.personaFila[fila] = persona; }
+    c.importe[fila][mes] = (c.importe[fila][mes] || 0) + valor;
+    (c.personas[fila][mes] = c.personas[fila][mes] || new Set()).add(persona);
+    (c.personasMes[mes] = c.personasMes[mes] || new Set()).add(persona);
+    c.importeMes[mes] = (c.importeMes[mes] || 0) + valor;
+    c.personasPeriodo.add(persona);
+    c.desglose[fila].personas.add(persona);
+  };
   if (informePersonalFuente !== 'extras') {
-    personalGlobal.detalle.forEach(d => {
-      if (!meses.includes(parseInt(d.mes))) return;
-      let fila;
-      if (informePersonalAgrupacion === 'departamento') {
-        fila = mapaDepto[d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado] || 'Personal sin clasificar';
-      } else if ((d.formato_origen || 'nominas_gestoria') !== 'nominas_gestoria') {
-        const canonico = mapaAliasEmpleado[d.empresa_nif + '|' + d.formato_origen + '|' + d.num_empleado];
-        const nombreFusionado = canonico != null ? nombreActualPorClave[d.empresa_nif + '|' + canonico] : null;
-        fila = nombreFusionado || (d.nombre + ' (histórico, sin fusionar)');
-      } else {
-        fila = d.nombre + (variasEmpresas ? ' (' + d.empresa_nombre + ')' : '');
-      }
-      if (!matriz[fila]) matriz[fila] = {};
-      matriz[fila][d.mes] = (matriz[fila][d.mes] || 0) + (parseFloat(d.coste_total) || 0);
+    detalle.forEach(d => {
+      const mes = parseInt(d.mes);
+      if (!meses.includes(mes)) return;
+      const { fila, persona, depto } = claveNominaInforme(d, ctx);
+      if (informePersonalDepto && depto !== informePersonalDepto) return;
+      const v = parseFloat(d.coste_total) || 0;
+      c.totalNominas += v;
+      sumar(fila, persona, mes, v);
+      c.desglose[fila].nominas += v;
+      c.desglose[fila].bruto += parseFloat(d.bruto) || 0;
+      c.desglose[fila].ssTrab += (parseFloat(d.total_ss) || 0) - (parseFloat(d.ss_empresa) || 0);
+      c.desglose[fila].irpf += Math.abs(parseFloat(d.dcto_irpf) || 0);
+      c.desglose[fila].neto += parseFloat(d.neto) || 0;
     });
   }
   if (informePersonalFuente !== 'nominas') {
-    personalGlobal.extras.forEach(e => {
-      if (!meses.includes(parseInt(e.mes))) return;
-      let fila;
-      if (informePersonalAgrupacion === 'departamento') {
-        const empresaNumEmpleado = mapaAliasExtras[e.nombre]; // "empresaNif|numEmpleado", siempre nominas_gestoria
-        const claveDepto = empresaNumEmpleado ? empresaNumEmpleado.replace('|', '|nominas_gestoria|') : null;
-        fila = (claveDepto && mapaDepto[claveDepto]) || mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
-      } else {
-        const claveEmpleado = mapaAliasExtras[e.nombre]; // "empresaNif|numEmpleado", siempre nominas_gestoria
-        fila = (claveEmpleado && nombreActualPorClave[claveEmpleado]) || (e.nombre + ' · Extras');
-      }
-      if (!matriz[fila]) matriz[fila] = {};
-      matriz[fila][e.mes] = (matriz[fila][e.mes] || 0) + (parseFloat(e.importe) || 0);
+    extras.forEach(e => {
+      const mes = parseInt(e.mes);
+      if (!meses.includes(mes)) return;
+      const { fila, persona, depto } = claveExtraInforme(e, ctx);
+      if (informePersonalDepto && depto !== informePersonalDepto) return;
+      const v = parseFloat(e.importe) || 0;
+      c.totalExtras += v;
+      sumar(fila, persona, mes, v);
+      c.desglose[fila].extras += v;
     });
   }
-  const filas = Object.keys(matriz).sort((a, b) => a.localeCompare(b));
+  c.filas = Object.keys(c.importe);
+  c.mesesConDatos = meses.filter(m => c.personasMes[m]);
+  return c;
+}
+// Valor de un mes para una fila (fila null = total de todas las filas).
+function valorMesInforme(c, fila, mes) {
+  const imp = fila ? ((c.importe[fila] || {})[mes] || 0) : (c.importeMes[mes] || 0);
+  const n = fila ? (((c.personas[fila] || {})[mes] || { size: 0 }).size) : ((c.personasMes[mes] || { size: 0 }).size);
+  if (informePersonalMetrica === 'importe') return imp;
+  if (informePersonalMetrica === 'personas') return n;
+  return n ? imp / n : null;
+}
+// Valor del periodo: importe = suma; personas = plantilla media (media
+// mensual sobre los meses con datos); medio = importe / (personas × mes).
+function valorPeriodoInforme(c, fila, meses) {
+  let imp = 0, personasMes = 0;
+  meses.forEach(m => {
+    imp += fila ? ((c.importe[fila] || {})[m] || 0) : (c.importeMes[m] || 0);
+    personasMes += fila ? (((c.personas[fila] || {})[m] || { size: 0 }).size) : ((c.personasMes[m] || { size: 0 }).size);
+  });
+  if (informePersonalMetrica === 'importe') return imp;
+  if (informePersonalMetrica === 'personas') return meses.length ? personasMes / meses.length : 0;
+  return personasMes ? imp / personasMes : null;
+}
+// Importe del periodo de una fila (o total con fila null) — para ordenar
+// siempre por peso económico, sea cual sea la métrica mostrada.
+function valorImporteFila(c, fila, meses) {
+  return meses.reduce((s, m) => s + (fila ? ((c.importe[fila] || {})[m] || 0) : (c.importeMes[m] || 0)), 0);
+}
+function deltaInformeHtml(actual, anterior, esCoste) {
+  if (actual == null || anterior == null) return '<span style="color:#9a988f;">—</span>';
+  const diff = actual - anterior;
+  const pct = anterior ? diff / Math.abs(anterior) : null;
+  const color = !esCoste || Math.abs(diff) < 1e-9 ? '#4a4944' : (diff > 0 ? '#A32D2D' : '#27500A');
+  const flecha = Math.abs(diff) < 1e-9 ? '' : (diff > 0 ? '▲ ' : '▼ ');
+  return `<span style="color:${color};">${flecha}${pct == null ? 'nuevo' : (pct * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' %'}</span>`;
+}
+// Tendencia de una serie (años ascendentes): "Sube"/"Baja" si todos los
+// pasos van en el mismo sentido (±1 % se considera estable), "Estable" si
+// ninguno se mueve, "Irregular" si alterna.
+function tendenciaSerieInforme(valores) {
+  const v = valores.filter(x => x != null);
+  if (v.length < 2) return { etiqueta: '—', color: '#9a988f' };
+  let sube = 0, baja = 0;
+  for (let i = 1; i < v.length; i++) {
+    const rel = v[i - 1] ? (v[i] - v[i - 1]) / Math.abs(v[i - 1]) : (v[i] > 0 ? 1 : 0);
+    if (rel > 0.01) sube++; else if (rel < -0.01) baja++;
+  }
+  if (sube && !baja) return { etiqueta: '▲ Sube', color: '#A32D2D' };
+  if (baja && !sube) return { etiqueta: '▼ Baja', color: '#27500A' };
+  if (!sube && !baja) return { etiqueta: '= Estable', color: '#4a4944' };
+  return { etiqueta: '↕ Irregular', color: '#854F0B' };
+}
+function sparklineInforme(valores, w = 70, h = 20) {
+  const v = valores.map(x => x == null ? 0 : x);
+  if (v.length < 2) return '';
+  const max = Math.max(...v), min = Math.min(...v), rango = max - min || 1;
+  const pts = v.map((x, i) => `${(i / (v.length - 1)) * (w - 4) + 2},${h - 2 - ((x - min) / rango) * (h - 4)}`);
+  const ultimo = pts[pts.length - 1].split(',');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="vertical-align:middle;"><polyline points="${pts.join(' ')}" fill="none" stroke="#3D7C9E" stroke-width="1.5"/><circle cx="${ultimo[0]}" cy="${ultimo[1]}" r="2.2" fill="#3D7C9E"/></svg>`;
+}
+
+// Barras apiladas por mes (una franja de color por fila = departamento o
+// trabajador) — mismo estilo SVG a mano que ya usa Cierre Mensual
+// (barrasCierreSVG), sin librería de gráficos. En "coste medio" no tiene
+// sentido apilar medias → una sola barra con la media del mes.
+function graficoInformePersonalSVG(meses, c) {
+  if (meses.length === 0 || c.filas.length === 0) return '';
+  const w = 900, h = 250, padL = 10, padR = 10, padT = 20, padB = 28;
+  const areaW = w - padL - padR, areaH = h - padT - padB;
+  const totalesPorMes = meses.map(m => valorMesInforme(c, null, m) || 0);
+  const max = Math.max(1, ...totalesPorMes);
+  const grupoW = areaW / meses.length;
+  const barW = grupoW * 0.55;
+  // Con muchas filas (ej. "por trabajador" con 20+ personas) apilar todo se
+  // vuelve ilegible — a partir de 12 se colapsa a una sola barra (Total).
+  const unaSolaBarra = c.filas.length > 12 || informePersonalMetrica === 'medio';
+  const filasOrdenadas = [...c.filas].sort((a, b) => valorImporteFila(c, b, meses) - valorImporteFila(c, a, meses));
+  let barras = '';
+  meses.forEach((m, i) => {
+    const cx = padL + grupoW * i + grupoW / 2;
+    let y = padT + areaH;
+    const segmentos = unaSolaBarra ? [['Total', totalesPorMes[i]]] : filasOrdenadas.map(f => [f, valorMesInforme(c, f, m) || 0]);
+    segmentos.forEach(([nombre, valor], idxFila) => {
+      const hSeg = (valor / max) * areaH;
+      y -= hSeg;
+      barras += `<rect x="${cx - barW / 2}" y="${y}" width="${barW}" height="${hSeg}" fill="${unaSolaBarra ? '#3D7C9E' : colorParaFila(nombre, idxFila)}" opacity="0.9"><title>${nombre} · ${MESES_ES_FACTURAS[m]}: ${formatoMetricaInforme(valor)}</title></rect>`;
+    });
+    barras += `<text x="${cx}" y="${y - 5}" text-anchor="middle" font-size="10" fill="#4a4944">${formatoCompactoInforme(totalesPorMes[i])}</text>`;
+    barras += `<text x="${cx}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#6b6a64">${MESES_ES_FACTURAS[m].slice(0, 3)}</text>`;
+  });
+  const leyenda = unaSolaBarra ? '' : `
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;">
+      ${filasOrdenadas.map((f, idx) => `<span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#6b6a64;"><span style="width:9px; height:9px; border-radius:2px; background:${colorParaFila(f, idx)}; display:inline-block;"></span>${f}</span>`).join('')}
+    </div>`;
+  return `<p style="font-size:13px; font-weight:500; margin:0 0 6px;">Evolución mensual · ${ETIQUETA_METRICA_INFORME[informePersonalMetrica]}${informePersonalMetrica === 'medio' ? ' (media del mes)' : ''}</p><svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${barras}</svg>${leyenda}`;
+}
+// Comparativa multi-año: arriba una barra por año con el valor del periodo
+// (lo que responde a "¿sube o baja?"), debajo barras agrupadas por mes
+// (una por año) para ver en qué meses se produce la diferencia.
+function graficoMultiAnioPersonalSVG(meses, anios, cubos) {
+  const n = anios.length;
+  const leyenda = `<div style="display:flex; gap:14px; margin-top:8px; font-size:11px; color:#6b6a64;">${anios.map((a, i) => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:9px; height:9px; border-radius:2px; background:${colorAnioInforme(i, n)}; display:inline-block;"></span>${a}</span>`).join('')}</div>`;
+  // Evolución anual
+  const totales = anios.map(a => valorPeriodoInforme(cubos[a], null, meses) || 0);
+  const wA = 900, hA = 150, padTA = 20, padBA = 24, areaHA = hA - padTA - padBA;
+  const maxA = Math.max(1, ...totales);
+  const anchoA = Math.min(120, (wA - 20) / n * 0.5);
+  let barrasA = '';
+  anios.forEach((a, i) => {
+    const cx = 10 + ((wA - 20) / n) * i + ((wA - 20) / n) / 2;
+    const hb = (totales[i] / maxA) * areaHA;
+    const y = padTA + areaHA - hb;
+    barrasA += `<rect x="${cx - anchoA / 2}" y="${y}" width="${anchoA}" height="${hb}" fill="${colorAnioInforme(i, n)}"><title>${a}: ${formatoMetricaInforme(totales[i])}</title></rect>`;
+    const pct = i > 0 && totales[i - 1] ? ((totales[i] - totales[i - 1]) / Math.abs(totales[i - 1]) * 100) : null;
+    barrasA += `<text x="${cx}" y="${y - 5}" text-anchor="middle" font-size="11" fill="#1a1a18" font-weight="500">${formatoCompactoInforme(totales[i])}${pct == null ? '' : ` (${pct > 0 ? '+' : ''}${pct.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %)`}</text>`;
+    barrasA += `<text x="${cx}" y="${hA - 6}" text-anchor="middle" font-size="12" fill="#4a4944">${a}</text>`;
+  });
+  // Mensual agrupado
+  const w = 900, h = 230, padL = 10, padR = 10, padT = 18, padB = 26;
+  const areaW = w - padL - padR, areaH = h - padT - padB;
+  const valores = anios.map(a => meses.map(m => valorMesInforme(cubos[a], null, m) || 0));
+  const max = Math.max(1, ...valores.flat());
+  const grupoW = areaW / meses.length;
+  const barW = Math.min(30, (grupoW * 0.8) / n);
+  let barras = '';
+  meses.forEach((m, j) => {
+    const cx = padL + grupoW * j + grupoW / 2;
+    const x0 = cx - (barW * n) / 2;
+    anios.forEach((a, i) => {
+      const v = valores[i][j];
+      const hb = (v / max) * areaH;
+      barras += `<rect x="${x0 + barW * i}" y="${padT + areaH - hb}" width="${barW - 1}" height="${hb}" fill="${colorAnioInforme(i, n)}"><title>${MESES_ES_FACTURAS[m]} ${a}: ${formatoMetricaInforme(v)}</title></rect>`;
+    });
+    barras += `<text x="${cx}" y="${h - 8}" text-anchor="middle" font-size="11" fill="#6b6a64">${MESES_ES_FACTURAS[m].slice(0, 3)}</text>`;
+  });
+  return `
+    <p style="font-size:13px; font-weight:500; margin:0 0 6px;">Evolución anual · ${ETIQUETA_METRICA_INFORME[informePersonalMetrica]}${informePersonalMetrica === 'importe' ? '' : (informePersonalMetrica === 'personas' ? ' (plantilla media)' : ' (por persona y mes)')}</p>
+    <svg viewBox="0 0 ${wA} ${hA}" style="width:100%; height:auto;">${barrasA}</svg>
+    <p style="font-size:13px; font-weight:500; margin:14px 0 6px;">Mes a mes</p>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${barras}</svg>${leyenda}`;
+}
+function toggleMesInforme(m) {
+  if (informePersonalMeses.has(m)) informePersonalMeses.delete(m); else informePersonalMeses.add(m);
+  renderTablaInformePersonal();
+}
+function marcarTodosMesesInforme(todos) {
+  informePersonalMeses = new Set(todos ? Array.from({ length: 12 }, (_, i) => i + 1) : []);
+  pintarPersonalInforme();
+}
+function cambiarAgrupacionInforme(tipo) { informePersonalAgrupacion = tipo; pintarPersonalInforme(); }
+function cambiarFuenteInforme(fuente) { informePersonalFuente = fuente; pintarPersonalInforme(); }
+function cambiarMetricaInforme(metrica) { informePersonalMetrica = metrica; pintarPersonalInforme(); }
+function cambiarDeptoInforme(depto) { informePersonalDepto = depto || null; pintarPersonalInforme(); }
+function toggleAnioCompararInforme(anio) {
+  if (informePersonalAniosComparar.has(anio)) informePersonalAniosComparar.delete(anio); else informePersonalAniosComparar.add(anio);
+  pintarPersonalInforme();
+}
+function marcarTodosAniosInforme(todos) {
+  informePersonalAniosComparar = new Set(todos ? personalGlobal.aniosDisponibles.filter(a => a !== personalGlobal.anio) : []);
+  pintarPersonalInforme();
+}
+// Cada año a comparar se pide una sola vez (se descarta al recargar datos).
+async function asegurarAniosCompararPersonal(anios) {
+  const faltan = anios.filter(a => !personalGlobal.otrosAnios[a]);
+  await Promise.all(faltan.map(async a => {
+    const resp = await fetch('/api/nominas/anio?anio=' + a);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    personalGlobal.otrosAnios[a] = { detalle: data.detalle || [], extras: data.extras || [], movimientos: data.movimientos || [] };
+  }));
+}
+// KPI con la serie de años (ascendente, el último = año seleccionado):
+// valor actual + Δ vs el año anterior de la serie + minigráfico si hay 3+.
+function kpiInformeHtml(etiqueta, serie, formato, esCoste) {
+  const actual = serie[serie.length - 1];
+  let extra = '';
+  if (serie.length > 1) {
+    const prev = serie[serie.length - 2];
+    extra = `<div style="font-size:11px; font-weight:400; margin-top:2px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${deltaInformeHtml(actual.v, prev.v, esCoste)} <span style="color:#9a988f;">vs ${prev.anio} (${formato(prev.v)})</span>${serie.length > 2 ? sparklineInforme(serie.map(s => s.v), 56, 16) : ''}</div>`;
+  }
+  return kpiCard(etiqueta, formato(actual.v) + extra);
+}
+function textoPeriodoInforme(meses) {
+  if (meses.length === 12) return 'Año completo';
+  if (meses.length === 1) return MESES_ES_FACTURAS[meses[0]];
+  const consecutivos = meses.every((m, i) => i === 0 || m === meses[i - 1] + 1);
+  return consecutivos ? MESES_ES_FACTURAS[meses[0]].slice(0, 3) + '–' + MESES_ES_FACTURAS[meses[meses.length - 1]].slice(0, 3) + ' (' + meses.length + ' meses)'
+    : meses.map(m => MESES_ES_FACTURAS[m].slice(0, 3)).join(', ');
+}
+function abrirDeptoInforme(depto) { informePersonalDepto = depto; pintarPersonalInforme(); }
+
+function renderTablaInformePersonal() {
+  const cont = document.getElementById('tabla-informe-personal');
+  if (!cont) return;
   const graficoDiv = document.getElementById('grafico-informe-personal');
-  if (filas.length === 0 || meses.length === 0) {
-    cont.innerHTML = '<p style="padding:1.5rem; color:#9a988f; font-size:13px;">Selecciona al menos un mes con datos.</p>';
-    if (graficoDiv) graficoDiv.innerHTML = '';
+  const kpisDiv = document.getElementById('kpis-informe-personal');
+  const desgloseDiv = document.getElementById('desglose-informe-personal');
+  const cabeceraDiv = document.getElementById('cabecera-informe-personal');
+  const aniosComparar = [...informePersonalAniosComparar].filter(a => a !== personalGlobal.anio).sort((a, b) => a - b);
+  if (aniosComparar.some(a => !personalGlobal.otrosAnios[a])) {
+    cont.innerHTML = '<p class="loading-text" style="padding:1.5rem;">Cargando ' + aniosComparar.filter(a => !personalGlobal.otrosAnios[a]).join(', ') + '...</p>';
+    asegurarAniosCompararPersonal(aniosComparar).then(renderTablaInformePersonal).catch(err => {
+      alert('No se pudieron cargar los años a comparar: ' + err.message);
+      informePersonalAniosComparar = new Set();
+      pintarPersonalInforme();
+    });
     return;
   }
-  if (graficoDiv) graficoDiv.innerHTML = graficoInformePersonalSVG(meses, filas, matriz);
-  const cabeceraMeses = meses.map(m => `<th style="text-align:right;">${MESES_ES_FACTURAS[m].slice(0, 3)}</th>`).join('');
-  const filasHtml = filas.map(f => {
-    const celdas = meses.map(m => `<td style="text-align:right;">${euros(matriz[f][m] || 0)}</td>`).join('');
-    const total = meses.reduce((s, m) => s + (matriz[f][m] || 0), 0);
-    return `<tr><td>${f}</td>${celdas}<td style="text-align:right; font-weight:500;">${euros(total)}</td></tr>`;
-  }).join('');
-  const totalesPorMes = meses.map(m => filas.reduce((s, f) => s + (matriz[f][m] || 0), 0));
-  const granTotal = totalesPorMes.reduce((s, v) => s + v, 0);
-  const celdasTotales = totalesPorMes.map(t => `<td style="text-align:right;">${euros(t)}</td>`).join('');
-  cont.innerHTML = `
+  const ctx = contextoInformePersonal();
+  const datosAnio = (a) => a === personalGlobal.anio ? personalGlobal : personalGlobal.otrosAnios[a];
+  const mesesSeleccionados = Array.from(informePersonalMeses).sort((a, b) => a - b);
+  const todosAnios = [...aniosComparar, personalGlobal.anio].sort((a, b) => a - b);
+  // Años sin ningún dato en los meses elegidos se apartan (no vaciarían la
+  // intersección de meses del resto) y se avisa.
+  const mesesPorAnio = {};
+  todosAnios.forEach(a => { mesesPorAnio[a] = cuboInformePersonal(datosAnio(a).detalle, datosAnio(a).extras, mesesSeleccionados, ctx).mesesConDatos; });
+  const anios = todosAnios.filter(a => a === personalGlobal.anio || mesesPorAnio[a].length > 0);
+  const aniosSinDatos = todosAnios.filter(a => !anios.includes(a));
+  const meses = mesesSeleccionados.filter(m => anios.every(a => mesesPorAnio[a].includes(m)));
+  const cubos = {};
+  anios.forEach(a => { cubos[a] = cuboInformePersonal(datosAnio(a).detalle, datosAnio(a).extras, meses, ctx); });
+  const cAct = cubos[personalGlobal.anio];
+  const multi = anios.length > 1;
+
+  const ambito = informePersonalDepto ? 'Departamento: ' + informePersonalDepto : (informePersonalAgrupacion === 'departamento' ? 'Todos los departamentos' : 'Todos los trabajadores');
+  cabeceraDiv.innerHTML = `
+    ${informePersonalDepto ? `<div class="no-imprimir" style="margin-bottom:10px;"><span onclick="cambiarDeptoInforme('')" style="font-size:12px; color:#3D7C9E; cursor:pointer;">← Todos los departamentos</span> <span style="font-size:15px; font-weight:600; margin-left:8px;">${informePersonalDepto}</span></div>` : ''}
+    <div class="solo-impresion" style="margin-bottom:12px;">
+      <p style="font-size:18px; font-weight:600; margin:0;">Informe de Personal · ${ambito}</p>
+      <p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">${ETIQUETA_FUENTE_INFORME[informePersonalFuente]} · ${ETIQUETA_METRICA_INFORME[informePersonalMetrica]} · ${meses.length ? textoPeriodoInforme(meses) : '—'} · ${anios.join(' / ')} · generado ${new Date().toLocaleDateString('es-ES')}</p>
+    </div>
+    ${aniosSinDatos.length ? `<p class="no-imprimir" style="font-size:12px; color:#854F0B; margin:0 0 10px;">Sin datos en los meses elegidos: ${aniosSinDatos.join(', ')} (no se comparan).</p>` : ''}
+  `;
+  informePersonalExport = [];
+  if (meses.length === 0 || cAct.filas.length === 0) {
+    const msg = multi || aniosSinDatos.length
+      ? 'Ninguno de los meses seleccionados tiene datos en todos los años a la vez (' + todosAnios.join(', ') + ').'
+      : 'Selecciona al menos un mes con datos.';
+    cont.innerHTML = '<p style="padding:1.5rem; color:#9a988f; font-size:13px;">' + msg + '</p>';
+    graficoDiv.innerHTML = ''; kpisDiv.innerHTML = ''; desgloseDiv.innerHTML = ''; desgloseDiv.style.display = 'none';
+    return;
+  }
+
+  // ── KPIs del periodo (serie por año) ──
+  const resumen = (c) => {
+    let imp = 0, personasMes = 0;
+    meses.forEach(m => { imp += c.importeMes[m] || 0; personasMes += (c.personasMes[m] || { size: 0 }).size; });
+    return { coste: imp, plantilla: personasMes / meses.length, distintas: c.personasPeriodo.size, medio: personasMes ? imp / personasMes : null, pctExtras: imp ? c.totalExtras / imp : null };
+  };
+  const res = anios.map(a => ({ anio: a, r: resumen(cubos[a]) }));
+  const serie = (k) => res.map(x => ({ anio: x.anio, v: x.r[k] }));
+  const fmtNum = (v) => v == null ? '—' : v.toLocaleString('es-ES', { maximumFractionDigits: 1 });
+  const fmtPct = (v) => v == null ? '—' : (v * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' %';
+  const fmtEur = (v) => v == null ? '—' : euros(v);
+  kpisDiv.innerHTML =
+    kpiInformeHtml('Coste total · ' + textoPeriodoInforme(meses) + (multi ? ' · ' + personalGlobal.anio : ''), serie('coste'), fmtEur, true) +
+    kpiInformeHtml('Plantilla media (personas/mes)', serie('plantilla'), fmtNum, false) +
+    kpiInformeHtml('Personas distintas en el periodo', serie('distintas'), fmtNum, false) +
+    kpiInformeHtml('Coste medio persona/mes', serie('medio'), fmtEur, true) +
+    (informePersonalFuente === 'ambos' ? kpiInformeHtml('Peso de extras sobre el total', serie('pctExtras'), fmtPct, true) : '');
+
+  graficoDiv.innerHTML = multi ? graficoMultiAnioPersonalSVG(meses, anios, cubos) : graficoInformePersonalSVG(meses, cAct);
+
+  const etiquetaFila = agrupacionEfectivaInforme() === 'departamento' ? 'Departamento' : 'Trabajador';
+  const esCoste = informePersonalMetrica !== 'personas';
+  const clicable = agrupacionEfectivaInforme() === 'departamento';
+  // Departamento → detalle por trabajador; trabajador → su ficha.
+  const personaDeFila = (f) => { for (const a of anios) { if (cubos[a].personaFila[f]) return cubos[a].personaFila[f]; } return null; };
+  const celdaFila = (f) => {
+    if (clicable) return `<td><span onclick="abrirDeptoInforme('${escaparAtributoInforme(f)}')" style="cursor:pointer; color:#1a1a18; text-decoration:underline; text-decoration-color:#c9c7bf;" title="Ver el detalle por trabajador">${f}</span></td>`;
+    const persona = personaDeFila(f);
+    return persona ? `<td><span onclick="abrirFichaTrabajador('${escaparAtributoInforme(persona)}')" style="cursor:pointer; color:#1a1a18; text-decoration:underline; text-decoration-color:#c9c7bf;" title="Ver la ficha del trabajador">${f}</span></td>` : `<td>${f}</td>`;
+  };
+  const subtituloMetrica = informePersonalMetrica === 'importe' ? '' : (informePersonalMetrica === 'personas' ? ' (media mensual)' : ' (por persona y mes)');
+  const numExport = (v) => v == null ? '' : v;
+
+  if (multi) {
+    // ── Comparativa: una columna por año (con Δ vs el anterior), Δ total y tendencia ──
+    const primero = anios[0], ultimo = anios[anios.length - 1];
+    const filas = Array.from(new Set(anios.flatMap(a => cubos[a].filas)))
+      .map(f => ({ f, valores: anios.map(a => cubos[a].importe[f] ? valorPeriodoInforme(cubos[a], f, meses) : null) }))
+      .sort((x, y) => valorImporteFila(cAct, y.f, meses) - valorImporteFila(cAct, x.f, meses) || x.f.localeCompare(y.f));
+    const celdasAnios = (valores) => valores.map((v, i) => {
+      const prev = i > 0 ? valores[i - 1] : null;
+      const sub = i > 0 && v != null && prev != null ? `<div style="font-size:10.5px;">${deltaInformeHtml(v, prev, esCoste)}</div>` : (i > 0 && v != null && prev == null ? '<div style="font-size:10.5px; color:#9a988f;">nuevo</div>' : '');
+      return `<td style="text-align:right; ${i === valores.length - 1 ? 'font-weight:500;' : 'color:#4a4944;'}">${v == null ? '<span style="color:#c9c7bf;">—</span>' : formatoMetricaInforme(v)}${sub}</td>`;
+    }).join('');
+    const filaHtml = (celdaNombre, valores, esTotal) => {
+      const t = tendenciaSerieInforme(valores);
+      const vPrimero = valores[0], vUltimo = valores[valores.length - 1];
+      return `<tr ${esTotal ? 'style="background:#f7f6f2; font-weight:500;"' : ''}>${celdaNombre}${celdasAnios(valores)}
+        <td style="text-align:right;">${vPrimero != null && vUltimo != null ? deltaInformeHtml(vUltimo, vPrimero, esCoste) : '—'}</td>
+        <td style="white-space:nowrap;">${sparklineInforme(valores)} <span style="font-size:11px; color:${t.color}; margin-left:4px;">${t.etiqueta}</span></td></tr>`;
+    };
+    const totalValores = anios.map(a => valorPeriodoInforme(cubos[a], null, meses));
+    cont.innerHTML = `
+      <p style="font-size:12px; color:#6b6a64; margin:0; padding:10px 12px 0;">${ETIQUETA_METRICA_INFORME[informePersonalMetrica]}${subtituloMetrica} · solo meses con datos en todos los años: ${textoPeriodoInforme(meses)}. Debajo de cada año, el cambio frente al año anterior.${clicable ? ' Pulsa un departamento para ver sus trabajadores.' : ''}</p>
+      <table>
+        <thead><tr><th>${etiquetaFila}</th>${anios.map(a => `<th style="text-align:right;">${a}</th>`).join('')}<th style="text-align:right;">Δ ${primero}→${ultimo}</th><th>Tendencia</th></tr></thead>
+        <tbody>${filas.map(x => filaHtml(celdaFila(x.f), x.valores, false)).join('')}</tbody>
+        <tfoot>${filaHtml('<td>Total</td>', totalValores, true)}</tfoot>
+      </table>
+    `;
+    const pctTotal = (vs) => vs[0] != null && vs[vs.length - 1] != null && vs[0] ? (vs[vs.length - 1] - vs[0]) / Math.abs(vs[0]) : null;
+    informePersonalExport.push({
+      titulo: 'Comparativa ' + anios.join('-') + ' · ' + ETIQUETA_METRICA_INFORME[informePersonalMetrica] + subtituloMetrica + ' · ' + textoPeriodoInforme(meses),
+      cabecera: [etiquetaFila, ...anios.map(String), 'Δ % ' + primero + '→' + ultimo, 'Tendencia'],
+      filas: [...filas.map(x => [x.f, ...x.valores.map(numExport), numExport(pctTotal(x.valores) == null ? null : pctTotal(x.valores) * 100), tendenciaSerieInforme(x.valores).etiqueta.replace(/^[^A-Za-z]+/, '')]),
+        ['Total', ...totalValores.map(numExport), numExport(pctTotal(totalValores) == null ? null : pctTotal(totalValores) * 100), tendenciaSerieInforme(totalValores).etiqueta.replace(/^[^A-Za-z]+/, '')]]
+    });
+  } else {
+    // ── Un año: fila × mes + total/media (+ % sobre el total en importe) ──
+    const filas = [...cAct.filas].sort((a, b) => valorImporteFila(cAct, b, meses) - valorImporteFila(cAct, a, meses) || a.localeCompare(b));
+    const granImporte = valorImporteFila(cAct, null, meses);
+    const conPct = informePersonalMetrica === 'importe';
+    const etiquetaTotal = informePersonalMetrica === 'importe' ? 'Total' : 'Media';
+    const cabeceraMeses = meses.map(m => `<th style="text-align:right;">${MESES_ES_FACTURAS[m].slice(0, 3)}</th>`).join('');
+    const filasHtml = filas.map(f => {
+      const celdas = meses.map(m => {
+        const v = valorMesInforme(cAct, f, m);
+        return `<td style="text-align:right;">${v ? formatoMetricaInforme(v) : '<span style="color:#c9c7bf;">—</span>'}</td>`;
+      }).join('');
+      const pct = conPct ? `<td style="text-align:right; color:#6b6a64;">${granImporte ? (valorImporteFila(cAct, f, meses) / granImporte * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' %' : '—'}</td>` : '';
+      return `<tr>${celdaFila(f)}${celdas}<td style="text-align:right; font-weight:500;">${formatoMetricaInforme(valorPeriodoInforme(cAct, f, meses))}</td>${pct}</tr>`;
+    }).join('');
+    const celdasTotales = meses.map(m => `<td style="text-align:right;">${formatoMetricaInforme(valorMesInforme(cAct, null, m))}</td>`).join('');
+    const notaMetrica = informePersonalMetrica === 'personas'
+      ? 'Personas con coste en el mes (nómina y/o extras; quien tiene ambas cuenta una vez si está vinculado en Config). La columna Media es la plantilla media del periodo.'
+      : informePersonalMetrica === 'medio' ? 'Coste del mes ÷ personas con coste ese mes. La columna Media = coste total ÷ (personas × meses).' : '';
+    const notaClic = clicable ? ' Pulsa un departamento para ver sus trabajadores.' : '';
+    cont.innerHTML = `
+      ${notaMetrica || notaClic ? `<p style="font-size:12px; color:#6b6a64; margin:0; padding:10px 12px 0;">${notaMetrica}${notaClic}</p>` : ''}
+      <table>
+        <thead><tr><th>${etiquetaFila}</th>${cabeceraMeses}<th style="text-align:right;">${etiquetaTotal}</th>${conPct ? '<th style="text-align:right;">% total</th>' : ''}</tr></thead>
+        <tbody>${filasHtml}</tbody>
+        <tfoot><tr style="background:#f7f6f2; font-weight:500;"><td>Total</td>${celdasTotales}<td style="text-align:right;">${formatoMetricaInforme(valorPeriodoInforme(cAct, null, meses))}</td>${conPct ? '<td style="text-align:right;">100 %</td>' : ''}</tr></tfoot>
+      </table>
+    `;
+    informePersonalExport.push({
+      titulo: personalGlobal.anio + ' · ' + ETIQUETA_METRICA_INFORME[informePersonalMetrica] + ' por mes',
+      cabecera: [etiquetaFila, ...meses.map(m => MESES_ES_FACTURAS[m]), etiquetaTotal].concat(conPct ? ['% total'] : []),
+      filas: [...filas.map(f => [f, ...meses.map(m => numExport(valorMesInforme(cAct, f, m))), numExport(valorPeriodoInforme(cAct, f, meses))].concat(conPct ? [granImporte ? valorImporteFila(cAct, f, meses) / granImporte * 100 : ''] : [])),
+        ['Total', ...meses.map(m => numExport(valorMesInforme(cAct, null, m))), numExport(valorPeriodoInforme(cAct, null, meses))].concat(conPct ? [100] : [])]
+    });
+  }
+
+  // ── Desglose detallado del periodo (año seleccionado): de qué se compone
+  // el coste de cada fila. Del bruto salen SS a cargo del trabajador, IRPF,
+  // otros descuentos y el neto que cobra; "SS empresa" = coste total nómina −
+  // bruto (Seg. Social a cargo de la empresa y demás), igual en ambos
+  // formatos (comprobado: coste = bruto + ss_empresa en los dos).
+  const filasD = [...cAct.filas].sort((a, b) => valorImporteFila(cAct, b, meses) - valorImporteFila(cAct, a, meses) || a.localeCompare(b));
+  const personasMesFila = (f) => meses.reduce((s, m) => s + (((cAct.personas[f] || {})[m] || { size: 0 }).size), 0);
+  const granTotal = valorImporteFila(cAct, null, meses);
+  const lineaD = (f) => {
+    const d = cAct.desglose[f];
+    const total = d.nominas + d.extras, pm = personasMesFila(f);
+    return { nombre: f, plantilla: pm / meses.length, personas: d.personas.size, bruto: d.bruto, ssTrab: d.ssTrab, irpf: d.irpf, neto: d.neto, costeEmpresa: d.nominas - d.bruto, nominas: d.nominas, extras: d.extras, total, medio: pm ? total / pm : null, pct: granTotal ? total / granTotal * 100 : null };
+  };
+  const lineas = filasD.map(lineaD);
+  const camposSuma = ['bruto', 'ssTrab', 'irpf', 'neto', 'costeEmpresa', 'nominas', 'extras', 'total'];
+  const tot = {};
+  camposSuma.forEach(k => { tot[k] = lineas.reduce((s, l) => s + l[k], 0); });
+  const pmTotal = meses.reduce((s, m) => s + (cAct.personasMes[m] || { size: 0 }).size, 0);
+  const lineaTotal = { nombre: 'Total', plantilla: pmTotal / meses.length, personas: cAct.personasPeriodo.size, ...tot, medio: pmTotal ? tot.total / pmTotal : null, pct: 100 };
+  const tdE = (v, extra) => `<td style="text-align:right;${extra || ''}">${euros(v)}</td>`;
+  const celdasD = (l) => `
+    <td style="text-align:right;">${fmtNum(l.plantilla)}</td><td style="text-align:right;">${l.personas}</td>
+    ${tdE(l.bruto)}${tdE(l.ssTrab, ' color:#6b6a64;')}${tdE(l.irpf, ' color:#6b6a64;')}${tdE(l.neto, ' color:#6b6a64;')}${tdE(l.costeEmpresa)}
+    ${tdE(l.nominas)}${tdE(l.extras)}${tdE(l.total, ' font-weight:500;')}
+    <td style="text-align:right;">${fmtEur(l.medio)}</td>
+    <td style="text-align:right; color:#6b6a64;">${l.pct == null ? '—' : l.pct.toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' %'}</td>`;
+  const pctSobreBruto = (v) => tot.bruto ? (v / tot.bruto * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' %' : '—';
+  desgloseDiv.style.display = '';
+  desgloseDiv.innerHTML = `
+    <p style="font-size:13px; font-weight:500; margin:0; padding:12px 12px 0;">Desglose detallado ${personalGlobal.anio} · ${textoPeriodoInforme(meses)}</p>
+    <p style="font-size:12px; color:#6b6a64; margin:2px 0 0; padding:0 12px;">Del bruto: SS trabajador ${pctSobreBruto(tot.ssTrab)} · IRPF ${pctSobreBruto(tot.irpf)} · neto ${pctSobreBruto(tot.neto)}. Encima del bruto, la empresa paga SS y demás por ${pctSobreBruto(tot.costeEmpresa)} del bruto. Coste medio = total ÷ (personas × meses).</p>
     <table>
-      <thead><tr><th>${informePersonalAgrupacion === 'departamento' ? 'Departamento' : 'Trabajador'}</th>${cabeceraMeses}<th style="text-align:right;">Total</th></tr></thead>
-      <tbody>${filasHtml}</tbody>
-      <tfoot><tr style="background:#f7f6f2; font-weight:500;"><td>Total</td>${celdasTotales}<td style="text-align:right;">${euros(granTotal)}</td></tr></tfoot>
+      <thead><tr><th>${etiquetaFila}</th><th style="text-align:right;">Plantilla media</th><th style="text-align:right;">Personas</th><th style="text-align:right;">Bruto</th><th style="text-align:right;">SS trabajador</th><th style="text-align:right;">IRPF</th><th style="text-align:right;">Neto</th><th style="text-align:right;">SS empresa</th><th style="text-align:right;">Total nóminas</th><th style="text-align:right;">Extras</th><th style="text-align:right;">Total</th><th style="text-align:right;">Coste medio/mes</th><th style="text-align:right;">% total</th></tr></thead>
+      <tbody>${lineas.map(l => `<tr>${celdaFila(l.nombre)}${celdasD(l)}</tr>`).join('')}</tbody>
+      <tfoot><tr style="background:#f7f6f2; font-weight:500;"><td>Total</td>${celdasD(lineaTotal)}</tr></tfoot>
     </table>
   `;
+  informePersonalExport.push({
+    titulo: 'Desglose ' + personalGlobal.anio + ' · ' + textoPeriodoInforme(meses),
+    cabecera: [etiquetaFila, 'Plantilla media', 'Personas', 'Bruto', 'SS trabajador', 'IRPF', 'Neto', 'SS empresa', 'Total nóminas', 'Extras', 'Total', 'Coste medio/mes', '% total'],
+    filas: [...lineas, lineaTotal].map(l => [l.nombre, l.plantilla, l.personas, l.bruto, l.ssTrab, l.irpf, l.neto, l.costeEmpresa, l.nominas, l.extras, l.total, numExport(l.medio), numExport(l.pct)])
+  });
+}
+// CSV con ";" y coma decimal (lo que abre bien Excel en español), mismo
+// criterio que isabellaExportarCSV. Una sección por tabla pintada.
+function exportarInformePersonalCSV() {
+  if (!informePersonalExport.length) { alert('No hay datos que exportar con los filtros actuales.'); return; }
+  const celda = (v) => {
+    if (typeof v === 'number') return (Math.round(v * 100) / 100).toString().replace('.', ',');
+    const t = String(v == null ? '' : v);
+    return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  };
+  const ambito = informePersonalDepto || (informePersonalAgrupacion === 'departamento' ? 'Todos los departamentos' : 'Todos los trabajadores');
+  const lineas = ['Informe de Personal;' + celda(ambito), 'Fuente;' + ETIQUETA_FUENTE_INFORME[informePersonalFuente], ''];
+  informePersonalExport.forEach(sec => {
+    lineas.push(celda(sec.titulo));
+    lineas.push(sec.cabecera.map(celda).join(';'));
+    sec.filas.forEach(f => lineas.push(f.map(celda).join(';')));
+    lineas.push('');
+  });
+  const blob = new Blob(['\uFEFF' + lineas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'informe_personal_' + personalGlobal.anio + (informePersonalDepto ? '_' + informePersonalDepto.replace(/\s+/g, '_') : '') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── Pestaña Análisis (28 sep 2026): evolución y ratios de Personal sobre
+// TODOS los años con datos (se cargan una vez con asegurarAniosComparar):
+//   1. Últimos 12 meses + previsión de cierre del año seleccionado.
+//   2. Coste de personal frente a facturación (sin IVA) y proyectos, por mes
+//      y por departamento — /api/personal/actividad (solo hay facturas y
+//      proyectos en Supabase desde 2026).
+//   3. Altas, bajas y rotación (solo nóminas; persona = misma clave que el
+//      Informe, así que un trabajador sin fusionar entre formatos de gestoría
+//      aparece como baja + alta falsa en el cambio — se avisa).
+//   4. Extras en detalle desde extras_movimientos (formulario 2026 / Excel
+//      2025): horas, domingos/festivos, nocturnos, pluses y descansos.
+// La ficha por trabajador (abrirFichaTrabajador) se abre desde aquí y desde
+// el Informe "por trabajador".
+let analisisPersonal = { actividad: {} };
+function datosAnioPersonal(a) {
+  if (a === personalGlobal.anio) return { detalle: personalGlobal.detalle, extras: personalGlobal.extras, movimientos: personalGlobal.movimientos || [] };
+  return personalGlobal.otrosAnios[a] || null;
+}
+function aniosConDatosPersonal() {
+  const lista = personalGlobal.aniosDisponibles.length ? [...personalGlobal.aniosDisponibles] : [];
+  if (!lista.includes(personalGlobal.anio)) lista.push(personalGlobal.anio);
+  return lista.sort((a, b) => a - b);
+}
+async function asegurarActividadPersonal(anio) {
+  if (analisisPersonal.actividad[anio]) return;
+  const resp = await fetch('/api/personal/actividad?anio=' + anio);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  analisisPersonal.actividad[anio] = data;
+}
+// Identidad y nombre de una persona, independientes de la agrupación del
+// Informe (misma clave de persona que claveNominaInforme/claveExtraInforme).
+function nombrePersonaNomina(d, ctx) {
+  const formato = d.formato_origen || 'nominas_gestoria';
+  if (formato === 'nominas_gestoria') return d.nombre;
+  const canonico = ctx.mapaAliasEmpleado[d.empresa_nif + '|' + formato + '|' + d.num_empleado];
+  return (canonico != null && ctx.nombreActualPorClave[d.empresa_nif + '|' + canonico]) || (d.nombre + ' (histórico)');
+}
+function personaDeNombreExtra(nombre, ctx) {
+  const clave = ctx.mapaAliasExtras[nombre];
+  return { persona: clave || ('extra|' + nombre), nombre: (clave && ctx.nombreActualPorClave[clave]) || nombre, vinculado: !!clave };
+}
+// Clasificación de un movimiento de extras. En el formulario 2026 muchas
+// horas extra llegan sin el nº de horas, solo con el importe: se estiman a
+// 8 €/h (la tarifa que se repite en todo el formulario). Las "Hora Extra"
+// sin horas de 50 € o más son pluses fijos (gasolina, camión, extra mes...)
+// y no se cuentan como horas.
+function categoriaMovimientoExtra(m) {
+  const tipo = (m.tipo || '').toLowerCase();
+  const horas = parseFloat(m.horas) || 0, importe = parseFloat(m.importe) || 0;
+  if (tipo.startsWith('descanso')) return { cat: 'descanso', horas: 0, importe };
+  if (tipo.startsWith('nocturno')) return { cat: 'nocturno', horas: 0, importe };
+  if (tipo.startsWith('domingo') || tipo.startsWith('festivo') || tipo.startsWith('sábado') || tipo.startsWith('sabado')) return { cat: 'festivo', horas: 0, importe };
+  if (horas !== 0) return { cat: 'horas', horas, importe, estimada: false };
+  if (Math.abs(importe) < 50) return { cat: 'horas', horas: importe / 8, importe, estimada: true };
+  return { cat: 'plus', horas: 0, importe };
+}
+const ETIQUETA_CATEGORIA_EXTRA = { horas: 'Horas extra', festivo: 'Domingos / festivos', nocturno: 'Nocturnos', plus: 'Pluses fijos', descanso: 'Descansos disfrutados' };
+function tarjetaAnalisis(titulo, subtitulo, cuerpo) {
+  return `<div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem; overflow:auto;">
+    <p style="font-size:14px; font-weight:600; margin:0;">${titulo}</p>
+    ${subtitulo ? `<p style="font-size:12px; color:#6b6a64; margin:2px 0 10px;">${subtitulo}</p>` : '<div style="height:8px;"></div>'}
+    ${cuerpo}
+  </div>`;
+}
+function pctES(v, dec = 1) { return v == null || !isFinite(v) ? '—' : (v * 100).toLocaleString('es-ES', { maximumFractionDigits: dec }) + ' %'; }
+function numES(v, dec = 1) { return v == null || !isFinite(v) ? '—' : v.toLocaleString('es-ES', { maximumFractionDigits: dec }); }
+
+async function pintarPersonalAnalisis() {
+  const cont = document.getElementById('personal-tab-body');
+  cont.innerHTML = '<p class="loading-text">Cargando todos los años y la actividad...</p>';
+  try {
+    const anios = aniosConDatosPersonal();
+    await asegurarAniosCompararPersonal(anios.filter(a => a !== personalGlobal.anio));
+    await Promise.all([personalGlobal.anio, personalGlobal.anio - 1].map(a => asegurarActividadPersonal(a).catch(() => {})));
+  } catch (err) {
+    cont.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p>';
+    return;
+  }
+  if (personalGlobal.tab !== 'analisis') return; // cambió de pestaña mientras cargaba
+  const ctx = contextoInformePersonal();
+  cont.innerHTML = `
+    <div class="no-imprimir" style="display:flex; justify-content:flex-end; gap:6px; margin-bottom:10px;">
+      <button onclick="window.print()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🖨️ Imprimir / PDF</button>
+    </div>
+    <div class="solo-impresion" style="margin-bottom:12px;"><p style="font-size:18px; font-weight:600; margin:0;">Análisis de Personal · ${personalGlobal.anio}</p><p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">Generado ${new Date().toLocaleDateString('es-ES')}</p></div>
+    ${seccionTendenciaPrevision(ctx)}
+    ${seccionFacturacionPersonal(ctx)}
+    ${seccionAltasBajas(ctx)}
+    ${seccionExtrasDetalle(ctx)}
+  `;
+}
+
+// ── 1. Últimos 12 meses y previsión ──
+function serieMensualPersonal() {
+  // Coste por (año, mes) = nóminas + extras; solo meses con nómina cargada.
+  const puntos = [];
+  aniosConDatosPersonal().forEach(a => {
+    const d = datosAnioPersonal(a);
+    if (!d) return;
+    for (let m = 1; m <= 12; m++) {
+      const nom = d.detalle.filter(x => parseInt(x.mes) === m);
+      if (!nom.length) continue;
+      const nominas = nom.reduce((s, x) => s + (parseFloat(x.coste_total) || 0), 0);
+      const extras = d.extras.filter(x => parseInt(x.mes) === m).reduce((s, x) => s + (parseFloat(x.importe) || 0), 0);
+      puntos.push({ anio: a, mes: m, nominas, extras, coste: nominas + extras });
+    }
+  });
+  return puntos;
+}
+function seccionTendenciaPrevision() {
+  const serie = serieMensualPersonal();
+  if (serie.length === 0) return tarjetaAnalisis('Últimos 12 meses y previsión', '', '<p style="color:#9a988f; font-size:13px;">Sin nóminas cargadas.</p>');
+  const idx = (p) => p.anio * 12 + p.mes;
+  const porIdx = {};
+  serie.forEach(p => { porIdx[idx(p)] = p; });
+  const sumaVentana = (fin) => { // 12 meses terminando en fin (índice), null si falta alguno
+    let s = 0;
+    for (let i = fin - 11; i <= fin; i++) { if (!porIdx[i]) return null; s += porIdx[i].coste; }
+    return s;
+  };
+  const ultimo = serie[serie.length - 1];
+  const u12 = sumaVentana(idx(ultimo)), p12 = sumaVentana(idx(ultimo) - 12);
+  const etiquetaMes = (p) => MESES_ES_FACTURAS[p.mes].slice(0, 3) + ' ' + String(p.anio).slice(2);
+  const desde = porIdx[idx(ultimo) - 11];
+
+  // Previsión del año seleccionado
+  const anio = personalGlobal.anio;
+  const delAnio = serie.filter(p => p.anio === anio);
+  let prevision = '';
+  if (delAnio.length === 0) prevision = `<p style="font-size:13px; color:#9a988f;">Sin nóminas de ${anio}.</p>`;
+  else if (delAnio.length === 12) prevision = `<p style="font-size:13px;">${anio} está completo: <strong>${euros(delAnio.reduce((s, p) => s + p.coste, 0))}</strong>.</p>`;
+  else {
+    const ytd = delAnio.reduce((s, p) => s + p.coste, 0);
+    const ultMes = delAnio[delAnio.length - 1].mes;
+    // Meses sin nómina subida (huecos intermedios + los que quedan del año):
+    // se estiman todos, no solo los posteriores al último mes con datos.
+    const huecos = [];
+    for (let m = 1; m < ultMes; m++) if (!delAnio.some(p => p.mes === m)) huecos.push(m);
+    const restantes = 12 - delAnio.length;
+    const ult3 = delAnio.slice(-3);
+    const ritmo = ult3.reduce((s, p) => s + p.coste, 0) / ult3.length;
+    const previsionRitmo = ytd + ritmo * restantes;
+    const anterior = serie.filter(p => p.anio === anio - 1);
+    let previsionEstacional = null, totalAnterior = null;
+    if (anterior.length === 12) {
+      totalAnterior = anterior.reduce((s, p) => s + p.coste, 0);
+      const mismosMeses = anterior.filter(p => delAnio.some(q => q.mes === p.mes)).reduce((s, p) => s + p.coste, 0);
+      if (mismosMeses) previsionEstacional = ytd * (totalAnterior / mismosMeses);
+    }
+    prevision = `
+      ${huecos.length ? `<p style="font-size:12px; color:#854F0B; margin:0 0 8px;">⚠️ Faltan nóminas de ${huecos.map(m => MESES_ES_FACTURAS[m]).join(', ')} ${anio}: el acumulado no los incluye y la previsión los estima. Súbelas en la pestaña Nóminas para afinar.</p>` : ''}
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        ${kpiCard('Acumulado ' + anio + ' (' + delAnio.length + ' meses con nómina)', euros(ytd))}
+        ${kpiCard('Cierre estimado · ritmo actual', euros(previsionRitmo) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">media últimos ${ult3.length} meses con datos (${euros(ritmo)}) × ${restantes} meses sin nómina</div>`)}
+        ${previsionEstacional != null ? kpiCard('Cierre estimado · como ' + (anio - 1), euros(previsionEstacional) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">mismo reparto por meses que ${anio - 1} (${euros(totalAnterior)}) · ${deltaInformeHtml(previsionEstacional, totalAnterior, true)}</div>`) : ''}
+      </div>`;
+  }
+
+  // Gráfico: barras de coste mensual + línea de media móvil 12 meses
+  const w = 900, h = 220, padL = 10, padR = 10, padT = 18, padB = 30;
+  const areaW = w - padL - padR, areaH = h - padT - padB;
+  const max = Math.max(1, ...serie.map(p => p.coste));
+  const paso = areaW / serie.length;
+  let svg = '', linea = [];
+  serie.forEach((p, i) => {
+    const x = padL + paso * i + paso / 2;
+    const hb = (p.coste / max) * areaH;
+    svg += `<rect x="${x - paso * 0.35}" y="${padT + areaH - hb}" width="${paso * 0.7}" height="${hb}" fill="${p.anio === anio ? '#3D7C9E' : '#c9c7bf'}"><title>${etiquetaMes(p)}: ${euros(p.coste)} (nóminas ${euros(p.nominas)} + extras ${euros(p.extras)})</title></rect>`;
+    const v = sumaVentana(idx(p));
+    if (v != null) linea.push(`${x},${padT + areaH - (v / 12 / max) * areaH}`);
+    if (serie.length <= 24 || i % 2 === 0) svg += `<text x="${x}" y="${h - 14}" text-anchor="middle" font-size="9.5" fill="#6b6a64">${MESES_ES_FACTURAS[p.mes].slice(0, 3)}</text>`;
+    if (p.mes === 1 || i === 0) svg += `<text x="${x}" y="${h - 2}" text-anchor="middle" font-size="10" fill="#1a1a18" font-weight="500">${p.anio}</text>`;
+  });
+  if (linea.length > 1) svg += `<polyline points="${linea.join(' ')}" fill="none" stroke="#C24545" stroke-width="2"/>`;
+  const grafico = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; margin-top:10px;">${svg}</svg>
+    <div style="display:flex; gap:14px; font-size:11px; color:#6b6a64; margin-top:4px;">
+      <span><span style="display:inline-block; width:9px; height:9px; background:#3D7C9E; border-radius:2px;"></span> ${anio}</span>
+      <span><span style="display:inline-block; width:9px; height:9px; background:#c9c7bf; border-radius:2px;"></span> otros años</span>
+      ${linea.length > 1 ? '<span><span style="display:inline-block; width:14px; height:2px; background:#C24545; vertical-align:middle;"></span> media mensual de los últimos 12 meses (tendencia sin estacionalidad)</span>' : ''}
+    </div>`;
+
+  const kpis12 = u12 != null ? `
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+      ${kpiCard('Últimos 12 meses (' + etiquetaMes(desde) + ' – ' + etiquetaMes(ultimo) + ')', euros(u12) + (p12 != null ? `<div style="font-size:11px; font-weight:400; margin-top:2px;">${deltaInformeHtml(u12, p12, true)} <span style="color:#9a988f;">vs 12 meses anteriores (${euros(p12)})</span></div>` : ''))}
+      ${kpiCard('Media mensual (12 meses)', euros(u12 / 12))}
+    </div>` : `<p style="font-size:12px; color:#854F0B; margin:0 0 10px;">Aún no hay 12 meses seguidos de nóminas para calcular el acumulado de 12 meses.</p>`;
+  return tarjetaAnalisis('Últimos 12 meses y previsión de cierre', 'Coste de personal = nóminas + extras. La línea roja quita la estacionalidad: si sube, el coste de fondo está creciendo.', kpis12 + prevision + grafico);
+}
+
+// ── 2. Coste de personal frente a facturación ──
+function seccionFacturacionPersonal(ctx) {
+  const anio = personalGlobal.anio;
+  const act = analisisPersonal.actividad[anio];
+  const titulo = 'Coste de personal frente a facturación · ' + anio;
+  if (!act || !act.con_datos || !Object.keys(act.facturacion || {}).length) {
+    return tarjetaAnalisis(titulo, '', `<p style="font-size:13px; color:#9a988f;">No hay facturación sincronizada de ${anio} (las facturas y proyectos de Rentman se guardan en Supabase desde 2026).</p>`);
+  }
+  const d = datosAnioPersonal(anio);
+  const meses = [];
+  for (let m = 1; m <= 12; m++) {
+    const fact = act.facturacion[m] || 0;
+    const nom = d.detalle.filter(x => parseInt(x.mes) === m);
+    if (!fact || !nom.length) continue;
+    const coste = nom.reduce((s, x) => s + (parseFloat(x.coste_total) || 0), 0) + d.extras.filter(x => parseInt(x.mes) === m).reduce((s, x) => s + (parseFloat(x.importe) || 0), 0);
+    meses.push({ mes: m, fact, coste, proyectos: act.proyectos[m] || 0 });
+  }
+  if (!meses.length) return tarjetaAnalisis(titulo, '', '<p style="font-size:13px; color:#9a988f;">Ningún mes tiene a la vez facturación y nóminas.</p>');
+  const totFact = meses.reduce((s, x) => s + x.fact, 0), totCoste = meses.reduce((s, x) => s + x.coste, 0), totProy = meses.reduce((s, x) => s + x.proyectos, 0);
+  const listaMeses = meses.map(x => x.mes);
+
+  // Por departamento, sobre los mismos meses (misma asignación que el Informe)
+  const porDepto = {};
+  d.detalle.forEach(x => {
+    if (!listaMeses.includes(parseInt(x.mes))) return;
+    const { depto } = claveNominaInforme(x, ctx);
+    porDepto[depto] = (porDepto[depto] || 0) + (parseFloat(x.coste_total) || 0);
+  });
+  d.extras.forEach(x => {
+    if (!listaMeses.includes(parseInt(x.mes))) return;
+    const { depto } = claveExtraInforme(x, ctx);
+    porDepto[depto] = (porDepto[depto] || 0) + (parseFloat(x.importe) || 0);
+  });
+  const deptos = Object.keys(porDepto).sort((a, b) => porDepto[b] - porDepto[a]);
+
+  // Gráfico: facturación vs coste por mes + % encima
+  const w = 900, h = 210, padT = 22, padB = 24, areaH = h - padT - padB;
+  const max = Math.max(1, ...meses.map(x => Math.max(x.fact, x.coste)));
+  const grupo = (w - 20) / meses.length, bw = Math.min(34, grupo * 0.3);
+  let svg = '';
+  meses.forEach((x, i) => {
+    const cx = 10 + grupo * i + grupo / 2;
+    const hF = x.fact / max * areaH, hC = x.coste / max * areaH;
+    svg += `<rect x="${cx - bw - 1}" y="${padT + areaH - hF}" width="${bw}" height="${hF}" fill="#4C8C2B" opacity="0.85"><title>Facturación ${MESES_ES_FACTURAS[x.mes]}: ${euros(x.fact)}</title></rect>`;
+    svg += `<rect x="${cx + 1}" y="${padT + areaH - hC}" width="${bw}" height="${hC}" fill="#C24545" opacity="0.85"><title>Coste personal ${MESES_ES_FACTURAS[x.mes]}: ${euros(x.coste)}</title></rect>`;
+    svg += `<text x="${cx}" y="${padT + areaH - Math.max(hF, hC) - 5}" text-anchor="middle" font-size="10.5" fill="#1a1a18" font-weight="500">${pctES(x.coste / x.fact, 0)}</text>`;
+    svg += `<text x="${cx}" y="${h - 6}" text-anchor="middle" font-size="11" fill="#6b6a64">${MESES_ES_FACTURAS[x.mes].slice(0, 3)}</text>`;
+  });
+  const grafico = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${svg}</svg>
+    <div style="display:flex; gap:14px; font-size:11px; color:#6b6a64; margin:4px 0 12px;">
+      <span><span style="display:inline-block; width:9px; height:9px; background:#4C8C2B; border-radius:2px;"></span> Facturación (sin IVA)</span>
+      <span><span style="display:inline-block; width:9px; height:9px; background:#C24545; border-radius:2px;"></span> Coste de personal</span>
+      <span>Encima: coste de personal / facturación</span>
+    </div>`;
+  const kpis = `<div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+    ${kpiCard('Personal / facturación', pctES(totCoste / totFact) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">${euros(totCoste)} de ${euros(totFact)}</div>`)}
+    ${kpiCard('Personal por cada 1.000 € facturados', euros(totCoste / totFact * 1000))}
+    ${totProy ? kpiCard('Coste de personal por proyecto', euros(totCoste / totProy) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">${totProy} proyectos no cancelados</div>`) : ''}
+  </div>`;
+  const tablaMeses = `<table>
+    <thead><tr><th>Mes</th><th style="text-align:right;">Facturación</th><th style="text-align:right;">Coste personal</th><th style="text-align:right;">% sobre facturación</th><th style="text-align:right;">Proyectos</th><th style="text-align:right;">Coste / proyecto</th></tr></thead>
+    <tbody>${meses.map(x => `<tr><td>${MESES_ES_FACTURAS[x.mes]}</td><td style="text-align:right;">${euros(x.fact)}</td><td style="text-align:right;">${euros(x.coste)}</td><td style="text-align:right; font-weight:500;">${pctES(x.coste / x.fact)}</td><td style="text-align:right;">${x.proyectos || '—'}</td><td style="text-align:right;">${x.proyectos ? euros(x.coste / x.proyectos) : '—'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr style="background:#f7f6f2; font-weight:500;"><td>Total</td><td style="text-align:right;">${euros(totFact)}</td><td style="text-align:right;">${euros(totCoste)}</td><td style="text-align:right;">${pctES(totCoste / totFact)}</td><td style="text-align:right;">${totProy || '—'}</td><td style="text-align:right;">${totProy ? euros(totCoste / totProy) : '—'}</td></tr></tfoot>
+  </table>`;
+  const tablaDeptos = `<p style="font-size:13px; font-weight:500; margin:16px 0 4px;">Por departamento (mismos meses)</p>
+    <table>
+      <thead><tr><th>Departamento</th><th style="text-align:right;">Coste personal</th><th style="text-align:right;">% del coste de personal</th><th style="text-align:right;">% sobre facturación</th><th style="text-align:right;">Por cada 1.000 € facturados</th></tr></thead>
+      <tbody>${deptos.map(dp => `<tr><td>${dp}</td><td style="text-align:right;">${euros(porDepto[dp])}</td><td style="text-align:right;">${pctES(porDepto[dp] / totCoste)}</td><td style="text-align:right; font-weight:500;">${pctES(porDepto[dp] / totFact)}</td><td style="text-align:right;">${euros(porDepto[dp] / totFact * 1000)}</td></tr>`).join('')}</tbody>
+    </table>`;
+  return tarjetaAnalisis(titulo, 'Facturación = facturas emitidas en el mes, sin IVA. Solo meses con facturación y nóminas. La facturación no está repartida por departamento: el % por departamento mide cuánto pesa su coste sobre la facturación total.', kpis + grafico + tablaMeses + tablaDeptos);
+}
+
+// ── 3. Altas, bajas y rotación (nóminas) ──
+function seccionAltasBajas(ctx) {
+  const anio = personalGlobal.anio;
+  const conjuntoMes = (a, m) => {
+    const d = datosAnioPersonal(a);
+    if (!d) return null;
+    const filas = d.detalle.filter(x => parseInt(x.mes) === m);
+    if (!filas.length) return null;
+    const mapa = new Map();
+    filas.forEach(x => { const { persona, depto } = claveNominaInforme(x, ctx); mapa.set(persona, { nombre: nombrePersonaNomina(x, ctx), depto }); });
+    return mapa;
+  };
+  const filasMes = [];
+  let previo = conjuntoMes(anio - 1, 12), mesPrevio = previo ? 0 : null; // 0 = diciembre del año anterior
+  for (let m = 1; m <= 12; m++) {
+    const actual = conjuntoMes(anio, m);
+    if (!actual) continue;
+    const altas = previo ? [...actual.keys()].filter(k => !previo.has(k)).map(k => actual.get(k)) : null;
+    const bajas = previo ? [...previo.keys()].filter(k => !actual.has(k)).map(k => previo.get(k)) : null;
+    // Si faltan nóminas entre medias, las altas/bajas acumulan todo el hueco.
+    const salto = mesPrevio != null && m - mesPrevio > 1 ? (mesPrevio === 0 ? 'Diciembre ' + (anio - 1) : MESES_ES_FACTURAS[mesPrevio]) : null;
+    filasMes.push({ mes: m, plantilla: actual.size, altas, bajas, salto });
+    previo = actual; mesPrevio = m;
+  }
+  const titulo = 'Altas, bajas y rotación · ' + anio;
+  if (!filasMes.length) return tarjetaAnalisis(titulo, '', `<p style="font-size:13px; color:#9a988f;">Sin nóminas de ${anio}.</p>`);
+  const totAltas = filasMes.reduce((s, f) => s + (f.altas ? f.altas.length : 0), 0);
+  const totBajas = filasMes.reduce((s, f) => s + (f.bajas ? f.bajas.length : 0), 0);
+  const plantillaMedia = filasMes.reduce((s, f) => s + f.plantilla, 0) / filasMes.length;
+  // Aviso: trabajadores de "Resumen Contable" sin fusionar → baja/alta falsa al cambio de gestoría.
+  const sinFusionar = new Set();
+  [anio - 1, anio].forEach(a => {
+    const d = datosAnioPersonal(a);
+    if (!d) return;
+    d.detalle.forEach(x => {
+      const formato = x.formato_origen || 'nominas_gestoria';
+      if (formato !== 'nominas_gestoria' && ctx.mapaAliasEmpleado[x.empresa_nif + '|' + formato + '|' + x.num_empleado] == null) sinFusionar.add(x.nombre);
+    });
+  });
+  const formatos = new Set();
+  [anio - 1, anio].forEach(a => { const d = datosAnioPersonal(a); if (d) d.detalle.forEach(x => formatos.add(x.formato_origen || 'nominas_gestoria')); });
+  const hayCambioFormato = formatos.size > 1;
+  const aviso = hayCambioFormato && sinFusionar.size ? `<div class="no-imprimir" style="background:#FDF3E0; border:0.5px solid #F0D9B0; border-radius:8px; padding:0.6rem 0.9rem; margin-bottom:10px; font-size:12px; color:#854F0B; cursor:pointer;" onclick="cambiarPestanaPersonal('config')">⚠️ ${sinFusionar.size} trabajador(es) del formato antiguo ("Resumen Contable") sin fusionar con su ficha actual: en el mes del cambio de gestoría aparecen como baja + alta aunque sean la misma persona. Fusiónalos en Config. Departamentos para que la rotación sea real.</div>` : '';
+  const nombres = (lista) => lista == null ? '<span style="color:#9a988f;">—</span>' : (lista.length ? lista.map(p => `${p.nombre} <span style="color:#9a988f; font-size:11px;">(${p.depto})</span>`).join('<br>') : '<span style="color:#c9c7bf;">—</span>');
+  const kpis = `<div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+    ${kpiCard('Plantilla media (nómina)', numES(plantillaMedia))}
+    ${kpiCard('Altas en el año', String(totAltas))}
+    ${kpiCard('Bajas en el año', String(totBajas))}
+    ${kpiCard('Rotación (bajas / plantilla media)', pctES(plantillaMedia ? totBajas / plantillaMedia : null))}
+  </div>`;
+  const tabla = `<table>
+    <thead><tr><th>Mes</th><th style="text-align:right;">Plantilla</th><th style="text-align:right;">Δ</th><th>Altas</th><th>Bajas</th></tr></thead>
+    <tbody>${filasMes.map((f, i) => {
+      const prevPl = i > 0 ? filasMes[i - 1].plantilla : null;
+      const delta = prevPl == null ? '' : (f.plantilla - prevPl > 0 ? '+' : '') + (f.plantilla - prevPl);
+      return `<tr><td style="vertical-align:top;">${MESES_ES_FACTURAS[f.mes]}${f.salto ? `<div style="font-size:10.5px; color:#854F0B;">vs ${f.salto} (faltan meses)</div>` : ''}</td><td style="text-align:right; vertical-align:top;">${f.plantilla}</td><td style="text-align:right; vertical-align:top; color:#6b6a64;">${delta}</td><td style="vertical-align:top; font-size:12px; color:#27500A;">${nombres(f.altas)}</td><td style="vertical-align:top; font-size:12px; color:#A32D2D;">${nombres(f.bajas)}</td></tr>`;
+    }).join('')}</tbody>
+  </table>`;
+  return tarjetaAnalisis(titulo, 'Alta = tiene nómina este mes y no el anterior; baja = al revés. Solo nóminas (los extras de eventuales no cuentan). Enero se compara con diciembre del año anterior si está cargado.', aviso + kpis + tabla);
+}
+
+// ── 4. Extras en detalle ──
+function resumenMovimientosExtras(movs, ctx) {
+  const porMes = {}, porPersona = {};
+  movs.forEach(mv => {
+    const c = categoriaMovimientoExtra(mv);
+    const m = parseInt(mv.mes);
+    const pm = porMes[m] = porMes[m] || { horas: 0, horasImp: 0, festivos: 0, festivosImp: 0, nocturnos: 0, nocturnosImp: 0, plus: 0, descansos: 0, total: 0, estimadas: 0 };
+    const { persona, nombre, vinculado } = personaDeNombreExtra(mv.nombre, ctx);
+    const pp = porPersona[persona] = porPersona[persona] || { persona, nombre, vinculado, horas: 0, festivos: 0, nocturnos: 0, plus: 0, descansos: 0, total: 0 };
+    if (c.cat === 'horas') { pm.horas += c.horas; pm.horasImp += c.importe; pp.horas += c.horas; if (c.estimada) pm.estimadas++; }
+    else if (c.cat === 'festivo') { pm.festivos++; pm.festivosImp += c.importe; pp.festivos++; }
+    else if (c.cat === 'nocturno') { pm.nocturnos++; pm.nocturnosImp += c.importe; pp.nocturnos++; }
+    else if (c.cat === 'plus') { pm.plus += c.importe; pp.plus += c.importe; }
+    else if (c.cat === 'descanso') { pm.descansos++; pp.descansos++; }
+    pm.total += c.importe; pp.total += c.importe;
+  });
+  return { porMes, porPersona };
+}
+function correlacionPearson(xs, ys) {
+  const n = xs.length;
+  if (n < 4) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+  return sxx && syy ? sxy / Math.sqrt(sxx * syy) : null;
+}
+function seccionExtrasDetalle(ctx) {
+  const anio = personalGlobal.anio;
+  const d = datosAnioPersonal(anio);
+  const titulo = 'Horas extras en detalle · ' + anio;
+  const movs = (d && d.movimientos) || [];
+  if (!movs.length) return tarjetaAnalisis(titulo, '', `<p style="font-size:13px; color:#9a988f;">Sin detalle de extras para ${anio}. Pulsa "Sincronizar" en la pestaña Extras para traerlo del formulario.</p>`);
+  const { porMes, porPersona } = resumenMovimientosExtras(movs, ctx);
+  const dAnt = datosAnioPersonal(anio - 1);
+  const resAnt = dAnt && dAnt.movimientos && dAnt.movimientos.length ? resumenMovimientosExtras(dAnt.movimientos, ctx) : null;
+  const meses = Object.keys(porMes).map(Number).sort((a, b) => a - b);
+  const act = analisisPersonal.actividad[anio];
+  const sum = (obj, k, lista) => lista.reduce((s, m) => s + ((obj[m] || {})[k] || 0), 0);
+  const tot = {};
+  ['horas', 'horasImp', 'festivos', 'festivosImp', 'nocturnos', 'nocturnosImp', 'plus', 'descansos', 'total', 'estimadas'].forEach(k => { tot[k] = sum(porMes, k, meses); });
+  // Comparación con el año anterior sobre los mismos meses
+  let comp = '';
+  if (resAnt) {
+    const comunes = meses.filter(m => resAnt.porMes[m]);
+    if (comunes.length) {
+      const a = (k) => sum(porMes, k, comunes), b = (k) => sum(resAnt.porMes, k, comunes);
+      comp = `<p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Frente a ${anio - 1} (mismos meses: ${textoPeriodoInforme(comunes)}): importe ${deltaInformeHtml(a('total'), b('total'), true)} · horas ${deltaInformeHtml(a('horas'), b('horas'), true)} · domingos/festivos + nocturnos ${deltaInformeHtml(a('festivos') + a('nocturnos'), b('festivos') + b('nocturnos'), true)}${anio - 1 === 2025 ? ' (2025 no separa nocturnos de domingos/festivos)' : ''}.</p>`;
+    }
+  }
+  const kpis = `<div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+    ${kpiCard('Horas extra', numES(tot.horas) + ' h' + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">${euros(tot.horasImp)}</div>`)}
+    ${kpiCard('Domingos / festivos', String(tot.festivos) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">${euros(tot.festivosImp)}</div>`)}
+    ${kpiCard('Nocturnos', String(tot.nocturnos) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">${euros(tot.nocturnosImp)}</div>`)}
+    ${kpiCard('Pluses fijos', euros(tot.plus))}
+    ${kpiCard('Descansos disfrutados', String(tot.descansos))}
+  </div>`;
+  // Relación con la actividad
+  let relacion = '';
+  if (act && Object.keys(act.proyectos || {}).length) {
+    const mesesAmbos = meses.filter(m => act.proyectos[m]);
+    const r = correlacionPearson(mesesAmbos.map(m => porMes[m].total), mesesAmbos.map(m => act.proyectos[m]));
+    if (r != null) {
+      const a = Math.abs(r);
+      const lectura = a < 0.2 ? 'sin relación clara: los extras no suben ni bajan con el nº de proyectos'
+        : (a >= 0.7 ? 'fuerte' : a >= 0.4 ? 'moderada' : 'débil') + (r > 0 ? ': en los meses con más proyectos hay más extras' : ': en los meses con más proyectos hay menos extras');
+      relacion = `<p style="font-size:12px; margin:0 0 10px;"><strong>Relación con la carga de trabajo:</strong> ${lectura} (correlación ${numES(r, 2)} entre extras € y nº de proyectos por mes, ${mesesAmbos.length} meses).</p>`;
+    }
+  }
+  const filasMesHtml = meses.map(m => {
+    const x = porMes[m], proy = act && act.proyectos ? act.proyectos[m] : null;
+    return `<tr><td>${MESES_ES_FACTURAS[m]}</td><td style="text-align:right;">${numES(x.horas)} h</td><td style="text-align:right; color:#6b6a64;">${euros(x.horasImp)}</td><td style="text-align:right;">${x.festivos}</td><td style="text-align:right;">${x.nocturnos}</td><td style="text-align:right;">${euros(x.festivosImp + x.nocturnosImp)}</td><td style="text-align:right;">${euros(x.plus)}</td><td style="text-align:right;">${x.descansos || '—'}</td><td style="text-align:right; font-weight:500;">${euros(x.total)}</td><td style="text-align:right;">${proy || '—'}</td><td style="text-align:right;">${proy ? euros(x.total / proy) : '—'}</td></tr>`;
+  }).join('');
+  const tablaMeses = `<table>
+    <thead><tr><th>Mes</th><th style="text-align:right;">Horas</th><th style="text-align:right;">€ horas</th><th style="text-align:right;">Dom./fest.</th><th style="text-align:right;">Nocturnos</th><th style="text-align:right;">€ dom./fest./noct.</th><th style="text-align:right;">Pluses</th><th style="text-align:right;">Descansos</th><th style="text-align:right;">Total</th><th style="text-align:right;">Proyectos</th><th style="text-align:right;">€ extras / proyecto</th></tr></thead>
+    <tbody>${filasMesHtml}</tbody>
+    <tfoot><tr style="background:#f7f6f2; font-weight:500;"><td>Total</td><td style="text-align:right;">${numES(tot.horas)} h</td><td style="text-align:right;">${euros(tot.horasImp)}</td><td style="text-align:right;">${tot.festivos}</td><td style="text-align:right;">${tot.nocturnos}</td><td style="text-align:right;">${euros(tot.festivosImp + tot.nocturnosImp)}</td><td style="text-align:right;">${euros(tot.plus)}</td><td style="text-align:right;">${tot.descansos}</td><td style="text-align:right;">${euros(tot.total)}</td><td></td><td></td></tr></tfoot>
+  </table>`;
+  const personas = Object.values(porPersona).filter(p => p.total || p.horas || p.descansos).sort((a, b) => b.total - a.total);
+  const deptoPersona = (p) => {
+    if (p.vinculado) return ctx.mapaDepto[p.persona.replace('|', '|nominas_gestoria|')] || '—'; // persona = "empresaNif|numEmpleado"
+    return ctx.mapaDeptoExtras[p.nombre] || 'Sin clasificar';
+  };
+  const ranking = `<p style="font-size:13px; font-weight:500; margin:16px 0 4px;">Quién acumula más</p>
+    <table>
+      <thead><tr><th>Trabajador</th><th>Departamento</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Dom./fest.</th><th style="text-align:right;">Nocturnos</th><th style="text-align:right;">Pluses</th><th style="text-align:right;">Descansos</th><th style="text-align:right;">Total €</th><th style="text-align:right;">% del total</th></tr></thead>
+      <tbody>${personas.map(p => `<tr><td><span onclick="abrirFichaTrabajador('${escaparAtributoInforme(p.persona)}')" style="cursor:pointer; text-decoration:underline; text-decoration-color:#c9c7bf;">${p.nombre}</span>${p.vinculado ? '' : ' <span style="font-size:10.5px; color:#9a988f;">(sin vincular)</span>'}</td><td style="color:#6b6a64;">${deptoPersona(p)}</td><td style="text-align:right;">${p.horas ? numES(p.horas) + ' h' : '—'}</td><td style="text-align:right;">${p.festivos || '—'}</td><td style="text-align:right;">${p.nocturnos || '—'}</td><td style="text-align:right;">${p.plus ? euros(p.plus) : '—'}</td><td style="text-align:right;">${p.descansos || '—'}</td><td style="text-align:right; font-weight:500;">${euros(p.total)}</td><td style="text-align:right; color:#6b6a64;">${pctES(tot.total ? p.total / tot.total : null)}</td></tr>`).join('')}</tbody>
+    </table>`;
+  const nota = `Detalle de cada extra (${anio >= 2026 ? 'formulario de la hoja de extras; incluye meses aún sin pestaña de PAGOS, por eso puede no cuadrar con Extras' : 'Excel de horas del año'}). ${tot.estimadas ? tot.estimadas + ' registros de horas venían sin nº de horas y se estiman a 8 €/h. ' : ''}"Pluses fijos" = extras de 50 € o más sin horas (gasolina, camión, extra mes...).`;
+  return tarjetaAnalisis(titulo, nota, comp + kpis + relacion + tablaMeses + ranking);
+}
+
+// ── Ficha por trabajador ──
+async function abrirFichaTrabajador(persona) {
+  let modal = document.getElementById('modal-ficha-trabajador');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-ficha-trabajador';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(20,20,18,0.45); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:4vh 16px; overflow:auto;';
+    modal.onclick = (e) => { if (e.target === modal) cerrarFichaTrabajador(); };
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  modal.innerHTML = '<div style="background:#fff; border-radius:10px; padding:1.5rem; width:min(980px, 100%);"><p class="loading-text">Cargando ficha...</p></div>';
+  try {
+    await asegurarAniosCompararPersonal(aniosConDatosPersonal().filter(a => a !== personalGlobal.anio));
+  } catch (err) {
+    modal.innerHTML = '<div style="background:#fff; border-radius:10px; padding:1.5rem;">Error: ' + err.message + '</div>';
+    return;
+  }
+  const ctx = contextoInformePersonal();
+  const anios = aniosConDatosPersonal().filter(a => datosAnioPersonal(a));
+  let nombre = null, depto = null, empresa = null;
+  const porAnio = {};
+  anios.forEach(a => {
+    const d = datosAnioPersonal(a);
+    const r = { meses: {}, nominas: 0, bruto: 0, neto: 0, extras: 0, horas: 0, festivos: 0, nocturnos: 0, plus: 0, descansos: 0, movs: [] };
+    d.detalle.forEach(x => {
+      const k = claveNominaInforme(x, ctx);
+      if (k.persona !== persona) return;
+      nombre = nombre || nombrePersonaNomina(x, ctx); depto = k.depto; empresa = x.empresa_nombre;
+      const m = parseInt(x.mes), v = parseFloat(x.coste_total) || 0;
+      r.meses[m] = (r.meses[m] || 0) + v; r.nominas += v;
+      r.bruto += parseFloat(x.bruto) || 0; r.neto += parseFloat(x.neto) || 0;
+    });
+    d.extras.forEach(x => {
+      const k = claveExtraInforme(x, ctx);
+      if (k.persona !== persona) return;
+      if (!nombre) { nombre = personaDeNombreExtra(x.nombre, ctx).nombre; }
+      if (!depto) depto = k.depto;
+      const m = parseInt(x.mes), v = parseFloat(x.importe) || 0;
+      r.meses[m] = (r.meses[m] || 0) + v; r.extras += v;
+    });
+    (d.movimientos || []).forEach(mv => {
+      if (personaDeNombreExtra(mv.nombre, ctx).persona !== persona) return;
+      const c = categoriaMovimientoExtra(mv);
+      if (c.cat === 'horas') r.horas += c.horas; else if (c.cat === 'festivo') r.festivos++; else if (c.cat === 'nocturno') r.nocturnos++; else if (c.cat === 'plus') r.plus += c.importe; else if (c.cat === 'descanso') r.descansos++;
+      r.movs.push(mv);
+    });
+    if (Object.keys(r.meses).length || r.movs.length) porAnio[a] = r;
+  });
+  const aniosFicha = Object.keys(porAnio).map(Number).sort((a, b) => a - b);
+  if (!aniosFicha.length) {
+    modal.innerHTML = '<div style="background:#fff; border-radius:10px; padding:1.5rem;">Sin datos para este trabajador. <button onclick="cerrarFichaTrabajador()">Cerrar</button></div>';
+    return;
+  }
+  const n = aniosFicha.length;
+  const filasAnio = aniosFicha.map((a, i) => {
+    const r = porAnio[a], mesesCon = Object.keys(r.meses).length, total = r.nominas + r.extras;
+    const prev = i > 0 ? porAnio[aniosFicha[i - 1]] : null;
+    const medio = mesesCon ? total / mesesCon : null, medioPrev = prev && Object.keys(prev.meses).length ? (prev.nominas + prev.extras) / Object.keys(prev.meses).length : null;
+    return `<tr><td style="font-weight:500;">${a}</td><td style="text-align:right;">${mesesCon}</td><td style="text-align:right;">${euros(r.bruto)}</td><td style="text-align:right; color:#6b6a64;">${euros(r.neto)}</td><td style="text-align:right;">${euros(r.nominas)}</td><td style="text-align:right;">${euros(r.extras)}</td><td style="text-align:right; font-weight:500;">${euros(total)}</td><td style="text-align:right;">${medio == null ? '—' : euros(medio)}${prev && medioPrev != null && medio != null ? `<div style="font-size:10.5px;">${deltaInformeHtml(medio, medioPrev, true)}</div>` : ''}</td><td style="text-align:right;">${r.horas ? numES(r.horas) + ' h' : '—'}</td><td style="text-align:right;">${r.festivos || '—'}</td><td style="text-align:right;">${r.nocturnos || '—'}</td><td style="text-align:right;">${r.descansos || '—'}</td></tr>`;
+  }).join('');
+  // Gráfico: coste mensual, una línea por año
+  const w = 900, h = 200, padL = 10, padR = 10, padT = 14, padB = 22;
+  const areaW = w - padL - padR, areaH = h - padT - padB;
+  const max = Math.max(1, ...aniosFicha.flatMap(a => Object.values(porAnio[a].meses)));
+  const xMes = (m) => padL + (areaW / 11) * (m - 1);
+  let svg = '';
+  for (let m = 1; m <= 12; m++) svg += `<text x="${xMes(m)}" y="${h - 4}" text-anchor="middle" font-size="10.5" fill="#6b6a64">${MESES_ES_FACTURAS[m].slice(0, 3)}</text>`;
+  aniosFicha.forEach((a, i) => {
+    const pts = Object.keys(porAnio[a].meses).map(Number).sort((x, y) => x - y).map(m => [xMes(m), padT + areaH - porAnio[a].meses[m] / max * areaH, m]);
+    const color = colorAnioInforme(i, n);
+    if (pts.length > 1) svg += `<polyline points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>`;
+    pts.forEach(p => { svg += `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="${color}"><title>${MESES_ES_FACTURAS[p[2]]} ${a}: ${euros(porAnio[a].meses[p[2]])}</title></circle>`; });
+  });
+  const leyenda = aniosFicha.map((a, i) => `<span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:12px; height:3px; background:${colorAnioInforme(i, n)}; display:inline-block;"></span>${a}</span>`).join('');
+  const ultimoAnio = aniosFicha[n - 1];
+  const movs = porAnio[ultimoAnio].movs.slice().sort((x, y) => String(y.fecha || '').localeCompare(String(x.fecha || '')) || y.mes - x.mes);
+  const listaMovs = movs.length ? `<p style="font-size:13px; font-weight:500; margin:16px 0 4px;">Extras registrados en ${ultimoAnio} (${movs.length})</p>
+    <div style="max-height:240px; overflow:auto;"><table>
+      <thead><tr><th>Fecha</th><th>Tipo</th><th style="text-align:right;">Horas</th><th style="text-align:right;">Importe</th><th>Proyecto / nota</th></tr></thead>
+      <tbody>${movs.map(mv => `<tr><td>${mv.fecha ? mv.fecha.split('-').reverse().join('/') : MESES_ES_FACTURAS[mv.mes]}</td><td>${mv.tipo}</td><td style="text-align:right;">${parseFloat(mv.horas) ? numES(parseFloat(mv.horas)) : '—'}</td><td style="text-align:right;">${euros(mv.importe)}</td><td style="color:#6b6a64;">${mv.proyecto || ''}</td></tr>`).join('')}</tbody>
+    </table></div>` : '';
+  modal.innerHTML = `
+    <div style="background:#fff; border-radius:10px; padding:1.25rem 1.5rem; width:min(1040px, 100%);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
+        <div>
+          <p style="font-size:18px; font-weight:600; margin:0;">${nombre || persona}</p>
+          <p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">${depto || 'Sin departamento'}${empresa ? ' · ' + empresa : ''}${persona.startsWith('extra|') ? ' · solo extras (sin nómina vinculada)' : ''}</p>
+        </div>
+        <button onclick="cerrarFichaTrabajador()" style="border:none; background:#f0efea; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px;">✕ Cerrar</button>
+      </div>
+      <div style="overflow:auto;"><table>
+        <thead><tr><th>Año</th><th style="text-align:right;">Meses</th><th style="text-align:right;">Bruto</th><th style="text-align:right;">Neto</th><th style="text-align:right;">Coste nóminas</th><th style="text-align:right;">Extras</th><th style="text-align:right;">Total</th><th style="text-align:right;">Coste medio/mes</th><th style="text-align:right;">Horas extra</th><th style="text-align:right;">Dom./fest.</th><th style="text-align:right;">Nocturnos</th><th style="text-align:right;">Descansos</th></tr></thead>
+        <tbody>${filasAnio}</tbody>
+      </table></div>
+      <p style="font-size:13px; font-weight:500; margin:16px 0 4px;">Coste mensual (nómina + extras)</p>
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${svg}</svg>
+      <div style="display:flex; gap:14px; font-size:11px; color:#6b6a64;">${leyenda}</div>
+      ${listaMovs}
+    </div>`;
+}
+function cerrarFichaTrabajador() {
+  const modal = document.getElementById('modal-ficha-trabajador');
+  if (modal) modal.style.display = 'none';
 }
 
 // ── Pestaña Extras: lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña
@@ -2284,7 +3263,21 @@ function pintarPersonalExtras() {
       <td style="text-align:right; font-weight:500;">${euros(g.total_importe)}</td>
     </tr>
   `).join('');
-  cont.innerHTML = `
+  // Antes de 2026 los extras son histórico importado a mano (fijo) — mismo
+  // corte que EXTRAS_PRIMER_ANIO_HOJA en server.js.
+  const historicoFijo = personalGlobal.anio < 2026;
+  cont.innerHTML = historicoFijo ? `
+    <div style="background:#f7f6f2; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1.5rem;">
+      <p style="font-size:13px; font-weight:500; margin:0 0 2px;">🔒 Extras ${personalGlobal.anio}: histórico fijo</p>
+      <p style="font-size:12px; color:#6b6a64; margin:0;">Importados una vez desde el Excel de horas del año; no se sincronizan con la hoja de ${2026}. Los nombres nuevos se vinculan en Config. Departamentos.</p>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+      <table>
+        <thead><tr><th>Mes</th><th style="text-align:right;">Trabajadores</th><th style="text-align:right;">Total pagado</th></tr></thead>
+        <tbody>${filasHtml || '<tr><td colspan="3" style="padding:1.5rem 4px; color:#9a988f;">Sin extras de ' + personalGlobal.anio + '.</td></tr>'}</tbody>
+      </table>
+    </div>
+  ` : `
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1.25rem; margin-bottom:1.5rem;">
       <p style="font-size:14px; font-weight:500; margin:0 0 4px;">Sincronizar extras del año ${personalGlobal.anio}</p>
       <p style="font-size:12px; color:#6b6a64; margin:0 0 12px;">Lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña "PAGOS &lt;mes&gt; ${personalGlobal.anio}" de cada mes) y guarda el total por trabajador. Los meses que aún no tengan esa pestaña se saltan sin dar error.</p>

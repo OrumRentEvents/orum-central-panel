@@ -11,7 +11,7 @@ const fetch = require('node-fetch');
 const path = require('path');
 const multer = require('multer');
 const XLSX = require('xlsx');
-const { llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, obtenerEstadisticasMaterial, obtenerParadasParaEvolucion, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
+const { selectAll, llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, obtenerEstadisticasMaterial, obtenerParadasParaEvolucion, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -2439,14 +2439,23 @@ function parsearArchivoNomina(buffer) {
 app.get('/api/nominas/anio', requiereLogin, soloPersonal, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
-    const [detalleResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp, empleadosAliasResp] = await Promise.all([
+    // Primer y último año con datos (nóminas o extras) — para ofrecer en el
+    // Informe los años comparables sin pedir cada año a ciegas.
+    const extremoAnio = (tabla, asc) => supabase.from(tabla).select('anio').order('anio', { ascending: asc }).limit(1);
+    const [detalleResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp, empleadosAliasResp, ...extremosResp] = await Promise.all([
       supabase.from('nominas_detalle').select('*').eq('anio', anio).order('mes').order('empresa_nombre').order('nombre'),
       supabase.from('empleados_departamento').select('*').order('empresa_nombre').order('nombre'),
       supabase.from('extras_detalle').select('*').eq('anio', anio).order('mes').order('nombre'),
       supabase.from('extras_departamento').select('*').order('nombre'),
       supabase.from('extras_alias').select('*').order('nombre'),
-      supabase.from('empleados_alias').select('*')
+      supabase.from('empleados_alias').select('*'),
+      extremoAnio('nominas_detalle', true), extremoAnio('nominas_detalle', false),
+      extremoAnio('extras_detalle', true), extremoAnio('extras_detalle', false)
     ]);
+    const movimientos = await selectAll('extras_movimientos', 'mes, nombre, fecha, tipo, horas, importe, proyecto, origen', q => q.eq('anio', anio).order('id'));
+    const aniosExtremos = extremosResp.flatMap(r => (r.data || []).map(f => f.anio));
+    const aniosDisponibles = [];
+    if (aniosExtremos.length) for (let a = Math.min(...aniosExtremos); a <= Math.max(...aniosExtremos); a++) aniosDisponibles.push(a);
     if (detalleResp.error) throw detalleResp.error;
     if (deptoResp.error) throw deptoResp.error;
     if (extrasResp.error) throw extrasResp.error;
@@ -2456,11 +2465,43 @@ app.get('/api/nominas/anio', requiereLogin, soloPersonal, async (req, res) => {
     res.json({
       ok: true, anio, detalle: detalleResp.data || [], departamentos: deptoResp.data || [],
       extras: extrasResp.data || [], extras_departamentos: extrasDeptoResp.data || [], extras_alias: extrasAliasResp.data || [],
-      empleados_alias: empleadosAliasResp.data || []
+      empleados_alias: empleadosAliasResp.data || [], anios_disponibles: aniosDisponibles,
+      movimientos
     });
   } catch (err) {
     console.error('Error en /api/nominas/anio:', err);
     res.status(500).json({ error: 'Error al leer datos de Personal: ' + err.message });
+  }
+});
+
+// Actividad del año para Personal · Análisis (28 sep 2026): facturación
+// mensual SIN IVA (el coste de personal no lleva IVA; Cierre Mensual usa
+// con IVA porque cuadra contra caja) y nº de proyectos no cancelados por
+// mes de inicio del evento (o de entrega si no hay fecha de evento). Solo
+// hay datos desde que se sincroniza Rentman → Supabase (2026).
+app.get('/api/personal/actividad', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio) || new Date().getFullYear();
+    const desde = anio + '-01-01T00:00:00Z', hasta = (anio + 1) + '-01-01T00:00:00Z';
+    const [facturas, proyectos] = await Promise.all([
+      selectAll('facturas', 'fecha_emision_ts, importe_sin_iva', q => q.gte('fecha_emision_ts', desde).lt('fecha_emision_ts', hasta)),
+      selectAll('proyectos', 'evento_inicio_ts, entrega_ts, cancelado', q => q.or(
+        'and(evento_inicio_ts.gte.' + desde + ',evento_inicio_ts.lt.' + hasta + '),and(evento_inicio_ts.is.null,entrega_ts.gte.' + desde + ',entrega_ts.lt.' + hasta + ')'))
+    ]);
+    const facturacion = {}, numProyectos = {};
+    facturas.forEach(f => {
+      const mes = new Date(f.fecha_emision_ts).getUTCMonth() + 1;
+      facturacion[mes] = Math.round(((facturacion[mes] || 0) + (parseFloat(f.importe_sin_iva) || 0)) * 100) / 100;
+    });
+    proyectos.forEach(p => {
+      if (p.cancelado) return;
+      const mes = new Date(p.evento_inicio_ts || p.entrega_ts).getUTCMonth() + 1;
+      numProyectos[mes] = (numProyectos[mes] || 0) + 1;
+    });
+    res.json({ ok: true, anio, facturacion, proyectos: numProyectos, con_datos: facturas.length > 0 || proyectos.length > 0 });
+  } catch (err) {
+    console.error('Error en /api/personal/actividad:', err);
+    res.status(500).json({ error: 'Error al leer la actividad: ' + err.message });
   }
 });
 
@@ -2703,9 +2744,57 @@ async function leerPagosExtrasDelMes(anio, mes) {
   return { encontrado: true, empleados };
 }
 
+// Detalle por movimiento (28 sep 2026) — tabla extras_movimientos (ver
+// sql/extras_movimientos.sql): un registro por extra con tipo (Hora Extra,
+// Domingo, Nocturno, Festivo, Descanso Disfrutado...), horas, importe y
+// proyecto, para el análisis de extras (horas vs festivos, quién acumula,
+// relación con la actividad). Sale de la pestaña del formulario de la misma
+// hoja; extras_detalle (A PAGAR por mes) sigue siendo la fuente de los
+// importes totales. 2025 viene del Excel (origen 'excel_2025', fijo).
+async function leerMovimientosExtras(anio) {
+  const url = `https://docs.google.com/spreadsheets/d/${EXTRAS_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Respuestas de formulario 1')}`;
+  const resp = await fetch(url);
+  if (!resp.ok) return null;
+  const filas = parseCSVGoogle(await resp.text());
+  if (filas.length < 2) return null;
+  const cab = filas[0].map(normalizarCabeceraNomina);
+  const col = (pred) => cab.findIndex(pred);
+  const cTrab = col(c => c === 'TRABAJADOR'), cFecha = col(c => c === 'FECHA'), cProy = col(c => c.includes('PROYECTO')),
+    cTipo = col(c => c.includes('TIPOEXTRA')), cHoras = col(c => c.includes('HORAS')), cImp = col(c => c.startsWith('IMPORTE')),
+    cMes = col(c => c === 'MES'), cComp = col(c => c.startsWith('COMPENSACI'));
+  if (cTrab < 0 || cTipo < 0 || cImp < 0) return null; // no es la pestaña esperada
+  const movimientos = [];
+  for (let i = 1; i < filas.length; i++) {
+    const f = filas[i];
+    const nombre = (f[cTrab] || '').trim(), tipo = (f[cTipo] || '').trim();
+    if (!nombre || !tipo) continue;
+    const mFecha = String(f[cFecha] || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    const mMes = String(cMes >= 0 ? f[cMes] || '' : '').match(/^(\d{4})-(\d{2})/);
+    const anioMov = mMes ? parseInt(mMes[1]) : (mFecha ? parseInt(mFecha[3]) : null);
+    const mes = mMes ? parseInt(mMes[2]) : (mFecha ? parseInt(mFecha[2]) : null);
+    if (anioMov !== anio || !mes) continue;
+    movimientos.push({
+      anio, mes, nombre, tipo,
+      fecha: mFecha ? `${mFecha[3]}-${mFecha[2].padStart(2, '0')}-${mFecha[1].padStart(2, '0')}` : null,
+      horas: parseFloat(String(f[cHoras] || '').replace(',', '.')) || 0,
+      importe: euroEspanolANumero(f[cImp]),
+      proyecto: cProy >= 0 ? ((f[cProy] || '').trim() || null) : null,
+      compensacion: cComp >= 0 ? ((f[cComp] || '').trim() || null) : null,
+      origen: 'formulario'
+    });
+  }
+  return movimientos;
+}
+
+// Años anteriores a la hoja "HORAS EXTRAS 2026" (2025: abr–oct, importado
+// una vez desde "HORAS NOE 2025.xlsx", 28 sep 2026 — ver sql/extras_2025.sql)
+// son histórico fijo: nunca se sincronizan desde la hoja.
+const EXTRAS_PRIMER_ANIO_HOJA = 2026;
+
 app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
+    if (anio < EXTRAS_PRIMER_ANIO_HOJA) return res.status(400).json({ error: 'Los extras de ' + anio + ' son histórico importado (fijo) y no se sincronizan desde la hoja.' });
     const mesesSincronizados = [], mesesSinDatos = [];
     const filasExtras = [], nombresVistos = new Map();
 
@@ -2731,7 +2820,19 @@ app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res
       if (errAlias) throw errAlias;
     }
 
-    res.json({ ok: true, anio, meses_sincronizados: mesesSincronizados, meses_sin_datos: mesesSinDatos, total_trabajadores: nombresVistos.size });
+    // Detalle del formulario: se reemplaza entero el del año (el formulario
+    // es la fuente viva; borrar y reinsertar recoge ediciones y borrados).
+    const movimientos = await leerMovimientosExtras(anio);
+    if (movimientos) {
+      const { error: errDel } = await supabase.from('extras_movimientos').delete().eq('anio', anio).eq('origen', 'formulario');
+      if (errDel) throw errDel;
+      if (movimientos.length > 0) {
+        const { error: errMov } = await supabase.from('extras_movimientos').insert(movimientos);
+        if (errMov) throw errMov;
+      }
+    }
+
+    res.json({ ok: true, anio, meses_sincronizados: mesesSincronizados, meses_sin_datos: mesesSinDatos, total_trabajadores: nombresVistos.size, movimientos: movimientos ? movimientos.length : null });
   } catch (err) {
     console.error('Error en /api/extras/sincronizar:', err);
     res.status(500).json({ error: 'Error al sincronizar extras: ' + err.message });
