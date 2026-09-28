@@ -2605,7 +2605,11 @@ app.post('/api/empleados-departamento', requiereLogin, soloPersonal, async (req,
     if (!Array.isArray(asignaciones) || asignaciones.length === 0) return res.status(400).json({ error: 'Nada que guardar.' });
     const filas = asignaciones.map(a => ({
       empresa_nif: a.empresa_nif, empresa_nombre: a.empresa_nombre, formato_origen: a.formato_origen || 'nominas_gestoria',
-      num_empleado: parseInt(a.num_empleado), nombre: a.nombre, departamento: a.departamento || null, updated_at: new Date().toISOString()
+      num_empleado: parseInt(a.num_empleado), nombre: a.nombre, departamento: a.departamento || null,
+      // Fijo discontinuo (28 sep 2026): inactivo que volverá — en el
+      // histórico sale como "fijo discontinuo" en vez de baja.
+      fijo_discontinuo: !!a.fijo_discontinuo,
+      updated_at: new Date().toISOString()
     }));
     const { error } = await supabase.from('empleados_departamento').upsert(filas, { onConflict: 'empresa_nif,formato_origen,num_empleado' });
     if (error) throw error;
@@ -2866,6 +2870,10 @@ app.post('/api/extras-alias', requiereLogin, soloPersonal, async (req, res) => {
       empresa_nif: a.empresa_nif || null,
       formato_origen: a.formato_origen || null,
       num_empleado: a.num_empleado ? parseInt(a.num_empleado) : null,
+      // revisado (28 sep 2026): lo guardado a mano ya no recibe sugerencia
+      // automática — así "Sin vincular" se respeta en vez de volver a
+      // proponerse el mismo trabajador cada vez que se abre Configuración.
+      revisado: true,
       updated_at: new Date().toISOString()
     }));
     const { error } = await supabase.from('extras_alias').upsert(filas, { onConflict: 'nombre' });

@@ -1846,151 +1846,179 @@ async function eliminarNominaMes(mes, empresaNif, formatoOrigen, empresaNombre) 
   }
 }
 
-// ── Pestaña Config. Departamentos: un departamento fijo por trabajador ──
-function pintarPersonalConfig() {
-  const cont = document.getElementById('personal-tab-body');
-  const lista = [...personalGlobal.departamentos].sort((a, b) => {
-    if (!a.departamento !== !b.departamento) return a.departamento ? 1 : -1;
-    return (a.empresa_nombre || '').localeCompare(b.empresa_nombre || '') || (a.nombre || '').localeCompare(b.nombre || '');
-  });
-  const filasHtml = lista.map(filaEmpleadoDeptoHtml).join('');
-  const aliasPorNombre = {};
-  personalGlobal.extrasAlias.forEach(a => { aliasPorNombre[a.nombre] = a; });
-  const listaExtras = [...personalGlobal.extrasDepartamentos].sort((a, b) => {
-    const aVinculado = !!(aliasPorNombre[a.nombre] && aliasPorNombre[a.nombre].empresa_nif);
-    const bVinculado = !!(aliasPorNombre[b.nombre] && aliasPorNombre[b.nombre].empresa_nif);
-    if (!aVinculado !== !bVinculado) return aVinculado ? 1 : -1; // sin vincular primero
-    return (a.nombre || '').localeCompare(b.nombre || '');
-  });
-  const filasExtrasHtml = listaExtras.map(e => filaExtraDeptoHtml(e, aliasPorNombre[e.nombre] || null, personalGlobal.departamentos)).join('');
+// ── Configuración de Personal (reorganizada 28 sep 2026) ──
+// 1. Personal en activo / 2. Personal en baja o inactivo: una fila por
+//    PERSONA (sus filas de empleados_departamento de cualquier formato de
+//    gestoría, agrupadas con la misma clave de persona que el Informe). Aquí
+//    se asigna el departamento y se marca "fijo discontinuo" (inactivo que
+//    volverá: en el histórico sale como tal en vez de baja; al subir una
+//    nómina suya vuelve a "activo" solo).
+// 3. Fusionar trabajadores del formato antiguo con su ficha actual.
+// 4. Extras: vincular cada nombre de Extras a un trabajador de CUALQUIER
+//    época (activos arriba, bajas al final) para que sus horas caigan en su
+//    ficha. Las sugerencias automáticas solo se aplican a lo que nunca se ha
+//    revisado (extras_alias.revisado / fila en empleados_alias): una vez
+//    guardado "Sin vincular" o "No fusionar", se respeta.
+function tokensNombrePersona(s) {
+  return (s || '').replace(/\(.*?\)/g, ' ').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z\s]/g, ' ').split(/\s+/).filter(Boolean);
+}
+// Sugiere una persona solo si TODAS las palabras del nombre buscado casan con
+// palabras de su "APELLIDOS, NOMBRE" (entera, o abreviatura de 3+ letras, o
+// inicial de una letra) y ninguna otra persona cumple lo mismo. Un nombre de
+// una sola palabra exige coincidencia exacta (evita "DANI" → cualquier Daniel).
+function sugerirPersonaPorNombre(nombreBuscado, candidatos) {
+  const tb = tokensNombrePersona(nombreBuscado);
+  if (!tb.length) return null;
+  const casa = (t, tp) => tp === t || (tb.length > 1 && ((t.length >= 3 && tp.startsWith(t)) || (t.length === 1 && tp[0] === t)));
+  const validos = candidatos.filter(c => { const tp = tokensNombrePersona(c.nombre); return tb.every(t => tp.some(x => casa(t, x))); });
+  return validos.length === 1 ? validos[0] : null;
+}
+function valorClavePersona(c) { return c.empresa_nif + '|' + c.formato_origen + '|' + c.num_empleado; }
 
+async function pintarPersonalConfig() {
+  const cont = document.getElementById('personal-tab-body');
+  cont.innerHTML = '<p class="loading-text">Cargando todo el personal...</p>';
+  try { await asegurarTodosLosAniosPersonal(); } catch (err) { cont.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p>'; return; }
+  if (personalGlobal.tab !== 'config') return;
+  const ctx = contextoInformePersonal();
+  const reg = construirRegistroPersonal(ctx);
+  const filasPorPersona = {};
+  personalGlobal.departamentos.forEach(d => {
+    const per = ctx.personaDeClave(d.empresa_nif, d.formato_origen || 'nominas_gestoria', d.num_empleado);
+    (filasPorPersona[per] = filasPorPersona[per] || []).push(d);
+  });
+  const conNomina = reg.personas.filter(p => p.conNomina && p.clave);
+  const porNombre = (a, b) => (a.nombre || '').localeCompare(b.nombre || '');
+  const activos = conNomina.filter(p => p.estado === 'activo').sort(porNombre);
+  const inactivos = conNomina.filter(p => p.estado !== 'activo').sort((a, b) => (b.ultimo || 0) - (a.ultimo || 0) || porNombre(a, b));
+  const porClave = {};
+  conNomina.forEach(p => { porClave[valorClavePersona(p.clave)] = p; });
+  personalGlobal.configPersonas = { filasPorPersona, porClave, porPersona: Object.fromEntries(conNomina.map(p => [p.persona, p])) };
+
+  const deptoActual = (p) => {
+    const filas = filasPorPersona[p.persona] || [];
+    const principal = filas.find(d => valorClavePersona({ ...d, formato_origen: d.formato_origen || 'nominas_gestoria' }) === valorClavePersona(p.clave));
+    return (principal && principal.departamento) || (filas.find(d => d.departamento) || {}).departamento || '';
+  };
+  const filaPersona = (p, inactivo) => {
+    const dep = deptoActual(p);
+    const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === dep ? 'selected' : ''}>${d}</option>`).join('');
+    return `<tr data-persona="${p.persona.replace(/"/g, '&quot;')}" ${!dep ? 'style="background:#FCEBEB;"' : ''}>
+      <td>${linkFichaPersonal(p)}<div style="font-size:10.5px; color:#9a988f;">${(filasPorPersona[p.persona] || []).map(d => 'Nº ' + d.num_empleado + ' · ' + (ETIQUETA_FORMATO_ORIGEN[d.formato_origen] || 'Nóminas')).join(' / ')}</div></td>
+      <td>${textoInicioPersonal(p)}</td>
+      ${inactivo ? `<td>${textoYM(p.ultimo)}</td><td>${badgeEstadoPersonal(p.estado)}</td>` : ''}
+      <td style="text-align:right;">${p.mesesTrabajados}</td>
+      <td><select class="select-depto-persona" data-inicial="${dep}" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;"><option value="">Sin clasificar</option>${opciones}</select></td>
+      <td style="text-align:center;"><input type="checkbox" class="check-fijo-discontinuo" ${p.fijoDiscontinuo ? 'checked' : ''}></td>
+    </tr>`;
+  };
+  const tablaPersonas = (lista, inactivo, vacio) => `
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto; margin-bottom:1.5rem;">
+      <table>
+        <thead><tr><th>Trabajador</th><th>Inicio</th>${inactivo ? '<th>Último mes</th><th>Estado</th>' : ''}<th style="text-align:right;">Meses nómina</th><th>Departamento</th><th style="text-align:center;">Fijo discontinuo</th></tr></thead>
+        <tbody class="tbody-personas-config">${lista.map(p => filaPersona(p, inactivo)).join('') || `<tr><td colspan="7" style="padding:1.2rem 4px; color:#9a988f;">${vacio}</td></tr>`}</tbody>
+      </table>
+    </div>`;
+
+  // Fusión (formato antiguo → ficha actual): pendientes primero
   const aliasEmpleadoPorClave = {};
   personalGlobal.empleadosAlias.forEach(a => { aliasEmpleadoPorClave[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] = a; });
-  const listaLegacy = personalGlobal.departamentos
-    .filter(d => d.formato_origen && d.formato_origen !== 'nominas_gestoria')
-    .sort((a, b) => {
-      const aVinc = !!(aliasEmpleadoPorClave[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] || {}).num_empleado_canonico;
-      const bVinc = !!(aliasEmpleadoPorClave[b.empresa_nif + '|' + b.formato_origen + '|' + b.num_empleado] || {}).num_empleado_canonico;
-      if (!aVinc !== !bVinc) return aVinc ? 1 : -1; // sin fusionar primero
-      return (a.nombre || '').localeCompare(b.nombre || '');
-    });
-  const filasLegacyHtml = listaLegacy.map(e => filaFusionEmpleadoHtml(e, aliasEmpleadoPorClave, personalGlobal.departamentos)).join('');
+  const legacy = personalGlobal.departamentos.filter(d => d.formato_origen && d.formato_origen !== 'nominas_gestoria');
+  const pendientesFusion = legacy.filter(d => !aliasEmpleadoPorClave[d.empresa_nif + '|' + d.formato_origen + '|' + d.num_empleado]).sort(porNombre);
+  const revisadosFusion = legacy.filter(d => aliasEmpleadoPorClave[d.empresa_nif + '|' + d.formato_origen + '|' + d.num_empleado]).sort(porNombre);
+  const filasFusion = (lista) => lista.map(e => filaFusionEmpleadoHtml(e, aliasEmpleadoPorClave, conNomina)).join('');
 
+  // Extras: pendientes de revisar → revisados sin vincular → vinculados
+  const aliasPorNombre = {};
+  personalGlobal.extrasAlias.forEach(a => { aliasPorNombre[a.nombre] = a; });
+  const estadoExtra = (n) => { const a = aliasPorNombre[n]; return a && a.empresa_nif ? 2 : (a && a.revisado ? 1 : 0); };
+  const listaExtras = [...personalGlobal.extrasDepartamentos].sort((a, b) => estadoExtra(a.nombre) - estadoExtra(b.nombre) || (a.nombre || '').localeCompare(b.nombre || ''));
+  const pendientesExtras = listaExtras.filter(e => estadoExtra(e.nombre) === 0).length;
+
+  const cabeceraSeccion = (titulo, idEstado, onGuardar) => `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
+      <p style="font-size:15px; font-weight:600; margin:0;">${titulo}</p>
+      ${onGuardar ? `<div style="display:flex; gap:10px; align-items:center; flex-shrink:0;"><span id="${idEstado}" style="font-size:12px;"></span><button onclick="${onGuardar}" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button></div>` : ''}
+    </div>`;
   cont.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
-      <p style="font-size:14px; font-weight:500; margin:0;">Nóminas</p>
-      <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
-        <span id="estado-guardar-depto-personal" style="font-size:12px;"></span>
-        <button onclick="guardarConfigPersonal()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
+    ${cabeceraSeccion('Personal en activo (' + activos.length + ')', 'estado-guardar-depto-personal', 'guardarConfigPersonal()')}
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Con nómina en el último mes subido (${textoYM(reg.ultimoMesNomina)}). El departamento se aplica a la persona entera (también a su histórico fusionado) y es el que usa Cierre Mensual. Pulsa un nombre para ver su ficha.</p>
+    ${tablaPersonas(activos, false, 'Sube una nómina primero.')}
+    ${cabeceraSeccion('Personal en baja / inactivo (' + inactivos.length + ')', null, null)}
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Tuvieron nómina pero no en ${textoYM(reg.ultimoMesNomina)}. Marca <strong>Fijo discontinuo</strong> a quien volverá en la próxima campaña: sale como tal (no como baja) en el Histórico e Informe, y en cuanto se suba una nómina suya vuelve a "activo" solo. Se guarda con el mismo botón de arriba.</p>
+    ${tablaPersonas(inactivos, true, 'Nadie de baja.')}
+    ${legacy.length ? `
+      ${cabeceraSeccion('Fusionar formato antiguo con la ficha actual', 'estado-guardar-fusion', 'guardarFusionEmpleados()')}
+      <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Al cambiar de gestoría cambiaron los códigos: vincula a cada trabajador del formato "Resumen Contable" con quién es hoy para que su historia sea una sola ficha. Si ya no trabaja aquí, déjalo en "No fusionar": aparecerá en Personal en baja con su propio histórico. Las sugerencias (solo en lo no revisado) exigen que coincida el nombre completo; revisa antes de guardar.</p>
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto; margin-bottom:${revisadosFusion.length ? '0.5rem' : '1.5rem'};">
+        <table>
+          <thead><tr><th>Trabajador (formato antiguo)</th><th>Formato</th><th>Es hoy...</th></tr></thead>
+          <tbody id="tabla-personal-fusion-body">${filasFusion(pendientesFusion) || '<tr><td colspan="3" style="padding:1rem 4px; color:#9a988f;">Nada pendiente de revisar.</td></tr>'}</tbody>
+          ${revisadosFusion.length ? `<tbody id="tabla-personal-fusion-revisados" style="display:none;">${filasFusion(revisadosFusion)}</tbody>` : ''}
+        </table>
       </div>
-    </div>
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Se rellena solo, "sin clasificar", al subir una nómina con gente nueva. Trabajadores del formato "Resumen Contable" antiguo también aparecen aquí — se clasifican igual, y además se pueden fusionar con su equivalente actual más abajo.</p>
-    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden; margin-bottom:2rem;">
-      <table>
-        <thead><tr><th>Empresa</th><th>Nº</th><th>Formato</th><th>Trabajador</th><th>Departamento</th></tr></thead>
-        <tbody id="tabla-personal-config-body">${filasHtml || '<tr><td colspan="5" style="padding:1.5rem 4px; color:#9a988f;">Sube una nómina primero para ver aquí a los trabajadores.</td></tr>'}</tbody>
-      </table>
-    </div>
-    ${listaLegacy.length > 0 ? `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
-      <p style="font-size:14px; font-weight:500; margin:0;">Fusionar histórico con Nóminas actual</p>
-      <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
-        <span id="estado-guardar-fusion" style="font-size:12px;"></span>
-        <button onclick="guardarFusionEmpleados()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
-      </div>
-    </div>
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Los códigos de trabajador cambiaron al migrar de gestoría — vincula cada trabajador del formato antiguo con quién es hoy para poder comparar su coste año a año en el Informe. No afecta al reparto por departamento (ya funciona bien sin esto). Sugerido cuando el nombre coincide claramente; revisa antes de guardar.</p>
-    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden; margin-bottom:2rem;">
-      <table>
-        <thead><tr><th>Trabajador (histórico)</th><th>Formato</th><th>Es hoy...</th></tr></thead>
-        <tbody id="tabla-personal-fusion-body">${filasLegacyHtml}</tbody>
-      </table>
-    </div>
+      ${revisadosFusion.length ? `<p style="margin:0 0 1.5rem;"><span onclick="const t=document.getElementById('tabla-personal-fusion-revisados'); t.style.display = t.style.display === 'none' ? '' : 'none';" style="font-size:12px; color:#3D7C9E; cursor:pointer;">Mostrar / ocultar los ${revisadosFusion.length} ya revisados</span></p>` : ''}
     ` : ''}
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:1rem;">
-      <p style="font-size:14px; font-weight:500; margin:0;">Extras</p>
-      <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
-        <span id="estado-guardar-depto-extras" style="font-size:12px;"></span>
-        <button onclick="guardarConfigExtras()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button>
-      </div>
-    </div>
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Vincula cada nombre de Extras a su trabajador de Nóminas — así hereda su departamento sin tener que asignarlo dos veces. Si alguien solo aparece en Extras (sin nómina, ej. personal eventual), déjalo "Sin vincular" y asígnale departamento directamente. Sugerido automáticamente cuando el nombre coincide claramente; siempre revisa antes de guardar.</p>
-    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+    ${cabeceraSeccion('Extras' + (pendientesExtras ? ' · ' + pendientesExtras + ' por revisar' : ''), 'estado-guardar-depto-extras', 'guardarConfigExtras()')}
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Vincula cada nombre de Extras a su trabajador —de cualquier época: los que están en baja salen al final del desplegable— para que sus horas y extras aparezcan en su ficha y hereden su departamento. Si no tiene ni tuvo nómina (eventual), déjalo "Sin vincular" y asígnale departamento. Lo guardado se respeta: las sugerencias solo aparecen en lo no revisado.</p>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
       <table>
-        <thead><tr><th>Trabajador (Extras)</th><th>Vincular a Nóminas</th><th>Departamento</th></tr></thead>
-        <tbody id="tabla-personal-config-extras-body">${filasExtrasHtml || '<tr><td colspan="3" style="padding:1.5rem 4px; color:#9a988f;">Sincroniza Extras primero (pestaña Extras) para ver aquí a los trabajadores.</td></tr>'}</tbody>
+        <thead><tr><th>Nombre en Extras</th><th>Es el trabajador...</th><th>Departamento</th></tr></thead>
+        <tbody id="tabla-personal-config-extras-body">${listaExtras.map(e => filaExtraDeptoHtml(e, aliasPorNombre[e.nombre] || null, ctx, activos, inactivos)).join('') || '<tr><td colspan="3" style="padding:1.5rem 4px; color:#9a988f;">Sincroniza Extras primero (pestaña Extras).</td></tr>'}</tbody>
       </table>
     </div>
   `;
 }
-// Heurística de sugerencia: compara palabras del nombre (sin acentos) entre
-// el nombre informal de Extras y el "APELLIDOS, Nombre" de cada trabajador
-// de Nóminas. Si hay un único trabajador con al menos 1 palabra en común y
-// nadie más empata, se sugiere — nunca se vincula solo, es solo el valor
-// preseleccionado en el desplegable, hay que Guardar para confirmarlo.
-function normalizarTokensPersona(s) {
-  return (s || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z\s]/g, ' ').split(/\s+/).filter(Boolean);
+// Desplegable de todo el personal con nómina: activos, fijos discontinuos y
+// bajas (al final), en "APELLIDOS, NOMBRE".
+function opcionesTodoElPersonal(activos, inactivos, valorSeleccionado) {
+  const opt = (p) => { const v = valorClavePersona(p.clave); return `<option value="${v}" ${v === valorSeleccionado ? 'selected' : ''}>${p.nombre}${p.estado !== 'activo' ? ' · hasta ' + textoYM(p.ultimo) : ''}</option>`; };
+  const disc = inactivos.filter(p => p.estado === 'discontinuo'), bajas = inactivos.filter(p => p.estado !== 'discontinuo').sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  return `<optgroup label="En activo">${activos.map(opt).join('')}</optgroup>`
+    + (disc.length ? `<optgroup label="Fijos discontinuos (inactivos)">${disc.map(opt).join('')}</optgroup>` : '')
+    + (bajas.length ? `<optgroup label="En baja">${bajas.map(opt).join('')}</optgroup>` : '');
 }
-function sugerirEmpleadoParaExtra(nombreExtra, empleadosNominas) {
-  const tokensExtra = new Set(normalizarTokensPersona(nombreExtra));
-  let mejor = null, mejorScore = 0, empatados = 0;
-  empleadosNominas.forEach(emp => {
-    const score = normalizarTokensPersona(emp.nombre).filter(t => tokensExtra.has(t)).length;
-    if (score > mejorScore) { mejorScore = score; mejor = emp; empatados = 1; }
-    else if (score > 0 && score === mejorScore) { empatados++; }
-  });
-  return (mejorScore > 0 && empatados === 1) ? mejor : null;
-}
-function filaExtraDeptoHtml(e, alias, empleadosNominasTodos) {
-  // Solo el roster ACTUAL (formato_origen 'nominas_gestoria') — vincular
-  // contra un código del histórico "Resumen Contable" sería ambiguo, el
-  // mismo número puede ser otra persona en ese formato.
-  const empleadosNominas = empleadosNominasTodos.filter(emp => (emp.formato_origen || 'nominas_gestoria') === 'nominas_gestoria');
+function filaExtraDeptoHtml(e, alias, ctx, activos, inactivos) {
   const vinculado = !!(alias && alias.empresa_nif && alias.num_empleado);
-  const sugerido = !vinculado ? sugerirEmpleadoParaExtra(e.nombre, empleadosNominas) : null;
-  const valorSeleccionado = vinculado ? (alias.empresa_nif + '|' + alias.num_empleado) : (sugerido ? (sugerido.empresa_nif + '|' + sugerido.num_empleado) : '');
-  const porEmpresa = {};
-  empleadosNominas.forEach(emp => { (porEmpresa[emp.empresa_nombre] = porEmpresa[emp.empresa_nombre] || []).push(emp); });
-  const optgroups = Object.keys(porEmpresa).sort().map(empresa => `
-    <optgroup label="${empresa}">
-      ${porEmpresa[empresa].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(emp => {
-        const val = emp.empresa_nif + '|' + emp.num_empleado;
-        return `<option value="${val}" ${val === valorSeleccionado ? 'selected' : ''}>${emp.nombre}</option>`;
-      }).join('')}
-    </optgroup>
-  `).join('');
-  const empleadoActivo = valorSeleccionado ? empleadosNominas.find(emp => (emp.empresa_nif + '|' + emp.num_empleado) === valorSeleccionado) : null;
-  const textoHeredado = empleadoActivo ? ('Hereda: ' + (empleadoActivo.departamento || 'sin clasificar en Nóminas')) : '';
-  const mostrarHeredado = !!valorSeleccionado;
+  const revisado = vinculado || !!(alias && alias.revisado);
+  let valor = '';
+  if (vinculado) {
+    // El vínculo puede apuntar a una fila del formato antiguo ya fusionada:
+    // se muestra seleccionada la persona (su clave representativa).
+    const per = ctx.personaDeClave(alias.empresa_nif, alias.formato_origen || 'nominas_gestoria', alias.num_empleado);
+    const p = personalGlobal.configPersonas.porPersona[per];
+    valor = p ? valorClavePersona(p.clave) : (alias.empresa_nif + '|' + (alias.formato_origen || 'nominas_gestoria') + '|' + alias.num_empleado);
+  }
+  const sugerido = !revisado ? sugerirPersonaPorNombre(e.nombre, [...activos, ...inactivos]) : null;
+  if (sugerido) valor = valorClavePersona(sugerido.clave);
+  const persona = valor ? personalGlobal.configPersonas.porClave[valor] : null;
   const opcionesDepto = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === e.departamento ? 'selected' : ''}>${d}</option>`).join('');
+  const etiqueta = sugerido ? ' <span style="color:#3D7C9E; font-size:11px;">(sugerido, revisa)</span>' : (!revisado ? ' <span style="color:#854F0B; font-size:11px;">(por revisar)</span>' : '');
   return `
-    <tr data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${!mostrarHeredado && !e.departamento ? 'style="background:#FCEBEB;"' : ''}>
-      <td>${e.nombre || ''}${sugerido && !vinculado ? ' <span style="color:#9a988f; font-size:11px;">(sugerido)</span>' : ''}</td>
+    <tr data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${!valor && !e.departamento ? 'style="background:#FCEBEB;"' : ''}>
+      <td>${e.nombre || ''}${etiqueta}</td>
       <td>
-        <select class="select-alias-extras" onchange="actualizarFilaAliasExtra(this)" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:220px;">
-          <option value="">— Sin vincular —</option>
-          ${optgroups}
+        <select class="select-alias-extras" onchange="actualizarFilaAliasExtra(this)" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:320px;">
+          <option value="">— Sin vincular (eventual) —</option>
+          ${opcionesTodoElPersonal(activos, inactivos, valor)}
         </select>
       </td>
       <td>
-        <span class="depto-heredado-extras" style="display:${mostrarHeredado ? 'inline' : 'none'}; font-size:12px; color:#6b6a64;">${textoHeredado}</span>
-        <select class="select-depto-extras" style="display:${mostrarHeredado ? 'none' : 'inline-block'}; font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">
+        <span class="depto-heredado-extras" style="display:${valor ? 'inline' : 'none'}; font-size:12px; color:#6b6a64;">${persona ? 'Hereda: ' + (persona.depto || 'sin clasificar') : ''}</span>
+        <select class="select-depto-extras" style="display:${valor ? 'none' : 'inline-block'}; font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">
           <option value="">Sin clasificar</option>
           ${opcionesDepto}
         </select>
       </td>
-    </tr>
-  `;
+    </tr>`;
 }
 function actualizarFilaAliasExtra(selectEl) {
   const fila = selectEl.closest('tr');
   const deptoSelect = fila.querySelector('.select-depto-extras');
   const deptoSpan = fila.querySelector('.depto-heredado-extras');
-  const valor = selectEl.value;
-  if (valor) {
-    const [empresaNif, numEmpleado] = valor.split('|');
-    const empleado = personalGlobal.departamentos.find(d => d.empresa_nif === empresaNif && (d.formato_origen || 'nominas_gestoria') === 'nominas_gestoria' && String(d.num_empleado) === numEmpleado);
-    deptoSpan.textContent = 'Hereda: ' + (empleado && empleado.departamento ? empleado.departamento : 'sin clasificar en Nóminas');
+  const p = selectEl.value ? personalGlobal.configPersonas.porClave[selectEl.value] : null;
+  if (selectEl.value) {
+    deptoSpan.textContent = 'Hereda: ' + ((p && p.depto) || 'sin clasificar');
     deptoSpan.style.display = 'inline';
     deptoSelect.style.display = 'none';
   } else {
@@ -2003,9 +2031,9 @@ async function guardarConfigExtras() {
   const asignacionesDepto = [], asignacionesAlias = [];
   filas.forEach(fila => {
     const nombre = fila.dataset.nombre;
-    const valorAlias = fila.querySelector('.select-alias-extras').value;
-    const [empresaNif, numEmpleado] = valorAlias ? valorAlias.split('|') : [null, null];
-    asignacionesAlias.push({ nombre, empresa_nif: empresaNif, formato_origen: empresaNif ? 'nominas_gestoria' : null, num_empleado: numEmpleado });
+    const valor = fila.querySelector('.select-alias-extras').value;
+    const [empresaNif, formato, numEmpleado] = valor ? valor.split('|') : [null, null, null];
+    asignacionesAlias.push({ nombre, empresa_nif: empresaNif, formato_origen: formato, num_empleado: numEmpleado });
     asignacionesDepto.push({ nombre, departamento: fila.querySelector('.select-depto-extras').value || null });
   });
   const estado = document.getElementById('estado-guardar-depto-extras');
@@ -2018,59 +2046,41 @@ async function guardarConfigExtras() {
     const dataAlias = await respAlias.json(), dataDepto = await respDepto.json();
     if (dataAlias.error) throw new Error(dataAlias.error);
     if (dataDepto.error) throw new Error(dataDepto.error);
-    estado.textContent = '✓ Guardado (' + dataDepto.guardadas + ')';
-    estado.style.color = '#27500A';
     await recargarDatosPersonal();
-    pintarPersonalConfig();
+    await pintarPersonalConfig();
+    const estado2 = document.getElementById('estado-guardar-depto-extras');
+    if (estado2) { estado2.textContent = '✓ Guardado (' + dataDepto.guardadas + ')'; estado2.style.color = '#27500A'; }
   } catch (err) {
     estado.textContent = 'Error: ' + err.message;
     estado.style.color = '#A32D2D';
   }
 }
-function filaEmpleadoDeptoHtml(e) {
-  const opciones = DEPARTAMENTOS_ORUM.map(d => `<option value="${d}" ${d === e.departamento ? 'selected' : ''}>${d}</option>`).join('');
-  const sinClasificar = !e.departamento;
-  return `
-    <tr data-empresa-nif="${e.empresa_nif}" data-empresa-nombre="${(e.empresa_nombre || '').replace(/"/g, '&quot;')}" data-formato="${e.formato_origen || 'nominas_gestoria'}" data-num="${e.num_empleado}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}" ${sinClasificar ? 'style="background:#FCEBEB;"' : ''}>
-      <td>${e.empresa_nombre || ''}</td>
-      <td>${e.num_empleado}</td>
-      <td><span style="font-size:11px; color:#6b6a64;">${ETIQUETA_FORMATO_ORIGEN[e.formato_origen] || e.formato_origen || 'Nóminas'}</span></td>
-      <td>${e.nombre || ''}</td>
-      <td>
-        <select class="select-depto-personal" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">
-          <option value="">Sin clasificar</option>
-          ${opciones}
-        </select>
-      </td>
-    </tr>
-  `;
-}
-// Sugiere qué trabajador del roster actual (formato "nominas_gestoria") es
-// probablemente la misma persona que un trabajador del histórico — misma
-// heurística que sugerirEmpleadoParaExtra (palabras del nombre en común).
-function filaFusionEmpleadoHtml(e, aliasPorClave, deptoTodos) {
-  const rosterActual = deptoTodos.filter(d => d.formato_origen === 'nominas_gestoria' && d.empresa_nif === e.empresa_nif);
+// Fusión: solo contra trabajadores del formato actual (es a quién "es hoy").
+function filaFusionEmpleadoHtml(e, aliasPorClave, conNomina) {
   const alias = aliasPorClave[e.empresa_nif + '|' + e.formato_origen + '|' + e.num_empleado];
-  const vinculado = alias && alias.num_empleado_canonico;
-  const sugerido = !vinculado ? sugerirEmpleadoParaExtra(e.nombre, rosterActual) : null;
-  const valorSeleccionado = vinculado ? String(alias.num_empleado_canonico) : (sugerido ? String(sugerido.num_empleado) : '');
-  const opciones = rosterActual.slice().sort((a, b) => a.nombre.localeCompare(b.nombre))
-    .map(emp => `<option value="${emp.num_empleado}" ${String(emp.num_empleado) === valorSeleccionado ? 'selected' : ''}>${emp.nombre}</option>`).join('');
+  const revisado = !!alias;
+  const roster = conNomina.filter(p => p.clave.formato_origen === 'nominas_gestoria' && p.clave.empresa_nif === e.empresa_nif);
+  const sugerido = !revisado ? sugerirPersonaPorNombre(e.nombre, roster) : null;
+  const valor = alias && alias.num_empleado_canonico ? String(alias.num_empleado_canonico) : (sugerido ? String(sugerido.clave.num_empleado) : '');
+  const opt = (p) => `<option value="${p.clave.num_empleado}" ${String(p.clave.num_empleado) === valor ? 'selected' : ''}>${p.nombre}${p.estado !== 'activo' ? ' · hasta ' + textoYM(p.ultimo) : ''}</option>`;
+  const porNombre = (a, b) => (a.nombre || '').localeCompare(b.nombre || '');
+  const act = roster.filter(p => p.estado === 'activo').sort(porNombre), resto = roster.filter(p => p.estado !== 'activo').sort(porNombre);
   return `
     <tr data-empresa-nif="${e.empresa_nif}" data-formato="${e.formato_origen}" data-num="${e.num_empleado}">
-      <td>${e.nombre}${sugerido && !vinculado ? ' <span style="color:#9a988f; font-size:11px;">(sugerido)</span>' : ''}</td>
+      <td>${e.nombre}${sugerido ? ' <span style="color:#3D7C9E; font-size:11px;">(sugerido, revisa)</span>' : (!revisado ? ' <span style="color:#854F0B; font-size:11px;">(por revisar)</span>' : '')}</td>
       <td><span style="font-size:11px; color:#854F0B;">${ETIQUETA_FORMATO_ORIGEN[e.formato_origen] || e.formato_origen}</span></td>
       <td>
-        <select class="select-fusion-empleado" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:260px;">
+        <select class="select-fusion-empleado" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:320px;">
           <option value="">— No fusionar (persona distinta / ya no trabaja aquí) —</option>
-          ${opciones}
+          <optgroup label="En activo">${act.map(opt).join('')}</optgroup>
+          ${resto.length ? `<optgroup label="Inactivos / baja">${resto.map(opt).join('')}</optgroup>` : ''}
         </select>
       </td>
-    </tr>
-  `;
+    </tr>`;
 }
 async function guardarFusionEmpleados() {
-  const filas = document.querySelectorAll('#tabla-personal-fusion-body tr[data-num]');
+  // Incluye también los ya revisados (ocultos) por si se cambió alguno.
+  const filas = document.querySelectorAll('#tabla-personal-fusion-body tr[data-num], #tabla-personal-fusion-revisados tr[data-num]');
   if (filas.length === 0) return;
   const asignaciones = [];
   filas.forEach(fila => {
@@ -2082,42 +2092,55 @@ async function guardarFusionEmpleados() {
   const estado = document.getElementById('estado-guardar-fusion');
   estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
   try {
-    const resp = await fetch('/api/empleados-alias', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asignaciones })
-    });
+    const resp = await fetch('/api/empleados-alias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asignaciones }) });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    estado.textContent = '✓ Guardado (' + data.guardadas + ')';
-    estado.style.color = '#27500A';
     await recargarDatosPersonal();
-    pintarPersonalConfig();
+    await pintarPersonalConfig();
+    const estado2 = document.getElementById('estado-guardar-fusion');
+    if (estado2) { estado2.textContent = '✓ Guardado (' + data.guardadas + ')'; estado2.style.color = '#27500A'; }
   } catch (err) {
     estado.textContent = 'Error: ' + err.message;
     estado.style.color = '#A32D2D';
   }
 }
+// Guarda departamento y "fijo discontinuo" de activos e inactivos. El
+// departamento solo se reescribe en todas las filas de la persona si se
+// cambió (así no se pisa un departamento distinto que tuviera en su
+// histórico sin querer); fijo discontinuo se aplica a todas sus filas.
 async function guardarConfigPersonal() {
-  const filas = document.querySelectorAll('#tabla-personal-config-body tr[data-num]');
+  const { filasPorPersona } = personalGlobal.configPersonas || {};
   const asignaciones = [];
-  filas.forEach(fila => {
-    asignaciones.push({
-      empresa_nif: fila.dataset.empresaNif, empresa_nombre: fila.dataset.empresaNombre, formato_origen: fila.dataset.formato,
-      num_empleado: fila.dataset.num, nombre: fila.dataset.nombre,
-      departamento: fila.querySelector('.select-depto-personal').value || null
+  document.querySelectorAll('.tbody-personas-config tr[data-persona]').forEach(tr => {
+    const sel = tr.querySelector('.select-depto-persona');
+    const cambiado = sel.value !== (sel.dataset.inicial || '');
+    const fijo = tr.querySelector('.check-fijo-discontinuo').checked;
+    (filasPorPersona[tr.dataset.persona] || []).forEach(d => {
+      asignaciones.push({
+        empresa_nif: d.empresa_nif, empresa_nombre: d.empresa_nombre, formato_origen: d.formato_origen || 'nominas_gestoria',
+        num_empleado: d.num_empleado, nombre: d.nombre,
+        departamento: cambiado ? (sel.value || null) : (d.departamento || null),
+        fijo_discontinuo: fijo
+      });
     });
+  });
+  // Filas sin nóminas cargadas (no aparecen arriba): se reenvían tal cual
+  // para no perder su marca de fijo discontinuo.
+  const enviadas = new Set(asignaciones.map(a => a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado));
+  personalGlobal.departamentos.forEach(d => {
+    const k = d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado;
+    if (!enviadas.has(k)) asignaciones.push({ empresa_nif: d.empresa_nif, empresa_nombre: d.empresa_nombre, formato_origen: d.formato_origen || 'nominas_gestoria', num_empleado: d.num_empleado, nombre: d.nombre, departamento: d.departamento || null, fijo_discontinuo: !!d.fijo_discontinuo });
   });
   const estado = document.getElementById('estado-guardar-depto-personal');
   estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
   try {
-    const resp = await fetch('/api/empleados-departamento', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ asignaciones })
-    });
+    const resp = await fetch('/api/empleados-departamento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asignaciones }) });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    estado.textContent = '✓ Guardado (' + data.guardadas + ')';
-    estado.style.color = '#27500A';
     await recargarDatosPersonal();
+    await pintarPersonalConfig();
+    const estado2 = document.getElementById('estado-guardar-depto-personal');
+    if (estado2) { estado2.textContent = '✓ Guardado'; estado2.style.color = '#27500A'; }
   } catch (err) {
     estado.textContent = 'Error: ' + err.message;
     estado.style.color = '#A32D2D';
@@ -2189,7 +2212,7 @@ function pintarPersonalInforme() {
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-top:0.5px solid #efeee9; padding-top:10px;">
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
           <span style="font-size:12px; color:#6b6a64; margin-right:4px;">Personal:</span>
-          ${['todos', 'activo', 'baja', 'eventual'].map(e => botonSegmentoInforme(informePersonalEstado === e, `cambiarEstadoInforme('${e}')`, e === 'todos' ? 'Todos' : (e === 'activo' ? 'Activos' : e === 'baja' ? 'Bajas' : 'Eventuales'))).join('')}
+          ${['todos', 'activo', 'discontinuo', 'baja', 'eventual'].map(e => botonSegmentoInforme(informePersonalEstado === e, `cambiarEstadoInforme('${e}')`, e === 'todos' ? 'Todos' : (e === 'activo' ? 'Activos' : e === 'discontinuo' ? 'Fijos disc.' : e === 'baja' ? 'Bajas' : 'Eventuales'))).join('')}
           <span style="width:1px; height:18px; background:#e2e2de; margin:0 6px;"></span>
           <span style="font-size:12px; color:#6b6a64; margin-right:4px;">Comparar ${personalGlobal.anio} con:</span>
           ${chipsAnios || '<span style="font-size:12px; color:#9a988f;">no hay otros años con datos</span>'}
@@ -2242,11 +2265,40 @@ function contextoInformePersonal() {
   personalGlobal.extrasDepartamentos.forEach(d => { mapaDeptoExtras[d.nombre] = d.departamento || 'Extras sin clasificar'; });
   const mapaAliasEmpleado = {};
   personalGlobal.empleadosAlias.forEach(a => { if (a.num_empleado_canonico) mapaAliasEmpleado[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] = a.num_empleado_canonico; });
+  const nombreActualPorClave = {}, nombrePorClaveCompleta = {};
+  personalGlobal.departamentos.forEach(d => {
+    const f = d.formato_origen || 'nominas_gestoria';
+    nombrePorClaveCompleta[d.empresa_nif + '|' + f + '|' + d.num_empleado] = d.nombre;
+    if (f === 'nominas_gestoria') nombreActualPorClave[d.empresa_nif + '|' + d.num_empleado] = d.nombre;
+  });
+  // Persona de una clave de nómina (misma regla que claveNominaInforme): el
+  // formato actual es "nif|num"; el antiguo fusionado hereda la persona
+  // actual; sin fusionar es una persona propia "formato|nif|num".
+  const personaDeClave = (nif, formato, num) => {
+    if (formato === 'nominas_gestoria') return nif + '|' + num;
+    const canon = mapaAliasEmpleado[nif + '|' + formato + '|' + num];
+    return canon != null ? nif + '|' + canon : formato + '|' + nif + '|' + num;
+  };
+  const nombreDeClave = (nif, formato, num, sufijo) => {
+    if (formato === 'nominas_gestoria') return nombrePorClaveCompleta[nif + '|' + formato + '|' + num] || ('Nº ' + num);
+    const canon = mapaAliasEmpleado[nif + '|' + formato + '|' + num];
+    return (canon != null && nombreActualPorClave[nif + '|' + canon]) || ((nombrePorClaveCompleta[nif + '|' + formato + '|' + num] || ('Nº ' + num)) + sufijo);
+  };
+  // Vínculo Extras → trabajador (28 sep 2026: puede ser de cualquier formato,
+  // también gente que ya no está, para que sus extras caigan en su ficha).
   const mapaAliasExtras = {};
-  personalGlobal.extrasAlias.forEach(a => { if (a.empresa_nif && a.num_empleado) mapaAliasExtras[a.nombre] = a.empresa_nif + '|' + a.num_empleado; });
-  const nombreActualPorClave = {};
-  personalGlobal.departamentos.filter(d => (d.formato_origen || 'nominas_gestoria') === 'nominas_gestoria')
-    .forEach(d => { nombreActualPorClave[d.empresa_nif + '|' + d.num_empleado] = d.nombre; });
+  personalGlobal.extrasAlias.forEach(a => {
+    if (!a.empresa_nif || !a.num_empleado) return;
+    const f = a.formato_origen || 'nominas_gestoria';
+    mapaAliasExtras[a.nombre] = {
+      persona: personaDeClave(a.empresa_nif, f, a.num_empleado),
+      claveDepto: a.empresa_nif + '|' + f + '|' + a.num_empleado,
+      nombre: nombreDeClave(a.empresa_nif, f, a.num_empleado, ' (histórico)'),
+      nombreFila: nombreDeClave(a.empresa_nif, f, a.num_empleado, ' (histórico, sin fusionar)')
+    };
+  });
+  const fijoDiscontinuoPorPersona = {};
+  personalGlobal.departamentos.forEach(d => { if (d.fijo_discontinuo) fijoDiscontinuoPorPersona[personaDeClave(d.empresa_nif, d.formato_origen || 'nominas_gestoria', d.num_empleado)] = true; });
   const empresas = new Set(personalGlobal.detalle.map(d => d.empresa_nif));
   Object.values(personalGlobal.otrosAnios).forEach(o => o.detalle.forEach(d => empresas.add(d.empresa_nif)));
   const deptos = new Set([...Object.values(mapaDepto), ...Object.values(mapaDeptoExtras)]);
@@ -2254,7 +2306,7 @@ function contextoInformePersonal() {
     const ia = DEPARTAMENTOS_ORUM.indexOf(a), ib = DEPARTAMENTOS_ORUM.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
-  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, nombreActualPorClave, variasEmpresas: empresas.size > 1, listaDeptos };
+  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, nombreActualPorClave, nombrePorClaveCompleta, personaDeClave, fijoDiscontinuoPorPersona, variasEmpresas: empresas.size > 1, listaDeptos };
 }
 // Fila del informe + departamento + identificador de PERSONA (para contar
 // plantilla sin duplicar: un trabajador con nómina y extras vinculados, o
@@ -2278,12 +2330,10 @@ function claveNominaInforme(d, ctx) {
   return { fila, persona, depto };
 }
 function claveExtraInforme(e, ctx) {
-  const claveEmpleado = ctx.mapaAliasExtras[e.nombre]; // "empresaNif|numEmpleado", siempre nominas_gestoria
-  const persona = claveEmpleado || ('extra|' + e.nombre);
-  const claveDepto = claveEmpleado ? claveEmpleado.replace('|', '|nominas_gestoria|') : null;
-  const depto = (claveDepto && ctx.mapaDepto[claveDepto]) || ctx.mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
-  const fila = agrupacionEfectivaInforme() === 'departamento' ? depto
-    : ((claveEmpleado && ctx.nombreActualPorClave[claveEmpleado]) || (e.nombre + ' · Extras'));
+  const alias = ctx.mapaAliasExtras[e.nombre]; // { persona, claveDepto, nombre, nombreFila } si está vinculado
+  const persona = alias ? alias.persona : ('extra|' + e.nombre);
+  const depto = (alias && ctx.mapaDepto[alias.claveDepto]) || ctx.mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
+  const fila = agrupacionEfectivaInforme() === 'departamento' ? depto : (alias ? alias.nombreFila : (e.nombre + ' · Extras'));
   return { fila, persona, depto };
 }
 // Cubo fila × mes con importe y conjunto de personas, más totales por mes
@@ -2790,8 +2840,8 @@ function nombrePersonaNomina(d, ctx) {
   return (canonico != null && ctx.nombreActualPorClave[d.empresa_nif + '|' + canonico]) || (d.nombre + ' (histórico)');
 }
 function personaDeNombreExtra(nombre, ctx) {
-  const clave = ctx.mapaAliasExtras[nombre];
-  return { persona: clave || ('extra|' + nombre), nombre: (clave && ctx.nombreActualPorClave[clave]) || nombre, vinculado: !!clave };
+  const alias = ctx.mapaAliasExtras[nombre];
+  return alias ? { persona: alias.persona, nombre: alias.nombre, vinculado: true, claveDepto: alias.claveDepto } : { persona: 'extra|' + nombre, nombre, vinculado: false, claveDepto: null };
 }
 // Clasificación de un movimiento de extras. En el formulario 2026 muchas
 // horas extra llegan sin el nº de horas, solo con el importe: se estiman a
@@ -3081,8 +3131,8 @@ function resumenMovimientosExtras(movs, ctx) {
     const c = categoriaMovimientoExtra(mv);
     const m = parseInt(mv.mes);
     const pm = porMes[m] = porMes[m] || { horas: 0, horasImp: 0, festivos: 0, festivosImp: 0, nocturnos: 0, nocturnosImp: 0, plus: 0, descansos: 0, total: 0, estimadas: 0 };
-    const { persona, nombre, vinculado } = personaDeNombreExtra(mv.nombre, ctx);
-    const pp = porPersona[persona] = porPersona[persona] || { persona, nombre, vinculado, horas: 0, festivos: 0, nocturnos: 0, plus: 0, descansos: 0, total: 0 };
+    const { persona, nombre, vinculado, claveDepto } = personaDeNombreExtra(mv.nombre, ctx);
+    const pp = porPersona[persona] = porPersona[persona] || { persona, nombre, vinculado, claveDepto, nombreExtra: mv.nombre, horas: 0, festivos: 0, nocturnos: 0, plus: 0, descansos: 0, total: 0 };
     if (c.cat === 'horas') { pm.horas += c.horas; pm.horasImp += c.importe; pp.horas += c.horas; if (c.estimada) pm.estimadas++; }
     else if (c.cat === 'festivo') { pm.festivos++; pm.festivosImp += c.importe; pp.festivos++; }
     else if (c.cat === 'nocturno') { pm.nocturnos++; pm.nocturnosImp += c.importe; pp.nocturnos++; }
@@ -3153,8 +3203,8 @@ function seccionExtrasDetalle(ctx) {
   </table>`;
   const personas = Object.values(porPersona).filter(p => p.total || p.horas || p.descansos).sort((a, b) => b.total - a.total);
   const deptoPersona = (p) => {
-    if (p.vinculado) return ctx.mapaDepto[p.persona.replace('|', '|nominas_gestoria|')] || '—'; // persona = "empresaNif|numEmpleado"
-    return ctx.mapaDeptoExtras[p.nombre] || 'Sin clasificar';
+    if (p.vinculado) return ctx.mapaDepto[p.claveDepto] || '—';
+    return ctx.mapaDeptoExtras[p.nombreExtra] || 'Sin clasificar';
   };
   const ranking = `<p style="font-size:13px; font-weight:500; margin:16px 0 4px;">Quién acumula más</p>
     <table>
@@ -3306,7 +3356,7 @@ function construirRegistroPersonal(ctx) {
       const { persona, depto } = claveNominaInforme(x, ctx);
       const ym = claveYM(a, parseInt(x.mes));
       const p = get(persona);
-      if (ym >= p.deptoYM || !p.mesesNomina.size) { p.depto = depto; p.deptoYM = ym; p.nombre = nombrePersonaNomina(x, ctx); p.empresa = x.empresa_nombre; }
+      if (ym >= p.deptoYM || !p.mesesNomina.size) { p.depto = depto; p.deptoYM = ym; p.nombre = nombrePersonaNomina(x, ctx); p.empresa = x.empresa_nombre; p.clave = { empresa_nif: x.empresa_nif, formato_origen: x.formato_origen || 'nominas_gestoria', num_empleado: x.num_empleado }; }
       p.mesesNomina.add(ym);
       const m = mesDe(p, ym), coste = parseFloat(x.coste_total) || 0, bruto = parseFloat(x.bruto) || 0;
       m.nominas += coste; m.coste += coste; m.bruto += bruto; m.neto += parseFloat(x.neto) || 0;
@@ -3338,7 +3388,8 @@ function construirRegistroPersonal(ctx) {
     p.conNomina = nom.length > 0;
     p.primer = nom.length ? nom[0] : (conCoste[0] || null);
     p.ultimo = nom.length ? nom[nom.length - 1] : (conCoste[conCoste.length - 1] || null);
-    p.estado = p.conNomina ? (p.ultimo === ultimoMesNomina ? 'activo' : 'baja') : 'eventual';
+    p.fijoDiscontinuo = !!ctx.fijoDiscontinuoPorPersona[p.persona];
+    p.estado = p.conNomina ? (p.ultimo === ultimoMesNomina ? 'activo' : (p.fijoDiscontinuo ? 'discontinuo' : 'baja')) : 'eventual';
     p.yaEstabaAlInicio = p.conNomina && p.primer === primerMesNomina;
     p.mesesTrabajados = nom.length;
     if (!p.depto) p.depto = ctx.mapaDeptoExtras[p.nombreExtra] || 'Extras sin clasificar';
@@ -3353,6 +3404,7 @@ function construirRegistroPersonal(ctx) {
 }
 const ESTADO_PERSONAL = {
   activo: { texto: 'Activo', bg: '#E9F5EC', color: '#1E6B34' },
+  discontinuo: { texto: 'Fijo discontinuo', bg: '#E8F0F6', color: '#2F6280' },
   baja: { texto: 'Baja', bg: '#f0efea', color: '#6b6a64' },
   eventual: { texto: 'Eventual', bg: '#FDF3E0', color: '#854F0B' }
 };
@@ -3403,6 +3455,7 @@ async function pintarPersonalHistorico() {
     <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;">
       ${kpiCard('Personas en el histórico', String(reg.personas.length))}
       ${kpiCard('Activas', String(cuenta('activo')) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">con nómina en ${textoYM(reg.ultimoMesNomina)}</div>`)}
+      ${kpiCard('Fijos discontinuos (inactivos)', String(cuenta('discontinuo')))}
       ${kpiCard('Bajas', String(cuenta('baja')))}
       ${kpiCard('Eventuales (solo extras)', String(cuenta('eventual')))}
       ${kpiCard('Coste total histórico', euros(reg.personas.reduce((s, p) => s + p.total.coste, 0)) + `<div style="font-size:11px; font-weight:400; color:#6b6a64;">${textoYM(reg.primerMesNomina)} – ${textoYM(reg.ultimoMesNomina)}</div>`)}
@@ -3416,7 +3469,7 @@ async function pintarPersonalHistorico() {
     <div id="grafico-plantilla-historico" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;">${graficoPlantillaHistoricoSVG(reg, ctx)}</div>
     <div class="no-imprimir" style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:0.8rem 1.25rem; margin-bottom:1rem; display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-        ${chip('todos', 'Todos')}${chip('activo', 'Activos')}${chip('baja', 'Bajas')}${chip('eventual', 'Eventuales')}
+        ${chip('todos', 'Todos')}${chip('activo', 'Activos')}${chip('discontinuo', 'Fijos discontinuos')}${chip('baja', 'Bajas')}${chip('eventual', 'Eventuales')}
         <select onchange="cambiarFiltroHistorico('depto', this.value)" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesDepto}</select>
         <input type="text" placeholder="Buscar trabajador..." value="${historicoPersonal.q.replace(/"/g, '&quot;')}" oninput="cambiarFiltroHistorico('q', this.value, true)" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de; width:180px;">
       </div>
@@ -3568,7 +3621,7 @@ async function pintarPersonalComparador() {
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Meses')}${Array.from({ length: 12 }, (_, i) => i + 1).map(m => chipSet('meses', m, MESES_ES_FACTURAS[m].slice(0, 3), C.meses.has(m))).join('')}</div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Departamentos')}${ctx.listaDeptos.map(d => chipSet('deptos', d, d, C.deptos.has(d))).join('')}<span style="font-size:11px; color:#9a988f;">${C.deptos.size ? '' : '(ninguno marcado = todos)'}</span></div>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-        <div style="display:flex; gap:6px; align-items:center;">${lbl('Estado')}${['todos', 'activo', 'baja', 'eventual'].map(e => botonSegmentoInforme(C.estado === e, `cambiarComparador('estado', '${e}')`, e === 'todos' ? 'Todos' : ESTADO_PERSONAL[e].texto)).join('')}
+        <div style="display:flex; gap:6px; align-items:center;">${lbl('Estado')}${['todos', 'activo', 'discontinuo', 'baja', 'eventual'].map(e => botonSegmentoInforme(C.estado === e, `cambiarComparador('estado', '${e}')`, e === 'todos' ? 'Todos' : ESTADO_PERSONAL[e].texto)).join('')}
           <input type="text" placeholder="Filtrar trabajador..." value="${C.q.replace(/"/g, '&quot;')}" oninput="comparadorPersonal.q = this.value; renderResultadoComparador();" style="font-size:12px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de; width:170px; margin-left:8px;"></div>
         <div style="display:flex; gap:6px;">
           <button onclick="exportarComparadorPersonal()" style="font-size:12px; padding:6px 12px; border-radius:6px; border:0.5px solid #e2e2de; background:#fff; cursor:pointer;">⬇️ Excel</button>
