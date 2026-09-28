@@ -1674,35 +1674,72 @@ const SECCIONES_PERSONAL = {
   historico: 'Histórico de personal', comparador: 'Comparador', config: 'Configuración'
 };
 const SECCIONES_PERSONAL_SIN_ANIO = ['historico', 'comparador', 'config'];
+// Carga (28 sep 2026): TODOS los años en una sola petición (/api/personal/datos,
+// con caché en el servidor) y se reutiliza al cambiar de apartado o de año
+// durante 5 min; tras guardar/subir/sincronizar se vuelve a pedir. Con límite
+// de espera: si el servidor no responde, error con "Reintentar" en vez de
+// quedarse en "Cargando..." indefinidamente.
+const VIGENCIA_DATOS_PERSONAL_MS = 5 * 60 * 1000;
+async function fetchConLimitePersonal(url, ms) {
+  const control = new AbortController();
+  const t = setTimeout(() => control.abort(), ms);
+  try {
+    return await fetch(url, { signal: control.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('El servidor tarda demasiado en responder (más de ' + Math.round(ms / 1000) + ' s).');
+    throw err;
+  } finally {
+    clearTimeout(t);
+  }
+}
 async function cargarPersonal(seccion) {
   if (seccion) personalGlobal.tab = seccion;
   document.getElementById('content-title').textContent = 'Personal · ' + (SECCIONES_PERSONAL[personalGlobal.tab] || '');
   const body = document.getElementById('content-body');
-  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  const vigente = personalGlobal.cargadoEn && Date.now() - personalGlobal.cargadoEn < VIGENCIA_DATOS_PERSONAL_MS;
+  if (!vigente) body.innerHTML = '<p class="loading-text">Cargando datos de personal...</p>';
   try {
-    await recargarDatosPersonal();
+    if (!vigente) await recargarDatosPersonal();
     pintarPersonal();
   } catch (err) {
-    body.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p>';
+    body.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p><button onclick="cargarPersonal()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Reintentar</button>';
   }
 }
-async function recargarDatosPersonal() {
-  const resp = await fetch('/api/nominas/anio?anio=' + personalGlobal.anio);
+async function recargarDatosPersonal(forzar) {
+  const resp = await fetchConLimitePersonal('/api/personal/datos' + (forzar ? '?refrescar=1' : ''), 45000);
   const data = await resp.json();
   if (data.error) throw new Error(data.error);
-  personalGlobal.detalle = data.detalle || [];
+  personalGlobal.porAnio = data.por_anio || {};
   personalGlobal.departamentos = data.departamentos || [];
-  personalGlobal.extras = data.extras || [];
   personalGlobal.extrasDepartamentos = data.extras_departamentos || [];
   personalGlobal.extrasAlias = data.extras_alias || [];
   personalGlobal.empleadosAlias = data.empleados_alias || [];
   personalGlobal.aniosDisponibles = data.anios_disponibles || [];
-  personalGlobal.movimientos = data.movimientos || [];
-  personalGlobal.otrosAnios = {}; // la config (deptos/alias) puede haber cambiado — se vuelven a pedir
+  personalGlobal.cargadoEn = Date.now();
+  aplicarAnioPersonal();
+}
+// Reparte los datos ya cargados: año seleccionado → detalle/extras/movimientos;
+// el resto → otrosAnios (así Informe, Histórico, Comparador... no piden nada más).
+function aplicarAnioPersonal() {
+  const vacio = { detalle: [], extras: [], movimientos: [] };
+  const actual = personalGlobal.porAnio[personalGlobal.anio] || vacio;
+  personalGlobal.detalle = actual.detalle;
+  personalGlobal.extras = actual.extras;
+  personalGlobal.movimientos = actual.movimientos;
+  personalGlobal.otrosAnios = {};
+  personalGlobal.aniosDisponibles.forEach(a => { if (a !== personalGlobal.anio) personalGlobal.otrosAnios[a] = personalGlobal.porAnio[a] || vacio; });
 }
 function cambiarAnioPersonal(anio) {
   personalGlobal.anio = parseInt(anio);
-  recargarDatosPersonal().then(pintarPersonal).catch(err => alert('Error: ' + err.message));
+  aplicarAnioPersonal();
+  pintarPersonal();
+}
+function recargarPersonalManual() {
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Recargando datos de personal...</p>';
+  recargarDatosPersonal(true).then(pintarPersonal).catch(err => {
+    body.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p><button onclick="recargarPersonalManual()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Reintentar</button>';
+  });
 }
 function pintarPersonal() {
   const body = document.getElementById('content-body');
@@ -1711,9 +1748,12 @@ function pintarPersonal() {
   body.innerHTML = `
     <div class="no-imprimir" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; gap:1rem;">
       <p style="font-size:13px; color:#6b6a64; margin:0;">Nóminas + extras. El coste repercute en <span style="cursor:pointer; text-decoration:underline;" onclick="marcarMenuActivo('menu-item-fin-cierre-mensual'); cargarCierreMensual();">Cierre Mensual</span> según el departamento asignado a cada trabajador.</p>
-      <div id="selector-anio-personal" style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-        <label style="font-size:13px; color:#6b6a64;">Año</label>
-        <select onchange="cambiarAnioPersonal(this.value)" style="font-size:13px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesAnio}</select>
+      <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+        <span onclick="recargarPersonalManual()" title="Volver a leer los datos de la base de datos" style="font-size:12px; color:#6b6a64; cursor:pointer; white-space:nowrap;">↻ Recargar</span>
+        <div id="selector-anio-personal" style="display:flex; align-items:center; gap:8px;">
+          <label style="font-size:13px; color:#6b6a64;">Año</label>
+          <select onchange="cambiarAnioPersonal(this.value)" style="font-size:13px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesAnio}</select>
+        </div>
       </div>
     </div>
     <div id="personal-tab-body"></div>

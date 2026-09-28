@@ -2432,6 +2432,88 @@ function parsearArchivoNomina(buffer) {
   }
 }
 
+// ── Módulo Personal: TODOS los datos en una sola petición (28 sep 2026) ──
+// Antes el panel pedía /api/nominas/anio por cada año (≈11 consultas cada
+// vez, en dos rondas seguidas) en cada clic del submenú. Además, el 28 sep
+// una consulta trivial a extras_detalle se quedó colgada 68 s y 180 s en
+// Supabase (coincidiendo con el sync de Rentman) y la página se quedaba en
+// "Cargando..." sin límite. Ahora:
+//   - 7 consultas en paralelo con todos los años (son tablas pequeñas),
+//   - cada consulta con límite de 15 s y un reintento,
+//   - caché en memoria de 5 min, invalidada por cualquier escritura de
+//     Personal (subir/borrar nóminas, departamentos, fusiones, extras).
+let cachePersonalDatos = null; // { ts, data }
+const TTL_CACHE_PERSONAL_MS = 5 * 60 * 1000;
+app.use(['/api/nominas/subir', '/api/nominas/mes', '/api/empleados-departamento', '/api/empleados-alias',
+  '/api/extras/sincronizar', '/api/extras-departamento', '/api/extras-alias'], (req, res, next) => {
+  if (req.method !== 'GET') {
+    cachePersonalDatos = null;
+    res.on('finish', () => { cachePersonalDatos = null; }); // por si alguien la rellenó mientras se escribía
+  }
+  next();
+});
+async function consultaSupabaseConReintento(crearConsulta, etiqueta) {
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      const { data, error } = await crearConsulta().abortSignal(AbortSignal.timeout(15000));
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      if (intento === 2) throw new Error(etiqueta + ': ' + (err && err.message ? err.message : err));
+      console.warn('Personal: reintentando ' + etiqueta + ' tras error/timeout:', err && err.message);
+    }
+  }
+}
+async function selectTodoPersonal(tabla, columnas, orden) {
+  const PAGINA = 1000;
+  let todas = [], offset = 0;
+  while (true) {
+    const lote = await consultaSupabaseConReintento(() => {
+      let q = supabase.from(tabla).select(columnas).range(offset, offset + PAGINA - 1);
+      orden.forEach(campo => { q = q.order(campo); });
+      return q;
+    }, tabla);
+    todas = todas.concat(lote);
+    if (lote.length < PAGINA) break;
+    offset += PAGINA;
+  }
+  return todas;
+}
+app.get('/api/personal/datos', requiereLogin, soloPersonal, async (req, res) => {
+  try {
+    if (req.query.refrescar !== '1' && cachePersonalDatos && Date.now() - cachePersonalDatos.ts < TTL_CACHE_PERSONAL_MS) {
+      return res.json(cachePersonalDatos.data);
+    }
+    const [detalle, extras, movimientos, departamentos, extrasDepartamentos, extrasAlias, empleadosAlias] = await Promise.all([
+      selectTodoPersonal('nominas_detalle', '*', ['anio', 'mes', 'empresa_nombre', 'nombre', 'id']),
+      selectTodoPersonal('extras_detalle', '*', ['anio', 'mes', 'nombre']),
+      selectTodoPersonal('extras_movimientos', 'anio, mes, nombre, fecha, tipo, horas, importe, proyecto, origen', ['id']),
+      selectTodoPersonal('empleados_departamento', '*', ['empresa_nombre', 'nombre', 'id']),
+      selectTodoPersonal('extras_departamento', '*', ['nombre']),
+      selectTodoPersonal('extras_alias', '*', ['nombre']),
+      selectTodoPersonal('empleados_alias', '*', ['empresa_nif', 'formato_origen', 'num_empleado'])
+    ]);
+    const porAnio = {};
+    const delAnio = (a) => (porAnio[a] = porAnio[a] || { detalle: [], extras: [], movimientos: [] });
+    detalle.forEach(d => delAnio(d.anio).detalle.push(d));
+    extras.forEach(e => delAnio(e.anio).extras.push(e));
+    movimientos.forEach(m => delAnio(m.anio).movimientos.push(m));
+    const anios = Object.keys(porAnio).map(Number);
+    const aniosDisponibles = [];
+    if (anios.length) for (let a = Math.min(...anios); a <= Math.max(...anios); a++) aniosDisponibles.push(a);
+    const data = {
+      ok: true, por_anio: porAnio, anios_disponibles: aniosDisponibles, departamentos,
+      extras_departamentos: extrasDepartamentos, extras_alias: extrasAlias, empleados_alias: empleadosAlias,
+      generado: new Date().toISOString()
+    };
+    cachePersonalDatos = { ts: Date.now(), data };
+    res.json(data);
+  } catch (err) {
+    console.error('Error en /api/personal/datos:', err);
+    res.status(500).json({ error: 'Error al leer datos de Personal: ' + err.message });
+  }
+});
+
 // GET del año completo de TODO Personal (nóminas + extras) + las 2 listas
 // de departamentos. El frontend construye desde aquí el histórico de
 // nóminas/extras, el informe (por depto/trabajador, meses seleccionables) y
