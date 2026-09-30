@@ -3163,7 +3163,10 @@ app.get('/api/extras-form/contexto', requiereLogin, puedeRegistrarExtras, async 
     // Eventuales ya conocidos (nombres de Extras sin trabajador de nómina)
     const vinculados = new Set(alias.filter(a => a.empresa_nif).map(a => a.nombre));
     const eventuales = nombresExtras.map(n => n.nombre).filter(n => !vinculados.has(n));
-    res.json({ ok: true, trabajadores, eventuales, tarifas, proyectos, registros: misRegistros, inicio: inicio.texto, puede_gestionar: esGestorExtras(req), usuario: { usuario, nombre: req.session.usuario.nombre, rol: req.session.usuario.rol } });
+    // Dirección no registra horas extras: fuera del desplegable del formulario
+    // (sigue en la gestión, por si tuviera saldo o registros antiguos).
+    const trabajadoresFormulario = trabajadores.filter(t => t.departamento !== 'Dirección');
+    res.json({ ok: true, trabajadores: trabajadoresFormulario, eventuales, tarifas, proyectos, registros: misRegistros, inicio: inicio.texto, puede_gestionar: esGestorExtras(req), usuario: { usuario, nombre: req.session.usuario.nombre, rol: req.session.usuario.rol } });
   } catch (err) {
     console.error('Error en /api/extras-form/contexto:', err);
     res.status(500).json({ error: 'Error al cargar el formulario: ' + err.message });
