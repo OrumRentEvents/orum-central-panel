@@ -2107,16 +2107,22 @@ async function guardarConfigExtras() {
     estado.style.color = '#A32D2D';
   }
 }
-// Fusión: solo contra trabajadores del formato actual (es a quién "es hoy").
+// Fusión: con su ficha del formato actual (a quién "es hoy") o, si ya no
+// está, con otro código antiguo suyo (misma persona con varios códigos).
+// Valor de cada opción: "formato|num".
 function filaFusionEmpleadoHtml(e, aliasPorClave, conNomina) {
   const alias = aliasPorClave[e.empresa_nif + '|' + e.formato_origen + '|' + e.num_empleado];
   const revisado = !!alias;
   const roster = conNomina.filter(p => p.clave.formato_origen === 'nominas_gestoria' && p.clave.empresa_nif === e.empresa_nif);
   const sugerido = !revisado ? sugerirPersonaPorNombre(e.nombre, roster) : null;
-  const valor = alias && alias.num_empleado_canonico ? String(alias.num_empleado_canonico) : (sugerido ? String(sugerido.clave.num_empleado) : '');
-  const opt = (p) => `<option value="${p.clave.num_empleado}" ${String(p.clave.num_empleado) === valor ? 'selected' : ''}>${p.nombre}${p.estado !== 'activo' ? ' · hasta ' + textoYM(p.ultimo) : ''}</option>`;
+  const valor = alias && alias.num_empleado_canonico ? (alias.formato_canonico || 'nominas_gestoria') + '|' + alias.num_empleado_canonico : (sugerido ? 'nominas_gestoria|' + sugerido.clave.num_empleado : '');
+  const opt = (p) => { const v = 'nominas_gestoria|' + p.clave.num_empleado; return `<option value="${v}" ${v === valor ? 'selected' : ''}>${p.nombre}${p.estado !== 'activo' ? ' · hasta ' + textoYM(p.ultimo) : ''}</option>`; };
   const porNombre = (a, b) => (a.nombre || '').localeCompare(b.nombre || '');
   const act = roster.filter(p => p.estado === 'activo').sort(porNombre), resto = roster.filter(p => p.estado !== 'activo').sort(porNombre);
+  // Otros códigos del mismo formato antiguo (que no estén ya fusionados a otro).
+  const otrosAntiguos = personalGlobal.departamentos.filter(d => d.empresa_nif === e.empresa_nif && d.formato_origen === e.formato_origen && String(d.num_empleado) !== String(e.num_empleado)
+    && !((aliasPorClave[d.empresa_nif + '|' + d.formato_origen + '|' + d.num_empleado] || {}).num_empleado_canonico)).sort(porNombre);
+  const optAntiguo = (d) => { const v = d.formato_origen + '|' + d.num_empleado; return `<option value="${v}" ${v === valor ? 'selected' : ''}>${d.nombre} · Nº ${d.num_empleado}</option>`; };
   return `
     <tr data-empresa-nif="${e.empresa_nif}" data-formato="${e.formato_origen}" data-num="${e.num_empleado}">
       <td>${e.nombre}${sugerido ? ' <span style="color:#3D7C9E; font-size:11px;">(sugerido, revisa)</span>' : (!revisado ? ' <span style="color:#854F0B; font-size:11px;">(por revisar)</span>' : '')}</td>
@@ -2126,6 +2132,7 @@ function filaFusionEmpleadoHtml(e, aliasPorClave, conNomina) {
           <option value="">— No fusionar (persona distinta / ya no trabaja aquí) —</option>
           <optgroup label="En activo">${act.map(opt).join('')}</optgroup>
           ${resto.length ? `<optgroup label="Inactivos / baja">${resto.map(opt).join('')}</optgroup>` : ''}
+          ${otrosAntiguos.length ? `<optgroup label="Otro código antiguo (misma persona)">${otrosAntiguos.map(optAntiguo).join('')}</optgroup>` : ''}
         </select>
       </td>
     </tr>`;
@@ -2136,9 +2143,11 @@ async function guardarFusionEmpleados() {
   if (filas.length === 0) return;
   const asignaciones = [];
   filas.forEach(fila => {
+    const [formatoCanon, numCanon] = (fila.querySelector('.select-fusion-empleado').value || '').split('|');
     asignaciones.push({
       empresa_nif: fila.dataset.empresaNif, formato_origen: fila.dataset.formato, num_empleado: fila.dataset.num,
-      num_empleado_canonico: fila.querySelector('.select-fusion-empleado').value || null
+      num_empleado_canonico: numCanon || null,
+      formato_canonico: numCanon && formatoCanon !== 'nominas_gestoria' ? formatoCanon : null
     });
   });
   const estado = document.getElementById('estado-guardar-fusion');
@@ -2318,8 +2327,22 @@ function contextoInformePersonal() {
   personalGlobal.departamentos.forEach(d => { mapaDepto[d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado] = d.departamento || 'Personal sin clasificar'; });
   const mapaDeptoExtras = {};
   personalGlobal.extrasDepartamentos.forEach(d => { mapaDeptoExtras[d.nombre] = d.departamento || 'Extras sin clasificar'; });
+  // Fusión de un código del formato antiguo: normalmente con su ficha del
+  // formato actual, pero también con OTRO código antiguo de la misma persona
+  // (formato_canonico; 28 sep 2026: gente de baja con varios códigos en
+  // Resumen Contable y sin ficha actual). null = formato actual.
   const mapaAliasEmpleado = {};
-  personalGlobal.empleadosAlias.forEach(a => { if (a.num_empleado_canonico) mapaAliasEmpleado[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] = a.num_empleado_canonico; });
+  personalGlobal.empleadosAlias.forEach(a => { if (a.num_empleado_canonico) mapaAliasEmpleado[a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado] = { formato: a.formato_canonico || 'nominas_gestoria', num: a.num_empleado_canonico }; });
+  // Clave final de una clave de nómina, siguiendo fusiones encadenadas.
+  const canonDeClave = (nif, formato, num) => {
+    let f = formato, n = num;
+    for (let i = 0; i < 5 && f !== 'nominas_gestoria'; i++) {
+      const c = mapaAliasEmpleado[nif + '|' + f + '|' + n];
+      if (!c || (c.formato === f && String(c.num) === String(n))) break;
+      f = c.formato; n = c.num;
+    }
+    return { formato: f, num: n };
+  };
   const nombreActualPorClave = {}, nombrePorClaveCompleta = {};
   personalGlobal.departamentos.forEach(d => {
     const f = d.formato_origen || 'nominas_gestoria';
@@ -2327,17 +2350,19 @@ function contextoInformePersonal() {
     if (f === 'nominas_gestoria') nombreActualPorClave[d.empresa_nif + '|' + d.num_empleado] = d.nombre;
   });
   // Persona de una clave de nómina (misma regla que claveNominaInforme): el
-  // formato actual es "nif|num"; el antiguo fusionado hereda la persona
-  // actual; sin fusionar es una persona propia "formato|nif|num".
+  // formato actual es "nif|num"; el antiguo fusionado hereda la persona de
+  // su clave final; sin fusionar es una persona propia "formato|nif|num".
   const personaDeClave = (nif, formato, num) => {
-    if (formato === 'nominas_gestoria') return nif + '|' + num;
-    const canon = mapaAliasEmpleado[nif + '|' + formato + '|' + num];
-    return canon != null ? nif + '|' + canon : formato + '|' + nif + '|' + num;
+    const c = canonDeClave(nif, formato, num);
+    return c.formato === 'nominas_gestoria' ? nif + '|' + c.num : c.formato + '|' + nif + '|' + c.num;
   };
+  // Códigos antiguos que reciben la fusión de otros: ya no son "sin fusionar".
+  const destinosFusion = new Set(Object.entries(mapaAliasEmpleado).map(([k, c]) => k.split('|')[0] + '|' + c.formato + '|' + c.num));
   const nombreDeClave = (nif, formato, num, sufijo) => {
-    if (formato === 'nominas_gestoria') return nombrePorClaveCompleta[nif + '|' + formato + '|' + num] || ('Nº ' + num);
-    const canon = mapaAliasEmpleado[nif + '|' + formato + '|' + num];
-    return (canon != null && nombreActualPorClave[nif + '|' + canon]) || ((nombrePorClaveCompleta[nif + '|' + formato + '|' + num] || ('Nº ' + num)) + sufijo);
+    const c = canonDeClave(nif, formato, num), clave = nif + '|' + c.formato + '|' + c.num;
+    const nombre = nombrePorClaveCompleta[clave] || ('Nº ' + c.num);
+    if (c.formato === 'nominas_gestoria') return nombre;
+    return nombre + (destinosFusion.has(clave) ? ' (histórico)' : sufijo);
   };
   // Vínculo Extras → trabajador (28 sep 2026: puede ser de cualquier formato,
   // también gente que ya no está, para que sus extras caigan en su ficha).
@@ -2366,7 +2391,7 @@ function contextoInformePersonal() {
     const ia = DEPARTAMENTOS_ORUM.indexOf(a), ib = DEPARTAMENTOS_ORUM.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
-  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, aliasDeClave, nombreActualPorClave, nombrePorClaveCompleta, personaDeClave, fijoDiscontinuoPorPersona, variasEmpresas: empresas.size > 1, listaDeptos };
+  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, aliasDeClave, nombreActualPorClave, nombrePorClaveCompleta, personaDeClave, nombreDeClave, fijoDiscontinuoPorPersona, variasEmpresas: empresas.size > 1, listaDeptos };
 }
 // Fila del informe + departamento + identificador de PERSONA (para contar
 // plantilla sin duplicar: un trabajador con nómina y extras vinculados, o
@@ -2374,16 +2399,12 @@ function contextoInformePersonal() {
 // (eventuales) cuentan como persona propia.
 function claveNominaInforme(d, ctx) {
   const formato = d.formato_origen || 'nominas_gestoria';
-  const canonico = formato === 'nominas_gestoria' ? null : ctx.mapaAliasEmpleado[d.empresa_nif + '|' + formato + '|' + d.num_empleado];
-  let persona;
-  if (formato === 'nominas_gestoria') persona = d.empresa_nif + '|' + d.num_empleado;
-  else persona = canonico != null ? d.empresa_nif + '|' + canonico : formato + '|' + d.empresa_nif + '|' + d.num_empleado;
+  const persona = ctx.personaDeClave(d.empresa_nif, formato, d.num_empleado);
   const depto = ctx.mapaDepto[d.empresa_nif + '|' + formato + '|' + d.num_empleado] || 'Personal sin clasificar';
   let fila;
   if (agrupacionEfectivaInforme() === 'departamento') fila = depto;
   else if (formato !== 'nominas_gestoria') {
-    const nombreFusionado = canonico != null ? ctx.nombreActualPorClave[d.empresa_nif + '|' + canonico] : null;
-    fila = nombreFusionado || (d.nombre + ' (histórico, sin fusionar)');
+    fila = ctx.nombreDeClave(d.empresa_nif, formato, d.num_empleado, ' (histórico, sin fusionar)');
   } else {
     fila = d.nombre + (ctx.variasEmpresas ? ' (' + d.empresa_nombre + ')' : '');
   }
@@ -2896,8 +2917,7 @@ async function asegurarActividadPersonal(anio) {
 function nombrePersonaNomina(d, ctx) {
   const formato = d.formato_origen || 'nominas_gestoria';
   if (formato === 'nominas_gestoria') return d.nombre;
-  const canonico = ctx.mapaAliasEmpleado[d.empresa_nif + '|' + formato + '|' + d.num_empleado];
-  return (canonico != null && ctx.nombreActualPorClave[d.empresa_nif + '|' + canonico]) || (d.nombre + ' (histórico)');
+  return ctx.nombreDeClave(d.empresa_nif, formato, d.num_empleado, ' (histórico)');
 }
 // Acepta el nombre de Extras o la fila entera (las del formulario de ORUM
 // Central traen la clave del trabajador y no dependen de vincular nombres).

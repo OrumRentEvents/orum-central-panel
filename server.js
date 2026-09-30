@@ -2211,9 +2211,11 @@ app.delete('/api/gastos-anuales/:id', requiereLogin, bloquearComercial, async (r
 //     formato_origen text not null,
 //     num_empleado integer not null,
 //     num_empleado_canonico integer,
+//     formato_canonico text, -- null = formato actual; si no, otro código antiguo de la misma persona
 //     updated_at timestamptz not null default now(),
 //     primary key (empresa_nif, formato_origen, num_empleado)
 //   );
+//   -- 28 sep 2026: alter table empleados_alias add column if not exists formato_canonico text;
 //
 //   -- MIGRACIÓN si nominas_detalle/empleados_departamento ya existían de
 //   -- antes (11 sep 2026, antes de añadir formato_origen) - ejecutar UNA
@@ -2738,6 +2740,7 @@ app.post('/api/empleados-alias', requiereLogin, soloPersonal, async (req, res) =
     const filas = asignaciones.map(a => ({
       empresa_nif: a.empresa_nif, formato_origen: a.formato_origen, num_empleado: parseInt(a.num_empleado),
       num_empleado_canonico: a.num_empleado_canonico ? parseInt(a.num_empleado_canonico) : null,
+      formato_canonico: a.num_empleado_canonico && a.formato_canonico ? a.formato_canonico : null,
       updated_at: new Date().toISOString()
     }));
     const { error } = await supabase.from('empleados_alias').upsert(filas, { onConflict: 'empresa_nif,formato_origen,num_empleado' });
