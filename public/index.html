@@ -3673,7 +3673,7 @@ const METRICAS_COMPARADOR = {
 };
 const METRICAS_EUROS_COMPARADOR = ['coste', 'nominas', 'extras', 'bruto', 'neto', 'ssEmp', 'ssTrab', 'irpf', 'medio', 'plus'];
 const METRICAS_NO_SUMABLES = ['personas', 'plantilla', 'medio'];
-let comparadorPersonal = { filas: 'departamento', columnas: 'anio', metrica: 'coste', vista: 'valor', anios: null, meses: new Set(Array.from({ length: 12 }, (_, i) => i + 1)), deptos: new Set(), estado: 'todos', q: '' };
+let comparadorPersonal = { filas: 'departamento', columnas: 'anio', metrica: 'coste', vista: 'valor', anios: null, meses: new Set(Array.from({ length: 12 }, (_, i) => i + 1)), deptos: new Set(), estado: 'todos', q: '', hastaHoy: false };
 let comparadorPersonalExport = null;
 const PRESETS_COMPARADOR = [
   { texto: 'Coste por departamento y año', filas: 'departamento', columnas: 'anio', metrica: 'coste' },
@@ -3710,6 +3710,8 @@ async function pintarPersonalComparador() {
         <span>${lbl('Mostrar')}${select('vista', { valor: 'Valores', pct_fila: '% sobre el total de la fila', pct_col: '% sobre el total de la columna', delta: 'Δ % frente a la columna anterior' }, C.vista)}</span>
       </div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Años')}${aniosTodos.map(a => chipSet('anios', a, String(a), C.anios.has(a))).join('')}</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Periodo')}${botonSegmentoInforme(!C.hastaHoy, `cambiarComparador('hastaHoy', false)`, 'Año completo')}${botonSegmentoInforme(C.hastaHoy, `cambiarComparador('hastaHoy', true)`, 'Hasta hoy (' + textoPeriodoHastaHoy() + ')')}
+        <span style="font-size:11px; color:#9a988f;">${C.hastaHoy ? 'Cada año cuenta solo de enero al último mes con nómina subida, para comparar el mismo periodo.' : ''}</span></div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Meses')}${Array.from({ length: 12 }, (_, i) => i + 1).map(m => chipSet('meses', m, MESES_ES_FACTURAS[m].slice(0, 3), C.meses.has(m))).join('')}</div>
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">${lbl('Departamentos')}${ctx.listaDeptos.map(d => chipSet('deptos', d, d, C.deptos.has(d))).join('')}<span style="font-size:11px; color:#9a988f;">${C.deptos.size ? '' : '(ninguno marcado = todos)'}</span></div>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
@@ -3726,6 +3728,17 @@ async function pintarPersonalComparador() {
   renderResultadoComparador();
 }
 function cambiarComparador(campo, valor) { comparadorPersonal[campo] = valor; pintarPersonalComparador(); }
+// "Hasta hoy": las nóminas son mensuales, así que el corte es el último mes
+// con nómina subida (el mes en curso aún no la tiene). Se aplica a todos los
+// años para comparar enero→ese mes con enero→ese mes.
+function mesCorteHastaHoy() {
+  const reg = personalGlobal.registroCache;
+  return reg && reg.ultimoMesNomina ? reg.ultimoMesNomina % 100 : new Date().getMonth() + 1;
+}
+function textoPeriodoHastaHoy() {
+  const m = mesCorteHastaHoy();
+  return m === 1 ? 'ene' : 'ene–' + MESES_ES_FACTURAS[m].slice(0, 3).toLowerCase();
+}
 function toggleSetComparador(campo, valor) {
   const s = comparadorPersonal[campo];
   if (s.has(valor)) s.delete(valor); else s.add(valor);
@@ -3772,6 +3785,7 @@ function renderResultadoComparador() {
   const reg = personalGlobal.registroCache;
   if (!cont || !reg) return;
   const C = comparadorPersonal, q = C.q.trim().toLowerCase();
+  const corte = C.hastaHoy ? mesCorteHastaHoy() : 12;
   // Hechos filtrados
   const hechos = [];
   reg.personas.forEach(p => {
@@ -3780,7 +3794,7 @@ function renderResultadoComparador() {
     if (q && !(p.nombre || '').toLowerCase().includes(q)) return;
     Object.keys(p.meses).forEach(k => {
       const ym = Number(k), anio = Math.floor(ym / 100), mes = ym % 100;
-      if (!C.anios.has(anio) || !C.meses.has(mes)) return;
+      if (!C.anios.has(anio) || !C.meses.has(mes) || mes > corte) return;
       hechos.push({ p, ym, anio, mes, m: p.meses[ym], nomina: p.mesesNomina.has(ym) });
     });
   });
@@ -3822,7 +3836,7 @@ function renderResultadoComparador() {
     <div class="solo-impresion" style="margin-bottom:12px;"><p style="font-size:18px; font-weight:600; margin:0;">Comparador de personal · ${METRICAS_COMPARADOR[M]}</p><p style="font-size:12px; color:#6b6a64; margin:2px 0 0;">${DIMENSIONES_COMPARADOR[C.filas]} × ${DIMENSIONES_COMPARADOR[C.columnas]} · años ${[...C.anios].sort().join(', ')} · generado ${new Date().toLocaleDateString('es-ES')}</p></div>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem; margin-bottom:1rem;">${graficoComparadorSVG(listaFilas, listaCols, hayCols, valorCelda, (df) => valorAcumuladorComparador(totFila.get(df.k), M), M)}</div>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
-      <p style="font-size:12px; color:#6b6a64; margin:0; padding:10px 12px 0;">${METRICAS_COMPARADOR[M]} · ${DIMENSIONES_COMPARADOR[C.filas]}${hayCols ? ' × ' + DIMENSIONES_COMPARADOR[C.columnas] : ''} · ${listaFilas.length} filas.${sumable ? '' : ' Esta métrica no se suma: el total se recalcula sobre todo el grupo.'} Los años con meses sin nómina subida suman menos.</p>
+      <p style="font-size:12px; color:#6b6a64; margin:0; padding:10px 12px 0;">${METRICAS_COMPARADOR[M]} · ${DIMENSIONES_COMPARADOR[C.filas]}${hayCols ? ' × ' + DIMENSIONES_COMPARADOR[C.columnas] : ''} · ${listaFilas.length} filas.${C.hastaHoy ? ' <strong>Hasta hoy: ' + textoPeriodoHastaHoy() + ' de cada año.</strong>' : ''}${sumable ? '' : ' Esta métrica no se suma: el total se recalcula sobre todo el grupo.'} Los años con meses sin nómina subida suman menos.</p>
       <table>
         <thead><tr><th>${DIMENSIONES_COMPARADOR[C.filas]}</th>${hayCols ? listaCols.map(dc => `<th style="text-align:right;">${dc.t}</th>`).join('') : ''}<th style="text-align:right;">${etiquetaTotal}</th>${hayCols && listaCols.length > 1 ? '<th>Evolución</th>' : ''}</tr></thead>
         <tbody>${cuerpo}</tbody>
