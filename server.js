@@ -4064,6 +4064,36 @@ app.get('/', (req, res) => {
 const informeComerciales = require('./lib/informeComerciales');
 informeComerciales.registrarRutas(app, requiereLogin);
 
+// Integración Rentman → Holded (prueba hasta 1 ene 2027) — ver lib/holded.js.
+// Pantalla de prueba en /holded.html. Solo Dirección y Contabilidad.
+const holdedSync = require('./lib/holded');
+function soloHolded(req, res, next) {
+  if (!['Direccion', 'Contabilidad'].includes(req.session.usuario.rol)) return res.status(403).json({ error: 'No autorizado para este apartado' });
+  next();
+}
+app.get('/api/holded/factura/:numero', requiereLogin, soloHolded, async (req, res) => {
+  try {
+    const vista = await holdedSync.prepararFactura(req.params.numero);
+    const cobros = await holdedSync.prepararCobros(req.params.numero);
+    res.json({ ok: true, vista, cobros });
+  } catch (err) {
+    console.error('Error en /api/holded/factura:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.post('/api/holded/factura/:numero/enviar', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedSync.enviarFactura(req.params.numero, { aprobar: !!(req.body && req.body.aprobar) })); }
+  catch (err) { console.error('Error en /api/holded/enviar:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/factura/:rentmanId/aprobar', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedSync.aprobarFactura(parseInt(req.params.rentmanId, 10))); }
+  catch (err) { console.error('Error en /api/holded/aprobar:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/factura/:numero/cobros', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedSync.enviarCobros(req.params.numero)); }
+  catch (err) { console.error('Error en /api/holded/cobros:', err); res.status(500).json({ error: err.message }); }
+});
+
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
   informeComerciales.programarInformeDiario();

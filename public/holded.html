@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba Holded · ORUM Central</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f4f0;color:#1f2937;margin:0;padding:24px 16px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#6b7280;font-size:13px;margin-bottom:20px}
+  .card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:16px 18px;margin-bottom:14px}
+  .card h2{font-size:14px;margin:0 0 10px;color:#374151}
+  input{padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:140px}
+  button{padding:8px 14px;border-radius:8px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;font-weight:600;font-size:13px;cursor:pointer;margin-left:6px}
+  button.prim{background:#2563eb;color:#fff}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eee}
+  th{color:#6b7280;font-weight:600;font-size:12px}
+  td.n,th.n{text-align:right}
+  .err{color:#b91c1c}.av{color:#b45309}.ok{color:#15803d}
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;font-size:13px}
+  .kv div:nth-child(odd){color:#6b7280}
+  pre{background:#f8fafc;border-radius:8px;padding:10px;font-size:12px;overflow:auto;max-height:300px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;background:#f3f4f6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Prueba Rentman → Holded</h1>
+  <div class="sub">Holded es de prueba hasta el 1 de enero de 2027. Facturas desde el 01/10/2026. Por defecto se crean en borrador.</div>
+
+  <div class="card">
+    <input id="num" placeholder="Nº factura" value="261749">
+    <button class="prim" onclick="cargar()">Ver vista previa</button>
+  </div>
+  <div id="out"></div>
+</div>
+<script>
+const eur = n => (Number(n)||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let actual = null;
+
+async function api(method, url, body){
+  const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  if(r.status===401) throw new Error('No has iniciado sesión: entra primero en ORUM Central y vuelve a esta página.');
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error||('Error '+r.status));
+  return d;
+}
+
+async function cargar(){
+  const n = document.getElementById('num').value.trim();
+  const out = document.getElementById('out');
+  out.innerHTML = '<div class="card">Cargando…</div>';
+  try{
+    const d = await api('GET','/api/holded/factura/'+encodeURIComponent(n));
+    actual = d; pintar(d);
+  }catch(e){ out.innerHTML = '<div class="card err">'+esc(e.message)+'</div>'; }
+}
+
+function pintar(d){
+  const v = d.vista, s = v.sync;
+  const avisos = v.avisos.length ? v.avisos.map(a=>'<div class="'+(a.nivel==='error'?'err':'av')+'">'+(a.nivel==='error'?'✖ ':'⚠ ')+esc(a.texto)+'</div>').join('') : '<div class="ok">✔ Todo correcto para enviar</div>';
+  const estado = s ? '<span class="pill">'+esc(s.estado)+'</span>'+(s.holded_invoice_id?' · id '+esc(s.holded_invoice_id):'')+(s.error?'<div class="err">'+esc(s.error)+'</div>':'') : '<span class="pill">no enviada</span>';
+  const cobros = d.cobros.length ? '<table><tr><th>Pago</th><th>Fecha</th><th>Método (Caja)</th><th>Cuenta</th><th class="n">Importe</th><th>Estado</th></tr>'+
+    d.cobros.map(c=>'<tr><td>'+c.pago_id+(c.split_idx>1?'/'+c.split_idx:'')+'</td><td>'+esc(c.fecha)+'</td><td>'+esc(c.metodo||'—')+'</td><td>'+esc(c.cuenta||'—')+'</td><td class="n">'+eur(c.importe)+'</td><td>'+esc(c.estado)+(c.motivo?'<div class="av" style="font-size:12px">'+esc(c.motivo)+'</div>':'')+'</td></tr>').join('')+'</table>' : '<div class="sub">Sin cobros en Rentman.</div>';
+  const puedeAprobar = s && s.estado==='borrador';
+  const puedeCobros = s && s.estado==='aprobada' && d.cobros.some(c=>c.estado==='listo');
+  document.getElementById('out').innerHTML =
+    '<div class="card"><h2>Factura '+esc(v.rentman.numero)+' · '+esc(v.rentman.fecha)+'</h2><div class="kv">'+
+      '<div>Cliente Rentman</div><div>'+esc(v.cliente.nombre)+' · NIF '+esc(v.cliente.nif||'—')+'</div>'+
+      '<div>Contacto Holded</div><div>'+(v.cliente.holded_id?esc(v.cliente.holded_nombre)+' · cuenta '+esc(v.cliente.cuenta):'<span class="err">no encontrado</span>')+'</div>'+
+      '<div>Total Rentman</div><div>'+eur(v.rentman.base)+' + IVA '+eur(v.rentman.iva)+' = <b>'+eur(v.rentman.total)+'</b></div>'+
+      '<div>Estado en Holded</div><div>'+estado+'</div></div></div>'+
+    '<div class="card"><h2>Líneas que se enviarán</h2><table><tr><th>Concepto</th><th>Cuenta</th><th>IVA</th><th class="n">Base</th><th class="n">Cuota IVA</th></tr>'+
+      v.lineas.map(l=>'<tr><td>'+esc(l.concepto)+'</td><td>'+esc(l.cuenta)+'</td><td>'+esc(l.iva)+'</td><td class="n">'+eur(l.base)+'</td><td class="n">'+eur(l.cuota_iva)+'</td></tr>').join('')+
+      '<tr><td colspan="3"><b>Total</b></td><td class="n"><b>'+eur(v.totales.base)+'</b></td><td class="n"><b>'+eur(v.totales.iva)+'</b></td></tr></table></div>'+
+    '<div class="card"><h2>Comprobaciones</h2>'+avisos+'</div>'+
+    '<div class="card"><h2>Cobros (método desde Caja)</h2>'+cobros+'</div>'+
+    '<div class="card"><h2>Acciones</h2>'+
+      '<button class="prim" '+(v.se_puede_enviar?'':'disabled')+' onclick="enviar(false)">Crear en Holded (borrador)</button>'+
+      '<button '+(v.se_puede_enviar?'':'disabled')+' onclick="enviar(true)">Crear y aprobar</button>'+
+      '<button '+(puedeAprobar?'':'disabled')+' onclick="aprobar()">Aprobar borrador</button>'+
+      '<button '+(puedeCobros?'':'disabled')+' onclick="cobrosEnviar()">Enviar cobros</button>'+
+      '<div id="res"></div></div>'+
+    '<div class="card"><h2>Datos técnicos (lo que se manda a Holded)</h2><pre>'+esc(JSON.stringify(v.payload,null,2))+'</pre></div>';
+}
+
+async function accion(fn, confirmTxt){
+  if(confirmTxt && !confirm(confirmTxt)) return;
+  const res = document.getElementById('res');
+  res.innerHTML = '<div class="sub" style="margin-top:10px">Enviando…</div>';
+  try{
+    const r = await fn();
+    res.innerHTML = '<pre class="'+(r.ok?'ok':'err')+'" style="margin-top:10px">'+esc(JSON.stringify(r,null,2))+'</pre>';
+    setTimeout(cargar, 1500);
+  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
+}
+const n = () => encodeURIComponent(actual.vista.rentman.numero);
+function enviar(aprobar){ accion(()=>api('POST','/api/holded/factura/'+n()+'/enviar',{aprobar}), aprobar?'Una factura aprobada en Holded no se puede borrar, solo anular. ¿Crear y aprobar?':null); }
+function aprobar(){ accion(()=>api('POST','/api/holded/factura/'+actual.vista.rentman.id+'/aprobar'), 'Una factura aprobada en Holded no se puede borrar, solo anular. ¿Aprobar?'); }
+function cobrosEnviar(){ accion(()=>api('POST','/api/holded/factura/'+n()+'/cobros')); }
+</script>
+</body>
+</html>
