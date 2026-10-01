@@ -4093,8 +4093,20 @@ app.post('/api/holded/factura/:numero/cobros', requiereLogin, soloHolded, async 
   try { res.json(await holdedSync.enviarCobros(req.params.numero)); }
   catch (err) { console.error('Error en /api/holded/cobros:', err); res.status(500).json({ error: err.message }); }
 });
+app.get('/api/holded/pendientes', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json({ ok: true, ...(await holdedSync.pendientes()) }); }
+  catch (err) { console.error('Error en /api/holded/pendientes:', err); res.status(500).json({ error: err.message }); }
+});
+// Volcado manual ("forzar"): lo mismo que el de las 6:00; con incluirHoy
+// también vuelca lo de hoy.
+app.post('/api/holded/volcar', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedSync.volcarTodo({ origen: 'manual', usuario: req.session.usuario.nombre, incluirHoy: !!(req.body && req.body.incluirHoy) })); }
+  catch (err) { console.error('Error en /api/holded/volcar:', err); res.status(500).json({ error: err.message }); }
+});
 
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
   informeComerciales.programarInformeDiario();
+  holdedSync.programarVolcadoDiario();
+  holdedSync.recuperarVolcadoDeHoy().catch(e => console.error('[Holded] recuperarVolcadoDeHoy:', e.message));
 });

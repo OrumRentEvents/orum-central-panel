@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Prueba Holded · ORUM Central</title>
+<title>Holded · ORUM Central</title>
 <style>
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f4f0;color:#1f2937;margin:0;padding:24px 16px}
   .wrap{max-width:900px;margin:0 auto}
@@ -28,11 +28,22 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Prueba Rentman → Holded</h1>
-  <div class="sub">Holded es de prueba hasta el 1 de enero de 2027. Facturas desde el 01/10/2026. Por defecto se crean en borrador.</div>
+  <h1>Rentman → Holded</h1>
+  <div class="sub">Holded es de prueba hasta el 1 de enero de 2027. Cada día a las 6:00 se vuelca todo lo del día anterior (facturas y cobros clasificados en Caja). Lo ya volcado no se vuelve a enviar.</div>
 
   <div class="card">
-    <input id="num" placeholder="Nº factura" value="261749">
+    <h2>Volcado</h2>
+    <div id="volcado" class="sub" style="margin-bottom:10px">Cargando…</div>
+    <button class="prim" style="margin-left:0" onclick="volcar()">Volcar ahora</button>
+    <label style="font-size:13px;margin-left:10px"><input type="checkbox" id="incluirHoy" style="width:auto"> incluir también lo de hoy</label>
+    <div id="res-volcado"></div>
+  </div>
+
+  <div id="pend"></div>
+
+  <div class="card">
+    <h2>Revisar una factura</h2>
+    <input id="num" placeholder="Nº factura" value="">
     <button class="prim" onclick="cargar()">Ver vista previa</button>
   </div>
   <div id="out"></div>
@@ -49,6 +60,50 @@ async function api(method, url, body){
   if(!r.ok) throw new Error(d.error||('Error '+r.status));
   return d;
 }
+
+const fh = iso => { if(!iso) return '—'; const d=new Date(iso); return d.toLocaleString('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); };
+const ff = s => s ? s.split('-').reverse().join('/') : '—';
+const ESTADOS = {sin_procesar:'sin procesar',bloqueada:'bloqueada',error:'error',borrador:'borrador',sin_clasificar:'sin método en Caja',sin_cuenta:'sin cuenta',sin_tesoreria:'sin tesorería',listo:'listo',modificado:'cambiado'};
+
+async function cargarPendientes(){
+  const box = document.getElementById('pend');
+  try{
+    const d = await api('GET','/api/holded/pendientes');
+    const ej = d.ejecuciones||[];
+    document.getElementById('volcado').innerHTML = (d.volcando?'<b class="av">Volcado en marcha…</b><br>':'') + (ej.length ?
+      'Últimos volcados:<br>'+ej.map(e=>{const r=e.resumen||{};return fh(e.inicio)+' · '+(e.origen==='auto'?'automático':'manual'+(e.usuario?' ('+esc(e.usuario)+')':''))+' · hasta '+ff(e.hasta_fecha)+' · '+
+        (e.fin? (e.ok?'<span class="ok">✔</span>':'<span class="err">con errores</span>')+' · '+(r.facturas_enviadas||0)+' facturas, '+(r.cobros_enviados||0)+' cobros'+(r.facturas_bloqueadas?', '+r.facturas_bloqueadas+' bloqueadas':'') : 'en curso');}).join('<br>')
+      : 'Todavía no ha habido ningún volcado.');
+    const tF = d.facturas.length ? '<table><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="n">Total</th><th>Estado</th><th>Motivo</th></tr>'+
+      d.facturas.map(f=>'<tr><td><a href="#" onclick="ver(\''+f.numero+'\');return false">'+f.numero+'</a></td><td>'+ff(f.fecha)+'</td><td>'+esc(f.cliente)+'</td><td class="n">'+eur(f.total)+'</td><td><span class="pill">'+esc(ESTADOS[f.estado]||f.estado)+'</span></td><td class="'+(f.estado==='sin_procesar'?'sub':'err')+'" style="font-size:12px">'+esc(f.motivo)+'</td></tr>').join('')+'</table>'
+      : '<div class="ok">✔ Ninguna factura pendiente</div>';
+    const tC = d.cobros.length ? '<table><tr><th>Factura</th><th>Cliente</th><th>Pago</th><th>Fecha</th><th>Método</th><th class="n">Importe</th><th>Motivo</th></tr>'+
+      d.cobros.map(c=>'<tr><td><a href="#" onclick="ver(\''+c.numero_factura+'\');return false">'+c.numero_factura+'</a></td><td>'+esc(c.cliente)+'</td><td>'+c.pago_id+(c.split_idx>1?'/'+c.split_idx:'')+'</td><td>'+ff(c.fecha)+'</td><td>'+esc(c.metodo||'—')+'</td><td class="n">'+eur(c.importe)+'</td><td class="'+(c.estado==='listo'?'sub':'err')+'" style="font-size:12px">'+esc(c.motivo||'Se enviará en el próximo volcado')+'</td></tr>').join('')+'</table>'
+      : '<div class="ok">✔ Ningún cobro pendiente</div>';
+    const tM = d.modificadas.length ? '<div class="card"><h2 class="err">Facturas cambiadas en Rentman después de volcarlas ('+d.modificadas.length+')</h2><table><tr><th>Nº</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th></tr>'+
+      d.modificadas.map(m=>'<tr><td>'+m.numero+'</td><td>'+esc(m.cliente)+'</td><td class="n">'+eur(m.total_enviado)+'</td><td class="n">'+eur(m.total_rentman)+'</td></tr>').join('')+'</table><div class="sub" style="margin-top:6px">Holded no se entera de estos cambios: hay que corregirlo con una rectificativa en Rentman o a mano en Holded.</div></div>' : '';
+    box.innerHTML = tM +
+      '<div class="card"><h2>Facturas pendientes ('+d.facturas.length+')</h2>'+tF+'</div>'+
+      '<div class="card"><h2>Cobros pendientes ('+d.cobros.length+')</h2>'+tC+'</div>';
+  }catch(e){ box.innerHTML = '<div class="card err">'+esc(e.message)+'</div>'; document.getElementById('volcado').textContent=''; }
+}
+
+async function volcar(){
+  const incluirHoy = document.getElementById('incluirHoy').checked;
+  if(!confirm('Se volcarán a Holded (aprobadas) todas las facturas y cobros '+(incluirHoy?'hasta hoy':'hasta ayer')+' que falten. ¿Seguir?')) return;
+  const res = document.getElementById('res-volcado');
+  res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando… puede tardar unos minutos.</div>';
+  try{
+    const r = await api('POST','/api/holded/volcar',{incluirHoy});
+    const s = r.resumen||{};
+    res.innerHTML = '<div style="margin-top:10px" class="'+(r.ok?'ok':'err')+'">'+(r.motivo?esc(r.motivo)+'<br>':'')+
+      (s.facturas_enviadas||0)+' facturas enviadas · '+(s.facturas_aprobadas||0)+' aprobadas · '+(s.facturas_bloqueadas||0)+' bloqueadas · '+(s.cobros_enviados||0)+' cobros enviados'+
+      ((s.errores||[]).length?'<br>'+s.errores.map(esc).join('<br>'):'')+'</div>';
+  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
+  cargarPendientes();
+}
+
+function ver(n){ document.getElementById('num').value=n; cargar(); document.getElementById('num').scrollIntoView({behavior:'smooth'}); }
 
 async function cargar(){
   const n = document.getElementById('num').value.trim();
@@ -95,13 +150,14 @@ async function accion(fn, confirmTxt){
   try{
     const r = await fn();
     res.innerHTML = '<pre class="'+(r.ok?'ok':'err')+'" style="margin-top:10px">'+esc(JSON.stringify(r,null,2))+'</pre>';
-    setTimeout(cargar, 1500);
+    setTimeout(()=>{cargar();cargarPendientes();}, 1500);
   }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
 }
 const n = () => encodeURIComponent(actual.vista.rentman.numero);
 function enviar(aprobar){ accion(()=>api('POST','/api/holded/factura/'+n()+'/enviar',{aprobar}), aprobar?'Una factura aprobada en Holded no se puede borrar, solo anular. ¿Crear y aprobar?':null); }
 function aprobar(){ accion(()=>api('POST','/api/holded/factura/'+actual.vista.rentman.id+'/aprobar'), 'Una factura aprobada en Holded no se puede borrar, solo anular. ¿Aprobar?'); }
 function cobrosEnviar(){ accion(()=>api('POST','/api/holded/factura/'+n()+'/cobros')); }
+cargarPendientes();
 </script>
 </body>
 </html>
