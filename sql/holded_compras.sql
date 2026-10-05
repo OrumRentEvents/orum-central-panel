@@ -31,3 +31,15 @@ create table if not exists holded_sync_compras (
 );
 alter table holded_proveedores enable row level security;
 alter table holded_sync_compras enable row level security;
+
+-- 5 oct 2026: lectura única de cada PDF (lib/lecturaFacturas.js). La hace la
+-- sincronización de las 6:00; de aquí salen la Sheet y el volcado a Holded.
+create table if not exists facturas_proveedores (
+  file_id text primary key, proveedor text, nombre_archivo text, emisor_nombre text, nif text,
+  numero text, fecha date, vencimiento date, es_rectificativa boolean, concepto text,
+  lineas_iva jsonb, periodos jsonb, retencion_porcentaje numeric, retencion_importe numeric,
+  total numeric, moneda text, confianza text, dudas text, modelo text,
+  leido_en timestamptz not null default now()
+);
+create index if not exists idx_facturas_proveedores_fecha on facturas_proveedores (fecha);
+alter table facturas_proveedores enable row level security;

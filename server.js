@@ -1823,67 +1823,14 @@ app.get('/api/material/estadisticas', requiereLogin, async (req, res) => {
 
 const APPS_SCRIPT_FACTURAS_URL = process.env.APPS_SCRIPT_FACTURAS_URL || 'PEGA_AQUI_LA_URL_DEL_SCRIPT_DE_FACTURAS';
 const APPS_SCRIPT_FACTURAS_TOKEN = 'ORUMx2026#Facturas$Sync';
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-// ACTUALIZADO (15 sep 2026): algunos proveedores (Securitas Direct, Vodafone...)
-// facturan varios periodos/meses en un mismo PDF, una línea con su propia
-// fecha/base/IVA/total por mes - antes el prompt solo pedía UN importe para
-// toda la factura, así que se perdían todas las líneas menos una. Ahora se
-// pide siempre un array "lineas" (una factura de un solo periodo devuelve un
-// array de un elemento) y cada línea se guarda como su propia fila en el log,
-// ver doPost() en FacturasProveedores.gs.
-async function extraerDatosFactura(base64Pdf, nombreArchivo, proveedor) {
-  const prompt = `Esta es una factura del proveedor "${proveedor}" (archivo: ${nombreArchivo}).
-Algunas facturas incluyen VARIOS periodos o meses en el mismo documento (por ejemplo, una línea de importe distinta por cada mes de un servicio recurrente, con su propia fecha). En ese caso hay que extraer CADA línea/mes por separado, no solo un total general.
-Responde SOLO con un JSON válido, sin texto adicional ni markdown, con esta forma exacta:
-{
-  "lineas": [
-    {
-      "numeroFactura": "número de factura tal como aparece",
-      "fecha": "fecha de esa línea/periodo en formato DD/MM/YYYY (si toda la factura comparte una única fecha, repítela en cada línea)",
-      "importeBase": número base imponible de esa línea (SIN IVA), como número decimal sin símbolo de moneda,
-      "iva": importe del IVA de esa línea, como número decimal,
-      "importeTotal": número total de esa línea CON IVA incluido, como número decimal,
-      "confianza": "alta" o "media" o "baja" según lo clara/legible que esté la factura
-    }
-  ]
-}
-Si la factura es de un único importe/periodo, devuelve "lineas" con un solo elemento.
-Si una línea no desglosa IVA (por ejemplo recargo de equivalencia, régimen especial, o un proveedor exento), pon "iva": 0 y "importeBase" igual a "importeTotal" en esa línea.`;
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: [
-        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Pdf } },
-        { type: 'text', text: prompt }
-      ]}]
-    })
-  });
-
-  const data = await response.json();
-  const textoRespuesta = (data.content || []).find(b => b.type === 'text');
-  if (!textoRespuesta) throw new Error('Respuesta de Claude sin texto: ' + JSON.stringify(data));
-
-  const limpio = textoRespuesta.text.replace(/```json|```/g, '').trim();
-  const extraido = JSON.parse(limpio);
-  const lineasCrudas = Array.isArray(extraido.lineas) && extraido.lineas.length > 0 ? extraido.lineas : [extraido];
-  return lineasCrudas.map(linea => {
-    const base = parseFloat(linea.importeBase) || 0;
-    const iva = parseFloat(linea.iva) || 0;
-    return {
-      numeroFactura: linea.numeroFactura || '',
-      fecha: linea.fecha || '',
-      importeBase: Math.round(base * 100) / 100,
-      iva: Math.round(iva * 100) / 100,
-      importeTotal: Math.round((base + iva) * 100) / 100,
-      confianza: linea.confianza || ''
-    };
-  });
-}
+// ACTUALIZADO (5 oct 2026): la lectura de cada PDF la hace ahora
+// lib/lecturaFacturas.js UNA sola vez y la guarda completa en Supabase
+// (facturas_proveedores: NIF, cuadro de IVA, retención, periodos...). Las
+// filas de la Sheet (una por periodo, como desde el 15 sep) salen de esa
+// lectura, y el volcado a Holded (lib/holdedCompras.js) también, sin volver
+// a leer el PDF.
+const lecturaFacturas = require('./lib/lecturaFacturas');
 
 // Sacado a función aparte (28 ago 2026) para poder llamarla tanto desde el
 // botón manual como desde la sincronización automática diaria de abajo.
@@ -1910,7 +1857,8 @@ async function sincronizarFacturasProveedoresInterno(anio) {
       const dataDescarga = await respDescarga.json();
       if (dataDescarga.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
 
-      const lineas = await extraerDatosFactura(dataDescarga.base64, item.nombreArchivo, item.proveedor);
+      const lectura = await lecturaFacturas.leerYGuardar({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, base64: dataDescarga.base64 });
+      const lineas = lecturaFacturas.lineasSheet(lectura);
       const respGuardado = await fetch(APPS_SCRIPT_FACTURAS_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, lineas })
