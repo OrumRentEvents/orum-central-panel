@@ -3321,7 +3321,7 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       llamarOrumCentral('facturas'),
       obtenerFacturasProveedoresEnriquecidas(),
       supabase.from('gastos_anuales').select('*').eq('anio', anio),
-      supabase.from('nominas_detalle').select('mes, empresa_nif, formato_origen, num_empleado, coste_total').eq('anio', anio),
+      supabase.from('nominas_detalle').select('mes, empresa_nif, formato_origen, num_empleado, nombre, bruto, ss_empresa, coste_total').eq('anio', anio),
       supabase.from('empleados_departamento').select('empresa_nif, formato_origen, num_empleado, departamento'),
       supabase.from('extras_detalle').select('mes, nombre, importe').eq('anio', anio),
       supabase.from('extras_departamento').select('nombre, departamento'),
@@ -3354,10 +3354,18 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     const mapaAliasExtras = {};
     (extrasAliasResp.data || []).forEach(a => { if (a.empresa_nif && a.formato_origen && a.num_empleado) mapaAliasExtras[a.nombre] = a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado; });
 
+    // NUEVO (5 oct 2026): cada mes guarda también el DETALLE de lo que
+    // suma (una línea por persona / factura / pago anual, con su bloque —
+    // Personal, Vehículos, Proveedores, Pagos anuales — y su departamento)
+    // para poder desplegarlo en la pantalla. gastos_por_departamento se
+    // calcula ahora desde ese detalle, así que siempre suma lo mismo que
+    // "gastos" (antes las facturas de proveedores sumaban al departamento
+    // la base sin IVA y a "gastos" el total con IVA).
     const meses = Array.from({ length: 12 }, (_, i) => ({
       mes: i + 1, nombre: MESES_ES[i + 1],
-      ingresos: 0, gastos: 0, gastos_por_departamento: {}
+      ingresos: 0, gastos: 0, detalle: [], ingresos_por_cliente: {}, n_facturas: 0
     }));
+    const apuntar = (mes, linea) => { meses[mes - 1].gastos += linea.importe; meses[mes - 1].detalle.push(linea); };
 
     facturas.forEach(f => {
       if (!f.fecha_emision) return;
@@ -3365,7 +3373,13 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       if (partes.length !== 3) return;
       const mes = parseInt(partes[1]), anioFactura = parseInt(partes[2]);
       if (anioFactura !== anio || mes < 1 || mes > 12) return;
-      meses[mes - 1].ingresos += parseFloat(f.importe_con_iva) || 0;
+      const importe = parseFloat(f.importe_con_iva) || 0;
+      meses[mes - 1].ingresos += importe;
+      meses[mes - 1].n_facturas++;
+      const cli = (f.cliente || 'Sin cliente').trim();
+      const c = meses[mes - 1].ingresos_por_cliente[cli] = meses[mes - 1].ingresos_por_cliente[cli] || { cliente: cli, importe: 0, facturas: [] };
+      c.importe += importe;
+      c.facturas.push({ numero: f.numero, importe: Math.round(importe * 100) / 100 });
     });
 
     facturasProveedores.forEach(f => {
@@ -3375,19 +3389,21 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       // repartida a un departamento externo como Isabella Premium Group) en
       // vez del total completo de la factura - esa parte no es gasto de
       // ORUM, la usa/paga un tercero aunque la factura venga a nuestro nombre.
-      const total = parseFloat(f.importeTotal_propio ?? f.importeTotal) || 0;
-      meses[mes - 1].gastos += total;
-      (f.desglose_departamentos || []).forEach(d => {
-        // Los departamentos externos (ver DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN)
-        // no son un centro de coste interno de ORUM - se excluyen aquí para
-        // que el desglose por departamento siga sumando lo mismo que "gastos".
-        if (DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN.includes(d.departamento)) return;
-        // Reparto guardado sobre la base sin IVA - se escala proporcionalmente
-        // al total con IVA para que el desglose por departamento sume el
-        // mismo total que "gastos" (coherencia visual, mismo criterio que ya
-        // usa Facturas Proveedores en su resumen por departamento).
-        meses[mes - 1].gastos_por_departamento[d.departamento] = (meses[mes - 1].gastos_por_departamento[d.departamento] || 0) + d.importe;
-      });
+      const totalFactura = parseFloat(f.importeTotal) || 0;
+      // Con matrícula → bloque Vehículos (agrupado por vehículo); si no,
+      // Proveedores (agrupado por proveedor). Una línea por departamento
+      // del reparto, con su % del total con IVA. Los departamentos externos
+      // (DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN) no son gasto de ORUM: fuera.
+      const base = {
+        tipo: 'proveedor',
+        bloque: f.matricula ? 'Vehículos' : 'Proveedores',
+        grupo: f.matricula ? String(f.matricula).toUpperCase() : String(f.proveedor),
+        concepto: String(f.proveedor) + (f.numeroFactura ? ' · ' + f.numeroFactura : ''),
+        fecha: f.fecha || null
+      };
+      const reparto = (f.desglose_departamentos || []).filter(d => !DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN.includes(d.departamento));
+      if (!reparto.length) apuntar(mes, { ...base, departamento: 'Sin clasificar', importe: parseFloat(f.importeTotal_propio ?? f.importeTotal) || 0 });
+      reparto.forEach(d => apuntar(mes, { ...base, departamento: d.departamento, porcentaje: d.porcentaje, importe: totalFactura * (parseFloat(d.porcentaje) || 0) / 100 }));
     });
 
     // Personal: coste total de cada trabajador (nominas_detalle) va entero
@@ -3398,9 +3414,8 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       const mes = parseInt(n.mes);
       if (mes < 1 || mes > 12) return;
       const coste = parseFloat(n.coste_total) || 0;
-      meses[mes - 1].gastos += coste;
       const depto = mapaDeptoEmpleado[n.empresa_nif + '|' + n.formato_origen + '|' + n.num_empleado] || 'Personal sin clasificar';
-      meses[mes - 1].gastos_por_departamento[depto] = (meses[mes - 1].gastos_por_departamento[depto] || 0) + coste;
+      apuntar(mes, { tipo: 'nomina', bloque: 'Personal', grupo: 'Nóminas', concepto: n.nombre || ('Nº ' + n.num_empleado), departamento: depto, importe: coste, bruto: parseFloat(n.bruto) || 0, ss_empresa: parseFloat(n.ss_empresa) || 0 });
     });
 
     // Extras: si el nombre está vinculado a un trabajador de Nóminas
@@ -3410,11 +3425,10 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       const mes = parseInt(e.mes);
       if (mes < 1 || mes > 12) return;
       const importe = parseFloat(e.importe) || 0;
-      meses[mes - 1].gastos += importe;
       // Los del formulario de ORUM Central ya traen la clave del trabajador.
       const claveEmpleado = e.empresa_nif ? e.empresa_nif + '|' + e.formato_origen + '|' + e.num_empleado : mapaAliasExtras[e.nombre];
       const depto = (claveEmpleado && mapaDeptoEmpleado[claveEmpleado]) || mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
-      meses[mes - 1].gastos_por_departamento[depto] = (meses[mes - 1].gastos_por_departamento[depto] || 0) + importe;
+      apuntar(mes, { tipo: 'extra', bloque: 'Personal', grupo: 'Extras', concepto: e.nombre, departamento: depto, importe });
     });
 
     // Gastos anuales (seguros, impuestos...) repartidos a partes iguales
@@ -3422,22 +3436,31 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     // junto a los departamentos de Facturas Proveedores, bajo su categoría.
     gastosAnuales.forEach(g => {
       const mensual = (parseFloat(g.importe_anual) || 0) / 12;
+      // Seguros de vehículos van al bloque Vehículos; el resto, a Pagos anuales.
+      const esVehiculo = g.categoria === 'Seguros Vehículos';
       for (let i = 0; i < 12; i++) {
-        meses[i].gastos += mensual;
-        meses[i].gastos_por_departamento[g.categoria] = (meses[i].gastos_por_departamento[g.categoria] || 0) + mensual;
+        apuntar(i + 1, { tipo: 'anual', bloque: esVehiculo ? 'Vehículos' : 'Pagos anuales', grupo: esVehiculo ? 'Seguros' : g.categoria, concepto: g.concepto + ' (' + (Math.round((parseFloat(g.importe_anual) || 0) * 100) / 100) + ' €/año ÷ 12)', departamento: 'General', importe: mensual });
       }
     });
 
-    const mesesRedondeados = meses.map(m => ({
-      mes: m.mes, nombre: m.nombre,
-      ingresos: Math.round(m.ingresos * 100) / 100,
-      gastos: Math.round(m.gastos * 100) / 100,
-      beneficio: Math.round((m.ingresos - m.gastos) * 100) / 100,
-      margen: m.ingresos > 0.05 ? Math.round(((m.ingresos - m.gastos) / m.ingresos) * 1000) / 10 : 0,
-      gastos_por_departamento: Object.keys(m.gastos_por_departamento)
-        .map(dep => ({ departamento: dep, total: Math.round(m.gastos_por_departamento[dep] * 100) / 100 }))
-        .sort((a, b) => b.total - a.total)
-    }));
+    const r2c = n => Math.round(n * 100) / 100;
+    const mesesRedondeados = meses.map(m => {
+      const porDepto = {};
+      m.detalle.forEach(l => { porDepto[l.departamento] = (porDepto[l.departamento] || 0) + l.importe; });
+      return {
+        mes: m.mes, nombre: m.nombre,
+        ingresos: r2c(m.ingresos),
+        gastos: r2c(m.gastos),
+        beneficio: r2c(m.ingresos - m.gastos),
+        margen: m.ingresos > 0.05 ? Math.round(((m.ingresos - m.gastos) / m.ingresos) * 1000) / 10 : 0,
+        gastos_por_departamento: Object.keys(porDepto)
+          .map(dep => ({ departamento: dep, total: r2c(porDepto[dep]) }))
+          .sort((a, b) => b.total - a.total),
+        detalle: m.detalle.map(l => ({ ...l, importe: r2c(l.importe) })),
+        n_facturas: m.n_facturas,
+        ingresos_por_cliente: Object.values(m.ingresos_por_cliente).map(c => ({ ...c, importe: r2c(c.importe) })).sort((a, b) => b.importe - a.importe)
+      };
+    });
 
     const totalIngresos = mesesRedondeados.reduce((s, m) => s + m.ingresos, 0);
     const totalGastos = mesesRedondeados.reduce((s, m) => s + m.gastos, 0);

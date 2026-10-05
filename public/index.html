@@ -1439,21 +1439,76 @@ function barrasCierreSVG(meses) {
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;">${barras}</svg>`;
 }
 function seleccionarMesCierre(mes) {
+  // Clic en el mes abierto lo cierra; en otro, abre ese.
+  mesAbiertoCierre = mesAbiertoCierre === mes ? null : mes;
   mesSeleccionadoCierre = mes;
   pintarCierreMensual(cierreMensualDataActual);
+}
+let mesAbiertoCierre = null;
+
+// NUEVO (5 oct 2026): desglose completo del mes al desplegarlo — por tipo
+// (Personal, Vehículos, Proveedores, Pagos anuales → grupo → línea), por
+// departamento (→ línea) e ingresos por cliente. Todo sale de m.detalle
+// que ya calcula /api/cierre-mensual.
+const escHtml = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ORDEN_BLOQUES_CIERRE = ['Personal', 'Vehículos', 'Proveedores', 'Pagos anuales'];
+function agruparCierre(lineas, clave) {
+  const g = {};
+  lineas.forEach(l => { const k = l[clave] || '—'; (g[k] = g[k] || { nombre: k, total: 0, lineas: [] }); g[k].total += l.importe; g[k].lineas.push(l); });
+  return Object.values(g).sort((a, b) => b.total - a.total);
+}
+function nombreGrupoCierre(bloque, grupo) {
+  if (bloque !== 'Vehículos') return grupo;
+  const v = (typeof VEHICULOS_ORUM_FACTURAS !== 'undefined' ? VEHICULOS_ORUM_FACTURAS : []).find(x => x.matricula === grupo);
+  return v ? v.label : grupo;
+}
+function filaLineaCierre(l, mostrar) {
+  const extra = l.tipo === 'nomina' ? `<span style="color:#9a988f;"> · bruto ${euros(l.bruto)} + SS ${euros(l.ss_empresa)}</span>` : '';
+  const pct = l.porcentaje != null && l.porcentaje < 100 ? `<span style="color:#9a988f;"> (${l.porcentaje}%)</span>` : '';
+  return `<div style="display:flex; justify-content:space-between; gap:10px; padding:3px 0 3px 18px; font-size:12px; border-bottom:0.5px dotted #ece9e2;">
+    <span style="color:#4a4944;">${escHtml(l.concepto)}${pct}${mostrar ? `<span style="color:#9a988f;"> · ${escHtml(l[mostrar])}</span>` : ''}${extra}</span>
+    <span style="white-space:nowrap;">${euros(l.importe)}</span></div>`;
+}
+function bloqueDesplegableCierre(titulo, total, contenido, nivel, totalMes) {
+  const pct = totalMes > 0 ? ` <span style="color:#9a988f; font-weight:400; font-size:11px;">${(total / totalMes * 100).toFixed(1)}%</span>` : '';
+  const estilo = nivel === 0
+    ? 'padding:8px 0; font-size:13px; font-weight:600; border-bottom:0.5px solid #e2e2de;'
+    : 'padding:5px 0 5px 10px; font-size:12.5px; font-weight:500; border-bottom:0.5px solid #f0eee8;';
+  return `<details style="margin:0;"><summary style="cursor:pointer; list-style:revert; ${estilo}"><span style="display:inline-flex; width:calc(100% - 18px); justify-content:space-between;"><span>${escHtml(titulo)}${pct}</span><span>${euros(total)}</span></span></summary>${contenido}</details>`;
+}
+function desgloseMesCierreHTML(m) {
+  const lineas = m.detalle || [];
+  if (!lineas.length && !m.ingresos) return '<p style="color:#9a988f; font-size:13px; margin:0;">Sin datos este mes.</p>';
+  // Por tipo
+  const bloques = agruparCierre(lineas, 'bloque').sort((a, b) => ORDEN_BLOQUES_CIERRE.indexOf(a.nombre) - ORDEN_BLOQUES_CIERRE.indexOf(b.nombre));
+  const porTipo = bloques.map(b => bloqueDesplegableCierre(b.nombre, b.total,
+    agruparCierre(b.lineas, 'grupo').map(g => bloqueDesplegableCierre(nombreGrupoCierre(b.nombre, g.nombre), g.total,
+      g.lineas.sort((x, y) => y.importe - x.importe).map(l => filaLineaCierre(l, 'departamento')).join(''), 1, m.gastos)).join(''), 0, m.gastos)).join('');
+  // Por departamento
+  const porDepto = agruparCierre(lineas, 'departamento').map(d => bloqueDesplegableCierre(d.nombre, d.total,
+    agruparCierre(d.lineas, 'bloque').map(b => bloqueDesplegableCierre(b.nombre, b.total,
+      b.lineas.sort((x, y) => y.importe - x.importe).map(l => filaLineaCierre(l, 'grupo')).join(''), 1, m.gastos)).join(''), 0, m.gastos)).join('');
+  // Ingresos por cliente
+  const clientes = (m.ingresos_por_cliente || []);
+  const ingresos = clientes.length ? bloqueDesplegableCierre(`${m.n_facturas} facturas · ${clientes.length} clientes`, m.ingresos,
+    clientes.map(c => bloqueDesplegableCierre(c.cliente, c.importe,
+      c.facturas.map(f => `<div style="display:flex; justify-content:space-between; padding:3px 0 3px 18px; font-size:12px;"><span style="color:#4a4944;">Factura ${escHtml(f.numero)}</span><span>${euros(f.importe)}</span></div>`).join(''), 1, m.ingresos)).join(''), 0, 0)
+    : '<p style="color:#9a988f; font-size:13px; margin:0;">Sin facturas este mes.</p>';
+  const col = (titulo, sub, html) => `<div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:0.9rem 1.1rem;">
+      <p style="font-size:13px; font-weight:600; color:#1a1a18; margin:0 0 2px;">${titulo}</p>
+      <p style="font-size:11px; color:#9a988f; margin:0 0 8px;">${sub}</p>${html}</div>`;
+  return `<div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+      <button class="btn-primario" style="padding:7px 14px; border-radius:8px; border:1px solid #1a1a18; background:#1a1a18; color:#fff; font-size:12.5px; cursor:pointer;" onclick="event.stopPropagation(); informeCierrePDF(${m.mes})">Informe PDF de ${escHtml(m.nombre)}</button>
+    </div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+      ${col('Gastos por tipo', 'Personal, vehículos, proveedores y pagos anuales · pulsa para desplegar', porTipo || '<p style="color:#9a988f; font-size:13px; margin:0;">Sin gastos.</p>')}
+      ${col('Gastos por departamento', 'Cada departamento, desglosado por tipo y línea', porDepto || '<p style="color:#9a988f; font-size:13px; margin:0;">Sin gastos.</p>')}
+    </div>
+    ${col('Ingresos', 'Facturas de Rentman del mes por cliente (con IVA)', ingresos)}`;
 }
 function pintarCierreMensual(data) {
   const body = document.getElementById('content-body');
   const t = data.totales_anio;
-  const mesData = data.meses.find(m => m.mes === mesSeleccionadoCierre) || data.meses[0];
-  const filasDepto = mesData.gastos_por_departamento.length
-    ? mesData.gastos_por_departamento.map(d => `
-        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:0.5px solid #ece9e2; font-size:13px;">
-          <span style="color:#4a4944;">${d.departamento}</span>
-          <b>${euros(d.total)}</b>
-        </div>`).join('')
-    : '<p style="color:#9a988f; font-size:13px; margin:0;">Sin gastos de proveedores clasificados este mes.</p>';
-  const margenColor = mesData.beneficio >= 0 ? '#173404' : '#501313';
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
       <p style="font-size:13px; color:#6b6a64; margin:0;">Año ${data.anio}</p>
@@ -1481,36 +1536,137 @@ function pintarCierreMensual(data) {
         <span style="font-size:13px; font-weight:500; color:#1a1a18;">Ingresos vs Gastos por mes</span>
         <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6b6a64;"><span style="width:10px; height:10px; border-radius:2px; background:#4C8C2B; display:inline-block;"></span>Ingresos</span>
         <span style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6b6a64;"><span style="width:10px; height:10px; border-radius:2px; background:#C24545; display:inline-block;"></span>Gastos</span>
-        <span style="font-size:11px; color:#9a988f; margin-left:auto;">Clic en un mes para ver su detalle abajo</span>
+        <span style="font-size:11px; color:#9a988f; margin-left:auto;">Clic en un mes para desplegar su desglose</span>
       </div>
       ${barrasCierreSVG(data.meses)}
     </div>
-    <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap:1.5rem; align-items:start;">
-      <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
-        <table>
-          <thead><tr><th>Mes</th><th style="text-align:right;">Ingresos</th><th style="text-align:right;">Gastos</th><th style="text-align:right;">Beneficio</th><th style="text-align:right;">Margen</th></tr></thead>
-          <tbody>
-            ${data.meses.map(m => `
-              <tr style="cursor:pointer; ${m.mes === mesSeleccionadoCierre ? 'background:#FBF7EE;' : ''}" onclick="seleccionarMesCierre(${m.mes})">
-                <td style="${m.mes === mesSeleccionadoCierre ? 'font-weight:600;' : ''}">${m.nombre}</td>
-                <td style="text-align:right;">${euros(m.ingresos)}</td>
-                <td style="text-align:right;">${euros(m.gastos)}</td>
-                <td style="text-align:right; font-weight:500; color:${m.beneficio >= 0 ? '#27500A' : '#A32D2D'};">${euros(m.beneficio)}</td>
-                <td style="text-align:right;">${m.ingresos > 0 ? m.margen + '%' : '—'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-      <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem 1.25rem;">
-        <p style="font-size:13px; font-weight:500; color:#1a1a18; margin:0 0 4px;">Gastos por departamento — ${mesData.nombre}</p>
-        <p style="font-size:12px; color:${margenColor}; margin:0 0 10px;">Beneficio del mes: ${euros(mesData.beneficio)}</p>
-        ${filasDepto}
-      </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
+      <table>
+        <thead><tr><th>Mes</th><th style="text-align:right;">Ingresos</th><th style="text-align:right;">Gastos</th><th style="text-align:right;">Beneficio</th><th style="text-align:right;">Margen</th></tr></thead>
+        <tbody>
+          ${data.meses.map(m => `
+            <tr style="cursor:pointer; ${m.mes === mesAbiertoCierre ? 'background:#FBF7EE;' : ''}" onclick="seleccionarMesCierre(${m.mes})">
+              <td style="${m.mes === mesAbiertoCierre ? 'font-weight:600;' : ''}"><span style="display:inline-block; width:14px; color:#9a988f;">${m.mes === mesAbiertoCierre ? '▾' : '▸'}</span>${m.nombre}</td>
+              <td style="text-align:right;">${euros(m.ingresos)}</td>
+              <td style="text-align:right;">${euros(m.gastos)}</td>
+              <td style="text-align:right; font-weight:500; color:${m.beneficio >= 0 ? '#27500A' : '#A32D2D'};">${euros(m.beneficio)}</td>
+              <td style="text-align:right;">${m.ingresos > 0 ? m.margen + '%' : '—'}</td>
+            </tr>
+            ${m.mes === mesAbiertoCierre ? `<tr><td colspan="5" style="background:#FBF7EE; padding:12px;">${desgloseMesCierreHTML(m)}</td></tr>` : ''}
+          `).join('')}
+        </tbody>
+      </table>
     </div>
   `;
   body.innerHTML = html;
 }
+// NUEVO (5 oct 2026): informe PDF del cierre de un mes, con la misma
+// estructura que el Cierre_Mensual_Mayo_2026 que se hacía a mano: resumen,
+// ingresos, gastos por departamento, gastos por tipo, personal por
+// departamento (nombres), vehículos, proveedores y criterios de reparto.
+// Se abre en una ventana y el diálogo de imprimir permite "Guardar como PDF".
+async function informeCierrePDF(mes) {
+  const data = cierreMensualDataActual;
+  const m = data.meses.find(x => x.mes === mes);
+  if (!m) return;
+  const win = window.open('', '_blank');
+  if (!win) { alert('El navegador ha bloqueado la ventana del informe: permite las ventanas emergentes para ORUM Central.'); return; }
+  win.document.write('<p style="font-family:sans-serif">Preparando informe…</p>');
+  let reparto = [];
+  try { const r = await fetch('/api/facturas-proveedores/reparto'); const d = await r.json(); reparto = d.reparto || []; } catch (e) { /* sin criterios de proveedores */ }
+
+  const lineas = m.detalle || [];
+  const pct = (v, t) => t > 0 ? (v / t * 100).toFixed(1).replace('.', ',') + ' %' : '—';
+  const tabla = (cab, filas, pie) => `<table><thead><tr>${cab.map((c, i) => `<th${i ? ' class="n"' : ''}>${c}</th>`).join('')}</tr></thead><tbody>${filas.map(f => `<tr>${f.map((c, i) => `<td${i ? ' class="n"' : ''}>${c}</td>`).join('')}</tr>`).join('')}</tbody>${pie ? `<tfoot><tr>${pie.map((c, i) => `<td${i ? ' class="n"' : ''}>${c}</td>`).join('')}</tr></tfoot>` : ''}</table>`;
+
+  // Ingresos por cliente (los 15 mayores + resto)
+  const clientes = m.ingresos_por_cliente || [];
+  const top = clientes.slice(0, 15), resto = clientes.slice(15);
+  const filasIng = top.map(c => [escHtml(c.cliente) + ` <span class="sub">(${c.facturas.length} fact.)</span>`, euros(c.importe), pct(c.importe, m.ingresos)]);
+  if (resto.length) { const tr = resto.reduce((a, c) => a + c.importe, 0); filasIng.push([`Resto de clientes (${resto.length})`, euros(tr), pct(tr, m.ingresos)]); }
+
+  // Departamentos y tipos
+  const deptos = agruparCierre(lineas, 'departamento');
+  const tipoDe = l => l.bloque === 'Pagos anuales' ? 'Pagos anuales · ' + l.grupo : l.bloque;
+  const tipos = agruparCierre(lineas.map(l => ({ ...l, tipoInforme: tipoDe(l) })), 'tipoInforme');
+
+  // Personal por departamento (nómina + extras por persona)
+  const personal = lineas.filter(l => l.bloque === 'Personal');
+  const totalPersonal = personal.reduce((a, l) => a + l.importe, 0);
+  const personalHTML = agruparCierre(personal, 'departamento').map(d => {
+    const porPersona = {};
+    d.lineas.forEach(l => { const k = l.concepto; (porPersona[k] = porPersona[k] || { nombre: k, nomina: 0, extras: 0 }); if (l.tipo === 'extra') porPersona[k].extras += l.importe; else porPersona[k].nomina += l.importe; });
+    const filas = Object.values(porPersona).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(x => [escHtml(x.nombre), x.nomina ? euros(x.nomina) : '—', x.extras ? euros(x.extras) : '—', euros(x.nomina + x.extras)]);
+    return `<h3>${escHtml(d.nombre)} — ${euros(d.total)}</h3>` + tabla(['Trabajador', 'Nómina (coste empresa)', 'Extras', 'Total'], filas);
+  }).join('');
+
+  // Vehículos y proveedores
+  const detalleBloque = bloque => agruparCierre(lineas.filter(l => l.bloque === bloque), 'grupo').map(g => [escHtml(nombreGrupoCierre(bloque, g.nombre)), g.lineas.map(l => escHtml(l.concepto) + (l.porcentaje != null && l.porcentaje < 100 ? ` (${l.porcentaje}% ${escHtml(l.departamento)})` : ` · ${escHtml(l.departamento)}`)).join('<br>'), euros(g.total)]);
+  const vehiculos = detalleBloque('Vehículos'), proveedores = detalleBloque('Proveedores'), anuales = detalleBloque('Pagos anuales');
+
+  // Criterios de reparto (los de proveedores, de la hoja REPARTO_PROVEEDORES)
+  const porProv = {};
+  reparto.forEach(r => { (porProv[r.proveedor] = porProv[r.proveedor] || []).push(`${r.porcentaje}% ${r.departamento}`); });
+  const criterios = [['Personal', 'Según el departamento asignado a cada trabajador (Personal · Departamentos)'], ['Extras', 'Departamento del trabajador vinculado en Nóminas; si no, el asignado en Extras'], ['Pagos anuales', 'Importe anual ÷ 12, sin departamento (General)']]
+    .concat(Object.keys(porProv).sort((a, b) => a.localeCompare(b, 'es')).map(p => [escHtml(p), escHtml(porProv[p].join(' / '))]));
+
+  const resultadoColor = m.beneficio >= 0 ? '#27500A' : '#A32D2D';
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Cierre Mensual — ${m.nombre} ${data.anio}</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1a1a18; font-size: 11px; margin: 0; }
+  .marca { font-size: 11px; letter-spacing: .18em; color: #854F0B; font-weight: 700; }
+  h1 { font-size: 22px; margin: 4px 0 2px; } .empresa { color: #6b6a64; margin-bottom: 18px; }
+  h2 { font-size: 14px; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #1a1a18; break-after: avoid; }
+  h3 { font-size: 12px; margin: 14px 0 4px; break-after: avoid; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .kpi { border-radius: 8px; padding: 12px; } .kpi .t { font-size: 11px; } .kpi .v { font-size: 20px; font-weight: 600; margin: 4px 0 2px; } .kpi .s { font-size: 10px; color: #6b6a64; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 6px; break-inside: auto; }
+  th { text-align: left; font-size: 10px; color: #6b6a64; font-weight: 600; border-bottom: 1px solid #d6d4cc; padding: 5px 6px; }
+  td { padding: 4px 6px; border-bottom: 0.5px solid #ece9e2; vertical-align: top; } tr { break-inside: avoid; }
+  .n { text-align: right; white-space: nowrap; } tfoot td { font-weight: 700; border-top: 1px solid #1a1a18; border-bottom: none; }
+  .sub { color: #9a988f; font-size: 10px; } .nota { color: #6b6a64; font-size: 10px; margin: 4px 0 0; }
+  .pie { margin-top: 24px; color: #9a988f; font-size: 9px; }
+  @media screen { body { max-width: 800px; margin: 20px auto; padding: 0 16px; } }
+</style></head><body>
+  <div class="marca">ORUM RENT &amp; EVENTS</div>
+  <h1>Cierre Mensual — ${m.nombre} ${data.anio}</h1>
+  <div class="empresa">Servicios y Alquiler para Eventos, SLU</div>
+
+  <h2>Resumen ejecutivo</h2>
+  <div class="kpis">
+    <div class="kpi" style="background:#EAF3DE"><div class="t">Ingresos</div><div class="v">${euros(m.ingresos)}</div><div class="s">${m.n_facturas} facturas de Rentman</div></div>
+    <div class="kpi" style="background:#FCEEEE"><div class="t">Gastos</div><div class="v">${euros(m.gastos)}</div><div class="s">Personal, vehículos, proveedores y pagos anuales</div></div>
+    <div class="kpi" style="background:#FAEEDA"><div class="t">Resultado</div><div class="v" style="color:${resultadoColor}">${euros(m.beneficio)}</div><div class="s">Margen: ${m.ingresos > 0 ? String(m.margen).replace('.', ',') + ' %' : '—'}</div></div>
+  </div>
+  <p class="nota">Importes con IVA, igual que en la pantalla de Cierre Mensual.</p>
+
+  <h2>Ingresos</h2>
+  ${tabla(['Cliente', 'Importe', '% del total'], filasIng, ['TOTAL INGRESOS', euros(m.ingresos), '100,0 %'])}
+
+  <h2>Gastos por departamento</h2>
+  ${tabla(['Departamento', 'Importe', '% del total'], deptos.map(d => [escHtml(d.nombre), euros(d.total), pct(d.total, m.gastos)]), ['TOTAL GASTOS', euros(m.gastos), '100,0 %'])}
+
+  <h2>Gastos por tipo (vista transversal)</h2>
+  ${tabla(['Tipo de gasto', 'Importe', '% del total'], tipos.map(t => [escHtml(t.nombre), euros(t.total), pct(t.total, m.gastos)]), ['TOTAL', euros(m.gastos), '100,0 %'])}
+
+  <h2>Detalle de personal por departamento</h2>
+  <p class="nota" style="margin-bottom:6px">Coste total de personal: <b>${euros(totalPersonal)}</b> (nómina con Seguridad Social a cargo de la empresa + extras).</p>
+  ${personalHTML || '<p class="sub">Sin nóminas ni extras este mes.</p>'}
+
+  ${vehiculos.length ? `<h2>Vehículos</h2>${tabla(['Vehículo', 'Facturas y pagos', 'Importe'], vehiculos)}` : ''}
+  ${proveedores.length ? `<h2>Proveedores</h2>${tabla(['Proveedor', 'Facturas (departamento)', 'Importe'], proveedores)}` : ''}
+  ${anuales.length ? `<h2>Pagos anuales (parte del mes)</h2>${tabla(['Categoría', 'Conceptos', 'Importe'], anuales)}` : ''}
+
+  <h2>Criterios de reparto aplicados</h2>
+  ${tabla(['Concepto', 'Criterio de reparto'], criterios)}
+
+  <div class="pie">Generado desde ORUM Central el ${new Date().toLocaleString('es-ES')}.</div>
+  <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
+</body></html>`;
+  win.document.open(); win.document.write(html); win.document.close();
+}
+
 // ================================================================
 // CONFIG. PAGOS ANUALES (10 sep 2026) — Financiero → Config. Pagos Anuales.
 // Aquí se dan de alta las partidas que se pagan una vez al año (seguros de
