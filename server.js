@@ -3635,9 +3635,21 @@ app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercia
 app.get('/api/facturas-proveedores/errores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'erroresRecientes', limite: '200' });
-    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
+    const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
+    const [resp, respListado] = await Promise.all([fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`), fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsListado.toString()}`)]);
     const data = await resp.json();
     if (data.error) return res.status(500).json({ error: data.error });
+    // NUEVO (5 oct 2026): la pestaña de errores guarda el histórico entero;
+    // aquí solo se devuelven los de facturas que SIGUEN sin estar en la Sheet
+    // (si una sincronización posterior la procesó, su error ya no importa).
+    const listado = await respListado.json().catch(() => ({}));
+    const procesadas = new Set(((listado && listado.facturas) || []).map(f => String(f.fileId)));
+    const vistos = new Set();
+    data.errores = (data.errores || []).filter(e => {
+      if (procesadas.has(String(e.fileId)) || vistos.has(String(e.fileId))) return false;
+      vistos.add(String(e.fileId)); // solo el error más reciente de cada PDF
+      return true;
+    });
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
