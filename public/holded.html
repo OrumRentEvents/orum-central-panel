@@ -11,6 +11,7 @@
   .sub{color:#6b7280;font-size:13px;margin-bottom:20px}
   .card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:16px 18px;margin-bottom:14px}
   .card h2{font-size:14px;margin:0 0 10px;color:#374151}
+  select{padding:6px 8px;border:1.5px solid #d1d5db;border-radius:8px;font-size:12px;max-width:220px}
   input{padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:140px}
   button{padding:8px 14px;border-radius:8px;border:1.5px solid #2563eb;background:#eff6ff;color:#2563eb;font-weight:600;font-size:13px;cursor:pointer;margin-left:6px}
   button.prim{background:#2563eb;color:#fff}
@@ -42,6 +43,14 @@
   <div id="pend"></div>
 
   <div class="card">
+    <h2>Facturas de gastos (proveedores) → compras en borrador</h2>
+    <div class="sub" style="margin-bottom:10px">Cada día a las 7:00 las facturas de proveedores de Drive (posteriores al corte) se crean en Holded como <b>compras en borrador</b> con el PDF adjunto. Las contables las revisan y aprueban en Holded, y registran allí los pagos.</div>
+    <button class="prim" style="margin-left:0" onclick="volcarGastos()">Volcar gastos ahora</button>
+    <div id="res-gastos"></div>
+    <div id="gastos" style="margin-top:12px" class="sub">Cargando…</div>
+  </div>
+
+  <div class="card">
     <h2>Revisar una factura</h2>
     <input id="num" placeholder="Nº factura" value="">
     <button class="prim" onclick="cargar()">Ver vista previa</button>
@@ -71,8 +80,8 @@ async function cargarPendientes(){
     const d = await api('GET','/api/holded/pendientes');
     const ej = d.ejecuciones||[];
     document.getElementById('volcado').innerHTML = (d.volcando?'<b class="av">Volcado en marcha…</b><br>':'') + (ej.length ?
-      'Últimos volcados:<br>'+ej.map(e=>{const r=e.resumen||{};return fh(e.inicio)+' · '+(e.origen==='auto'?'automático':'manual'+(e.usuario?' ('+esc(e.usuario)+')':''))+' · hasta '+ff(e.hasta_fecha)+' · '+
-        (e.fin? (e.ok?'<span class="ok">✔</span>':'<span class="err">con errores</span>')+' · '+(r.facturas_enviadas||0)+' facturas, '+(r.cobros_enviados||0)+' cobros'+(r.facturas_bloqueadas?', '+r.facturas_bloqueadas+' bloqueadas':'') : 'en curso');}).join('<br>')
+      'Últimos volcados:<br>'+ej.map(e=>{const r=e.resumen||{};return fh(e.inicio)+' · '+(/^auto/.test(e.origen)?'automático':'manual'+(e.usuario?' ('+esc(e.usuario)+')':''))+(/gastos/.test(e.origen)?' · gastos':'')+' · hasta '+ff(e.hasta_fecha)+' · '+
+        (e.fin? (e.ok?'<span class="ok">✔</span>':'<span class="err">con errores</span>')+' · '+(/gastos/.test(e.origen) ? (r.compras_enviadas||0)+' compras'+(r.compras_bloqueadas?', '+r.compras_bloqueadas+' bloqueadas':'') : (r.facturas_enviadas||0)+' facturas, '+(r.cobros_enviados||0)+' cobros'+(r.facturas_bloqueadas?', '+r.facturas_bloqueadas+' bloqueadas':'')) : 'en curso');}).join('<br>')
       : 'Todavía no ha habido ningún volcado.');
     const tF = d.facturas.length ? '<table><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th class="n">Total</th><th>Estado</th><th>Motivo</th></tr>'+
       d.facturas.map(f=>'<tr><td><a href="#" onclick="ver(\''+f.numero+'\');return false">'+f.numero+'</a></td><td>'+ff(f.fecha)+'</td><td>'+esc(f.cliente)+'</td><td class="n">'+eur(f.total)+'</td><td><span class="pill">'+esc(ESTADOS[f.estado]||f.estado)+'</span></td><td class="'+(f.estado==='sin_procesar'?'sub':'err')+'" style="font-size:12px">'+esc(f.motivo)+'</td></tr>').join('')+'</table>'
@@ -162,7 +171,65 @@ const n = () => encodeURIComponent(actual.vista.rentman.numero);
 function enviar(aprobar){ accion(()=>api('POST','/api/holded/factura/'+n()+'/enviar',{aprobar}), aprobar?'Una factura aprobada en Holded no se puede borrar, solo anular. ¿Crear y aprobar?':null); }
 function aprobar(){ accion(()=>api('POST','/api/holded/factura/'+actual.vista.rentman.id+'/aprobar'), 'Una factura aprobada en Holded no se puede borrar, solo anular. ¿Aprobar?'); }
 function cobrosEnviar(){ accion(()=>api('POST','/api/holded/factura/'+n()+'/cobros')); }
+// ---- Facturas de gastos ----
+let gastos = null;
+async function cargarGastos(){
+  const box = document.getElementById('gastos');
+  try{
+    const d = gastos = await api('GET','/api/holded/gastos');
+    const optCuenta = sel => '<option value="">— elegir —</option>'+d.cuentas.map(c=>'<option value="'+c.numero+'"'+(String(c.numero)===String(sel)?' selected':'')+'>'+c.numero+' '+esc(c.nombre)+'</option>').join('');
+    const opt = (lista, sel) => '<option value="">—</option>'+lista.map(o=>'<option value="'+o.key+'"'+(o.key===sel?' selected':'')+'>'+esc(o.nombre)+'</option>').join('');
+    const pend = d.pendientes.length ? '<table><tr><th>Proveedor</th><th>Archivo</th><th>Nº</th><th>Fecha</th><th class="n">Total</th><th>Motivo</th><th></th></tr>'+
+      d.pendientes.map(c=>'<tr><td>'+esc(c.proveedor)+'</td><td style="font-size:12px">'+esc(c.nombre_archivo)+'</td><td>'+esc(c.numero||'—')+'</td><td>'+ff(c.fecha)+'</td><td class="n">'+(c.total!=null?eur(c.total):'—')+'</td><td class="err" style="font-size:12px">'+esc(c.error||c.estado)+'</td><td style="white-space:nowrap"><button onclick="reintentarGasto(\''+c.file_id+'\',false)">Reintentar</button><button onclick="reintentarGasto(\''+c.file_id+'\',true)" title="Vuelve a leer el PDF con Claude">Releer</button></td></tr>').join('')+'</table>'
+      : '<div class="ok">✔ Ninguna factura de gastos pendiente</div>';
+    const provs = d.proveedores.length ? '<table><tr><th>Proveedor (carpeta)</th><th>NIF</th><th>Cuenta de gasto</th><th>Líneas al 0 %</th><th>Retención</th><th></th></tr>'+
+      d.proveedores.map((p,i)=>'<tr><td>'+esc(p.proveedor)+(p.nombre_fiscal?'<div class="sub" style="margin:0;font-size:11px">'+esc(p.nombre_fiscal)+'</div>':'')+'</td>'+
+        '<td><input id="pn'+i+'" value="'+esc(p.nif||'')+'" style="width:100px"></td>'+
+        '<td><select id="pc'+i+'">'+optCuenta(p.cuenta_gasto)+'</select></td>'+
+        '<td><select id="pi'+i+'">'+opt(d.opciones_iva_cero,p.iva_cero)+'</select></td>'+
+        '<td><select id="pr'+i+'">'+opt(d.opciones_retencion,p.retencion)+'</select></td>'+
+        '<td><button onclick="guardarProv('+i+')">Guardar</button></td></tr>').join('')+'</table>'
+      : '<div class="sub">Aún no hay proveedores: aparecen solos con la primera factura de cada carpeta.</div>';
+    const env = d.enviadas.length ? '<table><tr><th>Proveedor</th><th>Nº</th><th>Fecha</th><th class="n">Total</th><th>Nota</th></tr>'+
+      d.enviadas.map(c=>'<tr><td>'+esc(c.proveedor)+'</td><td>'+esc(c.numero)+'</td><td>'+ff(c.fecha)+'</td><td class="n">'+eur(c.total)+'</td><td class="av" style="font-size:12px">'+esc(c.error||'')+'</td></tr>').join('')+'</table>' : '<div class="sub">Todavía no se ha enviado ninguna.</div>';
+    box.className='';
+    box.innerHTML = (d.volcando?'<div class="av">Volcado de gastos en marcha…</div>':'')+
+      (d.error_cuentas?'<div class="err">No se pudo leer el plan de cuentas de Holded: '+esc(d.error_cuentas)+'</div>':'')+
+      '<h2 style="margin-top:6px">Pendientes ('+d.pendientes.length+')</h2>'+pend+
+      '<h2 style="margin-top:16px">Proveedores</h2><div class="sub" style="margin-bottom:6px">La cuenta de gasto es obligatoria. "Líneas al 0 %" y "Retención" solo si el proveedor factura sin IVA o con retención. Después de guardar, pulsa Reintentar en sus facturas (o espera al volcado de mañana).</div>'+provs+
+      '<h2 style="margin-top:16px">Últimas enviadas a Holded ('+d.total_enviadas+' en total)</h2>'+env;
+  }catch(e){ box.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
+}
+async function guardarProv(i){
+  const p = gastos.proveedores[i];
+  try{
+    await api('POST','/api/holded/gastos/proveedor',{proveedor:p.proveedor, nif:document.getElementById('pn'+i).value.trim(), cuenta_gasto:document.getElementById('pc'+i).value, iva_cero:document.getElementById('pi'+i).value, retencion:document.getElementById('pr'+i).value});
+    cargarGastos();
+  }catch(e){ alert(e.message); }
+}
+async function reintentarGasto(fileId, releer){
+  const res = document.getElementById('res-gastos');
+  res.innerHTML = '<div class="sub" style="margin-top:10px">'+(releer?'Releyendo el PDF…':'Reintentando…')+'</div>';
+  try{
+    const r = await api('POST','/api/holded/gastos/'+encodeURIComponent(fileId)+'/reintentar',{releer});
+    res.innerHTML = '<div style="margin-top:10px" class="'+(r.estado==='borrador'?'ok':'err')+'">'+(r.estado==='borrador'?'✔ Creada en Holded en borrador'+(r.aviso?' · '+esc(r.aviso):''):esc(r.motivo||r.estado))+'</div>';
+  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
+  cargarGastos();
+}
+async function volcarGastos(){
+  if(!confirm('Se crearán en Holded, en borrador, las facturas de gastos que falten. ¿Seguir?')) return;
+  const res = document.getElementById('res-gastos');
+  res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando gastos… cada PDF se lee con Claude, puede tardar unos minutos.</div>';
+  try{
+    const r = await api('POST','/api/holded/gastos/volcar');
+    const s = r.resumen||{};
+    res.innerHTML = '<div style="margin-top:10px" class="'+(r.ok?'ok':'err')+'">'+(r.motivo?esc(r.motivo)+'<br>':'')+(s.compras_enviadas||0)+' compras creadas en borrador · '+(s.compras_bloqueadas||0)+' bloqueadas'+((s.errores||[]).length?'<br>'+s.errores.map(esc).join('<br>'):'')+'</div>';
+  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
+  cargarGastos(); cargarPendientes();
+}
+
 cargarPendientes();
+cargarGastos();
 </script>
 </body>
 </html>

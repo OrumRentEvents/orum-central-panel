@@ -4104,9 +4104,31 @@ app.post('/api/holded/volcar', requiereLogin, soloHolded, async (req, res) => {
   catch (err) { console.error('Error en /api/holded/volcar:', err); res.status(500).json({ error: err.message }); }
 });
 
+// Facturas de gastos (PDF de proveedores) → compras en borrador en Holded
+// (5 oct 2026) — ver lib/holdedCompras.js.
+const holdedCompras = require('./lib/holdedCompras');
+holdedCompras.configurar({ url: APPS_SCRIPT_FACTURAS_URL, token: APPS_SCRIPT_FACTURAS_TOKEN });
+app.get('/api/holded/gastos', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json({ ok: true, ...(await holdedCompras.estadoGastos()) }); }
+  catch (err) { console.error('Error en /api/holded/gastos:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/gastos/volcar', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.volcarGastos({ origen: 'manual-gastos', usuario: req.session.usuario.nombre })); }
+  catch (err) { console.error('Error en /api/holded/gastos/volcar:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/gastos/proveedor', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.guardarProveedor(req.body || {}, req.session.usuario.nombre)); }
+  catch (err) { console.error('Error en /api/holded/gastos/proveedor:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/gastos/:fileId/reintentar', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.reintentar(req.params.fileId, { releer: !!(req.body && req.body.releer) })); }
+  catch (err) { console.error('Error en /api/holded/gastos/reintentar:', err); res.status(500).json({ error: err.message }); }
+});
+
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
   informeComerciales.programarInformeDiario();
   holdedSync.programarVolcadoDiario();
+  holdedCompras.programarVolcadoGastos();
   holdedSync.recuperarVolcadoDeHoy().catch(e => console.error('[Holded] recuperarVolcadoDeHoy:', e.message));
 });
