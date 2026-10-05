@@ -1451,7 +1451,7 @@ let mesAbiertoCierre = null;
 // departamento (→ línea) e ingresos por cliente. Todo sale de m.detalle
 // que ya calcula /api/cierre-mensual.
 const escHtml = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const ORDEN_BLOQUES_CIERRE = ['Personal', 'Vehículos', 'Proveedores', 'Pagos anuales'];
+const ORDEN_BLOQUES_CIERRE = ['Personal', 'Vehículos', 'Seguros propiedades / otros', 'Suministros e impuestos', 'Financiación e intereses', 'Alquiler / renting', 'Otras facturas'];
 function agruparCierre(lineas, clave) {
   const g = {};
   lineas.forEach(l => { const k = l[clave] || '—'; (g[k] = g[k] || { nombre: k, total: 0, lineas: [] }); g[k].total += l.importe; g[k].lineas.push(l); });
@@ -1497,7 +1497,7 @@ function desgloseMesCierreHTML(m) {
       <button class="btn-primario" style="padding:7px 14px; border-radius:8px; border:1px solid #1a1a18; background:#1a1a18; color:#fff; font-size:12.5px; cursor:pointer;" onclick="event.stopPropagation(); informeCierrePDF(${m.mes})">Informe PDF de ${escHtml(m.nombre)}</button>
     </div>
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-      ${col('Gastos por tipo', 'Personal, vehículos, proveedores y pagos anuales · pulsa para desplegar', porTipo || '<p style="color:#9a988f; font-size:13px; margin:0;">Sin gastos.</p>')}
+      ${col('Gastos por tipo', 'Bloques del Excel de resultados · pulsa para desplegar', porTipo || '<p style="color:#9a988f; font-size:13px; margin:0;">Sin gastos.</p>')}
       ${col('Gastos por departamento', 'Cada departamento, desglosado por tipo y línea', porDepto || '<p style="color:#9a988f; font-size:13px; margin:0;">Sin gastos.</p>')}
     </div>
     ${col('Ingresos por semana', 'Sin IVA · Proyectos = facturas de Rentman por fecha de emisión · No confirmados = valor del proyecto por fecha de entrega', ingresos)}`;
@@ -1577,24 +1577,17 @@ function pintarCierreMensual(data) {
 // imprimir permite "Guardar como PDF".
 const SEMANAS_POR_MES = 4.3;
 const BLOQUES_INFORME_CIERRE = [
-  { clave: 'personal', titulo: 'Personal', color: '#2F5D8A' },
-  { clave: 'vehiculos', titulo: 'Vehículos (mantenimiento, gasolina y seguros)', color: '#B7791F' },
-  { clave: 'seguros', titulo: 'Seguros propiedades / otros', color: '#6B5B95' },
-  { clave: 'suministros', titulo: 'Suministros e impuestos', color: '#2C7A7B' },
-  { clave: 'financiacion', titulo: 'Letras, financiación e intereses', color: '#9B2C2C' },
-  { clave: 'alquiler', titulo: 'Alquiler / renting', color: '#4A5568' },
-  { clave: 'otras', titulo: 'Otras facturas y suministros', color: '#718096' }
+  { clave: 'personal', bloque: 'Personal', titulo: 'Personal', color: '#2F5D8A' },
+  { clave: 'vehiculos', bloque: 'Vehículos', titulo: 'Vehículos (mantenimiento, gasolina y seguros)', color: '#B7791F' },
+  { clave: 'seguros', bloque: 'Seguros propiedades / otros', titulo: 'Seguros propiedades / otros', color: '#6B5B95' },
+  { clave: 'suministros', bloque: 'Suministros e impuestos', titulo: 'Suministros e impuestos', color: '#2C7A7B' },
+  { clave: 'financiacion', bloque: 'Financiación e intereses', titulo: 'Letras, financiación e intereses', color: '#9B2C2C' },
+  { clave: 'alquiler', bloque: 'Alquiler / renting', titulo: 'Alquiler / renting', color: '#4A5568' },
+  { clave: 'otras', bloque: 'Otras facturas', titulo: 'Otras facturas y suministros', color: '#718096' }
 ];
 function bloqueInformeCierre(l) {
-  if (l.bloque === 'Personal') return 'personal';
-  if (l.bloque === 'Vehículos') return 'vehiculos';
-  if (l.bloque === 'Pagos anuales') {
-    if (l.grupo === 'Seguros Propiedades') return 'seguros';
-    if (l.grupo === 'Impuestos' || l.grupo === 'Suministros') return 'suministros';
-    if (l.grupo === 'Financiación') return 'financiacion';
-    if (l.grupo === 'Alquiler / Renting') return 'alquiler';
-  }
-  return 'otras';
+  const b = BLOQUES_INFORME_CIERRE.find(x => x.bloque === l.bloque);
+  return b ? b.clave : 'otras';
 }
 async function informeCierrePDF(mes) {
   const data = cierreMensualDataActual;
@@ -1616,7 +1609,7 @@ async function informeCierrePDF(mes) {
   const filasSemanas = semanas.map(w => {
     const tot = w.confirmados + w.no_confirmados;
     return `<div class="sem">
-      <div class="sem-cab"><b>Del ${w.desde} al ${w.hasta} ${mesCorto}</b><b>${e0(tot)}</b></div>
+      <div class="sem-cab"><b>${w.desde === w.hasta ? w.desde + ' ' + mesCorto : 'Del ' + w.desde + ' al ' + w.hasta + ' ' + mesCorto}</b><b>${e0(tot)}</b></div>
       <div class="stack" style="width:${tot / maxSemana * 100}%"><span style="flex:${w.confirmados || 0.0001}; background:#4C8C2B"></span><span style="flex:${w.no_confirmados || 0.0001}; background:#A3C585"></span></div>
       <div class="sem-det"><span><i class="dot" style="background:#4C8C2B"></i>Reservas ${e0(w.confirmados)} <span class="sub">(${w.n_facturas} fact.)</span></span><span><i class="dot" style="background:#A3C585"></i>No confirmados ${e0(w.no_confirmados)} <span class="sub">(${w.n_no_confirmados})</span></span></div>
     </div>`;
@@ -1633,9 +1626,17 @@ async function informeCierrePDF(mes) {
   const maxBloque = Math.max(1, ...Object.values(porBloque).map(ls => ls.reduce((a, l) => a + l.importe, 0)));
   const itemsBloque = (clave, ls) => {
     if (clave === 'personal') {
-      // Una línea por persona (nómina + extras), en dos columnas
+      // Una línea por persona (nómina + extras), en dos columnas. Los extras
+      // vinculados a un trabajador de Nóminas (misma clave) van en su línea,
+      // con el nombre de la nómina ("APELLIDOS, NOMBRE" → "NOMBRE APELLIDOS").
+      const nombreNomina = t => { const [ap, no] = String(t).split(','); return no ? (no.trim() + ' ' + ap.trim()).replace(/\s+/g, ' ') : String(t).trim(); };
       const pp = {};
-      ls.forEach(l => { (pp[l.concepto] = pp[l.concepto] || { n: l.concepto, nom: 0, ext: 0, dep: l.departamento }); if (l.tipo === 'extra') pp[l.concepto].ext += l.importe; else pp[l.concepto].nom += l.importe; });
+      ls.forEach(l => {
+        const k = l.clave || ('nombre:' + l.concepto);
+        const x = pp[k] = pp[k] || { n: '', nom: 0, ext: 0 };
+        if (l.tipo === 'extra') { x.ext += l.importe; if (!x.n) x.n = l.concepto; }
+        else { x.nom += l.importe; x.n = nombreNomina(l.concepto); }
+      });
       const personas = Object.values(pp).sort((a, b) => a.n.localeCompare(b.n, 'es'));
       return `<div class="items dos-col">${personas.map(x => `<div class="it"><span>${escHtml(x.n)}${x.ext ? ` <span class="sub">+ extras ${e0(x.ext)}</span>` : ''}</span><span>${e0(x.nom + x.ext)}</span></div>`).join('')}</div>`;
     }
@@ -6906,17 +6907,32 @@ async function abrirHistorialFactura(fileId) {
 // coste interno (ver DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN en server.js).
 const DEPARTAMENTOS_ORUM = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Vehículos', 'Otros Gastos', 'Isabella Premium Group'];
 let configProveedoresGlobal = { proveedores: [], reparto: [] };
+// Misma sugerencia que sugerirTipoGasto() de server.js (solo para preseleccionar).
+function sugerirTipoGastoFront(proveedor) {
+  const n = String(proveedor || '').toUpperCase();
+  if (/\bOIL\b|GASOLIN|GASOIL|COMBUSTIBLE|CARBURANTE|\bES\s|ESTACI[OÓ]N DE SERVICIO|REPSOL|CEPSA|GALP|ADBLUE|RECAMBIO|AUTOMOCI|TALLER|NEUM[AÁ]TIC|REPARACIONES|ITV|MOTOR|CAMI[OÓ]N/.test(n)) return 'vehiculos';
+  if (/SEGUR|MAPFRE|ALLIANZ|AXA|GENERALI|ZURICH|MUTUA/.test(n)) return 'seguros';
+  if (/LEASING|BANC|BBVA|MARCH|SANTANDER|CAIXA|SABADELL|UNICAJA|FINANC|PR[EÉ]STAMO|HIPOTECA/.test(n)) return 'financiacion';
+  if (/\bALQ|ALQUILER|PROMOTORA|RENTING|LEASE ?PLAN|ARRENDA/.test(n)) return 'alquiler';
+  if (/FENIE|ENDESA|IBERDROLA|NATURGY|REPSOL LUZ|HOLALUZ|VODAFONE|MOVISTAR|TELEF[OÓ]NICA|ORANGE|DIGI|SECURITAS|PROSEGUR|AQUALIFE|HIDRALIA|ACOSOL|AGUA|COMUNIDAD|AYUNTAMIENTO|TASA|IBI/.test(n)) return 'suministros';
+  return 'otras';
+}
 async function cargarConfiguracionProveedores() {
   document.getElementById('content-title').textContent = 'Facturas Proveedores · Configurar proveedores';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando configuración...</p>';
   try {
-    const [respProveedores, respReparto] = await Promise.all([
+    const [respProveedores, respReparto, respTipos] = await Promise.all([
       fetch('/api/facturas-proveedores/proveedores'),
-      fetch('/api/facturas-proveedores/reparto')
+      fetch('/api/facturas-proveedores/reparto'),
+      fetch('/api/facturas-proveedores/tipos')
     ]);
     const dataProveedores = await respProveedores.json();
     const dataReparto = await respReparto.json();
+    const dataTipos = await respTipos.json().catch(() => ({}));
+    configProveedoresGlobal.tipos = {};
+    (dataTipos.tipos || []).forEach(t => { configProveedoresGlobal.tipos[t.proveedor] = t.tipo; });
+    configProveedoresGlobal.opcionesTipo = dataTipos.opciones || {};
     if (dataProveedores.error) { body.innerHTML = '<p class="loading-text">Error: ' + dataProveedores.error + '</p>'; return; }
     if (dataReparto.error) { body.innerHTML = '<p class="loading-text">Error: ' + dataReparto.error + '</p>'; return; }
     configProveedoresGlobal.proveedores = dataProveedores.proveedores || [];
@@ -6937,8 +6953,13 @@ function pintarConfiguracionProveedores() {
     const filasDepartamento = filasIniciales.map((r, idx) => filaDepartamentoHtml(idProv, idx, r.departamento, r.porcentaje)).join('');
     return `
       <div style="border:0.5px solid #e2e2de; border-radius:8px; padding:1rem; margin-bottom:10px;" id="card-${idProv}">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <p style="font-size:14px; font-weight:500; margin:0;">${prov}</p>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px;">
+          <p style="font-size:14px; font-weight:500; margin:0; flex:1;">${prov}</p>
+          <label style="font-size:12px; color:#6b6a64;">Tipo de gasto
+            <select class="select-tipo-gasto" data-prov="${escHtml(prov)}" style="font-size:12px; margin-left:4px;">
+              ${Object.entries(configProveedoresGlobal.opcionesTipo || {}).map(([k, v]) => `<option value="${k}" ${k === (configProveedoresGlobal.tipos[prov] || sugerirTipoGastoFront(prov)) ? 'selected' : ''}>${v}${configProveedoresGlobal.tipos[prov] ? '' : (k === sugerirTipoGastoFront(prov) ? ' (sugerido)' : '')}</option>`).join('')}
+            </select>
+          </label>
           <span id="suma-${idProv}" style="font-size:12px; color:#6b6a64;"></span>
         </div>
         <div id="filas-${idProv}">${filasDepartamento}</div>
@@ -6950,7 +6971,7 @@ function pintarConfiguracionProveedores() {
   }).join('');
   body.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-      <p style="font-size:13px; color:#6b6a64; margin:0;">Define para cada proveedor a qué departamento(s) va su gasto. Si se reparte entre varios, los porcentajes deben sumar 100%.</p>
+      <p style="font-size:13px; color:#6b6a64; margin:0;">Define para cada proveedor a qué departamento(s) va su gasto (si se reparte entre varios, los porcentajes deben sumar 100%) y su tipo de gasto para el Cierre Mensual.</p>
       <div style="display:flex; gap:10px; align-items:center;">
         <span id="estado-guardar-reparto" style="font-size:12px;"></span>
         <button onclick="guardarConfiguracionProveedores()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar configuración</button>
@@ -7031,6 +7052,10 @@ async function guardarConfiguracionProveedores() {
   estado.textContent = 'Guardando...';
   estado.style.color = '#6b6a64';
   try {
+    // Tipo de gasto (Supabase) de todos los proveedores, incluidos los sugeridos
+    const tipos = [...document.querySelectorAll('.select-tipo-gasto')].map(s => ({ proveedor: s.dataset.prov, tipo: s.value }));
+    await fetch('/api/facturas-proveedores/tipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipos }) });
+    tipos.forEach(t => { configProveedoresGlobal.tipos[t.proveedor] = t.tipo; });
     const resp = await fetch('/api/facturas-proveedores/reparto', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

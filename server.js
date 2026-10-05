@@ -1953,6 +1953,24 @@ const MESES_ES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Ju
 // constancia de a quién corresponde.
 const DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN = ['Isabella Premium Group'];
 
+// NUEVO (5 oct 2026): tipo de gasto de cada proveedor para el Cierre Mensual
+// (mismos bloques que el Excel de resultados). Se guarda en Supabase
+// (proveedores_tipo_gasto) desde Config. Facturas Proveedores; si un
+// proveedor no lo tiene, se sugiere por su nombre.
+const TIPOS_GASTO = {
+  vehiculos: 'Vehículos', suministros: 'Suministros e impuestos', alquiler: 'Alquiler / renting',
+  seguros: 'Seguros propiedades / otros', financiacion: 'Financiación e intereses', otras: 'Otras facturas'
+};
+function sugerirTipoGasto(proveedor) {
+  const n = String(proveedor || '').toUpperCase();
+  if (/\bOIL\b|GASOLIN|GASOIL|COMBUSTIBLE|CARBURANTE|\bES\s|ESTACI[OÓ]N DE SERVICIO|REPSOL|CEPSA|GALP|ADBLUE|RECAMBIO|AUTOMOCI|TALLER|NEUM[AÁ]TIC|REPARACIONES|ITV|MOTOR|CAMI[OÓ]N/.test(n)) return 'vehiculos';
+  if (/SEGUR|MAPFRE|ALLIANZ|AXA|GENERALI|ZURICH|MUTUA/.test(n)) return 'seguros';
+  if (/LEASING|BANC|BBVA|MARCH|SANTANDER|CAIXA|SABADELL|UNICAJA|FINANC|PR[EÉ]STAMO|HIPOTECA/.test(n)) return 'financiacion';
+  if (/\bALQ|ALQUILER|PROMOTORA|RENTING|LEASE ?PLAN|ARRENDA/.test(n)) return 'alquiler';
+  if (/FENIE|ENDESA|IBERDROLA|NATURGY|REPSOL LUZ|HOLALUZ|VODAFONE|MOVISTAR|TELEF[OÓ]NICA|ORANGE|DIGI|SECURITAS|PROSEGUR|AQUALIFE|HIDRALIA|ACOSOL|AGUA|COMUNIDAD|AYUNTAMIENTO|TASA|IBI/.test(n)) return 'suministros';
+  return 'otras';
+}
+
 async function obtenerFacturasProveedoresEnriquecidas() {
   const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
   const paramsReparto = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
@@ -3318,7 +3336,7 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
 
-    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp, proyectosResp] = await Promise.all([
+    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp, proyectosResp, tiposGastoResp] = await Promise.all([
       llamarOrumCentral('facturas'),
       obtenerFacturasProveedoresEnriquecidas(),
       supabase.from('gastos_anuales').select('*').eq('anio', anio),
@@ -3327,8 +3345,11 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       supabase.from('extras_detalle').select('mes, nombre, importe').eq('anio', anio),
       supabase.from('extras_departamento').select('nombre, departamento'),
       supabase.from('extras_alias').select('nombre, empresa_nif, formato_origen, num_empleado'),
-      llamarOrumCentral('proyectos')
+      llamarOrumCentral('proyectos'),
+      supabase.from('proveedores_tipo_gasto').select('proveedor, tipo')
     ]);
+    const tipoGastoProveedor = {};
+    ((tiposGastoResp && tiposGastoResp.data) || []).forEach(t => { tipoGastoProveedor[t.proveedor] = t.tipo; });
     const [registrosExtrasFormulario, inicioFormularioExtras] = await Promise.all([
       selectTodoPersonal('extras_registros', '*', ['id']).then(rs => rs.filter(r => r.anio === anio)),
       leerInicioFormularioExtras()
@@ -3432,9 +3453,12 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       // Proveedores (agrupado por proveedor). Una línea por departamento
       // del reparto, con su % del total con IVA. Los departamentos externos
       // (DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN) no son gasto de ORUM: fuera.
+      // Bloque = tipo de gasto del proveedor (configurado o sugerido por su
+      // nombre); con matrícula siempre Vehículos.
+      const tipoProv = f.matricula ? 'vehiculos' : (tipoGastoProveedor[String(f.proveedor)] || sugerirTipoGasto(f.proveedor));
       const base = {
         tipo: 'proveedor',
-        bloque: f.matricula ? 'Vehículos' : 'Proveedores',
+        bloque: TIPOS_GASTO[tipoProv] || TIPOS_GASTO.otras,
         grupo: f.matricula ? String(f.matricula).toUpperCase() : String(f.proveedor),
         concepto: String(f.proveedor) + (f.numeroFactura ? ' · ' + f.numeroFactura : ''),
         fecha: f.fecha || null
@@ -3453,7 +3477,7 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       if (mes < 1 || mes > 12) return;
       const coste = parseFloat(n.coste_total) || 0;
       const depto = mapaDeptoEmpleado[n.empresa_nif + '|' + n.formato_origen + '|' + n.num_empleado] || 'Personal sin clasificar';
-      apuntar(mes, { tipo: 'nomina', bloque: 'Personal', grupo: 'Nóminas', concepto: n.nombre || ('Nº ' + n.num_empleado), departamento: depto, importe: coste, bruto: parseFloat(n.bruto) || 0, ss_empresa: parseFloat(n.ss_empresa) || 0 });
+      apuntar(mes, { tipo: 'nomina', bloque: 'Personal', grupo: 'Nóminas', concepto: n.nombre || ('Nº ' + n.num_empleado), clave: n.empresa_nif + '|' + n.formato_origen + '|' + n.num_empleado, departamento: depto, importe: coste, bruto: parseFloat(n.bruto) || 0, ss_empresa: parseFloat(n.ss_empresa) || 0 });
     });
 
     // Extras: si el nombre está vinculado a un trabajador de Nóminas
@@ -3466,7 +3490,7 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       // Los del formulario de ORUM Central ya traen la clave del trabajador.
       const claveEmpleado = e.empresa_nif ? e.empresa_nif + '|' + e.formato_origen + '|' + e.num_empleado : mapaAliasExtras[e.nombre];
       const depto = (claveEmpleado && mapaDeptoEmpleado[claveEmpleado]) || mapaDeptoExtras[e.nombre] || 'Extras sin clasificar';
-      apuntar(mes, { tipo: 'extra', bloque: 'Personal', grupo: 'Extras', concepto: e.nombre, departamento: depto, importe });
+      apuntar(mes, { tipo: 'extra', bloque: 'Personal', grupo: 'Extras', concepto: e.nombre, clave: claveEmpleado || null, departamento: depto, importe });
     });
 
     // Gastos anuales (seguros, impuestos...) repartidos a partes iguales
@@ -3474,10 +3498,11 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     // junto a los departamentos de Facturas Proveedores, bajo su categoría.
     gastosAnuales.forEach(g => {
       const mensual = (parseFloat(g.importe_anual) || 0) / 12;
-      // Seguros de vehículos van al bloque Vehículos; el resto, a Pagos anuales.
+      // Cada categoría va a su bloque del Excel de resultados.
+      const bloqueAnual = { 'Seguros Vehículos': TIPOS_GASTO.vehiculos, 'Seguros Propiedades': TIPOS_GASTO.seguros, 'Impuestos': TIPOS_GASTO.suministros, 'Suministros': TIPOS_GASTO.suministros, 'Financiación': TIPOS_GASTO.financiacion, 'Alquiler / Renting': TIPOS_GASTO.alquiler }[g.categoria] || TIPOS_GASTO.otras;
       const esVehiculo = g.categoria === 'Seguros Vehículos';
       for (let i = 0; i < 12; i++) {
-        apuntar(i + 1, { tipo: 'anual', bloque: esVehiculo ? 'Vehículos' : 'Pagos anuales', grupo: esVehiculo ? 'Seguros' : g.categoria, concepto: g.concepto + ' (' + (Math.round((parseFloat(g.importe_anual) || 0) * 100) / 100) + ' €/año ÷ 12)', departamento: 'General', importe: mensual });
+        apuntar(i + 1, { tipo: 'anual', bloque: bloqueAnual, grupo: esVehiculo ? 'Seguros' : g.categoria, concepto: g.concepto + ' (' + (Math.round((parseFloat(g.importe_anual) || 0) * 100) / 100) + ' €/año ÷ 12)', departamento: 'General', importe: mensual });
       }
     });
 
@@ -3528,6 +3553,21 @@ app.get('/api/facturas-proveedores/proveedores', requiereLogin, bloquearComercia
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/facturas-proveedores/tipos', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('proveedores_tipo_gasto').select('proveedor, tipo');
+    if (error) throw error;
+    res.json({ ok: true, tipos: data || [], opciones: TIPOS_GASTO });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/facturas-proveedores/tipos', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const filas = ((req.body && req.body.tipos) || []).filter(t => t.proveedor && TIPOS_GASTO[t.tipo])
+      .map(t => ({ proveedor: String(t.proveedor), tipo: t.tipo, actualizado_por: req.session.usuario.nombre, actualizado_en: new Date().toISOString() }));
+    if (filas.length) { const { error } = await supabase.from('proveedores_tipo_gasto').upsert(filas); if (error) throw error; }
+    res.json({ ok: true, guardados: filas.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
