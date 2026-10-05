@@ -82,7 +82,11 @@ async function cargarPendientes(){
       : '<div class="ok">✔ Ningún cobro pendiente</div>';
     const tM = d.modificadas.length ? '<div class="card"><h2 class="err">Facturas cambiadas en Rentman después de volcarlas ('+d.modificadas.length+')</h2><table><tr><th>Nº</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th></tr>'+
       d.modificadas.map(m=>'<tr><td>'+m.numero+'</td><td>'+esc(m.cliente)+'</td><td class="n">'+eur(m.total_enviado)+'</td><td class="n">'+eur(m.total_rentman)+'</td></tr>').join('')+'</table><div class="sub" style="margin-top:6px">Holded no se entera de estos cambios: hay que corregirlo con una rectificativa en Rentman o a mano en Holded.</div></div>' : '';
-    box.innerHTML = tM +
+    const comp = d.compensaciones||[];
+    const tK = comp.length ? '<div class="card"><h2 class="err">Compensaciones descuadradas ('+comp.length+')</h2><table><tr><th>Cliente</th><th>Facturas / rectificativas (pago · importe)</th><th class="n">Descuadre</th></tr>'+
+      comp.map(k=>'<tr><td>'+esc(k.cliente)+'</td><td style="font-size:12px">'+k.lineas.map(l=>'<a href="#" onclick="ver(\''+l.numero_factura+'\');return false">'+l.numero_factura+'</a> ('+l.pago_id+' · '+eur(l.importe)+')').join(', ')+'</td><td class="n">'+eur(k.neto)+'</td></tr>').join('')+
+      '</table><div class="sub" style="margin-top:6px">Los cobros "factura0" / "rectificativa" de Caja de cada cliente tienen que sumar 0 (el +X de la factura y el −X de su rectificativa). Si no, falta la otra mitad o está mal clasificada en Caja, y la cuenta puente 55500010 de Holded no quedará a 0.</div></div>' : '';
+    box.innerHTML = tM + tK +
       '<div class="card"><h2>Facturas pendientes ('+d.facturas.length+')</h2>'+tF+'</div>'+
       '<div class="card"><h2>Cobros pendientes ('+d.cobros.length+')</h2>'+tC+'</div>';
   }catch(e){ box.innerHTML = '<div class="card err">'+esc(e.message)+'</div>'; document.getElementById('volcado').textContent=''; }
@@ -124,7 +128,8 @@ function pintar(d){
   const puedeAprobar = s && s.estado==='borrador';
   const puedeCobros = s && s.estado==='aprobada' && d.cobros.some(c=>c.estado==='listo');
   document.getElementById('out').innerHTML =
-    '<div class="card"><h2>Factura '+esc(v.rentman.numero)+' · '+esc(v.rentman.fecha)+'</h2><div class="kv">'+
+    '<div class="card"><h2>'+(v.rentman.tipo==='C'?'Rectificativa':'Factura')+' '+esc(v.rentman.numero)+' · '+esc(v.rentman.fecha)+'</h2><div class="kv">'+
+      (v.rentman.tipo==='C'?'<div>En Holded</div><div>Nota de crédito'+((v.rectifica||[]).length?' · rectifica '+v.rectifica.map(f=>'<a href="#" onclick="ver(\''+f.numero+'\');return false">'+f.numero+'</a>').join(', '):'')+'</div>':'')+
       '<div>Cliente Rentman</div><div>'+esc(v.cliente.nombre)+' · NIF '+esc(v.cliente.nif||'—')+'</div>'+
       '<div>Contacto Holded</div><div>'+(v.cliente.holded_id?esc(v.cliente.holded_nombre)+' · cuenta '+esc(v.cliente.cuenta):'<span class="err">no encontrado</span>')+'</div>'+
       '<div>Total Rentman</div><div>'+eur(v.rentman.base)+' + IVA '+eur(v.rentman.iva)+' = <b>'+eur(v.rentman.total)+'</b></div>'+

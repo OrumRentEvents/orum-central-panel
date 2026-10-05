@@ -34,3 +34,6 @@ create table if not exists holded_sync_cobros (
 
 alter table holded_sync_facturas enable row level security;
 alter table holded_sync_cobros enable row level security;
+
+-- 5 oct 2026: rectificativas (Rentman tipo C) -> notas de credito en Holded.
+alter table holded_sync_facturas add column if not exists tipo text not null default 'F'; -- F factura | C rectificativa
