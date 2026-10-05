@@ -1850,14 +1850,34 @@ async function sincronizarFacturasProveedoresInterno(anio) {
   // procesan en bloques de CONCURRENCIA para no saturar la API de Claude ni
   // el Apps Script con demasiadas peticiones simultáneas.
   const CONCURRENCIA = 4;
+  // NUEVO (5 oct 2026): a veces Apps Script devuelve una página de error
+  // HTML en vez de JSON ("Unexpected token '<'"), sobre todo con varias
+  // descargas a la vez. La descarga es segura de repetir: hasta 3 intentos.
+  // (El guardado en la Sheet NO se reintenta: podría duplicar filas.)
+  async function descargarPdfConReintentos(fileId) {
+    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId });
+    let ultimoError;
+    for (let intento = 1; intento <= 3; intento++) {
+      try {
+        const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
+        const texto = await resp.text();
+        return JSON.parse(texto);
+      } catch (e) {
+        ultimoError = e;
+        await new Promise(r => setTimeout(r, 2000 * intento));
+      }
+    }
+    throw new Error('Drive/Apps Script no respondió bien tras 3 intentos: ' + ultimoError.message);
+  }
   async function procesarPendiente(item) {
     try {
-      const paramsDescarga = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId: item.fileId });
-      const respDescarga = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsDescarga.toString()}`);
-      const dataDescarga = await respDescarga.json();
-      if (dataDescarga.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
-
-      const lectura = await lecturaFacturas.leerYGuardar({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, base64: dataDescarga.base64 });
+      // Si ya se leyó (p. ej. falló el guardado en la Sheet), no se vuelve a leer.
+      let lectura = await lecturaFacturas.lecturaGuardada(item.fileId);
+      if (!lectura) {
+        const dataDescarga = await descargarPdfConReintentos(item.fileId);
+        if (dataDescarga.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
+        lectura = await lecturaFacturas.leerYGuardar({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, base64: dataDescarga.base64 });
+      }
       const lineas = lecturaFacturas.lineasSheet(lectura);
       const respGuardado = await fetch(APPS_SCRIPT_FACTURAS_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
