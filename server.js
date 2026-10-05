@@ -3304,7 +3304,8 @@ app.post('/api/extras-form/config', requiereLogin, soloPersonal, async (req, res
 
 // ================================================================
 // CIERRE MENSUAL (10 sep 2026, ampliado 11 sep 2026) — Financiero → Cierre
-// Mensual. Ingresos = facturas de Rentman vía ORUM CENTRAL. Gastos =
+// Mensual. Ingresos = facturas de Rentman vía ORUM CENTRAL + (5 oct 2026)
+// proyectos no confirmados por fecha de entrega. Gastos =
 // Facturas Proveedores repartidas por departamento + Gastos Anuales
 // repartidos entre 12 meses + Personal: nóminas_detalle (repartido según
 // empleados_departamento) + extras_detalle — si el nombre de Extras está
@@ -3317,7 +3318,7 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
 
-    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp] = await Promise.all([
+    const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp, proyectosResp] = await Promise.all([
       llamarOrumCentral('facturas'),
       obtenerFacturasProveedoresEnriquecidas(),
       supabase.from('gastos_anuales').select('*').eq('anio', anio),
@@ -3325,7 +3326,8 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       supabase.from('empleados_departamento').select('empresa_nif, formato_origen, num_empleado, departamento'),
       supabase.from('extras_detalle').select('mes, nombre, importe').eq('anio', anio),
       supabase.from('extras_departamento').select('nombre, departamento'),
-      supabase.from('extras_alias').select('nombre, empresa_nif, formato_origen, num_empleado')
+      supabase.from('extras_alias').select('nombre, empresa_nif, formato_origen, num_empleado'),
+      llamarOrumCentral('proyectos')
     ]);
     const [registrosExtrasFormulario, inicioFormularioExtras] = await Promise.all([
       selectTodoPersonal('extras_registros', '*', ['id']).then(rs => rs.filter(r => r.anio === anio)),
@@ -3363,8 +3365,26 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     // la base sin IVA y a "gastos" el total con IVA).
     const meses = Array.from({ length: 12 }, (_, i) => ({
       mes: i + 1, nombre: MESES_ES[i + 1],
-      ingresos: 0, gastos: 0, detalle: [], ingresos_por_cliente: {}, n_facturas: 0
+      ingresos: 0, gastos: 0, detalle: [], semanas: {}, ingresos_confirmados: 0, ingresos_no_confirmados: 0, n_facturas: 0, n_no_confirmados: 0
     }));
+    // Ingresos por semana (lunes a domingo, solo los días de ese mes):
+    // proyectos confirmados = facturas de Rentman por fecha de emisión;
+    // no confirmados (abrebotellas, sin factura) = valor del proyecto por
+    // fecha de entrega.
+    const semanaDe = (anioF, mes, dia) => {
+      const d = new Date(Date.UTC(anioF, mes - 1, dia));
+      const lunes = new Date(d); lunes.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+      const domingo = new Date(lunes); domingo.setUTCDate(lunes.getUTCDate() + 6);
+      const ini = lunes.getUTCMonth() + 1 === mes ? lunes.getUTCDate() : 1;
+      const fin = domingo.getUTCMonth() + 1 === mes ? domingo.getUTCDate() : new Date(Date.UTC(anioF, mes, 0)).getUTCDate();
+      return { clave: ini, desde: ini, hasta: fin };
+    };
+    const sumarSemana = (mes, dia, campo, importe) => {
+      const sm = semanaDe(anio, mes, dia);
+      const w = meses[mes - 1].semanas[sm.clave] = meses[mes - 1].semanas[sm.clave] || { desde: sm.desde, hasta: sm.hasta, confirmados: 0, no_confirmados: 0, n_facturas: 0, n_no_confirmados: 0 };
+      w[campo] += importe;
+      w[campo === 'confirmados' ? 'n_facturas' : 'n_no_confirmados']++;
+    };
     const apuntar = (mes, linea) => { meses[mes - 1].gastos += linea.importe; meses[mes - 1].detalle.push(linea); };
 
     facturas.forEach(f => {
@@ -3373,23 +3393,41 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       if (partes.length !== 3) return;
       const mes = parseInt(partes[1]), anioFactura = parseInt(partes[2]);
       if (anioFactura !== anio || mes < 1 || mes > 12) return;
-      const importe = parseFloat(f.importe_con_iva) || 0;
+      // Sin IVA (5 oct 2026), como el Excel de resultados: el IVA no es
+      // ingreso ni gasto de ORUM.
+      const importe = f.importe_sin_iva != null && f.importe_sin_iva !== '' ? (parseFloat(f.importe_sin_iva) || 0) : (parseFloat(f.importe_con_iva) || 0) / 1.21;
       meses[mes - 1].ingresos += importe;
+      meses[mes - 1].ingresos_confirmados += importe;
       meses[mes - 1].n_facturas++;
-      const cli = (f.cliente || 'Sin cliente').trim();
-      const c = meses[mes - 1].ingresos_por_cliente[cli] = meses[mes - 1].ingresos_por_cliente[cli] || { cliente: cli, importe: 0, facturas: [] };
-      c.importe += importe;
-      c.facturas.push({ numero: f.numero, importe: Math.round(importe * 100) / 100 });
+      sumarSemana(mes, parseInt(partes[0]), 'confirmados', importe);
+    });
+
+    // NUEVO (5 oct 2026): proyectos no confirmados (abrebotellas) también
+    // son ingreso del mes — no tienen factura en Rentman, así que cuentan
+    // por su valor y su fecha de entrega (los cancelados no).
+    (proyectosResp.data || []).forEach(p => {
+      if (p.es_abrebotellas !== 'SI' || p.cancelado === 'SI' || !p.entrega_fecha) return;
+      const partes = String(p.entrega_fecha).split('/');
+      if (partes.length !== 3) return;
+      const mes = parseInt(partes[1]), anioP = parseInt(partes[2]);
+      if (anioP !== anio || mes < 1 || mes > 12) return;
+      const importe = parseFloat(p.valor) || 0;
+      if (!importe) return;
+      meses[mes - 1].ingresos += importe;
+      meses[mes - 1].ingresos_no_confirmados += importe;
+      meses[mes - 1].n_no_confirmados++;
+      sumarSemana(mes, parseInt(partes[0]), 'no_confirmados', importe);
     });
 
     facturasProveedores.forEach(f => {
       const mes = parseInt(f.mes), anioFactura = parseInt(f.anio);
       if (anioFactura !== anio || mes < 1 || mes > 12) return;
+      // (5 oct 2026: ahora con la base sin IVA, ver más abajo)
       // NUEVO (16 sep 2026): se usa importeTotal_propio (ya sin la parte
       // repartida a un departamento externo como Isabella Premium Group) en
       // vez del total completo de la factura - esa parte no es gasto de
       // ORUM, la usa/paga un tercero aunque la factura venga a nuestro nombre.
-      const totalFactura = parseFloat(f.importeTotal) || 0;
+      const totalFactura = parseFloat(f.importeBase) || 0; // base sin IVA
       // Con matrícula → bloque Vehículos (agrupado por vehículo); si no,
       // Proveedores (agrupado por proveedor). Una línea por departamento
       // del reparto, con su % del total con IVA. Los departamentos externos
@@ -3402,7 +3440,7 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
         fecha: f.fecha || null
       };
       const reparto = (f.desglose_departamentos || []).filter(d => !DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN.includes(d.departamento));
-      if (!reparto.length) apuntar(mes, { ...base, departamento: 'Sin clasificar', importe: parseFloat(f.importeTotal_propio ?? f.importeTotal) || 0 });
+      if (!reparto.length) apuntar(mes, { ...base, departamento: 'Sin clasificar', importe: parseFloat(f.importeBase_propio ?? f.importeBase) || 0 });
       reparto.forEach(d => apuntar(mes, { ...base, departamento: d.departamento, porcentaje: d.porcentaje, importe: totalFactura * (parseFloat(d.porcentaje) || 0) / 100 }));
     });
 
@@ -3457,8 +3495,9 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
           .map(dep => ({ departamento: dep, total: r2c(porDepto[dep]) }))
           .sort((a, b) => b.total - a.total),
         detalle: m.detalle.map(l => ({ ...l, importe: r2c(l.importe) })),
-        n_facturas: m.n_facturas,
-        ingresos_por_cliente: Object.values(m.ingresos_por_cliente).map(c => ({ ...c, importe: r2c(c.importe) })).sort((a, b) => b.importe - a.importe)
+        n_facturas: m.n_facturas, n_no_confirmados: m.n_no_confirmados,
+        ingresos_confirmados: r2c(m.ingresos_confirmados), ingresos_no_confirmados: r2c(m.ingresos_no_confirmados),
+        semanas: Object.values(m.semanas).sort((a, b) => a.desde - b.desde).map(w => ({ ...w, confirmados: r2c(w.confirmados), no_confirmados: r2c(w.no_confirmados) }))
       };
     });
 
