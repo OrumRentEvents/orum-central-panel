@@ -1451,7 +1451,7 @@ let mesAbiertoCierre = null;
 // departamento (→ línea) e ingresos por cliente. Todo sale de m.detalle
 // que ya calcula /api/cierre-mensual.
 const escHtml = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const ORDEN_BLOQUES_CIERRE = ['Personal', 'Vehículos', 'Seguros propiedades / otros', 'Suministros e impuestos', 'Financiación e intereses', 'Alquiler / renting', 'Otras facturas'];
+const ORDEN_BLOQUES_CIERRE = ['Personal', 'Vehículos', 'Compra de material de alquiler', 'Seguros propiedades / otros', 'Suministros e impuestos', 'Financiación e intereses', 'Alquiler / renting', 'Otras facturas'];
 function agruparCierre(lineas, clave) {
   const g = {};
   lineas.forEach(l => { const k = l[clave] || '—'; (g[k] = g[k] || { nombre: k, total: 0, lineas: [] }); g[k].total += l.importe; g[k].lineas.push(l); });
@@ -1579,6 +1579,7 @@ const SEMANAS_POR_MES = 4.3;
 const BLOQUES_INFORME_CIERRE = [
   { clave: 'personal', bloque: 'Personal', titulo: 'Personal', color: '#2F5D8A' },
   { clave: 'vehiculos', bloque: 'Vehículos', titulo: 'Vehículos (mantenimiento, gasolina y seguros)', color: '#B7791F' },
+  { clave: 'material', bloque: 'Compra de material de alquiler', titulo: 'Compra de material de alquiler', color: '#2B6CB0' },
   { clave: 'seguros', bloque: 'Seguros propiedades / otros', titulo: 'Seguros propiedades / otros', color: '#6B5B95' },
   { clave: 'suministros', bloque: 'Suministros e impuestos', titulo: 'Suministros e impuestos', color: '#2C7A7B' },
   { clave: 'financiacion', bloque: 'Financiación e intereses', titulo: 'Letras, financiación e intereses', color: '#9B2C2C' },

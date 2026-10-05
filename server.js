@@ -1958,7 +1958,7 @@ const DEPARTAMENTOS_EXTERNOS_NO_COMPUTAN = ['Isabella Premium Group'];
 // (proveedores_tipo_gasto) desde Config. Facturas Proveedores; si un
 // proveedor no lo tiene, se sugiere por su nombre.
 const TIPOS_GASTO = {
-  vehiculos: 'Vehículos', suministros: 'Suministros e impuestos', alquiler: 'Alquiler / renting',
+  vehiculos: 'Vehículos', material: 'Compra de material de alquiler', suministros: 'Suministros e impuestos', alquiler: 'Alquiler / renting',
   seguros: 'Seguros propiedades / otros', financiacion: 'Financiación e intereses', otras: 'Otras facturas'
 };
 function sugerirTipoGasto(proveedor) {
