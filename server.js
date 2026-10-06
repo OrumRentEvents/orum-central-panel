@@ -2125,19 +2125,32 @@ app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (re
 //     creado_por text,
 //     created_at timestamptz not null default now()
 //   );
-// NUEVO (6 oct 2026): vigencia por meses (columnas mes_desde / mes_hasta,
-// 1–12, por defecto todo el año). Cada partida reparte importe_anual / 12
-// SOLO en sus meses, así un cambio a mitad de año (renovación de seguro con
-// otro precio) no altera los meses ya cerrados: se cierra la partida vieja
-// en el mes anterior y se crea otra desde el mes del cambio.
+// NUEVO (6 oct 2026): vigencia por meses, que puede cruzar de año (p. ej.
+// IAE de abril 2026 a marzo 2027): desde = anio/mes_desde, hasta =
+// anio_hasta/mes_hasta (por defecto ene–dic del mismo año). Cada partida
+// reparte importe_anual / 12 SOLO en sus meses, y aparece en todos los años
+// que toca. Un cambio de cuota a mitad de periodo (renovación de seguro con
+// otro precio) no altera los meses ya cerrados: se cierra la partida vieja en
+// el mes anterior y se crea otra desde el mes del cambio.
+// También (6 oct 2026): casilla "verificado" con fecha y usuario.
 // ================================================================
 const CATEGORIAS_GASTO_ANUAL = ['Impuestos', 'Seguros Vehículos', 'Seguros Propiedades', 'Suministros', 'Financiación', 'Alquiler / Renting', 'Otros'];
 const mesValido = (v, porDefecto) => { const n = parseInt(v); return n >= 1 && n <= 12 ? n : porDefecto; };
+const anioValido = (v, porDefecto) => { const n = parseInt(v); return n >= 2000 && n <= 2100 ? n : porDefecto; };
+// Meses [desde, hasta] (1–12) en que la partida cuenta dentro del año dado, o null.
+function mesesGastoAnualEnAnio(g, anio) {
+  const anioDesde = g.anio, anioHasta = g.anio_hasta || g.anio;
+  if (anio < anioDesde || anio > anioHasta) return null;
+  return [anio === anioDesde ? (g.mes_desde || 1) : 1, anio === anioHasta ? (g.mes_hasta || 12) : 12];
+}
+const periodoGastoValido = (anio, mesDesde, anioHasta, mesHasta) => anioHasta * 12 + mesHasta >= anio * 12 + mesDesde;
+// Partidas que tocan el año dado (empiezan antes o en él y acaban en él o después).
+const gastosAnualesDelAnio = anio => supabase.from('gastos_anuales').select('*').lte('anio', anio).gte('anio_hasta', anio);
 
 app.get('/api/gastos-anuales', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
-    const { data, error } = await supabase.from('gastos_anuales').select('*').eq('anio', anio).order('categoria').order('concepto');
+    const { data, error } = await gastosAnualesDelAnio(anio).order('categoria').order('concepto');
     if (error) throw error;
     res.json({
       ok: true, categorias: CATEGORIAS_GASTO_ANUAL,
@@ -2156,12 +2169,14 @@ app.post('/api/gastos-anuales', requiereLogin, bloquearComercial, async (req, re
       return res.status(400).json({ error: 'Concepto, categoría e importe anual son obligatorios' });
     }
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+    const anio = anioValido(b.anio, new Date().getFullYear());
     const mes_desde = mesValido(b.mes_desde, 1), mes_hasta = mesValido(b.mes_hasta, 12);
-    if (mes_desde > mes_hasta) return res.status(400).json({ error: 'El mes de inicio no puede ser posterior al de fin' });
+    const anio_hasta = anioValido(b.anio_hasta, anio);
+    if (!periodoGastoValido(anio, mes_desde, anio_hasta, mes_hasta)) return res.status(400).json({ error: 'El inicio no puede ser posterior al fin' });
     const { data, error } = await supabase.from('gastos_anuales').insert({
       concepto: b.concepto, categoria: b.categoria, importe_anual: Number(b.importe_anual) || 0,
-      anio: parseInt(b.anio) || new Date().getFullYear(), notas: b.notas || null, creado_por: usuario,
-      mes_desde, mes_hasta
+      anio, notas: b.notas || null, creado_por: usuario,
+      mes_desde, mes_hasta, anio_hasta
     }).select().single();
     if (error) throw error;
     res.json({ ok: true, gasto: data });
@@ -2178,19 +2193,26 @@ app.put('/api/gastos-anuales/:id', requiereLogin, bloquearComercial, async (req,
     if (b.concepto !== undefined) campos.concepto = b.concepto;
     if (b.categoria !== undefined) campos.categoria = b.categoria;
     if (b.importe_anual !== undefined) campos.importe_anual = Number(b.importe_anual) || 0;
-    if (b.anio !== undefined) campos.anio = parseInt(b.anio) || new Date().getFullYear();
+    if (b.anio !== undefined) campos.anio = anioValido(b.anio, new Date().getFullYear());
+    if (b.anio_hasta !== undefined) campos.anio_hasta = anioValido(b.anio_hasta, new Date().getFullYear());
     if (b.notas !== undefined) campos.notas = b.notas || null;
     if (b.mes_desde !== undefined) campos.mes_desde = mesValido(b.mes_desde, 1);
     if (b.mes_hasta !== undefined) campos.mes_hasta = mesValido(b.mes_hasta, 12);
-    // La restricción de la tabla rechaza desde > hasta; mensaje claro aquí.
-    if (campos.mes_desde !== undefined || campos.mes_hasta !== undefined) {
-      const { data: actual } = await supabase.from('gastos_anuales').select('mes_desde, mes_hasta').eq('id', req.params.id).single();
-      const desde = campos.mes_desde ?? actual?.mes_desde ?? 1, hasta = campos.mes_hasta ?? actual?.mes_hasta ?? 12;
-      if (desde > hasta) return res.status(400).json({ error: 'El mes de inicio no puede ser posterior al de fin' });
+    // Verificado: la fecha y el usuario los pone el servidor.
+    if (b.verificado !== undefined) {
+      campos.verificado = !!b.verificado;
+      campos.verificado_en = campos.verificado ? new Date().toISOString() : null;
+      campos.verificado_por = campos.verificado ? (req.session.usuario.nombre || req.session.usuario.usuario) : null;
     }
-    const { error } = await supabase.from('gastos_anuales').update(campos).eq('id', req.params.id);
+    // La restricción de la tabla rechaza inicio > fin; mensaje claro aquí.
+    if (['anio', 'anio_hasta', 'mes_desde', 'mes_hasta'].some(k => campos[k] !== undefined)) {
+      const { data: actual } = await supabase.from('gastos_anuales').select('anio, anio_hasta, mes_desde, mes_hasta').eq('id', req.params.id).single();
+      const v = { ...actual, ...campos };
+      if (!periodoGastoValido(v.anio, v.mes_desde, v.anio_hasta, v.mes_hasta)) return res.status(400).json({ error: 'El inicio no puede ser posterior al fin' });
+    }
+    const { data, error } = await supabase.from('gastos_anuales').update(campos).eq('id', req.params.id).select().single();
     if (error) throw error;
-    res.json({ ok: true });
+    res.json({ ok: true, gasto: data });
   } catch (err) {
     console.error('Error en PUT /api/gastos-anuales:', err);
     res.status(500).json({ error: 'Error al actualizar: ' + err.message });
@@ -3429,7 +3451,7 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
     const [facturasResp, provResult, gastosAnualesResp, nominasResp, deptoResp, extrasResp, extrasDeptoResp, extrasAliasResp, proyectosResp, tiposGastoResp] = await Promise.all([
       llamarOrumCentral('facturas'),
       obtenerFacturasProveedoresEnriquecidas(),
-      supabase.from('gastos_anuales').select('*').eq('anio', anio),
+      gastosAnualesDelAnio(anio),
       supabase.from('nominas_detalle').select('mes, empresa_nif, formato_origen, num_empleado, nombre, bruto, ss_empresa, coste_total').eq('anio', anio),
       supabase.from('empleados_departamento').select('empresa_nif, formato_origen, num_empleado, departamento'),
       supabase.from('extras_detalle').select('mes, nombre, importe').eq('anio', anio),
@@ -3591,8 +3613,9 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       // Cada categoría va a su bloque del Excel de resultados.
       const bloqueAnual = { 'Seguros Vehículos': TIPOS_GASTO.vehiculos, 'Seguros Propiedades': TIPOS_GASTO.seguros, 'Impuestos': TIPOS_GASTO.suministros, 'Suministros': TIPOS_GASTO.suministros, 'Financiación': TIPOS_GASTO.financiacion, 'Alquiler / Renting': TIPOS_GASTO.alquiler }[g.categoria] || TIPOS_GASTO.otras;
       const esVehiculo = g.categoria === 'Seguros Vehículos';
-      // Solo en los meses de vigencia de la partida (por defecto todo el año).
-      for (let i = (g.mes_desde || 1) - 1; i < (g.mes_hasta || 12); i++) {
+      // Solo en los meses de vigencia de la partida dentro de este año.
+      const [desde, hasta] = mesesGastoAnualEnAnio(g, anio) || [1, 0];
+      for (let i = desde - 1; i < hasta; i++) {
         apuntar(i + 1, { tipo: 'anual', bloque: bloqueAnual, grupo: esVehiculo ? 'Seguros' : g.categoria, concepto: g.concepto + ' (' + (Math.round((parseFloat(g.importe_anual) || 0) * 100) / 100) + ' €/año ÷ 12)', departamento: 'General', importe: mensual });
       }
     });

@@ -1729,18 +1729,33 @@ async function informeCierrePDF(mes) {
 // CONFIG. PAGOS ANUALES (10 sep 2026) — Financiero → Config. Pagos Anuales.
 // Aquí se dan de alta las partidas que se pagan una vez al año (seguros de
 // vehículos, impuestos, IBI, IAE...) con su importe anual; Cierre Mensual
-// las reparte solo entre los 12 meses (importe_anual / 12). No hace falta
+// las reparte solo entre sus meses (importe_anual / 12). No hace falta
 // tocarlas cada mes, solo cuando cambie la cuota (renovación de seguro,
 // nuevo recibo de impuesto...).
-// NUEVO (6 oct 2026): cada partida tiene meses de vigencia (Desde/Hasta). Un
-// cambio de cuota a mitad de año se hace con "Cambia desde…": cierra la
-// partida en el mes anterior y crea otra con el importe nuevo, sin tocar los
-// meses ya pasados. Los pagos anuales se gestionan SIEMPRE aquí, no como
+// NUEVO (6 oct 2026): cada partida tiene un periodo Desde–Hasta (mes/año) que
+// puede cruzar de año (p. ej. IAE abr 2026 – mar 2027) y sale en cada año que
+// toca. Un cambio de cuota a mitad de periodo se hace con "Cambia desde…":
+// cierra la partida en el mes anterior y crea otra con el importe nuevo, sin
+// tocar los meses ya pasados. Casilla "verificado" con fecha y usuario (al
+// pasar el ratón). Los pagos anuales se gestionan SIEMPRE aquí, no como
 // factura de proveedor (contarían doble en Cierre Mensual).
 // ================================================================
 const MESES_CORTOS_ANUALES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const mesesVigenciaGasto = g => (g.mes_hasta || 12) - (g.mes_desde || 1) + 1;
-const costeAnioGasto = g => (parseFloat(g.importe_anual) || 0) / 12 * mesesVigenciaGasto(g);
+// Meses [desde, hasta] en que cuenta la partida dentro del año, o null (mismo criterio que el servidor).
+function mesesGastoAnualEnAnio(g, anio) {
+  const anioDesde = g.anio, anioHasta = g.anio_hasta || g.anio;
+  if (anio < anioDesde || anio > anioHasta) return null;
+  return [anio === anioDesde ? (g.mes_desde || 1) : 1, anio === anioHasta ? (g.mes_hasta || 12) : 12];
+}
+function costeAnioGasto(g, anio) {
+  const m = mesesGastoAnualEnAnio(g, anio);
+  return m ? (parseFloat(g.importe_anual) || 0) / 12 * (m[1] - m[0] + 1) : 0;
+}
+function tooltipVerificadoGasto(g) {
+  if (!g.verificado) return 'Sin verificar';
+  const f = g.verificado_en ? new Date(g.verificado_en).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  return `Verificado${f ? ' el ' + f : ''}${g.verificado_por ? ' por ' + g.verificado_por : ''}`;
+}
 let gastosAnualesGlobal = { anio: new Date().getFullYear(), categorias: [], data: [] };
 async function cargarGastosAnuales() {
   document.getElementById('content-title').textContent = 'Financiero · Config. Pagos Anuales';
@@ -1761,56 +1776,69 @@ function cambiarAnioGastosAnuales(anio) {
   gastosAnualesGlobal.anio = parseInt(anio);
   cargarGastosAnuales();
 }
+const estiloSelectAnual = 'font-size:12px; padding:3px; border-radius:4px; border:1px solid #e2e2de;';
+function selectMesGastoAnual(valor, onchange, id) {
+  return `<select ${id ? `id="${id}"` : ''} ${onchange ? `onchange="${onchange}"` : ''} style="${estiloSelectAnual}">${MESES_CORTOS_ANUALES.map((m, i) => `<option value="${i + 1}" ${i + 1 === valor ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
+}
+function selectAnioGastoAnual(valor, onchange, id) {
+  const base = gastosAnualesGlobal.anio;
+  const anios = new Set([base - 1, base, base + 1, base + 2, valor]);
+  return `<select ${id ? `id="${id}"` : ''} ${onchange ? `onchange="${onchange}"` : ''} style="${estiloSelectAnual}">${[...anios].sort().map(a => `<option value="${a}" ${a === valor ? 'selected' : ''}>${a}</option>`).join('')}</select>`;
+}
 function filaGastoAnualHtml(g) {
   const id = g.id;
   const opcionesCategoria = gastosAnualesGlobal.categorias.map(c => `<option value="${c}" ${c === g.categoria ? 'selected' : ''}>${c}</option>`).join('');
+  const anioHasta = g.anio_hasta || g.anio;
+  const tip = tooltipVerificadoGasto(g).replace(/"/g, '&quot;');
   return `
     <tr id="fila-gasto-anual-${id}">
+      <td style="text-align:center;" title="${tip}"><input type="checkbox" ${g.verificado ? 'checked' : ''} onchange="verificarGastoAnualUI(${id}, this.checked)" title="${tip}" style="cursor:pointer;"></td>
       <td><input type="text" value="${(g.concepto || '').replace(/"/g, '&quot;')}" onblur="actualizarGastoAnualUI(${id}, 'concepto', this.value)" style="width:100%; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px;" onfocus="this.style.border='1px solid #e2e2de'"></td>
       <td><select onchange="actualizarGastoAnualUI(${id}, 'categoria', this.value)" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">${opcionesCategoria}</select></td>
       <td style="text-align:right;"><input type="number" step="0.01" value="${g.importe_anual}" onblur="actualizarGastoAnualUI(${id}, 'importe_anual', this.value)" style="width:100px; text-align:right; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px;" onfocus="this.style.border='1px solid #e2e2de'"></td>
       <td style="text-align:right; color:#6b6a64;">${euros(g.importe_mensual)}<span style="color:#c9c7bf;"> /mes</span></td>
-      <td style="white-space:nowrap;">${selectMesGastoAnual(g.mes_desde || 1, `actualizarGastoAnualUI(${id}, 'mes_desde', this.value)`)} – ${selectMesGastoAnual(g.mes_hasta || 12, `actualizarGastoAnualUI(${id}, 'mes_hasta', this.value)`)}</td>
-      <td style="text-align:right;">${euros(costeAnioGasto(g))}</td>
+      <td style="white-space:nowrap;">${selectMesGastoAnual(g.mes_desde || 1, `actualizarGastoAnualUI(${id}, 'mes_desde', this.value)`)} ${selectAnioGastoAnual(g.anio, `actualizarGastoAnualUI(${id}, 'anio', this.value)`)} – ${selectMesGastoAnual(g.mes_hasta || 12, `actualizarGastoAnualUI(${id}, 'mes_hasta', this.value)`)} ${selectAnioGastoAnual(anioHasta, `actualizarGastoAnualUI(${id}, 'anio_hasta', this.value)`)}</td>
+      <td style="text-align:right;">${euros(costeAnioGasto(g, gastosAnualesGlobal.anio))}</td>
       <td><input type="text" value="${(g.notas || '').replace(/"/g, '&quot;')}" placeholder="matrícula, referencia..." onblur="actualizarGastoAnualUI(${id}, 'notas', this.value)" style="width:100%; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px; color:#6b6a64;" onfocus="this.style.border='1px solid #e2e2de'"></td>
       <td style="text-align:center; white-space:nowrap;"><button onclick="cambiarImporteGastoAnual(${id})" title="La cuota cambia a partir de un mes: cierra esta partida y crea otra con el importe nuevo" style="border:1px solid #e2e2de; background:#fff; color:#1a1a18; cursor:pointer; font-size:11px; padding:3px 7px; border-radius:6px;">Cambia desde…</button> <button onclick="eliminarGastoAnual(${id})" title="Eliminar" style="border:none; background:transparent; color:#A32D2D; cursor:pointer; font-size:15px;">🗑️</button></td>
     </tr>
   `;
 }
-function selectMesGastoAnual(valor, onchange, id) {
-  return `<select ${id ? `id="${id}"` : ''} ${onchange ? `onchange="${onchange}"` : ''} style="font-size:12px; padding:3px; border-radius:4px; border:1px solid #e2e2de;">${MESES_CORTOS_ANUALES.map((m, i) => `<option value="${i + 1}" ${i + 1 === valor ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
-}
 function pintarGastosAnuales() {
   const body = document.getElementById('content-body');
+  const anio = gastosAnualesGlobal.anio;
   const anioActual = new Date().getFullYear();
-  const opcionesAnio = [anioActual - 1, anioActual, anioActual + 1].map(a => `<option value="${a}" ${a === gastosAnualesGlobal.anio ? 'selected' : ''}>${a}</option>`).join('');
-  const totalAnual = gastosAnualesGlobal.data.reduce((s, g) => s + costeAnioGasto(g), 0);
+  const opcionesAnio = [anioActual - 1, anioActual, anioActual + 1].map(a => `<option value="${a}" ${a === anio ? 'selected' : ''}>${a}</option>`).join('');
+  const totalAnio = gastosAnualesGlobal.data.reduce((s, g) => s + costeAnioGasto(g, anio), 0);
+  const nVerificados = gastosAnualesGlobal.data.filter(g => g.verificado).length;
   const opcionesCategoriaNueva = gastosAnualesGlobal.categorias.map(c => `<option value="${c}">${c}</option>`).join('');
   let html = `
-    <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Da de alta aquí las partidas que se pagan una vez al año (seguros de vehículos, impuestos, IBI, IAE...). El importe anual se reparte a partes iguales (÷ 12) en los meses de vigencia de cada partida (Desde–Hasta) en <span style="cursor:pointer; text-decoration:underline;" onclick="marcarMenuActivo('menu-item-fin-cierre-mensual'); cargarCierreMensual();">Cierre Mensual</span>.</p>
+    <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Da de alta aquí las partidas que se pagan una vez al año (seguros de vehículos, impuestos, IBI, IAE...). El importe anual se reparte a partes iguales (÷ 12) en los meses de su periodo (Desde–Hasta, puede cruzar de año) en <span style="cursor:pointer; text-decoration:underline;" onclick="marcarMenuActivo('menu-item-fin-cierre-mensual'); cargarCierreMensual();">Cierre Mensual</span>.</p>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
       <div style="display:flex; align-items:center; gap:8px;">
         <label style="font-size:13px; color:#6b6a64;">Año</label>
         <select onchange="cambiarAnioGastosAnuales(this.value)" style="font-size:13px; padding:5px 8px; border-radius:6px; border:1px solid #e2e2de;">${opcionesAnio}</select>
+        <span style="font-size:12px; color:#9a988f; margin-left:8px;">${nVerificados} de ${gastosAnualesGlobal.data.length} verificadas</span>
       </div>
       <div style="background:#f7f6f2; border-radius:8px; padding:0.6rem 1rem; text-align:right;">
-        <p style="font-size:11px; color:#6b6a64; margin:0;">Coste en ${gastosAnualesGlobal.anio}</p>
-        <p style="font-size:16px; font-weight:500; margin:0;">${euros(totalAnual)} <span style="font-size:12px; color:#9a988f; font-weight:400;">(${euros(totalAnual / 12)}/mes)</span></p>
+        <p style="font-size:11px; color:#6b6a64; margin:0;">Coste en ${anio}</p>
+        <p style="font-size:16px; font-weight:500; margin:0;">${euros(totalAnio)} <span style="font-size:12px; color:#9a988f; font-weight:400;">(${euros(totalAnio / 12)}/mes de media)</span></p>
       </div>
     </div>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
       <table>
-        <thead><tr><th>Concepto</th><th>Categoría</th><th style="text-align:right;">Importe anual</th><th style="text-align:right;">Importe mensual</th><th>Meses</th><th style="text-align:right;">Coste en el año</th><th>Notas</th><th></th></tr></thead>
+        <thead><tr><th style="text-align:center;" title="Verificado: importe y periodo comprobados">✓</th><th>Concepto</th><th>Categoría</th><th style="text-align:right;">Importe anual</th><th style="text-align:right;">Importe mensual</th><th>Periodo</th><th style="text-align:right;">Coste en ${anio}</th><th>Notas</th><th></th></tr></thead>
         <tbody id="tabla-gastos-anuales-body">
-          ${gastosAnualesGlobal.data.map(filaGastoAnualHtml).join('') || '<tr><td colspan="8" style="padding:1.5rem 4px; color:#9a988f;">Sin pagos anuales configurados para ' + gastosAnualesGlobal.anio + '.</td></tr>'}
+          ${gastosAnualesGlobal.data.map(filaGastoAnualHtml).join('') || '<tr><td colspan="9" style="padding:1.5rem 4px; color:#9a988f;">Sin pagos anuales configurados para ' + anio + '.</td></tr>'}
         </tbody>
         <tfoot>
           <tr style="background:#FBF7EE;">
+            <td></td>
             <td><input type="text" id="nuevo-gasto-concepto" placeholder="Ej: Seguro 6625MYZ Iveco Daily" style="width:100%; border:1px solid #e2e2de; padding:5px 6px; border-radius:4px; font-size:13px;"></td>
             <td><select id="nuevo-gasto-categoria" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;">${opcionesCategoriaNueva}</select></td>
             <td style="text-align:right;"><input type="number" step="0.01" id="nuevo-gasto-importe" placeholder="0,00" style="width:100px; text-align:right; border:1px solid #e2e2de; padding:5px 6px; border-radius:4px; font-size:13px;"></td>
             <td></td>
-            <td style="white-space:nowrap;">${selectMesGastoAnual(1, null, 'nuevo-gasto-desde')} – ${selectMesGastoAnual(12, null, 'nuevo-gasto-hasta')}</td>
+            <td style="white-space:nowrap;">${selectMesGastoAnual(1, null, 'nuevo-gasto-desde')} ${selectAnioGastoAnual(anio, null, 'nuevo-gasto-anio-desde')} – ${selectMesGastoAnual(12, null, 'nuevo-gasto-hasta')} ${selectAnioGastoAnual(anio, null, 'nuevo-gasto-anio-hasta')}</td>
             <td></td>
             <td><input type="text" id="nuevo-gasto-notas" placeholder="Opcional" style="width:100%; border:1px solid #e2e2de; padding:5px 6px; border-radius:4px; font-size:13px;"></td>
             <td style="text-align:center;"><button onclick="anadirGastoAnual()" style="border:none; background:#1a1a18; color:#fff; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px;">+ Añadir</button></td>
@@ -1821,38 +1849,57 @@ function pintarGastosAnuales() {
   `;
   body.innerHTML = html;
 }
+async function guardarGastoAnual(id, campos) {
+  const resp = await fetch('/api/gastos-anuales/' + id, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(campos)
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  return data.gasto;
+}
 async function actualizarGastoAnualUI(id, campo, valor) {
   try {
-    const resp = await fetch('/api/gastos-anuales/' + id, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [campo]: valor })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
+    const guardado = await guardarGastoAnual(id, { [campo]: valor });
     const g = gastosAnualesGlobal.data.find(x => x.id === id);
-    if (g) {
-      g[campo] = valor;
-      if (campo === 'importe_anual') g.importe_mensual = Math.round((parseFloat(valor) || 0) / 12 * 100) / 100;
-      if (campo === 'mes_desde' || campo === 'mes_hasta') g[campo] = parseInt(valor);
-      if (['importe_anual', 'mes_desde', 'mes_hasta'].includes(campo)) pintarGastosAnuales();
+    if (g && guardado) {
+      Object.assign(g, guardado);
+      g.importe_mensual = Math.round((parseFloat(g.importe_anual) || 0) / 12 * 100) / 100;
+    }
+    if (['importe_anual', 'mes_desde', 'mes_hasta', 'anio', 'anio_hasta'].includes(campo)) {
+      // Si la partida deja de tocar el año que se está viendo, se recarga la lista.
+      if (g && !mesesGastoAnualEnAnio(g, gastosAnualesGlobal.anio)) cargarGastosAnuales();
+      else pintarGastosAnuales();
     }
   } catch (err) {
     alert('Error al guardar: ' + err.message);
     pintarGastosAnuales(); // vuelve a mostrar el valor guardado
   }
 }
-// Cambio de cuota a mitad de año: la partida actual se queda hasta el mes
+async function verificarGastoAnualUI(id, marcado) {
+  try {
+    const guardado = await guardarGastoAnual(id, { verificado: marcado });
+    const g = gastosAnualesGlobal.data.find(x => x.id === id);
+    if (g && guardado) Object.assign(g, guardado);
+  } catch (err) {
+    alert('Error al guardar: ' + err.message);
+  }
+  pintarGastosAnuales();
+}
+// Cambio de cuota a mitad de periodo: la partida actual se queda hasta el mes
 // anterior y se crea una copia con el importe nuevo desde ese mes.
 async function cambiarImporteGastoAnual(id) {
   const g = gastosAnualesGlobal.data.find(x => x.id === id);
   if (!g) return;
-  const desdeActual = g.mes_desde || 1, hastaActual = g.mes_hasta || 12;
-  if (desdeActual === hastaActual) { alert('Esta partida solo dura un mes; cambia su importe directamente.'); return; }
-  const mesTxt = prompt(`¿Desde qué mes cambia la cuota de "${g.concepto}"? (número de ${desdeActual + 1} a ${hastaActual}, p. ej. 6 = junio)`);
+  const ini = g.anio * 12 + (g.mes_desde || 1) - 1, fin = (g.anio_hasta || g.anio) * 12 + (g.mes_hasta || 12) - 1;
+  if (ini === fin) { alert('Esta partida solo dura un mes; cambia su importe directamente.'); return; }
+  const txtMes = n => MESES_CORTOS_ANUALES[n % 12] + ' ' + Math.floor(n / 12);
+  const mesTxt = prompt(`¿Desde qué mes cambia la cuota de "${g.concepto}"?\nEscribe mes/año, p. ej. 6/${g.anio} (entre ${txtMes(ini + 1)} y ${txtMes(fin)}).`);
   if (mesTxt === null) return;
-  const mes = parseInt(mesTxt);
-  if (!(mes > desdeActual && mes <= hastaActual)) { alert(`El mes tiene que estar entre ${desdeActual + 1} y ${hastaActual}.`); return; }
-  const importeTxt = prompt(`Nuevo importe ANUAL desde ${MESES_CORTOS_ANUALES[mes - 1]} (antes ${euros(g.importe_anual)}/año):`);
+  const m = String(mesTxt).trim().match(/^(\d{1,2})(?:\s*\/\s*(\d{4}))?$/);
+  const cambio = m ? (m[2] ? parseInt(m[2]) : gastosAnualesGlobal.anio) * 12 + parseInt(m[1]) - 1 : NaN;
+  if (!m || parseInt(m[1]) < 1 || parseInt(m[1]) > 12 || !(cambio > ini && cambio <= fin)) { alert(`El mes tiene que estar entre ${txtMes(ini + 1)} y ${txtMes(fin)}.`); return; }
+  const importeTxt = prompt(`Nuevo importe ANUAL desde ${txtMes(cambio)} (antes ${euros(g.importe_anual)}/año):`);
   if (importeTxt === null) return;
   const t = String(importeTxt).replace(/[€\s]/g, '');
   const importe = parseFloat(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t);
@@ -1860,13 +1907,12 @@ async function cambiarImporteGastoAnual(id) {
   try {
     const resp = await fetch('/api/gastos-anuales', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ concepto: g.concepto, categoria: g.categoria, importe_anual: importe, notas: g.notas, anio: gastosAnualesGlobal.anio, mes_desde: mes, mes_hasta: hastaActual })
+      body: JSON.stringify({ concepto: g.concepto, categoria: g.categoria, importe_anual: importe, notas: g.notas, anio: Math.floor(cambio / 12), mes_desde: cambio % 12 + 1, anio_hasta: g.anio_hasta || g.anio, mes_hasta: g.mes_hasta || 12 })
     });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    const resp2 = await fetch('/api/gastos-anuales/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mes_hasta: mes - 1 }) });
-    const data2 = await resp2.json();
-    if (data2.error) throw new Error(data2.error);
+    const antes = cambio - 1;
+    await guardarGastoAnual(id, { anio_hasta: Math.floor(antes / 12), mes_hasta: antes % 12 + 1 });
   } catch (err) {
     alert('Error al guardar: ' + err.message);
   }
@@ -1890,20 +1936,19 @@ async function anadirGastoAnual() {
   const importe_anual = document.getElementById('nuevo-gasto-importe').value;
   const notas = document.getElementById('nuevo-gasto-notas').value.trim();
   const mes_desde = parseInt(document.getElementById('nuevo-gasto-desde').value);
+  const anio = parseInt(document.getElementById('nuevo-gasto-anio-desde').value);
   const mes_hasta = parseInt(document.getElementById('nuevo-gasto-hasta').value);
+  const anio_hasta = parseInt(document.getElementById('nuevo-gasto-anio-hasta').value);
   if (!concepto || !importe_anual) { alert('Concepto e importe anual son obligatorios.'); return; }
-  if (mes_desde > mes_hasta) { alert('El mes de inicio no puede ser posterior al de fin.'); return; }
+  if (anio_hasta * 12 + mes_hasta < anio * 12 + mes_desde) { alert('El inicio no puede ser posterior al fin.'); return; }
   try {
     const resp = await fetch('/api/gastos-anuales', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ concepto, categoria, importe_anual, notas, anio: gastosAnualesGlobal.anio, mes_desde, mes_hasta })
+      body: JSON.stringify({ concepto, categoria, importe_anual, notas, anio, mes_desde, anio_hasta, mes_hasta })
     });
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    const g = data.gasto;
-    g.importe_mensual = Math.round((parseFloat(g.importe_anual) || 0) / 12 * 100) / 100;
-    gastosAnualesGlobal.data.push(g);
-    pintarGastosAnuales();
+    cargarGastosAnuales();
   } catch (err) {
     alert('Error al guardar: ' + err.message);
   }
