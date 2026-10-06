@@ -2125,8 +2125,14 @@ app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (re
 //     creado_por text,
 //     created_at timestamptz not null default now()
 //   );
+// NUEVO (6 oct 2026): vigencia por meses (columnas mes_desde / mes_hasta,
+// 1–12, por defecto todo el año). Cada partida reparte importe_anual / 12
+// SOLO en sus meses, así un cambio a mitad de año (renovación de seguro con
+// otro precio) no altera los meses ya cerrados: se cierra la partida vieja
+// en el mes anterior y se crea otra desde el mes del cambio.
 // ================================================================
 const CATEGORIAS_GASTO_ANUAL = ['Impuestos', 'Seguros Vehículos', 'Seguros Propiedades', 'Suministros', 'Financiación', 'Alquiler / Renting', 'Otros'];
+const mesValido = (v, porDefecto) => { const n = parseInt(v); return n >= 1 && n <= 12 ? n : porDefecto; };
 
 app.get('/api/gastos-anuales', requiereLogin, bloquearComercial, async (req, res) => {
   try {
@@ -2150,9 +2156,12 @@ app.post('/api/gastos-anuales', requiereLogin, bloquearComercial, async (req, re
       return res.status(400).json({ error: 'Concepto, categoría e importe anual son obligatorios' });
     }
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+    const mes_desde = mesValido(b.mes_desde, 1), mes_hasta = mesValido(b.mes_hasta, 12);
+    if (mes_desde > mes_hasta) return res.status(400).json({ error: 'El mes de inicio no puede ser posterior al de fin' });
     const { data, error } = await supabase.from('gastos_anuales').insert({
       concepto: b.concepto, categoria: b.categoria, importe_anual: Number(b.importe_anual) || 0,
-      anio: parseInt(b.anio) || new Date().getFullYear(), notas: b.notas || null, creado_por: usuario
+      anio: parseInt(b.anio) || new Date().getFullYear(), notas: b.notas || null, creado_por: usuario,
+      mes_desde, mes_hasta
     }).select().single();
     if (error) throw error;
     res.json({ ok: true, gasto: data });
@@ -2171,6 +2180,14 @@ app.put('/api/gastos-anuales/:id', requiereLogin, bloquearComercial, async (req,
     if (b.importe_anual !== undefined) campos.importe_anual = Number(b.importe_anual) || 0;
     if (b.anio !== undefined) campos.anio = parseInt(b.anio) || new Date().getFullYear();
     if (b.notas !== undefined) campos.notas = b.notas || null;
+    if (b.mes_desde !== undefined) campos.mes_desde = mesValido(b.mes_desde, 1);
+    if (b.mes_hasta !== undefined) campos.mes_hasta = mesValido(b.mes_hasta, 12);
+    // La restricción de la tabla rechaza desde > hasta; mensaje claro aquí.
+    if (campos.mes_desde !== undefined || campos.mes_hasta !== undefined) {
+      const { data: actual } = await supabase.from('gastos_anuales').select('mes_desde, mes_hasta').eq('id', req.params.id).single();
+      const desde = campos.mes_desde ?? actual?.mes_desde ?? 1, hasta = campos.mes_hasta ?? actual?.mes_hasta ?? 12;
+      if (desde > hasta) return res.status(400).json({ error: 'El mes de inicio no puede ser posterior al de fin' });
+    }
     const { error } = await supabase.from('gastos_anuales').update(campos).eq('id', req.params.id);
     if (error) throw error;
     res.json({ ok: true });
@@ -3574,7 +3591,8 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
       // Cada categoría va a su bloque del Excel de resultados.
       const bloqueAnual = { 'Seguros Vehículos': TIPOS_GASTO.vehiculos, 'Seguros Propiedades': TIPOS_GASTO.seguros, 'Impuestos': TIPOS_GASTO.suministros, 'Suministros': TIPOS_GASTO.suministros, 'Financiación': TIPOS_GASTO.financiacion, 'Alquiler / Renting': TIPOS_GASTO.alquiler }[g.categoria] || TIPOS_GASTO.otras;
       const esVehiculo = g.categoria === 'Seguros Vehículos';
-      for (let i = 0; i < 12; i++) {
+      // Solo en los meses de vigencia de la partida (por defecto todo el año).
+      for (let i = (g.mes_desde || 1) - 1; i < (g.mes_hasta || 12); i++) {
         apuntar(i + 1, { tipo: 'anual', bloque: bloqueAnual, grupo: esVehiculo ? 'Seguros' : g.categoria, concepto: g.concepto + ' (' + (Math.round((parseFloat(g.importe_anual) || 0) * 100) / 100) + ' €/año ÷ 12)', departamento: 'General', importe: mensual });
       }
     });
