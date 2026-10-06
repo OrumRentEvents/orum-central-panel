@@ -1832,6 +1832,51 @@ const APPS_SCRIPT_FACTURAS_TOKEN = 'ORUMx2026#Facturas$Sync';
 // a leer el PDF.
 const lecturaFacturas = require('./lib/lecturaFacturas');
 
+// NUEVO (6 oct 2026): duplicados. A veces el mismo PDF de factura está dos
+// veces en la carpeta del proveedor con distinto nombre (p. ej. FENIE
+// 2026081709183). Una factura es la misma si coinciden proveedor (carpeta),
+// número y año; si ya está en la Sheet desde otro PDF, no se vuelve a cargar
+// (contaría doble) ni se muestra como error. Mismo criterio que holdedCompras.
+function anioFechaFactura(fecha) {
+  const s = String(fecha || '');
+  let m = s.match(/^(\d{4})-\d{2}-\d{2}/);
+  if (m) return m[1];
+  m = s.match(/\/(\d{4}|\d{2})\s*$/);
+  if (m) return m[1].length === 2 ? '20' + m[1] : m[1];
+  return null;
+}
+function claveFacturaProveedor(proveedor, numero, fecha) {
+  // Los números largos llegan de la Sheet como número ("2026081709183.0").
+  const n = String(numero ?? '').replace(/\.0+$/, '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+  const anio = anioFechaFactura(fecha);
+  // Sin dígitos ("No visible") o de un solo carácter (tickets "1") no identifica nada.
+  if (!/\d/.test(n) || n.length < 2 || !anio) return null;
+  return `${String(proveedor || '').trim().toUpperCase()}|${n}|${anio}`;
+}
+// clave → { fileId, nombreArchivo } de lo que ya está en FACTURAS_LOG.
+function indiceFacturasSheet(facturas) {
+  const indice = new Map();
+  (facturas || []).forEach(f => {
+    const clave = claveFacturaProveedor(f.proveedor, f.numeroFactura, f.fecha);
+    if (clave && !indice.has(clave)) indice.set(clave, { fileId: String(f.fileId), nombreArchivo: f.nombreArchivo });
+  });
+  return indice;
+}
+// Devuelve la fila ya cargada desde OTRO PDF de la que esta lectura es copia, o null.
+function duplicadaEnSheet(lectura, indice) {
+  if (!lectura || !indice) return null;
+  const clave = claveFacturaProveedor(lectura.proveedor, lectura.numero, lectura.fecha);
+  const existente = clave && indice.get(clave);
+  return existente && existente.fileId !== String(lectura.file_id) ? existente : null;
+}
+async function listadoFacturasSheet() {
+  const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
+  const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error);
+  return data.facturas || [];
+}
+
 // Sacado a función aparte (28 ago 2026) para poder llamarla tanto desde el
 // botón manual como desde la sincronización automática diaria de abajo.
 async function sincronizarFacturasProveedoresInterno(anio) {
@@ -1841,7 +1886,13 @@ async function sincronizarFacturasProveedoresInterno(anio) {
   if (dataLista.error) throw new Error('Error listando pendientes: ' + dataLista.error);
 
   const pendientes = dataLista.pendientes || [];
-  const resultados = [], errores = [];
+  const resultados = [], errores = [], duplicadas = [];
+  // Si no se puede leer la Sheet, se sigue sin comprobar duplicados (como antes).
+  let indiceSheet = null;
+  if (pendientes.length) {
+    try { indiceSheet = indiceFacturasSheet(await listadoFacturasSheet()); }
+    catch (e) { console.error('[Facturas Proveedores] No se pudo leer la Sheet para detectar duplicados:', e.message); }
+  }
 
   // NUEVO (15 sep 2026): antes se procesaba una factura a la vez (descarga +
   // IA + guardado, en serie), así que con varias pendientes el botón podía
@@ -1878,6 +1929,8 @@ async function sincronizarFacturasProveedoresInterno(anio) {
         if (dataDescarga.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
         lectura = await lecturaFacturas.leerYGuardar({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, base64: dataDescarga.base64 });
       }
+      const original = duplicadaEnSheet(lectura, indiceSheet);
+      if (original) { duplicadas.push({ ...item, numero: lectura.numero, duplicadaDe: original.nombreArchivo }); return; }
       const lineas = lecturaFacturas.lineasSheet(lectura);
       const respGuardado = await fetch(APPS_SCRIPT_FACTURAS_URL, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1913,7 +1966,7 @@ async function sincronizarFacturasProveedoresInterno(anio) {
     }
   }
 
-  return { total_pendientes: pendientes.length, procesadas: resultados.length, con_error: errores.length, resultados, errores };
+  return { total_pendientes: pendientes.length, procesadas: resultados.length, con_error: errores.length, resultados, errores, duplicadas };
 }
 
 app.post('/api/facturas-proveedores/sincronizar', requiereLogin, bloquearComercial, async (req, res) => {
@@ -3643,13 +3696,23 @@ app.get('/api/facturas-proveedores/errores', requiereLogin, bloquearComercial, a
     // aquí solo se devuelven los de facturas que SIGUEN sin estar en la Sheet
     // (si una sincronización posterior la procesó, su error ya no importa).
     const listado = await respListado.json().catch(() => ({}));
-    const procesadas = new Set(((listado && listado.facturas) || []).map(f => String(f.fileId)));
+    const facturasSheet = (listado && listado.facturas) || [];
+    const procesadas = new Set(facturasSheet.map(f => String(f.fileId)));
     const vistos = new Set();
     data.errores = (data.errores || []).filter(e => {
       if (procesadas.has(String(e.fileId)) || vistos.has(String(e.fileId))) return false;
       vistos.add(String(e.fileId)); // solo el error más reciente de cada PDF
       return true;
     });
+    // NUEVO (6 oct 2026): tampoco los de PDFs que son copia de una factura ya
+    // cargada desde otro PDF (ver duplicadaEnSheet) - no falta nada.
+    const idsConError = data.errores.map(e => String(e.fileId));
+    if (idsConError.length && facturasSheet.length) {
+      const { data: lecturas } = await supabase.from('facturas_proveedores').select('file_id, proveedor, numero, fecha').in('file_id', idsConError);
+      const indice = indiceFacturasSheet(facturasSheet);
+      const copias = new Set((lecturas || []).filter(l => duplicadaEnSheet(l, indice)).map(l => String(l.file_id)));
+      data.errores = data.errores.filter(e => !copias.has(String(e.fileId)));
+    }
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

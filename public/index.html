@@ -6468,7 +6468,8 @@ async function sincronizarFacturasProveedores() {
       // para diagnosticar qué PDFs concretos fallan (y por qué) hay que
       // mostrar la lista, no solo el contador.
       const detalleErrores = (data.errores || []).map(e => `${e.nombreArchivo}: ${e.error}`).join('\n');
-      estadoSync.innerHTML = `✓ ${data.procesadas} facturas nuevas procesadas${data.con_error > 0 ? ', ' + data.con_error + ' con error' : ''}.` +
+      const nDuplicadas = (data.duplicadas || []).length;
+      estadoSync.innerHTML = `✓ ${data.procesadas} facturas nuevas procesadas${data.con_error > 0 ? ', ' + data.con_error + ' con error' : ''}${nDuplicadas ? ', ' + nDuplicadas + ' PDF duplicado' + (nDuplicadas > 1 ? 's' : '') + ' omitido' + (nDuplicadas > 1 ? 's' : '') : ''}.` +
         (data.con_error > 0 ? `<br><span style="font-size:12px; white-space:pre-line;">${detalleErrores.replace(/</g, '&lt;')}</span>` : '');
       estadoSync.style.color = data.con_error > 0 ? '#9C6500' : '#27500A';
       await cargarFacturasProveedores();
