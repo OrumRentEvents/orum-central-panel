@@ -1189,6 +1189,25 @@ function pintarResumenFinanciero(data) {
     .map(d => `<div style="display:flex; justify-content:space-between;"><span style="color:#4a4944;">${d.comercial}</span><b>${euros(d.total)}</b></div>`)
     .join('');
   let html = `
+    <p style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin:0 0 8px;">Ingresos sin IVA</p>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem;">
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Facturado (proyectos)</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${euros(k.facturado_sin_iva)}</p>
+        <p style="font-size:11.5px; color:#9a988f; margin:4px 0 0;">Base imponible de las facturas de Rentman, abonos restados</p>
+      </div>
+      <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">PNC</p>
+        <p style="font-size:22px; font-weight:500; margin:0;">${euros(k.pnc_sin_iva)}</p>
+        <p style="font-size:11.5px; color:#9a988f; margin:4px 0 0;">Cobrado sin factura · valor esperado ${euros(k.pnc_valor_esperado)}</p>
+      </div>
+      <div style="background:#1a1a18; border-radius:8px; padding:1rem;">
+        <p style="font-size:13px; color:#d8d6cf; margin:0 0 6px;">Total</p>
+        <p style="font-size:22px; font-weight:500; color:#fff; margin:0;">${euros(k.total_sin_iva)}</p>
+        <p style="font-size:11.5px; color:#9a988f; margin:4px 0 0;">Facturado + PNC</p>
+      </div>
+    </div>
+    <p style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin:0 0 8px;">Facturas y cobros (con IVA)</p>
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1rem;">
       <div style="background:#f7f6f2; border-radius:8px; padding:1rem;">
         <p style="font-size:13px; color:#6b6a64; margin:0 0 6px;">Total facturado</p>

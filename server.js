@@ -578,7 +578,20 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       });
     });
 
+    // Cifras sin IVA (6 oct 2026): base imponible de las facturas de Rentman
+    // (abonos restan) + PNC, que no lleva factura ni IVA - su "valor" es lo
+    // realmente cobrado en el formulario; el valor esperado (proyectos PNC no
+    // cancelados) va aparte como referencia.
+    const facturadoSinIva = facturas.reduce((s, f) => s + (f.importe_sin_iva != null && f.importe_sin_iva !== ''
+      ? (parseFloat(f.importe_sin_iva) || 0) : (parseFloat(f.importe_con_iva) || 0) / IVA), 0);
+    const pncCobrado = crucePNC.reduce((s, p) => s + p.total_cobrado_formulario, 0);
+    const pncValorEsperado = crucePNC.filter(p => normalizarTexto(p.estado) !== 'canceled').reduce((s, p) => s + p.valor_esperado, 0);
+
     const kpis = {
+      facturado_sin_iva: Math.round(facturadoSinIva * 100) / 100,
+      pnc_sin_iva: Math.round(pncCobrado * 100) / 100,
+      pnc_valor_esperado: Math.round(pncValorEsperado * 100) / 100,
+      total_sin_iva: Math.round((facturadoSinIva + pncCobrado) * 100) / 100,
       total_facturado: Math.round(totalFacturado * 100) / 100,
       total_cobrado: Math.round(totalCobrado * 100) / 100,
       total_pendiente: Math.round(totalPendiente * 100) / 100,
