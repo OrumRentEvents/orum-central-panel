@@ -4324,6 +4324,12 @@ app.post('/api/holded/gastos/:fileId/reintentar', requiereLogin, soloHolded, asy
   try { res.json(await holdedCompras.reintentar(req.params.fileId, { releer: !!(req.body && req.body.releer) })); }
   catch (err) { console.error('Error en /api/holded/gastos/reintentar:', err); res.status(500).json({ error: err.message }); }
 });
+// (9 oct 2026) Asignar la forma de pago a una factura pendiente de pago (la
+// escribe en Facturas Proveedores y la deja por aprobar).
+app.post('/api/holded/gastos/:fileId/forma-pago', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.asignarFormaPago(req.params.fileId, (req.body || {}).formaPago, req.session.usuario.nombre || req.session.usuario.usuario)); }
+  catch (err) { console.error('Error en /api/holded/gastos/forma-pago:', err); res.status(500).json({ error: err.message }); }
+});
 // (9 oct 2026) El contable acepta la factura → compra aprobada en Holded.
 app.post('/api/holded/gastos/:fileId/aceptar', requiereLogin, soloHolded, async (req, res) => {
   const b = req.body || {};

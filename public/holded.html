@@ -205,8 +205,9 @@ async function cargarGastos(){
     box.innerHTML = dl + (d.volcando?'<div class="av">Preparación de gastos en marcha…</div>':'')+
       (!d.cuentas.length?'<div class="err">El plan de cuentas de gasto está vacío: cárgalo en Financiero → Config. Cuentas de gasto.</div>':'')+
       '<h2 style="margin-top:6px">Por aprobar ('+pa.length+')</h2>'+tPA+
-      '<h2 style="margin-top:16px">Pendientes de pago ('+(d.pendientes_pago||[]).length+')</h2><div class="sub" style="margin-bottom:6px">Solo se vuelcan facturas pagadas. Estas no tienen forma de pago en Facturas Proveedores: pasarán a "Por aprobar" en la siguiente preparación cuando se rellene.</div>'+
-        ((d.pendientes_pago||[]).length ? '<table><tr><th>Proveedor</th><th>Archivo</th><th>Nº</th><th class="n">Total</th></tr>'+d.pendientes_pago.map(c=>'<tr><td>'+esc(c.proveedor)+'</td><td style="font-size:12px"><a href="https://drive.google.com/file/d/'+esc(c.file_id)+'/view" target="_blank">'+esc(c.nombre_archivo)+'</a></td><td>'+esc(c.numero||'—')+'</td><td class="n">'+(c.total!=null?eur(c.total):'—')+'</td></tr>').join('')+'</table>' : '<div class="ok">✔ Ninguna</div>')+
+      '<h2 style="margin-top:16px">Pendiente de asignar pago ('+(d.pendientes_pago||[]).length+')</h2><div class="sub" style="margin-bottom:6px">Facturas sin forma de pago: no se vuelcan a Holded hasta que estén pagadas. Al asignar la forma de pago (se guarda también en Facturas Proveedores) pasan a "Por aprobar".</div>'+
+        ((d.pendientes_pago||[]).length ? '<table><tr><th>Proveedor</th><th>Archivo</th><th>Nº</th><th>Fecha</th><th class="n">Total</th><th>Forma de pago</th></tr>'+d.pendientes_pago.map(c=>'<tr><td>'+esc(c.proveedor)+'</td><td style="font-size:12px"><a href="https://drive.google.com/file/d/'+esc(c.file_id)+'/view" target="_blank">'+esc(c.nombre_archivo)+'</a></td><td>'+esc(c.numero||'—')+'</td><td>'+ff(c.fecha)+'</td><td class="n">'+(c.total!=null?eur(c.total):'—')+'</td>'+
+          '<td><select onchange="asignarPago(\''+esc(c.file_id)+'\',this)"><option value="">— asignar pago —</option>'+(d.formas_pago||[]).map(v=>'<option>'+esc(v)+'</option>').join('')+'</select></td></tr>').join('')+'</table>' : '<div class="ok">✔ Ninguna</div>')+
       '<h2 style="margin-top:16px">Bloqueadas ('+d.pendientes.length+')</h2><div class="sub" style="margin-bottom:6px">Corrige la causa (ficha del proveedor en Config. Cuentas de gasto, carpeta de Drive…) y pulsa Reintentar.</div>'+pend+
       '<h2 style="margin-top:16px">Últimas volcadas a Holded ('+d.total_enviadas+' en total)</h2>'+env;
   }catch(e){ box.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
@@ -221,6 +222,17 @@ function etiquetaCuenta(n){
 function cuentaElegida(i){
   const m = String(document.getElementById('pac'+i).value).trim().match(/^(6\d{7})\b/);
   return m && gastos.cuentas.some(x=>String(x.numero)===m[1]) ? m[1] : '';
+}
+async function asignarPago(fileId, sel){
+  const v = sel.value; if(!v) return;
+  const res = document.getElementById('res-gastos');
+  res.innerHTML = '<div class="sub" style="margin-top:10px">Guardando la forma de pago…</div>';
+  sel.disabled = true;
+  try{
+    const r = await api('POST','/api/holded/gastos/'+encodeURIComponent(fileId)+'/forma-pago',{formaPago:v});
+    res.innerHTML = '<div style="margin-top:10px" class="'+(r.estado==='por_aprobar'?'ok':'err')+'">'+(r.estado==='por_aprobar'?'✔ Pago asignado ('+esc(v)+'): la factura pasa a Por aprobar':'Pago asignado ('+esc(v)+'), pero la factura queda '+esc(r.estado)+(r.motivo?': '+esc(r.motivo):''))+'</div>';
+  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
+  cargarGastos();
 }
 function elegirCuenta(i, cuenta){ document.getElementById('pac'+i).value = etiquetaCuenta(cuenta); marcarCambio(i); }
 // Si se elige una cuenta distinta de la habitual, ofrecer guardarla como habitual.
@@ -263,7 +275,7 @@ async function volcarGastos(){
   try{
     const r = await api('POST','/api/holded/gastos/volcar');
     const s = r.resumen||{};
-    res.innerHTML = '<div style="margin-top:10px" class="'+(r.ok?'ok':'err')+'">'+(r.motivo?esc(r.motivo)+'<br>':'')+(s.compras_por_aprobar||0)+' por aprobar · '+(s.compras_pendientes_pago||0)+' pendientes de pago · '+(s.compras_bloqueadas||0)+' bloqueadas · nada se ha enviado a Holded'+((s.errores||[]).length?'<br>'+s.errores.map(esc).join('<br>'):'')+'</div>';
+    res.innerHTML = '<div style="margin-top:10px" class="'+(r.ok?'ok':'err')+'">'+(r.motivo?esc(r.motivo)+'<br>':'')+(s.compras_por_aprobar||0)+' por aprobar · '+(s.compras_pendientes_pago||0)+' pendientes de asignar pago · '+(s.compras_bloqueadas||0)+' bloqueadas · nada se ha enviado a Holded'+((s.errores||[]).length?'<br>'+s.errores.map(esc).join('<br>'):'')+'</div>';
   }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
   cargarGastos(); cargarPendientes();
 }
