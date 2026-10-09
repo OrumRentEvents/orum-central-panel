@@ -935,6 +935,7 @@ const MENU = [
       { id: 'fin-holded', label: 'Holded', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => window.open('/holded.html', '_blank') },
       { id: 'fin-fact-listado', label: 'Facturas Proveedores', onClick: () => cargarFacturasProveedores() },
       { id: 'fin-fact-config', label: 'Config. Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
+      { id: 'fin-cuentas-gasto', label: 'Config. Cuentas de gasto', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarCuentasGasto() },
       { id: 'fin-gastos-anuales', label: 'Config. Pagos Anuales', onClick: () => cargarGastosAnuales() },
   ]},
   // Personal (28 sep 2026): antes Financiero → Personal; ahora módulo propio
@@ -1742,6 +1743,134 @@ async function informeCierrePDF(mes) {
   <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script>
 </body></html>`;
   win.document.open(); win.document.write(html); win.document.close();
+}
+
+// ================================================================
+// CONFIG. CUENTAS DE GASTO (9 oct 2026) — Financiero → Config. Cuentas de gasto.
+// Solo Dirección y Contabilidad. Dos partes: (1) el plan de cuentas del
+// grupo 6 con los nombres de Sage (tabla cuentas_gasto; se pega desde el
+// Excel), y (2) la ficha contable de cada proveedor: cuenta habitual, IVA 0 %
+// y retención (tabla holded_proveedores). Se configura una vez y cada factura
+// nueva del proveedor propone esa cuenta; el contable la confirma (o cambia
+// para esa factura) al aprobarla en Holded (/holded.html) antes del volcado.
+// No confundir con Config. Facturas Proveedores, que solo dice a qué
+// departamento se imputa el gasto. Ver lib/holdedCompras.js.
+// ================================================================
+let cuentasGastoGlobal = null;
+async function cargarCuentasGasto() {
+  document.getElementById('content-title').textContent = 'Financiero · Config. Cuentas de gasto';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetch('/api/cuentas-gasto');
+    const data = await resp.json();
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + escHtml(data.error) + '</p>'; return; }
+    cuentasGastoGlobal = data;
+    pintarCuentasGasto();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+function pintarCuentasGasto() {
+  const d = cuentasGastoGlobal;
+  const body = document.getElementById('content-body');
+  const activas = d.cuentas.filter(c => c.activa);
+  const nombreCuenta = n => { const c = d.cuentas.find(x => x.numero === Number(n)); return c ? c.nombre : null; };
+  const optCuenta = sel => '<option value="">— sin cuenta —</option>' + activas.map(c => `<option value="${c.numero}" ${String(c.numero) === String(sel) ? 'selected' : ''}>${c.numero} ${escHtml(c.nombre)}</option>`).join('')
+    + (sel && !activas.some(c => String(c.numero) === String(sel)) ? `<option value="${sel}" selected>${sel} (no está en el plan)</option>` : '');
+  const opt = (lista, sel) => '<option value="">—</option>' + lista.map(o => `<option value="${o.key}" ${o.key === sel ? 'selected' : ''}>${escHtml(o.nombre)}</option>`).join('');
+  const estiloSel = 'font-size:12px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:280px;';
+  const sinHolded = d.cuentas.filter(c => c.activa && c.en_holded === false).length;
+  const filasCuentas = d.cuentas.map((c, i) => `
+    <tr style="${c.activa ? '' : 'color:#9a988f;'}">
+      <td style="font-variant-numeric:tabular-nums;">${c.numero}</td>
+      <td><input type="text" id="cg-nom-${i}" value="${escHtml(c.nombre)}" onblur="guardarCuentaGasto(${i})" style="width:100%; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px;" onfocus="this.style.border='1px solid #e2e2de'"></td>
+      <td style="text-align:center;"><input type="checkbox" id="cg-act-${i}" ${c.activa ? 'checked' : ''} onchange="guardarCuentaGasto(${i})" title="Si se desactiva deja de salir en los desplegables"></td>
+      <td style="text-align:center; font-size:12px;">${c.en_holded === null ? '<span style="color:#9a988f;">?</span>' : (c.en_holded ? '<span style="color:#15803d;">✔</span>' : '<span style="color:#A32D2D;" title="Hay que crearla en Holded con el mismo número para poder volcar facturas a ella">falta</span>')}</td>
+    </tr>`).join('');
+  const filasProv = d.proveedores.map((p, i) => `
+    <tr>
+      <td>${escHtml(p.proveedor)}${p.nombre_fiscal ? `<div style="font-size:11px; color:#9a988f;">${escHtml(p.nombre_fiscal)}</div>` : ''}</td>
+      <td><input type="text" id="cp-nif-${i}" value="${escHtml(p.nif || '')}" style="width:100px; font-size:12px; padding:4px 6px; border:1px solid #e2e2de; border-radius:4px;"></td>
+      <td><select id="cp-cta-${i}" style="${estiloSel}">${optCuenta(p.cuenta_gasto)}</select>${!p.cuenta_gasto ? '<div style="font-size:11px; color:#854F0B;">Sin cuenta: el contable la elige en cada factura</div>' : ''}</td>
+      <td><select id="cp-iva-${i}" style="${estiloSel}">${opt(d.opciones_iva_cero, p.iva_cero)}</select></td>
+      <td><select id="cp-ret-${i}" style="${estiloSel}">${opt(d.opciones_retencion, p.retencion)}</select></td>
+      <td style="white-space:nowrap;"><button onclick="guardarProveedorCuenta(${i})" style="font-size:12px; padding:5px 10px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button> <span id="cp-ok-${i}" style="font-size:12px; color:#15803d;"></span></td>
+    </tr>`).join('');
+  body.innerHTML = `
+    <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Cuenta contable a la que va el gasto de cada proveedor. Se configura una vez: cada factura nueva del proveedor propone esa cuenta y el contable la confirma (o la cambia para esa factura, p. ej. otra matrícula u otro local) al aprobarla en <span style="cursor:pointer; text-decoration:underline;" onclick="window.open('/holded.html', '_blank')">Holded</span>. Nada se vuelca a la contabilidad sin esa aprobación. El departamento al que se imputa el gasto sigue en Config. Facturas Proveedores.</p>
+
+    <h3 style="font-size:14px; margin:1.25rem 0 0.5rem;">Proveedores</h3>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
+      <table>
+        <thead><tr><th>Proveedor (carpeta de Drive)</th><th>NIF</th><th>Cuenta habitual</th><th>Líneas al 0 % de IVA</th><th>Retención</th><th></th></tr></thead>
+        <tbody>${filasProv || '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">Aún no hay proveedores: aparecen solos con la primera factura de cada carpeta.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <p style="font-size:12px; color:#9a988f; margin:6px 0 0;">"Líneas al 0 %" y "Retención" solo hacen falta si el proveedor factura sin IVA o con retención.</p>
+
+    <h3 style="font-size:14px; margin:1.75rem 0 0.5rem;">Plan de cuentas de gasto (grupo 6) · ${activas.length} activas${sinHolded ? ` · <span style="color:#A32D2D;">${sinHolded} sin crear en Holded</span>` : ''}</h3>
+    ${d.error_holded ? `<p style="font-size:12px; color:#A32D2D; margin:0 0 6px;">No se pudo comprobar qué cuentas existen en Holded: ${escHtml(d.error_holded)}</p>` : ''}
+    <div style="background:#FBF7EE; border:1px solid #e2e2de; border-radius:8px; padding:0.75rem 1rem; margin-bottom:10px;">
+      <p style="font-size:12px; color:#6b6a64; margin:0 0 6px;">Añadir o actualizar cuentas: pega una por línea, número de 8 dígitos y nombre (se puede copiar tal cual de las dos columnas del Excel de Sage). Si la cuenta ya existe se actualiza el nombre.</p>
+      <textarea id="cg-pegar" rows="5" placeholder="62800003&#9;Electricidad nave Monda&#10;62900014&#9;Combustible 6625MYZ" style="width:100%; box-sizing:border-box; font-family:monospace; font-size:12px; padding:6px 8px; border:1px solid #e2e2de; border-radius:6px;"></textarea>
+      <div style="display:flex; gap:10px; align-items:center; margin-top:6px;">
+        <button onclick="importarCuentasGasto()" style="font-size:13px; padding:6px 14px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Añadir cuentas</button>
+        <span id="cg-estado" style="font-size:12px;"></span>
+      </div>
+    </div>
+    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
+      <table>
+        <thead><tr><th style="width:110px;">Cuenta</th><th>Nombre</th><th style="text-align:center; width:70px;">Activa</th><th style="text-align:center; width:80px;" title="La cuenta tiene que existir en Holded con el mismo número">En Holded</th></tr></thead>
+        <tbody>${filasCuentas || '<tr><td colspan="4" style="padding:1.5rem 4px; color:#9a988f;">El plan está vacío: pega arriba las cuentas del grupo 6 de Sage.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+async function importarCuentasGasto() {
+  const estado = document.getElementById('cg-estado');
+  const texto = document.getElementById('cg-pegar').value;
+  const lineas = [], malas = [];
+  texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(l => {
+    const m = l.match(/^(6\d{3}[.\s]?\d{4})[\s;,\t.-]+(.+)$/);
+    if (m) lineas.push({ numero: m[1].replace(/\D/g, ''), nombre: m[2].trim() });
+    else malas.push(l);
+  });
+  if (!lineas.length) { estado.style.color = '#A32D2D'; estado.textContent = 'No se ha reconocido ninguna línea (número de 8 dígitos que empiece por 6 y nombre).'; return; }
+  estado.style.color = '#6b6a64'; estado.textContent = 'Guardando...';
+  try {
+    const resp = await fetch('/api/cuentas-gasto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lineas }) });
+    const r = await resp.json();
+    if (r.error) throw new Error(r.error);
+    await cargarCuentasGasto();
+    const e2 = document.getElementById('cg-estado');
+    e2.style.color = malas.length ? '#854F0B' : '#15803d';
+    e2.textContent = `✔ ${r.guardadas} cuentas guardadas` + (malas.length ? ` · ${malas.length} líneas no reconocidas: ${malas.slice(0, 3).join(' | ')}${malas.length > 3 ? '…' : ''}` : '');
+  } catch (err) { estado.style.color = '#A32D2D'; estado.textContent = 'Error: ' + err.message; }
+}
+async function guardarCuentaGasto(i) {
+  const c = cuentasGastoGlobal.cuentas[i];
+  const nombre = document.getElementById('cg-nom-' + i).value.trim();
+  const activa = document.getElementById('cg-act-' + i).checked;
+  if (!nombre || (nombre === c.nombre && activa === c.activa)) return;
+  try {
+    const resp = await fetch('/api/cuentas-gasto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lineas: [{ numero: c.numero, nombre, activa }] }) });
+    const r = await resp.json();
+    if (r.error) throw new Error(r.error);
+    c.nombre = nombre; c.activa = activa;
+    pintarCuentasGasto();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+async function guardarProveedorCuenta(i) {
+  const p = cuentasGastoGlobal.proveedores[i];
+  const ficha = { proveedor: p.proveedor, nif: document.getElementById('cp-nif-' + i).value.trim(), cuenta_gasto: document.getElementById('cp-cta-' + i).value, iva_cero: document.getElementById('cp-iva-' + i).value, retencion: document.getElementById('cp-ret-' + i).value };
+  try {
+    const resp = await fetch('/api/holded/gastos/proveedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ficha) });
+    const r = await resp.json();
+    if (r.error) throw new Error(r.error);
+    Object.assign(p, ficha, { cuenta_gasto: ficha.cuenta_gasto ? Number(ficha.cuenta_gasto) : null });
+    document.getElementById('cp-ok-' + i).textContent = '✔ Guardado';
+  } catch (err) { alert('Error: ' + err.message); }
 }
 
 // ================================================================

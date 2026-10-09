@@ -43,3 +43,20 @@ create table if not exists facturas_proveedores (
 );
 create index if not exists idx_facturas_proveedores_fecha on facturas_proveedores (fecha);
 alter table facturas_proveedores enable row level security;
+
+-- 9 oct 2026: plan de cuentas de gasto (grupo 6, nombres de Sage) para elegir
+-- en Financiero → Config. Cuentas de gasto, y aprobación del contable en ORUM
+-- Central antes de volcar (estado por_aprobar → aprobada). Migración
+-- cuentas_gasto_aprobacion.
+create table if not exists cuentas_gasto (
+  numero         integer primary key,
+  nombre         text not null,
+  activa         boolean not null default true,
+  actualizado_por text,
+  actualizado_en timestamptz not null default now()
+);
+alter table cuentas_gasto enable row level security;
+alter table holded_sync_compras
+  add column if not exists cuenta_gasto integer,      -- cuenta elegida para ESTA factura (por defecto la del proveedor)
+  add column if not exists aprobado_por text,
+  add column if not exists aprobado_en timestamptz;

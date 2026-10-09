@@ -4303,8 +4303,9 @@ app.post('/api/holded/volcar', requiereLogin, soloHolded, async (req, res) => {
   catch (err) { console.error('Error en /api/holded/volcar:', err); res.status(500).json({ error: err.message }); }
 });
 
-// Facturas de gastos (PDF de proveedores) → compras en borrador en Holded
-// (5 oct 2026) — ver lib/holdedCompras.js.
+// Facturas de gastos (PDF de proveedores) → Holded (5 oct 2026). Desde el
+// 9 oct: se preparan solas y el contable las aprueba aquí antes de volcar —
+// ver lib/holdedCompras.js.
 const holdedCompras = require('./lib/holdedCompras');
 holdedCompras.configurar({ url: APPS_SCRIPT_FACTURAS_URL, token: APPS_SCRIPT_FACTURAS_TOKEN });
 app.get('/api/holded/gastos', requiereLogin, soloHolded, async (req, res) => {
@@ -4322,6 +4323,22 @@ app.post('/api/holded/gastos/proveedor', requiereLogin, soloHolded, async (req, 
 app.post('/api/holded/gastos/:fileId/reintentar', requiereLogin, soloHolded, async (req, res) => {
   try { res.json(await holdedCompras.reintentar(req.params.fileId, { releer: !!(req.body && req.body.releer) })); }
   catch (err) { console.error('Error en /api/holded/gastos/reintentar:', err); res.status(500).json({ error: err.message }); }
+});
+// (9 oct 2026) El contable acepta la factura → compra aprobada en Holded.
+app.post('/api/holded/gastos/:fileId/aceptar', requiereLogin, soloHolded, async (req, res) => {
+  const b = req.body || {};
+  try { res.json(await holdedCompras.aceptar(req.params.fileId, { cuenta: b.cuenta, guardarHabitual: !!b.guardarHabitual }, req.session.usuario.nombre)); }
+  catch (err) { console.error('Error en /api/holded/gastos/aceptar:', err); res.status(500).json({ error: err.message }); }
+});
+// Financiero → Config. Cuentas de gasto: plan de cuentas 6 y cuenta habitual
+// de cada proveedor (la ficha se guarda con /api/holded/gastos/proveedor).
+app.get('/api/cuentas-gasto', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json({ ok: true, ...(await holdedCompras.configCuentas()) }); }
+  catch (err) { console.error('Error en /api/cuentas-gasto:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/cuentas-gasto', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.guardarCuentas((req.body || {}).lineas, req.session.usuario.nombre)); }
+  catch (err) { console.error('Error en POST /api/cuentas-gasto:', err); res.status(400).json({ error: err.message }); }
 });
 
 app.listen(PORT, () => {
