@@ -4333,7 +4333,7 @@ app.post('/api/holded/gastos/:fileId/forma-pago', requiereLogin, soloHolded, asy
 // (9 oct 2026) El contable acepta la factura → compra aprobada en Holded.
 app.post('/api/holded/gastos/:fileId/aceptar', requiereLogin, soloHolded, async (req, res) => {
   const b = req.body || {};
-  try { res.json(await holdedCompras.aceptar(req.params.fileId, { cuenta: b.cuenta, guardarHabitual: !!b.guardarHabitual, fecha: b.fecha, vencimiento: b.vencimiento }, req.session.usuario.nombre)); }
+  try { res.json(await holdedCompras.aceptar(req.params.fileId, { cuenta: b.cuenta, guardarHabitual: !!b.guardarHabitual, fecha: b.fecha, vencimiento: b.vencimiento, pagoFecha: b.pagoFecha, pagoTesoreria: b.pagoTesoreria }, req.session.usuario.nombre)); }
   catch (err) { console.error('Error en /api/holded/gastos/aceptar:', err); res.status(500).json({ error: err.message }); }
 });
 // Financiero → Config. Cuentas de gasto: plan de cuentas 6 y cuenta habitual

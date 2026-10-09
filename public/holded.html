@@ -44,7 +44,7 @@
 
   <div class="card">
     <h2>Facturas de gastos (proveedores)</h2>
-    <div class="sub" style="margin-bottom:10px">Cada día a las 7:00 se leen y comprueban las facturas de proveedores de Drive (posteriores al corte) <b>ya pagadas</b> (con forma de pago en Facturas Proveedores) y quedan <b>por aprobar</b>: no llegan a Holded hasta que el contable las acepta aquí. Al aceptar se crean en Holded <b>ya aprobadas</b> (contabilizadas) con el PDF adjunto; los pagos se registran en Holded. La cuenta habitual de cada proveedor se configura en Financiero → Config. Cuentas de gasto.</div>
+    <div class="sub" style="margin-bottom:10px">Cada día a las 7:00 se leen y comprueban las facturas de proveedores de Drive (posteriores al corte) <b>ya pagadas</b> (con forma de pago en Facturas Proveedores) y quedan <b>por aprobar</b>: no llegan a Holded hasta que el contable las acepta aquí. Al aceptar se crean en Holded <b>ya aprobadas</b> (contabilizadas) con el PDF adjunto y <b>pagadas</b> (fecha del pago y banco/caja se eligen al aceptar). La cuenta habitual de cada proveedor se configura en Financiero → Config. Cuentas de gasto.</div>
     <button class="prim" style="margin-left:0" onclick="volcarGastos()">Preparar facturas nuevas ahora</button>
     <div id="res-gastos"></div>
     <div id="gastos" style="margin-top:12px" class="sub">Cargando…</div>
@@ -188,6 +188,8 @@ async function cargarGastos(){
     const tPA = pa.length ? '<table><tr><th>Proveedor · factura</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Total</th><th>Cuenta de gasto</th><th></th></tr>'+
       pa.map((c,i)=>'<tr id="pa'+i+'"><td>'+esc(c.proveedor)+' · <b>'+esc(c.numero||'—')+'</b>'+
           '<div style="font-size:12px;margin:3px 0;white-space:nowrap" title="Si la lectura del PDF se equivocó, corrige aquí la fecha o el vencimiento">Fecha <input type="date" id="paf'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> Vence <input type="date" id="pav'+i+'" value="'+esc(c.vencimiento||'')+'" style="width:auto;font-size:12px;padding:2px 4px"></div>'+
+          '<div style="font-size:12px;margin:3px 0;white-space:nowrap">Pagada el <input type="date" id="pap'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> · '+esc(c.forma_pago||'')+' desde '+
+            '<select id="pat'+i+'" style="font-size:12px;padding:2px 4px">'+((d.tesoreria_por_forma||{})[c.forma_pago]?'':'<option value="">— elegir —</option>')+(d.tesorerias_pago||[]).map(t=>'<option value="'+t.key+'"'+((d.tesoreria_por_forma||{})[c.forma_pago]===t.key?' selected':'')+'>'+esc(t.nombre)+'</option>').join('')+'</select></div>'+
           '<div style="font-size:12px"><a href="'+esc(c.pdf_url)+'" target="_blank">Ver PDF</a>'+(c.concepto?' · <span class="sub">'+esc(c.concepto)+'</span>':'')+'</div>'+
           (c.dudas?'<div class="av" style="font-size:12px">⚠ '+esc(c.dudas)+'</div>':'')+
           (c.error?'<div class="err" style="font-size:12px">'+esc(c.error)+'</div>':'')+'</td>'+
@@ -253,7 +255,11 @@ async function aceptarGasto(i){
   const fecha = document.getElementById('paf'+i).value, vencimiento = document.getElementById('pav'+i).value;
   if(!fecha){ alert('Falta la fecha de la factura'); return; }
   if(vencimiento && vencimiento<fecha){ alert('El vencimiento es anterior a la fecha de la factura: corrígelo o déjalo vacío'); return; }
-  if(!confirm('Se volcará a Holded APROBADA (contabilizada) la factura '+(c.numero||'')+' de '+c.proveedor+' del '+ff(fecha)+' por '+eur(c.total)+' a la cuenta '+cuenta+' '+nom+'.\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
+  const pagoFecha = document.getElementById('pap'+i).value, pagoTesoreria = document.getElementById('pat'+i).value;
+  if(!pagoFecha){ alert('Indica la fecha en que se pagó'); return; }
+  if(!pagoTesoreria){ alert('Elige desde dónde se pagó (banco o caja de Marbella / Monda)'); return; }
+  const nomTes = ((gastos.tesorerias_pago||[]).find(t=>t.key===pagoTesoreria)||{}).nombre||pagoTesoreria;
+  if(!confirm('Se volcará a Holded APROBADA (contabilizada) y PAGADA la factura '+(c.numero||'')+' de '+c.proveedor+' del '+ff(fecha)+' por '+eur(c.total)+'.\nCuenta: '+cuenta+' '+nom+'\nPago: '+ff(pagoFecha)+' desde '+nomTes+'\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
   const guardarHabitual = document.getElementById('pah'+i).style.display!=='none' && document.getElementById('pag'+i).checked;
   // La fila se quita al momento (para que no se pulse dos veces) y solo
   // vuelve si Holded da error. Mientras se envía, sigue oculta aunque se
@@ -264,12 +270,12 @@ async function aceptarGasto(i){
   const etiqueta = esc(c.proveedor)+' '+esc(c.numero||'');
   res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando a Holded la factura '+etiqueta+'…</div>';
   let r;
-  try{ r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento}); }
+  try{ r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento, pagoFecha, pagoTesoreria}); }
   catch(e){ r = { estado:'error', motivo:e.message }; }
   enviandoGastos.delete(c.file_id);
   const ok = r.estado==='aprobada';
   res.innerHTML = '<div style="margin-top:10px" class="'+(ok?'ok':(r.estado==='borrador'||r.estado==='en_curso'?'av':'err'))+'">'+
-    (ok?'✔ Factura '+etiqueta+' volcada a Holded y aprobada':(r.estado==='borrador'?'Factura '+etiqueta+' creada en Holded':'✖ Factura '+etiqueta+': '+esc(r.motivo||r.estado)))+(r.aviso?' · '+esc(r.aviso):'')+'</div>';
+    (ok?'✔ Factura '+etiqueta+' volcada a Holded, aprobada'+(r.pagada?' y pagada':' (sin pago registrado)'):(r.estado==='borrador'?'Factura '+etiqueta+' creada en Holded':'✖ Factura '+etiqueta+': '+esc(r.motivo||r.estado)))+(r.aviso?' · '+esc(r.aviso):'')+'</div>';
   cargarGastos();
 }
 const enviandoGastos = new Set();

@@ -83,3 +83,11 @@ alter table holded_sync_compras add column if not exists correccion jsonb;
 -- venta, para detectar descuadres de céntimos con Rentman (redondeo del IVA).
 -- Migración holded_sync_facturas_total_holded.
 alter table holded_sync_facturas add column if not exists total_holded numeric;
+
+-- 9 oct 2026: la compra entra en Holded ya pagada. forma_pago = la de Facturas
+-- Proveedores; pago_fecha / pago_tesoreria = lo que eligió el contable al
+-- aceptar (clave de TESORERIAS en lib/holded.js). Migración holded_sync_compras_pago.
+alter table holded_sync_compras
+  add column if not exists forma_pago text,
+  add column if not exists pago_fecha date,
+  add column if not exists pago_tesoreria text;
