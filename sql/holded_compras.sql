@@ -60,3 +60,16 @@ alter table holded_sync_compras
   add column if not exists cuenta_gasto integer,      -- cuenta elegida para ESTA factura (por defecto la del proveedor)
   add column if not exists aprobado_por text,
   add column if not exists aprobado_en timestamptz;
+
+-- 9 oct 2026: histórico de Sage 2026 por NIF de proveedor (diario + plan de
+-- cuentas de Sage). Si un proveedor nuevo siempre fue a la misma cuenta 6, se
+-- propone como habitual; si repartía, se muestran sus cuentas como pista.
+-- Migración sage_historico_proveedor; datos cargados una vez a mano.
+create table if not exists sage_historico_proveedor (
+  nif            text primary key,
+  cuenta_sage    text,                 -- 400/410 del proveedor en Sage
+  nombre_sage    text,
+  cuentas        jsonb not null default '[]'::jsonb,  -- [{cuenta, nombre, apuntes, importe}] de más a menos apuntes
+  importado_en   timestamptz not null default now()
+);
+alter table sage_historico_proveedor enable row level security;

@@ -187,7 +187,8 @@ async function cargarGastos(){
         '<td class="n">'+eur(c.base)+'</td><td class="n">'+eur(c.iva)+(c.tipos.length?'<div class="sub" style="margin:0;font-size:11px">'+c.tipos.join(' / ')+' %</div>':'')+'</td><td class="n"><b>'+eur(c.total)+'</b>'+(c.retencion?'<div class="sub" style="margin:0;font-size:11px">ret. −'+eur(c.retencion)+'</div>':'')+'</td>'+
         '<td><select id="pac'+i+'" onchange="marcarCambio('+i+')" style="max-width:260px">'+optCuenta(c.cuenta_propuesta)+'</select>'+
           '<label id="pah'+i+'" style="display:none;font-size:11px;margin-top:3px"><input type="checkbox" id="pag'+i+'" style="width:auto"> usar siempre para este proveedor</label>'+
-          (!c.cuenta_habitual?'<div class="av" style="font-size:11px">Proveedor sin cuenta habitual</div>':'')+'</td>'+
+          (!c.cuenta_habitual?'<div class="av" style="font-size:11px">Proveedor sin cuenta habitual</div>':'')+
+          (c.sage.length>1?'<div class="sub" style="margin:3px 0 0;font-size:11px">En Sage usaba: '+c.sage.slice(0,5).map(s=>'<a href="#" onclick="elegirCuenta('+i+','+s.cuenta+');return false" title="'+esc(s.apuntes+' apuntes en 2026')+'">'+s.cuenta+' '+esc(s.nombre)+'</a>').join(' · ')+'</div>':'')+'</td>'+
         '<td style="white-space:nowrap"><button class="prim" onclick="aceptarGasto('+i+')">Aceptar</button>'+
           '<button onclick="reintentarGasto(\''+c.file_id+'\',true)" title="Vuelve a leer el PDF con Claude">Releer</button></td></tr>').join('')+'</table>'
       : '<div class="ok">✔ Ninguna factura por aprobar</div>';
@@ -205,6 +206,7 @@ async function cargarGastos(){
       '<h2 style="margin-top:16px">Últimas volcadas a Holded ('+d.total_enviadas+' en total)</h2>'+env;
   }catch(e){ box.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
 }
+function elegirCuenta(i, cuenta){ document.getElementById('pac'+i).value = String(cuenta); marcarCambio(i); }
 // Si se elige una cuenta distinta de la habitual, ofrecer guardarla como habitual.
 function marcarCambio(i){
   const c = gastos.por_aprobar[i];
