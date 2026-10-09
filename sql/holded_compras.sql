@@ -78,3 +78,8 @@ alter table sage_historico_proveedor enable row level security;
 -- en YYYY-MM-DD; vencimiento null = sin vencimiento). Se aplica siempre que se
 -- prepara o aprueba la factura. Migración holded_sync_compras_correccion.
 alter table holded_sync_compras add column if not exists correccion jsonb;
+
+-- 9 oct 2026: total que calcula Holded para cada factura/rectificativa de
+-- venta, para detectar descuadres de céntimos con Rentman (redondeo del IVA).
+-- Migración holded_sync_facturas_total_holded.
+alter table holded_sync_facturas add column if not exists total_holded numeric;

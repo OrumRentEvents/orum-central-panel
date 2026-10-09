@@ -91,11 +91,14 @@ async function cargarPendientes(){
       : '<div class="ok">✔ Ningún cobro pendiente</div>';
     const tM = d.modificadas.length ? '<div class="card"><h2 class="err">Facturas cambiadas en Rentman después de volcarlas ('+d.modificadas.length+')</h2><table><tr><th>Nº</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th></tr>'+
       d.modificadas.map(m=>'<tr><td>'+m.numero+'</td><td>'+esc(m.cliente)+'</td><td class="n">'+eur(m.total_enviado)+'</td><td class="n">'+eur(m.total_rentman)+'</td></tr>').join('')+'</table><div class="sub" style="margin-top:6px">Holded no se entera de estos cambios: hay que corregirlo con una rectificativa en Rentman o a mano en Holded.</div></div>' : '';
+    const desc = d.descuadres||[];
+    const tD = desc.length ? '<div class="card"><h2 class="err">Descuadre de céntimos con Rentman ('+desc.length+')</h2><table><tr><th>Nº</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th><th class="n">Diferencia</th></tr>'+
+      desc.map(m=>'<tr><td><a href="#" onclick="ver(\''+m.numero+'\');return false">'+m.numero+'</a></td><td>'+esc(m.cliente)+'</td><td class="n">'+eur(m.total_holded)+'</td><td class="n">'+eur(m.total_rentman)+'</td><td class="n">'+eur(m.diferencia)+'</td></tr>').join('')+'</table><div class="sub" style="margin-top:6px">Holded calculó el IVA con otro redondeo y su total no es el de la factura de Rentman: aunque se cobre entera, en Holded quedará esa diferencia pendiente.</div></div>' : '';
     const comp = d.compensaciones||[];
     const tK = comp.length ? '<div class="card"><h2 class="err">Compensaciones descuadradas ('+comp.length+')</h2><table><tr><th>Cliente</th><th>Facturas / rectificativas (pago · importe)</th><th class="n">Descuadre</th></tr>'+
       comp.map(k=>'<tr><td>'+esc(k.cliente)+'</td><td style="font-size:12px">'+k.lineas.map(l=>'<a href="#" onclick="ver(\''+l.numero_factura+'\');return false">'+l.numero_factura+'</a> ('+l.pago_id+' · '+eur(l.importe)+')').join(', ')+'</td><td class="n">'+eur(k.neto)+'</td></tr>').join('')+
       '</table><div class="sub" style="margin-top:6px">Los cobros "factura0" / "rectificativa" de Caja de cada cliente tienen que sumar 0 (el +X de la factura y el −X de su rectificativa). Si no, falta la otra mitad o está mal clasificada en Caja, y la cuenta puente 55500010 de Holded no quedará a 0.</div></div>' : '';
-    box.innerHTML = tM + tK +
+    box.innerHTML = tM + tD + tK +
       '<div class="card"><h2>Facturas pendientes ('+d.facturas.length+')</h2>'+tF+'</div>'+
       '<div class="card"><h2>Cobros pendientes ('+d.cobros.length+')</h2>'+tC+'</div>';
   }catch(e){ box.innerHTML = '<div class="card err">'+esc(e.message)+'</div>'; document.getElementById('volcado').textContent=''; }
