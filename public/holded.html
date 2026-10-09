@@ -186,9 +186,9 @@ async function cargarGastos(){
     d.por_aprobar = d.por_aprobar.filter(x=>!enviandoGastos.has(x.file_id)); // las que se están volcando no se pintan
     const pa = d.por_aprobar;
     const tPA = pa.length ? '<table><tr><th>Proveedor · factura</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Total</th><th>Cuenta de gasto</th><th></th></tr>'+
-      pa.map((c,i)=>'<tr id="pa'+i+'"><td>'+esc(c.proveedor)+' · <b>'+esc(c.numero||'—')+'</b>'+
+      pa.map((c,i)=>'<tr id="pa'+i+'"><td>'+(c.es_abono?'<span class="pill" style="background:#fef3c7;color:#92400e">ABONO</span> ':'')+esc(c.proveedor)+' · <b>'+esc(c.numero||'—')+'</b>'+
           '<div style="font-size:12px;margin:3px 0;white-space:nowrap" title="Si la lectura del PDF se equivocó, corrige aquí la fecha o el vencimiento">Fecha <input type="date" id="paf'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> Vence <input type="date" id="pav'+i+'" value="'+esc(c.vencimiento||'')+'" style="width:auto;font-size:12px;padding:2px 4px"></div>'+
-          '<div style="font-size:12px;margin:3px 0;white-space:nowrap">Pagada el <input type="date" id="pap'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> · '+esc(c.forma_pago||'')+' desde '+
+          '<div style="font-size:12px;margin:3px 0;white-space:nowrap">'+(c.es_abono?'Devuelto el':'Pagada el')+' <input type="date" id="pap'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> · '+esc(c.forma_pago||'')+' desde '+
             '<select id="pat'+i+'" style="font-size:12px;padding:2px 4px">'+((d.tesoreria_por_forma||{})[c.forma_pago]?'':'<option value="">— elegir —</option>')+(d.tesorerias_pago||[]).map(t=>'<option value="'+t.key+'"'+((d.tesoreria_por_forma||{})[c.forma_pago]===t.key?' selected':'')+'>'+esc(t.nombre)+'</option>').join('')+'</select></div>'+
           '<div style="font-size:12px"><a href="'+esc(c.pdf_url)+'" target="_blank">Ver PDF</a>'+(c.concepto?' · <span class="sub">'+esc(c.concepto)+'</span>':'')+'</div>'+
           (c.dudas?'<div class="av" style="font-size:12px">⚠ '+esc(c.dudas)+'</div>':'')+
@@ -259,7 +259,7 @@ async function aceptarGasto(i){
   if(!pagoFecha){ alert('Indica la fecha en que se pagó'); return; }
   if(!pagoTesoreria){ alert('Elige desde dónde se pagó (banco o caja de Marbella / Monda)'); return; }
   const nomTes = ((gastos.tesorerias_pago||[]).find(t=>t.key===pagoTesoreria)||{}).nombre||pagoTesoreria;
-  if(!confirm('Se volcará a Holded APROBADA (contabilizada) y PAGADA la factura '+(c.numero||'')+' de '+c.proveedor+' del '+ff(fecha)+' por '+eur(c.total)+'.\nCuenta: '+cuenta+' '+nom+'\nPago: '+ff(pagoFecha)+' desde '+nomTes+'\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
+  if(!confirm('Se volcará a Holded APROBAD'+(c.es_abono?'O (contabilizado) y COBRADO el ABONO ':'A (contabilizada) y PAGADA la factura ')+(c.numero||'')+' de '+c.proveedor+' del '+ff(fecha)+' por '+eur(c.total)+'.\nCuenta: '+cuenta+' '+nom+'\nPago: '+ff(pagoFecha)+' desde '+nomTes+'\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
   const guardarHabitual = document.getElementById('pah'+i).style.display!=='none' && document.getElementById('pag'+i).checked;
   // La fila se quita al momento (para que no se pulse dos veces) y solo
   // vuelve si Holded da error. Mientras se envía, sigue oculta aunque se
@@ -275,7 +275,7 @@ async function aceptarGasto(i){
   enviandoGastos.delete(c.file_id);
   const ok = r.estado==='aprobada';
   res.innerHTML = '<div style="margin-top:10px" class="'+(ok?'ok':(r.estado==='borrador'||r.estado==='en_curso'?'av':'err'))+'">'+
-    (ok?'✔ Factura '+etiqueta+' volcada a Holded, aprobada'+(r.pagada?' y pagada':' (sin pago registrado)'):(r.estado==='borrador'?'Factura '+etiqueta+' creada en Holded':'✖ Factura '+etiqueta+': '+esc(r.motivo||r.estado)))+(r.aviso?' · '+esc(r.aviso):'')+'</div>';
+    (ok?'✔ '+(r.abono?'Abono ':'Factura ')+etiqueta+(r.abono?' volcado a Holded, aprobado'+(r.pagada?' y cobrado':' (sin cobro registrado)'):' volcada a Holded, aprobada'+(r.pagada?' y pagada':' (sin pago registrado)')):(r.estado==='borrador'?'Factura '+etiqueta+' creada en Holded':'✖ Factura '+etiqueta+': '+esc(r.motivo||r.estado)))+(r.aviso?' · '+esc(r.aviso):'')+'</div>';
   cargarGastos();
 }
 const enviandoGastos = new Set();
