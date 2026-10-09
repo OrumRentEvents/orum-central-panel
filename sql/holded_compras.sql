@@ -73,3 +73,8 @@ create table if not exists sage_historico_proveedor (
   importado_en   timestamptz not null default now()
 );
 alter table sage_historico_proveedor enable row level security;
+
+-- 9 oct 2026: corrección del contable a la lectura del PDF ({fecha, vencimiento}
+-- en YYYY-MM-DD; vencimiento null = sin vencimiento). Se aplica siempre que se
+-- prepara o aprueba la factura. Migración holded_sync_compras_correccion.
+alter table holded_sync_compras add column if not exists correccion jsonb;
