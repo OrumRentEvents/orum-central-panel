@@ -183,6 +183,7 @@ async function cargarGastos(){
     // Cuenta con buscador: campo de texto + lista de sugerencias (datalist)
     // común; se escribe parte del número o del nombre y se elige.
     const dl = '<datalist id="dl-cuentas">'+d.cuentas.map(c=>'<option value="'+esc(etiquetaCuenta(c.numero))+'"></option>').join('')+'</datalist>';
+    d.por_aprobar = d.por_aprobar.filter(x=>!enviandoGastos.has(x.file_id)); // las que se están volcando no se pintan
     const pa = d.por_aprobar;
     const tPA = pa.length ? '<table><tr><th>Proveedor · factura</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Total</th><th>Cuenta de gasto</th><th></th></tr>'+
       pa.map((c,i)=>'<tr id="pa'+i+'"><td>'+esc(c.proveedor)+' · <b>'+esc(c.numero||'—')+'</b>'+
@@ -254,15 +255,24 @@ async function aceptarGasto(i){
   if(vencimiento && vencimiento<fecha){ alert('El vencimiento es anterior a la fecha de la factura: corrígelo o déjalo vacío'); return; }
   if(!confirm('Se volcará a Holded APROBADA (contabilizada) la factura '+(c.numero||'')+' de '+c.proveedor+' del '+ff(fecha)+' por '+eur(c.total)+' a la cuenta '+cuenta+' '+nom+'.\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
   const guardarHabitual = document.getElementById('pah'+i).style.display!=='none' && document.getElementById('pag'+i).checked;
+  // La fila se quita al momento (para que no se pulse dos veces) y solo
+  // vuelve si Holded da error. Mientras se envía, sigue oculta aunque se
+  // recargue la lista.
+  enviandoGastos.add(c.file_id);
+  const fila = document.getElementById('pa'+i); if(fila) fila.style.display='none';
   const res = document.getElementById('res-gastos');
-  res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando a Holded…</div>';
-  try{
-    const r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento});
-    const ok = r.estado==='aprobada';
-    res.innerHTML = '<div style="margin-top:10px" class="'+(ok?'ok':(r.estado==='borrador'?'av':'err'))+'">'+(ok?'✔ Volcada a Holded y aprobada':(r.estado==='borrador'?'Creada en Holded':esc(r.motivo||r.estado)))+(r.aviso?' · '+esc(r.aviso):'')+'</div>';
-  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
+  const etiqueta = esc(c.proveedor)+' '+esc(c.numero||'');
+  res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando a Holded la factura '+etiqueta+'…</div>';
+  let r;
+  try{ r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento}); }
+  catch(e){ r = { estado:'error', motivo:e.message }; }
+  enviandoGastos.delete(c.file_id);
+  const ok = r.estado==='aprobada';
+  res.innerHTML = '<div style="margin-top:10px" class="'+(ok?'ok':(r.estado==='borrador'||r.estado==='en_curso'?'av':'err'))+'">'+
+    (ok?'✔ Factura '+etiqueta+' volcada a Holded y aprobada':(r.estado==='borrador'?'Factura '+etiqueta+' creada en Holded':'✖ Factura '+etiqueta+': '+esc(r.motivo||r.estado)))+(r.aviso?' · '+esc(r.aviso):'')+'</div>';
   cargarGastos();
 }
+const enviandoGastos = new Set();
 async function reintentarGasto(fileId, releer){
   const res = document.getElementById('res-gastos');
   res.innerHTML = '<div class="sub" style="margin-top:10px">'+(releer?'Releyendo el PDF…':'Reintentando…')+'</div>';
