@@ -177,7 +177,9 @@ async function cargarGastos(){
   const box = document.getElementById('gastos');
   try{
     const d = gastos = await api('GET','/api/holded/gastos');
-    const optCuenta = sel => '<option value="">— elegir cuenta —</option>'+d.cuentas.map(c=>'<option value="'+c.numero+'"'+(String(c.numero)===String(sel)?' selected':'')+'>'+c.numero+' '+esc(c.nombre)+'</option>').join('');
+    // Cuenta con buscador: campo de texto + lista de sugerencias (datalist)
+    // común; se escribe parte del número o del nombre y se elige.
+    const dl = '<datalist id="dl-cuentas">'+d.cuentas.map(c=>'<option value="'+esc(etiquetaCuenta(c.numero))+'"></option>').join('')+'</datalist>';
     const pa = d.por_aprobar;
     const tPA = pa.length ? '<table><tr><th>Proveedor · factura</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Total</th><th>Cuenta de gasto</th><th></th></tr>'+
       pa.map((c,i)=>'<tr id="pa'+i+'"><td>'+esc(c.proveedor)+' · <b>'+esc(c.numero||'—')+'</b> · '+ff(c.fecha)+
@@ -185,7 +187,7 @@ async function cargarGastos(){
           (c.dudas?'<div class="av" style="font-size:12px">⚠ '+esc(c.dudas)+'</div>':'')+
           (c.error?'<div class="err" style="font-size:12px">'+esc(c.error)+'</div>':'')+'</td>'+
         '<td class="n">'+eur(c.base)+'</td><td class="n">'+eur(c.iva)+(c.tipos.length?'<div class="sub" style="margin:0;font-size:11px">'+c.tipos.join(' / ')+' %</div>':'')+'</td><td class="n"><b>'+eur(c.total)+'</b>'+(c.retencion?'<div class="sub" style="margin:0;font-size:11px">ret. −'+eur(c.retencion)+'</div>':'')+'</td>'+
-        '<td><select id="pac'+i+'" onchange="marcarCambio('+i+')" style="max-width:260px">'+optCuenta(c.cuenta_propuesta)+'</select>'+
+        '<td><input id="pac'+i+'" list="dl-cuentas" value="'+esc(etiquetaCuenta(c.cuenta_propuesta))+'" placeholder="Buscar cuenta: nº o nombre…" onfocus="this.select()" oninput="marcarCambio('+i+')" onchange="marcarCambio('+i+')" style="width:260px;font-size:12px">'+
           '<label id="pah'+i+'" style="display:none;font-size:11px;margin-top:3px"><input type="checkbox" id="pag'+i+'" style="width:auto"> usar siempre para este proveedor</label>'+
           (!c.cuenta_habitual?'<div class="av" style="font-size:11px">Proveedor sin cuenta habitual</div>':'')+
           (c.sage.length>1?'<div class="sub" style="margin:3px 0 0;font-size:11px">En Sage usaba: '+c.sage.slice(0,5).map(s=>'<a href="#" onclick="elegirCuenta('+i+','+s.cuenta+');return false" title="'+esc(s.apuntes+' apuntes en 2026')+'">'+s.cuenta+' '+esc(s.nombre)+'</a>').join(' · ')+'</div>':'')+'</td>'+
@@ -199,23 +201,35 @@ async function cargarGastos(){
     const env = d.enviadas.length ? '<table><tr><th>Proveedor</th><th>Nº</th><th>Fecha</th><th class="n">Total</th><th>Cuenta</th><th>Aprobada</th><th>Nota</th></tr>'+
       d.enviadas.map(c=>'<tr><td>'+esc(c.proveedor)+'</td><td>'+esc(c.numero)+'</td><td>'+ff(c.fecha)+'</td><td class="n">'+eur(c.total)+'</td><td style="font-size:12px">'+esc(nombreCuenta(c.cuenta_gasto))+'</td><td style="font-size:12px">'+esc(c.aprobado_por||'')+(c.aprobado_en?' · '+fh(c.aprobado_en):'')+(c.estado==='borrador'?' <span class="pill">borrador</span>':'')+'</td><td class="av" style="font-size:12px">'+esc(c.error||'')+'</td></tr>').join('')+'</table>' : '<div class="sub">Todavía no se ha volcado ninguna.</div>';
     box.className='';
-    box.innerHTML = (d.volcando?'<div class="av">Preparación de gastos en marcha…</div>':'')+
+    box.innerHTML = dl + (d.volcando?'<div class="av">Preparación de gastos en marcha…</div>':'')+
       (!d.cuentas.length?'<div class="err">El plan de cuentas de gasto está vacío: cárgalo en Financiero → Config. Cuentas de gasto.</div>':'')+
       '<h2 style="margin-top:6px">Por aprobar ('+pa.length+')</h2>'+tPA+
       '<h2 style="margin-top:16px">Bloqueadas ('+d.pendientes.length+')</h2><div class="sub" style="margin-bottom:6px">Corrige la causa (ficha del proveedor en Config. Cuentas de gasto, carpeta de Drive…) y pulsa Reintentar.</div>'+pend+
       '<h2 style="margin-top:16px">Últimas volcadas a Holded ('+d.total_enviadas+' en total)</h2>'+env;
   }catch(e){ box.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
 }
-function elegirCuenta(i, cuenta){ document.getElementById('pac'+i).value = String(cuenta); marcarCambio(i); }
+// "62900004 GASTOS TELEFONICA…" para el campo con buscador; '' si no hay cuenta.
+function etiquetaCuenta(n){
+  if(!n) return '';
+  const c = ((gastos&&gastos.cuentas)||[]).find(x=>String(x.numero)===String(n));
+  return n+(c?' '+c.nombre:'');
+}
+// Nº de cuenta escrito/elegido en el campo, solo si está en el plan; si no, ''.
+function cuentaElegida(i){
+  const m = String(document.getElementById('pac'+i).value).trim().match(/^(6\d{7})\b/);
+  return m && gastos.cuentas.some(x=>String(x.numero)===m[1]) ? m[1] : '';
+}
+function elegirCuenta(i, cuenta){ document.getElementById('pac'+i).value = etiquetaCuenta(cuenta); marcarCambio(i); }
 // Si se elige una cuenta distinta de la habitual, ofrecer guardarla como habitual.
 function marcarCambio(i){
   const c = gastos.por_aprobar[i];
-  document.getElementById('pah'+i).style.display = String(document.getElementById('pac'+i).value)!==String(c.cuenta_habitual||'') ? 'block' : 'none';
+  const n = cuentaElegida(i);
+  document.getElementById('pah'+i).style.display = n && n!==String(c.cuenta_habitual||'') ? 'block' : 'none';
 }
 async function aceptarGasto(i){
   const c = gastos.por_aprobar[i];
-  const cuenta = document.getElementById('pac'+i).value;
-  if(!cuenta){ alert('Elige la cuenta de gasto'); return; }
+  const cuenta = cuentaElegida(i);
+  if(!cuenta){ alert(document.getElementById('pac'+i).value.trim() ? 'Esa cuenta no está en el plan: elígela de la lista de sugerencias' : 'Elige la cuenta de gasto'); return; }
   const nom = (gastos.cuentas.find(x=>String(x.numero)===cuenta)||{}).nombre||'';
   if(!confirm('Se volcará a Holded APROBADA (contabilizada) la factura '+(c.numero||'')+' de '+c.proveedor+' por '+eur(c.total)+' a la cuenta '+cuenta+' '+nom+'.\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
   const guardarHabitual = document.getElementById('pah'+i).style.display!=='none' && document.getElementById('pag'+i).checked;

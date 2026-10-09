@@ -1776,8 +1776,9 @@ function pintarCuentasGasto() {
   const body = document.getElementById('content-body');
   const activas = d.cuentas.filter(c => c.activa);
   const nombreCuenta = n => { const c = d.cuentas.find(x => x.numero === Number(n)); return c ? c.nombre : null; };
-  const optCuenta = sel => '<option value="">— sin cuenta —</option>' + activas.map(c => `<option value="${c.numero}" ${String(c.numero) === String(sel) ? 'selected' : ''}>${c.numero} ${escHtml(c.nombre)}</option>`).join('')
-    + (sel && !activas.some(c => String(c.numero) === String(sel)) ? `<option value="${sel}" selected>${sel} (no está en el plan)</option>` : '');
+  // Cuenta habitual con buscador: campo de texto + sugerencias (datalist).
+  const etiqueta = n => n ? n + (nombreCuenta(n) ? ' ' + nombreCuenta(n) : ' (no está en el plan)') : '';
+  const dlCuentas = '<datalist id="dl-cuentas-gasto">' + activas.map(c => `<option value="${escHtml(c.numero + ' ' + c.nombre)}"></option>`).join('') + '</datalist>';
   const opt = (lista, sel) => '<option value="">—</option>' + lista.map(o => `<option value="${o.key}" ${o.key === sel ? 'selected' : ''}>${escHtml(o.nombre)}</option>`).join('');
   const estiloSel = 'font-size:12px; padding:4px; border-radius:4px; border:1px solid #e2e2de; max-width:280px;';
   const sinHolded = d.cuentas.filter(c => c.activa && c.en_holded === false).length;
@@ -1792,12 +1793,12 @@ function pintarCuentasGasto() {
     <tr>
       <td>${escHtml(p.proveedor)}${p.nombre_fiscal ? `<div style="font-size:11px; color:#9a988f;">${escHtml(p.nombre_fiscal)}</div>` : ''}</td>
       <td><input type="text" id="cp-nif-${i}" value="${escHtml(p.nif || '')}" style="width:100px; font-size:12px; padding:4px 6px; border:1px solid #e2e2de; border-radius:4px;"></td>
-      <td><select id="cp-cta-${i}" style="${estiloSel}">${optCuenta(p.cuenta_gasto)}</select>${!p.cuenta_gasto ? '<div style="font-size:11px; color:#854F0B;">Sin cuenta: el contable la elige en cada factura</div>' : ''}${(p.sage || []).length ? `<div style="font-size:11px; color:#9a988f; margin-top:2px;">En Sage 2026: ${p.sage.slice(0, 5).map(s => `<span style="cursor:pointer; text-decoration:underline;" title="${s.apuntes} apuntes" onclick="document.getElementById('cp-cta-${i}').value='${s.cuenta}'">${s.cuenta} ${escHtml(s.nombre)}</span>`).join(' · ')}${p.sage.length > 1 ? ' — reparte entre varias: se elige en cada factura' : ''}</div>` : ''}</td>
+      <td><input type="text" id="cp-cta-${i}" list="dl-cuentas-gasto" value="${escHtml(etiqueta(p.cuenta_gasto))}" placeholder="Buscar cuenta: nº o nombre…" onfocus="this.select()" style="${estiloSel} width:280px;">${!p.cuenta_gasto ? '<div style="font-size:11px; color:#854F0B;">Sin cuenta: el contable la elige en cada factura</div>' : ''}${(p.sage || []).length ? `<div style="font-size:11px; color:#9a988f; margin-top:2px;">En Sage 2026: ${p.sage.slice(0, 5).map(s => `<span style="cursor:pointer; text-decoration:underline;" title="${s.apuntes} apuntes" onclick="document.getElementById('cp-cta-${i}').value=this.dataset.v" data-v="${escHtml(etiqueta(s.cuenta))}">${s.cuenta} ${escHtml(s.nombre)}</span>`).join(' · ')}${p.sage.length > 1 ? ' — reparte entre varias: se elige en cada factura' : ''}</div>` : ''}</td>
       <td><select id="cp-iva-${i}" style="${estiloSel}">${opt(d.opciones_iva_cero, p.iva_cero)}</select></td>
       <td><select id="cp-ret-${i}" style="${estiloSel}">${opt(d.opciones_retencion, p.retencion)}</select></td>
       <td style="white-space:nowrap;"><button onclick="guardarProveedorCuenta(${i})" style="font-size:12px; padding:5px 10px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Guardar</button> <span id="cp-ok-${i}" style="font-size:12px; color:#15803d;"></span></td>
     </tr>`).join('');
-  body.innerHTML = `
+  body.innerHTML = dlCuentas + `
     <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Cuenta contable a la que va el gasto de cada proveedor. Se configura una vez: cada factura nueva del proveedor propone esa cuenta y el contable la confirma (o la cambia para esa factura, p. ej. otra matrícula u otro local) al aprobarla en <span style="cursor:pointer; text-decoration:underline;" onclick="window.open('/holded.html', '_blank')">Holded</span>. Nada se vuelca a la contabilidad sin esa aprobación. El departamento al que se imputa el gasto sigue en Config. Facturas Proveedores.</p>
 
     <h3 style="font-size:14px; margin:1.25rem 0 0.5rem;">Proveedores</h3>
@@ -1863,7 +1864,12 @@ async function guardarCuentaGasto(i) {
 }
 async function guardarProveedorCuenta(i) {
   const p = cuentasGastoGlobal.proveedores[i];
-  const ficha = { proveedor: p.proveedor, nif: document.getElementById('cp-nif-' + i).value.trim(), cuenta_gasto: document.getElementById('cp-cta-' + i).value, iva_cero: document.getElementById('cp-iva-' + i).value, retencion: document.getElementById('cp-ret-' + i).value };
+  // El campo lleva "62900004 NOMBRE": se guarda solo el número, y solo si está en el plan.
+  const textoCuenta = document.getElementById('cp-cta-' + i).value.trim();
+  const m = textoCuenta.match(/^(6\d{7})\b/);
+  const cuenta = m && cuentasGastoGlobal.cuentas.some(c => String(c.numero) === m[1]) ? m[1] : '';
+  if (textoCuenta && !cuenta) { alert('Esa cuenta no está en el plan: elígela de la lista de sugerencias (o deja el campo vacío).'); return; }
+  const ficha = { proveedor: p.proveedor, nif: document.getElementById('cp-nif-' + i).value.trim(), cuenta_gasto: cuenta, iva_cero: document.getElementById('cp-iva-' + i).value, retencion: document.getElementById('cp-ret-' + i).value };
   try {
     const resp = await fetch('/api/holded/gastos/proveedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ficha) });
     const r = await resp.json();
