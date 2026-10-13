@@ -1926,7 +1926,12 @@ app.get('/api/rutas/estado-pago', async (req, res) => {
       }
       const serviciosExtra = serviciosPorProyectoId[String(p.id)] || [];
       resultado[String(p.id)] = { estado_pago: estadoPago, detalle_pago: detallePago, servicios_extra: serviciosExtra, comercial: p.comercial || '',
-        tiene_lavanderia: idsLavanderia.has(String(p.id)), tiene_office: idsOffice.has(String(p.id)) };
+        tiene_lavanderia: idsLavanderia.has(String(p.id)), tiene_office: idsOffice.has(String(p.id)),
+        // Teléfono para la ruta: solo el de la persona de contacto del proyecto. Si no lo tiene no se
+        // enseña ninguno (a propósito no se usa el general del cliente): así se ve que falta y se le
+        // reclama al comercial que lo pida.
+        telefono: p.contacto_telefono || '',
+        telefono_nombre: p.contacto_telefono ? (p.contacto_nombre || '') : '' };
     });
 
     res.json({ ok: true, estado_pago: resultado });

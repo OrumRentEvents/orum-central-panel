@@ -91,6 +91,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* Iniciales del comercial del proyecto */
 .cli-wrap{display:flex;align-items:center;gap:6px;min-width:0;}
 .cli-nom{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.cli-datos{min-width:0;overflow:hidden;}
+/* Telefono de contacto del cliente, debajo del nombre (se puede pulsar para llamar) */
+.tel-cli{display:block;font-size:11px;font-weight:400;color:#185FA5;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.tel-cli:hover{text-decoration:underline;}
+.tel-falta{display:block;font-size:10px;font-weight:700;color:#A32D2D;white-space:nowrap;margin-top:1px;}
 .com-ini{width:20px;height:20px;border-radius:50%;border:1.5px solid #1a1a18;color:#1a1a18;font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0;cursor:default;}
 
 /* Casillas Office / Lavanderia */
@@ -1022,7 +1027,16 @@ function renderFila(idx,gkey){
     var tit=tieneMaterial?'':' title="Sin material de '+(campo==='office'?'Office':'Lavanderia')+'"';
     return '<input type="checkbox"'+(areaPar[campo]?' checked':'')+tit+(ROL==='logistica'&&tieneMaterial?' onchange="toggleCheckArea(this,'+idx+',\''+campo+'\')"':' disabled')+'>';
   };
-  html+='<td class="td-cli"><div class="cli-wrap">'+comH+'<div class="cli-nom">'+(p.cliente||'—')+'</div></div></td>';
+  // Telefono de la persona de contacto del proyecto. Si no tiene, no se muestra ninguno (asi se ve que falta)
+  var telH='';
+  if(epInfo&&epInfo.telefono){
+    var telTxt=(epInfo.telefono_nombre?epInfo.telefono_nombre+' · ':'')+epInfo.telefono;
+    telH='<a class="tel-cli" href="tel:'+String(epInfo.telefono).replace(/[^0-9+]/g,'')+'" title="Llamar a '+telTxt.replace(/"/g,'&quot;')+'">&#128222; '+telTxt.replace(/</g,'&lt;')+'</a>';
+  } else if(epInfo&&p.fecha&&p.fecha>=hoy()){
+    // Aviso para reclamarlo al comercial. Solo en paradas de hoy en adelante: en las pasadas ya no sirve de nada
+    telH='<span class="tel-falta" title="El proyecto no tiene telefono en la persona de contacto de Rentman">Sin teléfono</span>';
+  }
+  html+='<td class="td-cli"><div class="cli-wrap">'+comH+'<div class="cli-datos"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+telH+'</div></div></td>';
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
@@ -1159,7 +1173,7 @@ function bindEvents(){
   // Expand fila
   document.querySelectorAll('.fila').forEach(function(fila){
     fila.addEventListener('click',function(e){
-      if(e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.num-proy')||e.target.closest('.btn-material')||e.target.closest('.btn-servicios'))return;
+      if(e.target.closest('.btn-save')||e.target.closest('.btn-del')||e.target.closest('.a-maps')||e.target.closest('.tel-cli')||e.target.closest('input')||e.target.closest('textarea')||e.target.closest('.num-proy')||e.target.closest('.btn-material')||e.target.closest('.btn-servicios'))return;
       var idx=fila.getAttribute('data-idx');
       var gkey=(fila.getAttribute('data-gkey')||'').replace(/[^a-zA-Z0-9]/g,'');
       var det=document.getElementById('det-p'+idx+'_'+gkey);
@@ -1759,6 +1773,8 @@ function enviarWhatsApp(gkey){
     if(p.numero)texto+='   #'+p.numero+'\n';
     texto+='   '+(p.cliente||'')+'\n';
     if(p.localizacion)texto+='   '+p.localizacion+'\n';
+    var epTel=p.proyecto_id?estadoPago[String(p.proyecto_id)]:null;
+    if(epTel&&epTel.telefono)texto+='   Tel: '+(epTel.telefono_nombre?epTel.telefono_nombre+' ':'')+epTel.telefono+'\n';
     if(p.google_maps_url)texto+='   📍 '+p.google_maps_url+'\n';
     if(p.notas)texto+='   Notas: '+String(p.notas)+'\n';
     texto+='\n';
@@ -1793,6 +1809,8 @@ function enviarWhatsAppCompartido(waKey){
     if(p.numero)texto+='   #'+p.numero+'\n';
     texto+='   '+(p.cliente||'')+'\n';
     if(p.localizacion)texto+='   '+p.localizacion+'\n';
+    var epTel=p.proyecto_id?estadoPago[String(p.proyecto_id)]:null;
+    if(epTel&&epTel.telefono)texto+='   Tel: '+(epTel.telefono_nombre?epTel.telefono_nombre+' ':'')+epTel.telefono+'\n';
     if(p.google_maps_url)texto+='   📍 '+p.google_maps_url+'\n';
     if(p.notas)texto+='   Notas: '+String(p.notas)+'\n';
     texto+='\n';
