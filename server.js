@@ -4427,6 +4427,13 @@ app.get('/', (req, res) => {
 const informeComerciales = require('./lib/informeComerciales');
 informeComerciales.registrarRutas(app, requiereLogin);
 
+// Sincronización directa Rentman → Supabase (ver lib/rentmanSync.js). Tras cada
+// proyecto sincronizado se vacía la caché de datos y se avisa a las pantallas de Rutas.
+const rentmanSync = require('./lib/rentmanSync');
+rentmanSync.registrar(app, requiereLogin, {
+  alSincronizar: () => { CACHE_ORUM_CENTRAL.clear(); emitirRutas('paradas', {}, ''); }
+});
+
 // Integración Rentman → Holded (prueba hasta 1 ene 2027) — ver lib/holded.js.
 // Pantalla de prueba en /holded.html. Solo Dirección y Contabilidad.
 const holdedSync = require('./lib/holded');
