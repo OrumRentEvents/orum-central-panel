@@ -77,15 +77,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .veh-estado.clicable{cursor:pointer;}
 .veh-estado.clicable:hover{opacity:.82;}
 
-/* Barra entera del color del estado: amarillo EN RUTA, verde FINALIZADO */
-.grupo-hdr.est-en-ruta{background:#F5C518 !important;color:#1a1a18;}
-.grupo-hdr.est-finalizado{background:#1D9E75 !important;color:#fff;}
-.grupo-hdr.est-en-ruta .grupo-conductor{color:#1a1a18;}
-.grupo-hdr.est-en-ruta .btn-wa{background:rgba(0,0,0,.08);border-color:rgba(0,0,0,.3);color:#1a1a18;}
-.grupo-hdr.est-en-ruta .btn-wa:hover{background:rgba(0,0,0,.16);}
-.grupo-hdr.est-en-ruta .veh-estado{background:rgba(0,0,0,.12);color:#1a1a18;}
-.grupo-hdr.est-en-ruta .veh-estado.finalizado{background:#1D9E75;color:#fff;}
-.grupo-hdr.est-finalizado .veh-estado{background:rgba(255,255,255,.22);color:#fff;}
+/* Barra entera del color del estado, en los mismos tonos pastel que los badges
+   de tipo: naranja de RECOGIDA para EN RUTA, verde de ENTREGA para FINALIZADO */
+.grupo-hdr.est-en-ruta{background:#FDEBD0 !important;color:#8B4A00;}
+.grupo-hdr.est-finalizado{background:#D6F5E3 !important;color:#0A6640;}
+.grupo-hdr.est-en-ruta .grupo-conductor{color:#8B4A00;}
+.grupo-hdr.est-finalizado .grupo-conductor{color:#0A6640;}
+.grupo-hdr.est-en-ruta .btn-wa,.grupo-hdr.est-finalizado .btn-wa{background:rgba(255,255,255,.55);border-color:rgba(0,0,0,.2);color:#1a1a18;}
+.grupo-hdr.est-en-ruta .btn-wa:hover,.grupo-hdr.est-finalizado .btn-wa:hover{background:rgba(255,255,255,.9);}
+.grupo-hdr.est-en-ruta .veh-estado{background:rgba(139,74,0,.14);color:#8B4A00;}
+.grupo-hdr.est-en-ruta .veh-estado.finalizado,.grupo-hdr.est-finalizado .veh-estado{background:rgba(10,102,64,.14);color:#0A6640;}
 
 /* Iniciales del comercial del proyecto */
 .cli-wrap{display:flex;align-items:center;gap:6px;min-width:0;}
@@ -95,7 +96,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* Casillas Office / Lavanderia */
 .td-area{text-align:center;}
 .td-area input[type=checkbox]{width:16px;height:16px;cursor:pointer;vertical-align:middle;accent-color:#1D9E75;}
-.td-area input[type=checkbox]:disabled{cursor:default;}
+.td-area input[type=checkbox]:disabled{cursor:default;opacity:.35;}
 
 /* TABLA — columnas con ancho fijo para que no se muevan */
 .tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;table-layout:fixed;}
@@ -899,10 +900,15 @@ function renderFila(idx,gkey){
   // Iniciales del comercial que ha hecho el proyecto
   var iniCom=epInfo?inicialesComercial(epInfo.comercial):'';
   var comH=iniCom?('<span class="com-ini" title="Comercial: '+String(epInfo.comercial).replace(/"/g,'&quot;')+'">'+iniCom+'</span>'):'';
-  // Casillas Office / Lavanderia: se guardan al marcar (solo logistica puede cambiarlas)
+  // Casillas Office / Lavanderia: solo en ENTREGAS, y solo se pueden marcar si el
+  // proyecto lleva material de esa area (si no, salen deshabilitadas). Se guardan
+  // al marcar; solo logistica puede cambiarlas.
   var areaPar=checksArea[claveEst]||{office:false,lavanderia:false};
   var areaChk=function(campo){
-    return '<input type="checkbox"'+(areaPar[campo]?' checked':'')+(ROL==='logistica'?' onchange="toggleCheckArea(this,'+idx+',\''+campo+'\')"':' disabled')+'>';
+    if(tipo!=='entrega')return'';
+    var tieneMaterial=!!(epInfo&&epInfo['tiene_'+campo]);
+    var tit=tieneMaterial?'':' title="Sin material de '+(campo==='office'?'Office':'Lavanderia')+'"';
+    return '<input type="checkbox"'+(areaPar[campo]?' checked':'')+tit+(ROL==='logistica'&&tieneMaterial?' onchange="toggleCheckArea(this,'+idx+',\''+campo+'\')"':' disabled')+'>';
   };
   html+='<td class="td-cli"><div class="cli-wrap">'+comH+'<div class="cli-nom">'+(p.cliente||'—')+'</div></div></td>';
   html+='<td class="td-loc">'+(p.localizacion||'—')+mapsH+'</td>';

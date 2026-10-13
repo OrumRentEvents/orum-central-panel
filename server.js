@@ -1741,12 +1741,19 @@ app.get('/api/rutas/estado-pago', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    const [proyectosResp, facturasResp, cajaResp, serviciosResp] = await Promise.all([
+    const [proyectosResp, facturasResp, cajaResp, serviciosResp, equipmentResp] = await Promise.all([
       llamarOrumCentral('proyectos'),
       llamarOrumCentral('facturas'),
       llamarOrumCentral('caja'),
-      llamarOrumCentral('servicios')
+      llamarOrumCentral('servicios'),
+      llamarOrumCentral('equipment')
     ]);
+    // Proyectos con material de Lavandería / Office (mismas familias que
+    // Preparación): la app de Rutas solo deja marcar la casilla de un área
+    // si el proyecto lleva material suyo. Las líneas sin familia no cuentan.
+    const equipmentConFamilia = (equipmentResp.data || []).filter(e => e.familia);
+    const idsLavanderia = new Set(equipmentConFamilia.filter(e => familiaPerteneceA(e.familia, FAMILIAS_LAVANDERIA)).map(e => String(e.proyecto_id)));
+    const idsOffice = new Set(equipmentConFamilia.filter(e => familiaPerteneceA(e.familia, FAMILIAS_OFFICE)).map(e => String(e.proyecto_id)));
     const proyectos = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI');
     const facturas = facturasResp.data || [];
     const ncConfirmaciones = cajaResp.nc_confirmaciones || [];
@@ -1801,7 +1808,8 @@ app.get('/api/rutas/estado-pago', async (req, res) => {
         }
       }
       const serviciosExtra = serviciosPorProyectoId[String(p.id)] || [];
-      resultado[String(p.id)] = { estado_pago: estadoPago, detalle_pago: detallePago, servicios_extra: serviciosExtra, comercial: p.comercial || '' };
+      resultado[String(p.id)] = { estado_pago: estadoPago, detalle_pago: detallePago, servicios_extra: serviciosExtra, comercial: p.comercial || '',
+        tiene_lavanderia: idsLavanderia.has(String(p.id)), tiene_office: idsOffice.has(String(p.id)) };
     });
 
     res.json({ ok: true, estado_pago: resultado });
