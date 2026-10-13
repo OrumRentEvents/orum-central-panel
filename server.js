@@ -1503,6 +1503,8 @@ app.post('/api/rutas/manual', async (req, res) => {
       fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, notas: req.body.notas,
       descripcion: req.body.descripcion, direccion: req.body.direccion, numero: req.body.numero
     });
+    // Vehículo, orden, notas o paradas manuales: las demás pantallas recargan las paradas.
+    if (!data || !data.error) emitirRutas('paradas', {}, req.body.cid);
     res.json(data);
   } catch (err) {
     console.error('Error en /api/rutas/manual:', err);
@@ -1525,6 +1527,39 @@ app.post('/api/rutas/backup-hoy', async (req, res) => {
     console.error('Error en /api/rutas/backup-hoy:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── TIEMPO REAL: aviso a todas las pantallas de Rutas abiertas ──
+// Server-Sent Events: cada pantalla mantiene abierta GET /api/rutas/eventos
+// y el servidor le manda una línea cada vez que alguien guarda algo. No se
+// consulta nada mientras tanto (ni Supabase, ni Google, ni Rentman).
+// "cid" identifica a la pantalla que hizo el cambio, para que no se aplique
+// a sí misma su propio aviso. Vale con memoria local porque hay una sola
+// instancia del servidor en Railway.
+const CLIENTES_EVENTOS_RUTAS = new Set();
+function emitirRutas(tipo, datos, cid) {
+  const linea = 'data: ' + JSON.stringify({ tipo, datos: datos || {}, cid: cid || '' }) + '\n\n';
+  CLIENTES_EVENTOS_RUTAS.forEach(cliente => { try { cliente.write(linea); } catch (e) {} });
+}
+// Latido: los proxies cortan las conexiones que pasan mucho rato en silencio.
+setInterval(() => {
+  CLIENTES_EVENTOS_RUTAS.forEach(cliente => { try { cliente.write(': latido\n\n'); } catch (e) {} });
+}, 25000).unref();
+
+app.get('/api/rutas/eventos', (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+  res.flushHeaders();
+  res.write('retry: 5000\n\n');
+  CLIENTES_EVENTOS_RUTAS.add(res);
+  req.on('close', () => CLIENTES_EVENTOS_RUTAS.delete(res));
 });
 
 // ── Conductores, estado de ruta y estado de parada: Supabase es la fuente ──
@@ -1614,7 +1649,7 @@ app.post('/api/rutas/conductores', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    const { action, token, ...resto } = req.body;
+    const { action, token, cid, ...resto } = req.body;
     if (action !== 'set_conductores' && action !== 'set_choferes') {
       return res.status(400).json({ error: 'Accion no reconocida' });
     }
@@ -1625,6 +1660,7 @@ app.post('/api/rutas/conductores', async (req, res) => {
       const data = await llamarRutasScript('set_choferes', {}, 'POST', resto);
       if (data && data.error) throw new Error(data.error);
       CACHE_CHOFERES = { lista: resto.choferes || [], timestamp: Date.now() };
+      emitirRutas('choferes', { choferes: CACHE_CHOFERES.lista }, cid);
     } else {
       const fecha = resto.fecha, vehiculo = resto.vehiculo, vuelta = parseInt(resto.vuelta) || 1;
       if (!fecha || !vehiculo) return res.status(400).json({ error: 'Faltan datos' });
@@ -1634,6 +1670,7 @@ app.post('/api/rutas/conductores', async (req, res) => {
           { fecha, vehiculo, vuelta, conductores, updated: new Date().toISOString() },
           { onConflict: 'fecha,vehiculo,vuelta' });
         if (error) throw error;
+        emitirRutas('conductores', { fecha, vehiculo, vuelta, conductores }, cid);
         await copiarARutasScript({ action: 'set_conductores', fecha, vehiculo, vuelta, conductores });
       });
     }
@@ -1675,6 +1712,7 @@ app.post('/api/rutas/estado-vehiculos', async (req, res) => {
         { fecha, vehiculo, vuelta, estado: estado || null, usuario, updated: new Date().toISOString() },
         { onConflict: 'fecha,vehiculo,vuelta' });
       if (error) throw error;
+      emitirRutas('estado_vehiculo', { fecha, vehiculo, vuelta, estado }, req.body.cid);
       await copiarARutasScript({ action: 'set_estado_vehiculo', fecha, vehiculo, vuelta, estado, usuario });
     });
     logHistorialRutas(usuario, 'set_estado_vehiculo', { fecha, vehiculo, vuelta, estado });
@@ -1732,6 +1770,7 @@ app.post('/api/rutas/estados-parada', async (req, res) => {
       const { error } = await supabase.from('rutas_estados_parada').upsert(
         { clave, ...estado, incidencia_texto: estado.incidencia_texto || null, usuario, updated_raw: new Date().toISOString() });
       if (error) throw error;
+      emitirRutas('estado_parada', { clave, ...estado }, req.body.cid);
       await copiarARutasScript({ action: 'set_estado_parada', clave, ...estado, usuario });
     });
     logHistorialRutas(usuario, 'set_estado_parada', { clave, ...estado });
@@ -1772,6 +1811,7 @@ app.post('/api/rutas/checks-area', async (req, res) => {
       clave, [campo]: valor, usuario, updated_raw: new Date().toISOString()
     });
     if (error) throw error;
+    emitirRutas('check_area', { clave, campo, valor }, req.body.cid);
     logHistorialRutas(usuario, 'set_check_area', { clave, campo, valor });
     res.json({ ok: true });
   } catch (err) {

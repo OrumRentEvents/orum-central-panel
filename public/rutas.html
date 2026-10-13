@@ -433,6 +433,7 @@ function pinCheck(){
     document.getElementById('btn-backup').style.display='inline-block';
   }
   initVehs(); initSelectorMes(); setHoy(); load();
+  iniciarTiempoReal();
 }
 
 // Refresco automático QUITADO (25 ago 2026) - interrumpía a quien estaba
@@ -486,9 +487,15 @@ function initSelectorMes(){
 }
 
 // ── CARGA ──
-function load(){
-  document.getElementById('body').innerHTML='<div class="load">Cargando paradas...</div>';
-  document.getElementById('hstats').textContent='';
+// silencioso===true: recarga en segundo plano (tiempo real). No muestra "Cargando...",
+// y si al llegar los datos el usuario esta en mitad de algo, se descartan y se reintenta luego.
+function load(silencioso){
+  silencioso=(silencioso===true); // load tambien se usa como manejador de clic: ahi llega un Event
+  if(!silencioso){
+    document.getElementById('body').innerHTML='<div class="load">Cargando paradas...</div>';
+    document.getElementById('hstats').textContent='';
+  }
+  var seqAlPedir=seqLocal, modoAlPedir=modo;
   var r=rango();
   var urlParadas='/api/rutas?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
   var urlConductores='/api/rutas/conductores?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
@@ -510,48 +517,153 @@ function load(){
     var dataEstadoVeh=resultados[2];
     var dataEstadosParada=resultados[3];
     var dataEstadoPago=resultados[4];
+    var dataChecksArea=resultados[5]||{};
 
-    if(data.error){document.getElementById('body').innerHTML='<div class="load">Error: '+data.error+'</div>';return;}
+    if(silencioso){
+      // Datos pedidos antes de un cambio propio, o el usuario esta ocupado: no se aplican (se reintenta)
+      if(data.error||!data.paradas||seqAlPedir!==seqLocal||modoAlPedir!==modo||postsEnCurso>0||usuarioOcupado()){recargaPendiente=true;return;}
+    } else if(data.error){document.getElementById('body').innerHTML='<div class="load">Error: '+data.error+'</div>';return;}
+    var firmaAntes=silencioso?firmaDatos():'';
     paradas=data.paradas||[];
     if(data.vehiculos)VEHS=data.vehiculos;
 
+    // En recarga silenciosa, si una de las consultas secundarias falla se conserva lo que ya habia
     // Cargar choferes y asignaciones
     if(dataCond.choferes&&dataCond.choferes.length>0) CHOFERES=dataCond.choferes;
-    asignacionesConductores={};
-    (dataCond.asignaciones||[]).forEach(function(a){
-      var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
-      asignacionesConductores[clave]=a.conductores||[];
-    });
+    if(!silencioso||dataCond.asignaciones){
+      asignacionesConductores={};
+      (dataCond.asignaciones||[]).forEach(function(a){
+        var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
+        asignacionesConductores[clave]=a.conductores||[];
+      });
+    }
 
     // Cargar estado de vehiculos (EN RUTA / FINALIZADO)
-    estadosVehiculo={};
-    (dataEstadoVeh.estados||[]).forEach(function(a){
-      var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
-      estadosVehiculo[clave]=a.estado||'';
-    });
+    if(!silencioso||dataEstadoVeh.estados){
+      estadosVehiculo={};
+      (dataEstadoVeh.estados||[]).forEach(function(a){
+        var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
+        estadosVehiculo[clave]=a.estado||'';
+      });
+    }
 
     // Cargar estados de parada (preparado/cargado/incidencia)
-    estadosParada={};
-    (dataEstadosParada.estados||[]).forEach(function(a){
-      estadosParada[a.clave]={preparado:!!a.preparado,cargado:!!a.cargado,incidencia:!!a.incidencia,incidencia_texto:a.incidencia_texto||''};
-    });
+    if(!silencioso||dataEstadosParada.estados){
+      estadosParada={};
+      (dataEstadosParada.estados||[]).forEach(function(a){
+        estadosParada[a.clave]={preparado:!!a.preparado,cargado:!!a.cargado,incidencia:!!a.incidencia,incidencia_texto:a.incidencia_texto||''};
+      });
+    }
 
     // Cargar estado de pago + servicios extra por proyecto
-    estadoPago=dataEstadoPago.estado_pago||{};
+    if(!silencioso||dataEstadoPago.estado_pago) estadoPago=dataEstadoPago.estado_pago||{};
 
     // Cargar casillas Office / Lavanderia
-    checksArea={};
-    ((resultados[5]||{}).checks||[]).forEach(function(a){
-      checksArea[a.clave]={office:!!a.office,lavanderia:!!a.lavanderia};
-    });
+    if(!silencioso||dataChecksArea.checks){
+      checksArea={};
+      (dataChecksArea.checks||[]).forEach(function(a){
+        checksArea[a.clave]={office:!!a.office,lavanderia:!!a.lavanderia};
+      });
+    }
 
-    render();
+    // Recarga silenciosa sin ninguna diferencia: no se repinta (salvo que hubiera un repintado esperando)
+    if(!silencioso||renderPendiente||firmaDatos()!==firmaAntes){
+      renderPendiente=false;
+      render();
+    }
     var ahora=new Date();
     var hh=ahora.getHours().toString().padStart(2,'0');
     var mm=ahora.getMinutes().toString().padStart(2,'0');
     var elUpd=document.getElementById('hupdated');
     if(elUpd)elUpd.textContent='Actualizado '+hh+':'+mm;
-  }).catch(function(){document.getElementById('body').innerHTML='<div class="load">Error de conexion</div>';});
+  }).catch(function(){
+    if(silencioso){recargaPendiente=true;return;}
+    document.getElementById('body').innerHTML='<div class="load">Error de conexion</div>';
+  });
+}
+
+// ── TIEMPO REAL ──
+// El servidor avisa (Server-Sent Events) cada vez que alguien guarda algo en Rutas y
+// esta pantalla lo aplica sola. Nunca se repinta mientras el usuario esta arrastrando
+// una parada, tiene un detalle abierto o un modal abierto: el cambio espera a que termine.
+var CLIENTE_ID=Math.random().toString(36).slice(2)+Date.now().toString(36);
+var seqLocal=0;        // sube con cada guardado propio: invalida recargas silenciosas pedidas antes
+var postsEnCurso=0;    // guardados propios todavia sin respuesta
+var arrastrando=false;
+var renderPendiente=false, recargaPendiente=false, recargaTimer=null, fuenteEventos=null;
+var COMPROBACION_SILENCIOSA_MS=60*1000; // cambios que vienen de Rentman (no pasan por el servidor)
+
+// Huella de todo lo que pinta render(): sirve para saber si una recarga silenciosa trae algo distinto
+function firmaDatos(){
+  return JSON.stringify([paradas,VEHS,asignacionesConductores,estadosVehiculo,estadosParada,estadoPago,checksArea]);
+}
+
+// Todos los guardados de Rutas pasan por aqui: se cuentan y llevan el id de esta pantalla,
+// para que el servidor no nos devuelva el aviso de nuestro propio cambio.
+var fetchOriginal=window.fetch.bind(window);
+window.fetch=function(url,opts){
+  if(!opts||opts.method!=='POST'||String(url).indexOf('/api/rutas/')!==0)return fetchOriginal(url,opts);
+  try{var cuerpo=JSON.parse(opts.body);cuerpo.cid=CLIENTE_ID;opts=Object.assign({},opts,{body:JSON.stringify(cuerpo)});}catch(e){}
+  seqLocal++;postsEnCurso++;
+  var fin=function(){postsEnCurso--;};
+  var p=fetchOriginal(url,opts);
+  p.then(fin,fin);
+  return p;
+};
+
+function usuarioOcupado(){
+  if(arrastrando)return true;
+  if(document.querySelector('.fila-det.open'))return true;
+  if(document.getElementById('modal').classList.contains('open'))return true;
+  return ['modal-conductores','modal-choferes','modal-material','modal-servicios','modal-cambiar-veh','modal-historial'].some(function(id){
+    var m=document.getElementById(id);
+    return m&&m.style.display&&m.style.display!=='none';
+  });
+}
+
+function programarRecargaSilenciosa(){
+  // Reordenar una ruta manda un guardado por parada: se espera a que acaben de llegar los avisos
+  recargaPendiente=true;
+  clearTimeout(recargaTimer);
+  recargaTimer=setTimeout(aplicarPendientes,1500);
+}
+
+function aplicarPendientes(){
+  if(ROL===''||usuarioOcupado()||postsEnCurso>0)return;
+  if(recargaPendiente){recargaPendiente=false;load(true);}
+  else if(renderPendiente){renderPendiente=false;render();}
+}
+
+function recibirEventoRutas(ev){
+  var m;try{m=JSON.parse(ev.data);}catch(e){return;}
+  if(!m||m.cid===CLIENTE_ID)return;
+  var d=m.datos||{};
+  if(m.tipo==='estado_vehiculo'){estadosVehiculo[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.estado||'';}
+  else if(m.tipo==='conductores'){asignacionesConductores[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.conductores||[];}
+  else if(m.tipo==='choferes'){if(d.choferes&&d.choferes.length>0)CHOFERES=d.choferes;return;}
+  else if(m.tipo==='estado_parada'){estadosParada[d.clave]={preparado:!!d.preparado,cargado:!!d.cargado,incidencia:!!d.incidencia,incidencia_texto:d.incidencia_texto||''};}
+  else if(m.tipo==='check_area'){
+    if(!checksArea[d.clave])checksArea[d.clave]={office:false,lavanderia:false};
+    checksArea[d.clave][d.campo]=!!d.valor;
+  }
+  else if(m.tipo==='paradas'){programarRecargaSilenciosa();return;}
+  else return;
+  renderPendiente=true;
+  aplicarPendientes();
+}
+
+function iniciarTiempoReal(){
+  if(fuenteEventos||!window.EventSource)return;
+  var conectadoAntes=false;
+  fuenteEventos=new EventSource('/api/rutas/eventos?token=ORUMx2026RutasPublic');
+  fuenteEventos.onmessage=recibirEventoRutas;
+  // Tras un corte (p.ej. un despliegue del servidor) puede haberse perdido algun aviso: se recarga todo
+  fuenteEventos.onopen=function(){if(conectadoAntes)programarRecargaSilenciosa();conectadoAntes=true;};
+  document.addEventListener('dragstart',function(){arrastrando=true;});
+  document.addEventListener('dragend',function(){arrastrando=false;});
+  // Lo que quedo esperando se aplica en cuanto el usuario termina lo que estaba haciendo
+  setInterval(aplicarPendientes,1000);
+  setInterval(function(){if(!document.hidden)programarRecargaSilenciosa();},COMPROBACION_SILENCIOSA_MS);
 }
 
 // CAMBIO: obtener conductor específico de un vehículo concreto
