@@ -1664,6 +1664,45 @@ app.post('/api/rutas/estados-parada', async (req, res) => {
   }
 });
 
+// ── CHECKS DE ÁREA: parada asignada a Office / Lavandería ──
+// A diferencia de preparado/cargado (Apps Script de Rutas), estos van
+// directos a Supabase (tabla rutas_checks_area, ver sql/rutas_checks_area.sql).
+app.get('/api/rutas/checks-area', async (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const data = await selectAll('rutas_checks_area', 'clave,office,lavanderia');
+    res.json({ ok: true, checks: data });
+  } catch (err) {
+    console.error('Error en GET /api/rutas/checks-area:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/rutas/checks-area — el frontend solo lo llama con un PIN de rol logistica
+app.post('/api/rutas/checks-area', async (req, res) => {
+  if (req.body.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
+    const { clave, campo } = req.body;
+    const valor = !!req.body.valor;
+    if (!clave || (campo !== 'office' && campo !== 'lavanderia')) return res.status(400).json({ error: 'Faltan datos' });
+    // Solo se envía la columna que cambia: el upsert no toca la otra casilla.
+    const { error } = await supabase.from('rutas_checks_area').upsert({
+      clave, [campo]: valor, usuario, updated_raw: new Date().toISOString()
+    });
+    if (error) throw error;
+    logHistorialRutas(usuario, 'set_check_area', { clave, campo, valor });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error en POST /api/rutas/checks-area:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── MATERIAL DE UN PROYECTO (para el detalle en Rutas) ──
 // GET /api/rutas/material?proyecto_id=1234
 app.get('/api/rutas/material', async (req, res) => {
@@ -1762,7 +1801,7 @@ app.get('/api/rutas/estado-pago', async (req, res) => {
         }
       }
       const serviciosExtra = serviciosPorProyectoId[String(p.id)] || [];
-      resultado[String(p.id)] = { estado_pago: estadoPago, detalle_pago: detallePago, servicios_extra: serviciosExtra };
+      resultado[String(p.id)] = { estado_pago: estadoPago, detalle_pago: detallePago, servicios_extra: serviciosExtra, comercial: p.comercial || '' };
     });
 
     res.json({ ok: true, estado_pago: resultado });
