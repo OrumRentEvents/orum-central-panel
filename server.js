@@ -11,7 +11,7 @@ const fetch = require('node-fetch');
 const path = require('path');
 const multer = require('multer');
 const XLSX = require('xlsx');
-const { selectAll, llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerEstadisticasRutas, obtenerEstadisticasMaterial, obtenerParadasParaEvolucion, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
+const { selectAll, llamarOrumCentralSupabase, obtenerMaterialDeProyecto, obtenerDetalleProyecto, obtenerConductores, obtenerEstadoVehiculos, obtenerEstadisticasRutas, obtenerEstadisticasMaterial, obtenerParadasParaEvolucion, ACCIONES: ACCIONES_SUPABASE, supabase } = require('./lib/supabaseSource');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1527,6 +1527,71 @@ app.post('/api/rutas/backup-hoy', async (req, res) => {
   }
 });
 
+// ── Conductores, estado de ruta y estado de parada: Supabase es la fuente ──
+// Hasta oct 2026 la pantalla leía y escribía estos tres datos en la hoja
+// "RUTA ORUM 2026" (Apps Script) y el script los copiaba a Supabase. Esa
+// copia perdía cambios: dos clics seguidos sobre el mismo vehículo se
+// ejecutaban en paralelo en Google, dejaban filas duplicadas en la hoja y
+// llegaban a Supabase en orden inverso. Ahora server.js escribe en Supabase
+// directamente, la pantalla lee de Supabase, y la hoja de Google se sigue
+// actualizando como copia de seguridad.
+
+// Cola por dato: las escrituras sobre un mismo vehículo+vuelta+día (o una
+// misma parada) se ejecutan de una en una y en orden de llegada. La tarea
+// espera a que Google termine antes de soltar la cola — el Apps Script
+// también escribe en Supabase por su cuenta, y sin esto un guardado viejo
+// todavía en curso podría pisar a uno más nuevo.
+const COLAS_RUTAS = new Map();
+function enColaRutas(clave, tarea) {
+  const previa = COLAS_RUTAS.get(clave) || Promise.resolve();
+  const actual = previa.catch(() => {}).then(tarea);
+  COLAS_RUTAS.set(clave, actual);
+  actual.catch(() => {}).finally(() => { if (COLAS_RUTAS.get(clave) === actual) COLAS_RUTAS.delete(clave); });
+  return actual;
+}
+
+// Copia de seguridad en la hoja de Google. Nunca rompe el guardado: si
+// Google falla o tarda demasiado, el dato ya está en Supabase.
+async function copiarARutasScript(payload) {
+  if (!RUTAS_SCRIPT_URL) return;
+  try {
+    const resp = await fetch(RUTAS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'ORUMx2026RutasPublic', ...payload }),
+      signal: AbortSignal.timeout(25000)
+    });
+    const data = await resp.json();
+    if (data && data.error) console.error('Copia a Google de Rutas (' + payload.action + ') devolvió error:', data.error);
+  } catch (err) {
+    console.error('Copia a Google de Rutas (' + payload.action + ') falló:', err.message);
+  }
+}
+
+// La lista de choferes (nombres que salen al asignar conductores) sigue
+// viviendo en la pestaña CONFIG de la hoja de Google. Cambia muy poco, así
+// que se guarda en memoria para no llamar a Google en cada carga.
+let CACHE_CHOFERES = { lista: null, timestamp: 0 };
+const CACHE_CHOFERES_TTL_MS = 10 * 60 * 1000;
+async function obtenerChoferes() {
+  if (CACHE_CHOFERES.lista && (Date.now() - CACHE_CHOFERES.timestamp) < CACHE_CHOFERES_TTL_MS) return CACHE_CHOFERES.lista;
+  if (!RUTAS_SCRIPT_URL) return [];
+  try {
+    // Rango vacío a propósito: solo interesa la lista, no las asignaciones.
+    const data = await llamarRutasScript('get_conductores', { desde: '1900-01-01', hasta: '1900-01-01' });
+    if (data && Array.isArray(data.choferes)) CACHE_CHOFERES = { lista: data.choferes, timestamp: Date.now() };
+  } catch (err) {
+    console.error('No se pudo leer la lista de choferes de Google:', err.message);
+  }
+  // Si Google falla se sirve la última lista conocida; si no hay ninguna,
+  // el frontend usa la suya por defecto.
+  return CACHE_CHOFERES.lista || [];
+}
+
+function usuarioRutas(req) {
+  return req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
+}
+
 // ── CONDUCTORES: asignación por vehículo+vuelta+día ──
 // GET /api/rutas/conductores?desde=2026-07-13&hasta=2026-07-13
 app.get('/api/rutas/conductores', async (req, res) => {
@@ -1535,12 +1600,8 @@ app.get('/api/rutas/conductores', async (req, res) => {
   }
   try {
     const { desde, hasta } = req.query;
-    if (!RUTAS_SCRIPT_URL) {
-      // Si no está configurada la URL, devolver vacío en vez de error
-      return res.json({ ok: true, asignaciones: [], choferes: [] });
-    }
-    const data = await llamarRutasScript('get_conductores', { desde: desde || '', hasta: hasta || '' });
-    res.json(data);
+    const [data, choferes] = await Promise.all([obtenerConductores(desde, hasta), obtenerChoferes()]);
+    res.json({ ok: true, asignaciones: data.asignaciones, choferes });
   } catch (err) {
     console.error('Error en GET /api/rutas/conductores:', err);
     res.status(500).json({ error: err.message });
@@ -1553,24 +1614,31 @@ app.post('/api/rutas/conductores', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    const { action, ...resto } = req.body;
-    console.log('POST /api/rutas/conductores — action:', action, '| body:', JSON.stringify(req.body));
+    const { action, token, ...resto } = req.body;
     if (action !== 'set_conductores' && action !== 'set_choferes') {
       return res.status(400).json({ error: 'Accion no reconocida' });
     }
-    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
-    const payload = { token: 'ORUMx2026RutasPublic', action, ...resto };
-    console.log('Enviando a Apps Script:', JSON.stringify(payload));
-    const resp = await fetch(RUTAS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await resp.json();
-    console.log('Respuesta Apps Script:', JSON.stringify(data));
-    const usuarioLog = resto.usuario || (req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : 'Logistica');
+    const usuarioLog = resto.usuario || usuarioRutas(req);
+    if (action === 'set_choferes') {
+      // La lista solo vive en Google: aquí sí hay que esperar su respuesta.
+      if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
+      const data = await llamarRutasScript('set_choferes', {}, 'POST', resto);
+      if (data && data.error) throw new Error(data.error);
+      CACHE_CHOFERES = { lista: resto.choferes || [], timestamp: Date.now() };
+    } else {
+      const fecha = resto.fecha, vehiculo = resto.vehiculo, vuelta = parseInt(resto.vuelta) || 1;
+      if (!fecha || !vehiculo) return res.status(400).json({ error: 'Faltan datos' });
+      const conductores = resto.conductores || [];
+      await enColaRutas('cond_' + fecha + '_' + vehiculo + '_' + vuelta, async () => {
+        const { error } = await supabase.from('rutas_conductores').upsert(
+          { fecha, vehiculo, vuelta, conductores, updated: new Date().toISOString() },
+          { onConflict: 'fecha,vehiculo,vuelta' });
+        if (error) throw error;
+        await copiarARutasScript({ action: 'set_conductores', fecha, vehiculo, vuelta, conductores });
+      });
+    }
     logHistorialRutas(usuarioLog, action, resto);
-    res.json(data);
+    res.json({ ok: true });
   } catch (err) {
     console.error('Error en POST /api/rutas/conductores:', err);
     res.status(500).json({ error: err.message });
@@ -1585,10 +1653,7 @@ app.get('/api/rutas/estado-vehiculos', async (req, res) => {
   }
   try {
     const { desde, hasta } = req.query;
-    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true, estados: [] });
-    const params = new URLSearchParams({ token: RUTAS_SCRIPT_TOKEN, action: 'get_estado_vehiculos', desde: desde || '', hasta: hasta || '' });
-    const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
-    res.json(await resp.json());
+    res.json(await obtenerEstadoVehiculos(desde, hasta));
   } catch (err) {
     console.error('Error en GET /api/rutas/estado-vehiculos:', err);
     res.status(500).json({ error: err.message });
@@ -1601,13 +1666,19 @@ app.post('/api/rutas/estado-vehiculos', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
-    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
-    const payload = { token: 'ORUMx2026RutasPublic', action: 'set_estado_vehiculo', fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, estado: req.body.estado, usuario };
-    const resp = await fetch(RUTAS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await resp.json();
-    logHistorialRutas(usuario, 'set_estado_vehiculo', { fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, estado: req.body.estado });
-    res.json(data);
+    const usuario = usuarioRutas(req);
+    const fecha = req.body.fecha, vehiculo = req.body.vehiculo, vuelta = parseInt(req.body.vuelta) || 1;
+    const estado = req.body.estado || '';
+    if (!fecha || !vehiculo) return res.status(400).json({ error: 'Faltan datos' });
+    await enColaRutas('estveh_' + fecha + '_' + vehiculo + '_' + vuelta, async () => {
+      const { error } = await supabase.from('rutas_estado_vehiculos').upsert(
+        { fecha, vehiculo, vuelta, estado: estado || null, usuario, updated: new Date().toISOString() },
+        { onConflict: 'fecha,vehiculo,vuelta' });
+      if (error) throw error;
+      await copiarARutasScript({ action: 'set_estado_vehiculo', fecha, vehiculo, vuelta, estado, usuario });
+    });
+    logHistorialRutas(usuario, 'set_estado_vehiculo', { fecha, vehiculo, vuelta, estado });
+    res.json({ ok: true });
   } catch (err) {
     console.error('Error en POST /api/rutas/estado-vehiculos:', err);
     res.status(500).json({ error: err.message });
@@ -1615,15 +1686,14 @@ app.post('/api/rutas/estado-vehiculos', async (req, res) => {
 });
 
 // ── ESTADOS DE PARADA: preparado / cargado / incidencia ──
+// Tabla propia (rutas_estados_parada, ver sql/rutas_estados_parada.sql).
 app.get('/api/rutas/estados-parada', async (req, res) => {
   if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true, estados: [] });
-    const params = new URLSearchParams({ token: RUTAS_SCRIPT_TOKEN, action: 'get_estados_parada' });
-    const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
-    res.json(await resp.json());
+    const data = await selectAll('rutas_estados_parada', 'clave,preparado,cargado,incidencia,incidencia_texto,usuario');
+    res.json({ ok: true, estados: data });
   } catch (err) {
     console.error('Error en GET /api/rutas/estados-parada:', err);
     res.status(500).json({ error: err.message });
@@ -1651,13 +1721,21 @@ app.post('/api/rutas/estados-parada', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
-    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
-    const payload = { token: 'ORUMx2026RutasPublic', action: 'set_estado_parada', clave: req.body.clave, preparado: req.body.preparado, cargado: req.body.cargado, incidencia: req.body.incidencia, incidencia_texto: req.body.incidencia_texto, usuario };
-    const resp = await fetch(RUTAS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await resp.json();
-    logHistorialRutas(usuario, 'set_estado_parada', { clave: req.body.clave, preparado: req.body.preparado, cargado: req.body.cargado, incidencia: req.body.incidencia, incidencia_texto: req.body.incidencia_texto });
-    res.json(data);
+    const usuario = usuarioRutas(req);
+    const clave = req.body.clave;
+    if (!clave) return res.status(400).json({ error: 'Faltan datos' });
+    const estado = {
+      preparado: !!req.body.preparado, cargado: !!req.body.cargado, incidencia: !!req.body.incidencia,
+      incidencia_texto: req.body.incidencia_texto || ''
+    };
+    await enColaRutas('estpar_' + clave, async () => {
+      const { error } = await supabase.from('rutas_estados_parada').upsert(
+        { clave, ...estado, incidencia_texto: estado.incidencia_texto || null, usuario, updated_raw: new Date().toISOString() });
+      if (error) throw error;
+      await copiarARutasScript({ action: 'set_estado_parada', clave, ...estado, usuario });
+    });
+    logHistorialRutas(usuario, 'set_estado_parada', { clave, ...estado });
+    res.json({ ok: true });
   } catch (err) {
     console.error('Error en POST /api/rutas/estados-parada:', err);
     res.status(500).json({ error: err.message });
@@ -1665,8 +1743,7 @@ app.post('/api/rutas/estados-parada', async (req, res) => {
 });
 
 // ── CHECKS DE ÁREA: parada asignada a Office / Lavandería ──
-// A diferencia de preparado/cargado (Apps Script de Rutas), estos van
-// directos a Supabase (tabla rutas_checks_area, ver sql/rutas_checks_area.sql).
+// Tabla rutas_checks_area en Supabase (ver sql/rutas_checks_area.sql).
 app.get('/api/rutas/checks-area', async (req, res) => {
   if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
     return res.status(401).json({ error: 'No autorizado' });
