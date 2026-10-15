@@ -1781,6 +1781,60 @@ app.post('/api/rutas/estados-parada', async (req, res) => {
   }
 });
 
+// ── TRANSPALÉ: paradas que necesitan llevar transpalé ──
+// Tabla rutas_transpale (ver sql/rutas_transpale.sql). La clave de las paradas de proyecto es
+// "<proyecto_id>_ENTREGA" / "<proyecto_id>_RECOGIDA", sin fecha, para que la marca no se pierda
+// si el proyecto cambia de día. Marcar la ENTREGA marca también la RECOGIDA del mismo proyecto
+// (si hizo falta para descargar, hará falta para cargar); esa marca automática se quita sola al
+// desmarcar la entrega, salvo que alguien la hubiera tocado a mano en la recogida.
+app.get('/api/rutas/transpale', async (req, res) => {
+  if (req.query.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const data = await selectAll('rutas_transpale', 'clave,transpale,auto', q => q.eq('transpale', true));
+    res.json({ ok: true, transpale: data });
+  } catch (err) {
+    console.error('Error en GET /api/rutas/transpale:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/rutas/transpale — el frontend solo lo llama con un PIN de rol logistica
+app.post('/api/rutas/transpale', async (req, res) => {
+  if (req.body.token !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const usuario = usuarioRutas(req);
+    const clave = String(req.body.clave || '');
+    const valor = !!req.body.valor;
+    if (!clave) return res.status(400).json({ error: 'Faltan datos' });
+    const ahora = new Date().toISOString();
+    const filas = [{ clave, transpale: valor, auto: false, usuario, updated_raw: ahora }];
+
+    const entrega = clave.match(/^(\d+)_ENTREGA$/);
+    if (entrega) {
+      const claveRecogida = entrega[1] + '_RECOGIDA';
+      const { data: previa, error: errPrevia } = await supabase.from('rutas_transpale').select('transpale,auto').eq('clave', claveRecogida).maybeSingle();
+      if (errPrevia) throw errPrevia;
+      const marcadaAMano = previa && previa.transpale && !previa.auto;
+      if (valor && !marcadaAMano) filas.push({ clave: claveRecogida, transpale: true, auto: true, usuario, updated_raw: ahora });
+      if (!valor && previa && previa.transpale && previa.auto) filas.push({ clave: claveRecogida, transpale: false, auto: false, usuario, updated_raw: ahora });
+    }
+
+    const { error } = await supabase.from('rutas_transpale').upsert(filas);
+    if (error) throw error;
+    const cambios = filas.map(f => ({ clave: f.clave, transpale: f.transpale, auto: f.auto }));
+    emitirRutas('transpale', { filas: cambios }, req.body.cid);
+    logHistorialRutas(usuario, 'set_transpale', { clave, valor, recogida_automatica: filas.length > 1 });
+    res.json({ ok: true, filas: cambios });
+  } catch (err) {
+    console.error('Error en POST /api/rutas/transpale:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── CHECKS DE ÁREA: parada asignada a Office / Lavandería ──
 // Tabla rutas_checks_area en Supabase (ver sql/rutas_checks_area.sql).
 app.get('/api/rutas/checks-area', async (req, res) => {
