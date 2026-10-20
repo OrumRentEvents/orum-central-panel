@@ -202,6 +202,9 @@ function soloPersonal(req, res, next) {
   next();
 }
 
+// Módulo Vehículos (flota, vencimientos, mantenimientos, documentos) — ver lib/vehiculosRutas.js
+require('./lib/vehiculosRutas')(app, { supabase, requiereLogin });
+
 // ── Auditoría de Rutas: registra quién hizo qué en la pestaña HISTORIAL_RUTAS ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
 function logHistorialRutas(usuario, accion, detalle) {
