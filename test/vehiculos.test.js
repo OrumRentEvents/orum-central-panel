@@ -122,3 +122,9 @@ test('deshacerRenovacion: vuelve al límite anterior solo si nadie lo ha cambiad
   assert.deepEqual(v.deshacerRenovacion({ fecha_limite: null, km_limite: '240500' }, regKm), { fecha_limite: null, km_limite: 210600 });
   assert.equal(v.deshacerRenovacion({ fecha_limite: '2027-10-18' }, null), null);
 });
+
+test('nombresRutasSinAsignar: un vehículo dado de baja también cuenta como asignado', () => {
+  assert.deepEqual(
+    v.nombresRutasSinAsignar(['IVECO', 'FURGO NDL'], [{ nombre_rutas: 'IVECO', activo: true }, { nombre_rutas: 'FURGO NDL', activo: false }]),
+    []);
+});
