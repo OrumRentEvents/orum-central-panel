@@ -4503,6 +4503,14 @@ app.get('/', (req, res) => {
 const informeComerciales = require('./lib/informeComerciales');
 informeComerciales.registrarRutas(app, requiereLogin);
 
+// Resumen de fianzas pendientes de devolver (viernes 8:00) — ver lib/emailFianzas.js.
+// Las solicitudes las gestiona la app Caja en Supabase (fianza_solicitudes).
+const emailFianzas = require('./lib/emailFianzas').crearEmailFianzas({
+  supabase,
+  enviarCorreo: (para, asunto, html) => informeComerciales._test.enviarCorreo(para, asunto, html)
+});
+emailFianzas.registrarRutas(app, requiereLogin);
+
 // Sincronización directa Rentman → Supabase (ver lib/rentmanSync.js). Tras cada
 // proyecto sincronizado se vacía la caché de datos y se avisa a las pantallas de Rutas.
 const rentmanSync = require('./lib/rentmanSync');
@@ -4598,6 +4606,7 @@ app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
   informeComerciales.programarInformeDiario();
   vehiculosModulo.avisos.programar();
+  emailFianzas.programar();
   holdedSync.programarVolcadoDiario();
   holdedCompras.programarVolcadoGastos();
   holdedSync.recuperarVolcadoDeHoy().catch(e => console.error('[Holded] recuperarVolcadoDeHoy:', e.message));
