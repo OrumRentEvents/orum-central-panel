@@ -140,3 +140,8 @@ test('kmActuales con el localizador: lectura más reciente + km de los días pos
   // sin ninguna lectura no hay cuentakilómetros
   assert.equal(v.kmActuales({ km_base: null }, [], diarios), null);
 });
+
+test('kmActuales: con dos lecturas iguales manda la más reciente', () => {
+  const diarios = [{ fecha: '2026-09-05', km: 50 }, { fecha: '2026-09-12', km: 40 }];
+  assert.equal(v.kmActuales({ km_base: 100000, km_base_fecha: '2026-09-01' }, [{ km: 100000, fecha: '2026-09-10' }], diarios), 100040);
+});

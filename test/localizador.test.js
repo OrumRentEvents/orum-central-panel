@@ -204,3 +204,42 @@ test('combinarFormatos: para cada vehículo y día manda el "Informe detallado"'
   // días en los que entra el informe: hay que borrar lo que viniera del detalle
   assert.deepEqual(r.diasInforme, ['1|2026-10-16']);
 });
+
+test('calcularUso: vueltas sin apuntar en Rutas no se cuelan en el conductor de otra', () => {
+  const vehiculos = [{ id: 1, matricula: '6625MYZ', nombre_rutas: 'IVECO' }];
+  const t = (hora, km, dest, loc) => ({ vehiculo_id: 1, fecha: '2026-09-07', inicio: '2026-09-07 ' + hora + ':00', km, destino: dest, loc_destino: loc, seg_conduccion: 600, seg_paradas: 0 });
+  const trayectos = [t('08:00', 30, 'X', 'Marbella'), t('11:00', 30, ...MONDA), t('15:00', 20, 'Y', 'Coín'), t('18:00', 20, ...MONDA)];
+  // solo está apuntada la vuelta 2
+  const u = L.calcularUso(trayectos, [{ fecha: '2026-09-07', vehiculo: 'IVECO', vuelta: 2, conductores: ['Wilson'] }], {}, vehiculos);
+  assert.equal(u.porConductor.find(c => c.conductor === 'Wilson').km, 40);
+  const dia = u.porVehiculo[0].detalle[0];
+  assert.deepEqual(dia.vueltas.map(x => [x.vuelta, x.conductor, x.km, !!x.sin_rutas]), [[1, null, 60, true], [2, 'Wilson', 40, false]]);
+  // la vuelta sin apuntar va a "sin conductor", no a "sin determinar"
+  assert.equal(u.porConductor.find(c => c.conductor === null), undefined);
+  assert.deepEqual(u.sinConductor.map(s => [s.fecha, s.km, s.vuelta]), [['2026-09-07', 60, 1]]);
+  // una fila con la lista vacía cuenta como no apuntada
+  const u2 = L.calcularUso(trayectos, [{ fecha: '2026-09-07', vehiculo: 'IVECO', vuelta: 1, conductores: [] }, { fecha: '2026-09-07', vehiculo: 'IVECO', vuelta: 2, conductores: ['Wilson'] }], {}, vehiculos);
+  assert.equal(u2.sinConductor[0].km, 60);
+});
+
+test('calcularUso: horas de corte que no cuadran con las vueltas se ignoran', () => {
+  const vehiculos = [{ id: 1, matricula: '6625MYZ', nombre_rutas: 'IVECO' }];
+  const t = (hora, km) => ({ vehiculo_id: 1, fecha: '2026-09-08', inicio: '2026-09-08 ' + hora + ':00', km, destino: 'CARRETERA A-355 KM. 20', loc_destino: 'Monda', seg_conduccion: 600, seg_paradas: 0 });
+  const trayectos = [t('08:00', 10), t('09:00', 10), t('10:00', 10)];
+  const rutas = [1, 2].map(v => ({ fecha: '2026-09-08', vehiculo: 'IVECO', vuelta: v, conductores: ['Wilson'] }));
+  // dos cortes para dos vueltas: no vale → sigue a revisar y no se pierden km
+  const u = L.calcularUso(trayectos, rutas, { '1_2026-09-08': ['08:30', '09:30'] }, vehiculos);
+  assert.equal(u.revisar.length, 1);
+  assert.equal(u.revisar[0].cortes_invalidos, true);
+});
+
+test('fusionarTramos: dos filas con el mismo inicio se suman en vez de perder una', () => {
+  const a = { inicio: '2026-09-26 09:11:23', fin: '2026-09-26 09:12:00', km: 0.22, seg_conduccion: 60, seg_paradas: 10, paradas: 1, litros: 0.1, vel_max: 12 };
+  const b = { inicio: '2026-09-26 09:11:23', fin: '2026-09-26 09:13:30', km: 0.24, seg_conduccion: 90, seg_paradas: null, paradas: 0, litros: 0.2, vel_max: 15 };
+  const f = L.fusionarTramos(a, b);
+  assert.equal(f.km, 0.46);
+  assert.equal(f.seg_conduccion, 150);
+  assert.equal(f.seg_paradas, 10);
+  assert.equal(f.vel_max, 15);
+  assert.equal(f.fin, '2026-09-26 09:13:30');
+});

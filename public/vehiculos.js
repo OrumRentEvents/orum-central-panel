@@ -563,7 +563,7 @@ function vehUsoVehiculos() {
         <td>${vehFecha(dia.fecha)}</td><td>${vehNum(dia.km)}</td><td>${dia.trayectos}</td><td>${vehHoras(dia.seg_paradas)}</td>
         <td>${dia.sin_rutas ? '<span style="color:var(--orange)">Sin conductor en Rutas</span>'
           : dia.revisar ? '<span style="color:var(--orange)">A revisar: las vueltas no cuadran</span>'
-          : dia.vueltas.map(x => `V${x.vuelta} · ${vehConductorTxt(x.conductor)} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
+          : dia.vueltas.map(x => `V${x.vuelta} · ${x.sin_rutas ? '<span style="color:var(--orange)">sin apuntar en Rutas</span>' : vehConductorTxt(x.conductor)} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
     return `<tr style="cursor:pointer;" onclick="vehUsoAbierto = vehUsoAbierto === ${v.vehiculo_id} ? null : ${v.vehiculo_id}; pintarUso();">
       <td><b>${vehEsc(vehMatriculaDe(v.vehiculo_id))}</b> ${abierto ? '▾' : '▸'}</td><td>${vehNum(Math.round(v.km))}</td><td>${v.dias}</td>
       <td>${v.trayectos}</td><td>${vehHoras(v.seg_conduccion)}</td><td>${vehHoras(v.seg_paradas)}</td><td>${vehNum(Math.round(v.km / Math.max(v.dias, 1)))}</td></tr>${detalle}`;
@@ -589,9 +589,10 @@ function vehUsoRevisar() {
       const k = r.vehiculo_id + '_' + r.fecha;
       return `<div style="border-top:1px solid var(--border); padding:10px 0;">
         <b>${vehEsc(vehMatriculaDe(r.vehiculo_id))}</b> · ${vehFecha(r.fecha)} · Rutas: ${r.vueltas} vueltas · localizador: ${r.salidas} salidas · ${vehNum(r.km)} km
+        ${r.cortes_invalidos ? `<div style="font-size:12px; color:var(--red); margin-top:4px;">Las horas de corte guardadas (${r.cortes.map(vehEsc).join(', ')}) ya no cuadran con las vueltas de Rutas: pon ${r.vueltas - 1}.</div>` : ''}
         <div style="font-size:12px; color:var(--text-secondary); margin:6px 0;">${r.trayectos.map(t => `${t.inicio} · ${vehNum(t.km)} km → ${vehEsc(t.destino || '')}${t.loc_destino ? ' (' + vehEsc(t.loc_destino) + ')' : ''}`).join('<br>')}</div>
         <div class="veh-form" style="grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); align-items:end;">
-          <div><label>Horas de corte</label><input id="vc-${k}" type="text" placeholder="13:30"></div>
+          <div><label>Horas de corte (${r.vueltas - 1})</label><input id="vc-${k}" type="text" placeholder="13:30" value="${vehEsc((r.cortes || []).join(', '))}"></div>
           <div><button class="veh-btn prim" onclick="guardarCortesVuelta(${r.vehiculo_id}, '${r.fecha}')">Guardar</button></div>
         </div>
         <div class="veh-error" id="vc-${k}-error"></div>
@@ -612,8 +613,8 @@ function vehUsoSin() {
   const l = vehUsoDatos.sinConductor;
   if (!l.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Todos los días con movimiento tienen conductor en Rutas.</p>';
   return `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">Días en que el localizador registra movimiento pero en Rutas no hay nadie asignado a ese vehículo.</p>
-    <div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Día</th><th>Km</th><th>Trayectos</th></tr></thead><tbody>
-    ${[...l].sort((a, b) => b.km - a.km).map(s => `<tr><td>${vehEsc(vehMatriculaDe(s.vehiculo_id))}</td><td>${vehFecha(s.fecha)}</td><td>${vehNum(s.km)}</td><td>${s.trayectos}</td></tr>`).join('')}
+    <div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Día</th><th>Vuelta</th><th>Km</th><th>Trayectos</th></tr></thead><tbody>
+    ${[...l].sort((a, b) => b.km - a.km).map(s => `<tr><td>${vehEsc(vehMatriculaDe(s.vehiculo_id))}</td><td>${vehFecha(s.fecha)}</td><td>${s.vuelta ? s.vuelta + 'ª sin apuntar' : 'todo el día'}</td><td>${vehNum(s.km)}</td><td>${s.trayectos}</td></tr>`).join('')}
     </tbody></table></div>`;
 }
 

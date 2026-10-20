@@ -1675,8 +1675,14 @@ app.post('/api/rutas/conductores', async (req, res) => {
       // Quién conduce (solo si va más de uno y está en la lista): Rutas guarda
       // la lista en orden alfabético, así que no vale "el primero". Lo usa el
       // módulo Vehículos (uso y ranking de conductores).
-      const conductor = conductores.length > 1 && conductores.includes(resto.conductor) ? resto.conductor : null;
+      let conductor = conductores.length > 1 && conductores.includes(resto.conductor) ? resto.conductor : null;
       await enColaRutas('cond_' + fecha + '_' + vehiculo + '_' + vuelta, async () => {
+        // Una pestaña de Rutas abierta desde antes de este cambio no manda
+        // "conductor": se conserva el que hubiera si sigue en la lista.
+        if (!('conductor' in resto) && conductores.length > 1) {
+          const { data: previa } = await supabase.from('rutas_conductores').select('conductor').eq('fecha', fecha).eq('vehiculo', vehiculo).eq('vuelta', vuelta).maybeSingle();
+          if (previa && conductores.includes(previa.conductor)) conductor = previa.conductor;
+        }
         const { error } = await supabase.from('rutas_conductores').upsert(
           { fecha, vehiculo, vuelta, conductores, conductor, updated: new Date().toISOString() },
           { onConflict: 'fecha,vehiculo,vuelta' });
