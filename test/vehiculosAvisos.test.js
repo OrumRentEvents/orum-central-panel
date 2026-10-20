@@ -111,3 +111,63 @@ test('ejecutar: si el email falla no se marca nada (se reintenta al día siguien
   assert.equal(r.envio.ok, false);
   assert.equal(tablas.vehiculos_vencimientos[0].estado_notificado, null);
 });
+
+test('esLunes', () => {
+  assert.equal(a.esLunes('2026-10-19'), true);
+  assert.equal(a.esLunes('2026-10-20'), false);
+  assert.equal(a.esLunes('2026-10-26'), true);
+});
+
+test('estadoCita: null sin cita, pendiente o pasada según la fecha', () => {
+  assert.equal(v.estadoCita({ cita_pedida: false, cita_fecha: '2026-10-28' }, '2026-10-20'), null);
+  assert.equal(v.estadoCita({ cita_pedida: true, cita_fecha: '2026-10-28' }, '2026-10-20'), 'pendiente');
+  assert.equal(v.estadoCita({ cita_pedida: true, cita_fecha: '2026-10-20' }, '2026-10-20'), 'pendiente');
+  assert.equal(v.estadoCita({ cita_pedida: true, cita_fecha: '2026-10-19' }, '2026-10-20'), 'pasada');
+});
+
+test('validarVencimiento: cita pedida exige fecha de cita', () => {
+  assert.ok(v.validarVencimiento({ tipo: 'itv', fecha_limite: '2026-12-01', cita_pedida: true }));
+  assert.equal(v.validarVencimiento({ tipo: 'itv', fecha_limite: '2026-12-01', cita_pedida: true, cita_fecha: '2026-11-20', cita_lugar: 'ITV Marbella' }), null);
+});
+
+test('construirEmailAvisos: resumen del lunes separa "Con cita pedida" y marca lo nuevo', () => {
+  const lista = [
+    venc(1, 'vencido', null, { tipo: 'seguro', dias_restantes: -3 }),
+    venc(2, 'aviso', null, { cita_pedida: true, cita_fecha: '2026-10-28', cita_lugar: 'ITV <Marbella>', estado_cita: 'pendiente' })
+  ];
+  const { asunto, html } = a.construirEmailAvisos(lista, null, { resumen: true, nuevos: [1] });
+  assert.equal(asunto, 'Vehículos · resumen semanal: 1 vencido, 1 próximo');
+  assert.match(html, /Con cita pedida/);
+  assert.match(html, /28\/10\/2026 · ITV &lt;Marbella&gt;/);
+  assert.match(html, /Nuevo/);
+  assert.ok(html.indexOf('Seguro') < html.indexOf('Con cita pedida'));
+});
+
+test('construirEmailAvisos: cita pasada se señala', () => {
+  const { html } = a.construirEmailAvisos([venc(1, 'vencido', null, { cita_pedida: true, cita_fecha: '2026-10-10', estado_cita: 'pasada' })]);
+  assert.match(html, /cita pasada/i);
+});
+
+test('ejecutar en lunes: manda el resumen con todo lo pendiente aunque no haya cambios', async () => {
+  const tablas = { vehiculos_avisos_destinatarios: [{ email: 'a@x.com', activo: true }], vehiculos_vencimientos: [] };
+  const enviados = [];
+  const avisos = a.crearAvisos({
+    supabase: supabaseFalso(tablas), hoy: () => '2026-10-26',
+    cargarVencimientos: async () => [venc(1, 'aviso', 'aviso'), venc(2, 'ok', null)],
+    enviarCorreo: async (para, asunto) => { enviados.push(asunto); return { ok: true }; }
+  });
+  await avisos.ejecutar();
+  assert.deepEqual(enviados, ['Vehículos · resumen semanal: 1 próximo']);
+});
+
+test('ejecutar en martes sin cambios: no manda nada', async () => {
+  const tablas = { vehiculos_avisos_destinatarios: [{ email: 'a@x.com', activo: true }], vehiculos_vencimientos: [] };
+  const enviados = [];
+  const avisos = a.crearAvisos({
+    supabase: supabaseFalso(tablas), hoy: () => '2026-10-27',
+    cargarVencimientos: async () => [venc(1, 'aviso', 'aviso')],
+    enviarCorreo: async (para, asunto) => { enviados.push(asunto); return { ok: true }; }
+  });
+  await avisos.ejecutar();
+  assert.deepEqual(enviados, []);
+});

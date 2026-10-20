@@ -82,6 +82,13 @@ function vehTextoPlazo(x) {
   return partes.join(' · ') || 'sin km actuales';
 }
 
+// "📅 Cita: 28/10/2026 · ITV Marbella" (en rojo si la fecha ya pasó y sigue sin renovarse)
+function vehCitaHtml(x) {
+  if (!x.cita_pedida || !x.cita_fecha) return '';
+  const pasada = x.estado_cita === 'pasada';
+  return `<div style="font-size:11.5px; margin-top:3px; color:${pasada ? 'var(--red)' : 'var(--green)'};">📅 Cita: ${vehFecha(x.cita_fecha)}${x.cita_lugar ? ' · ' + vehEsc(x.cita_lugar) : ''}${pasada ? ' (cita pasada, revisar)' : ''}</div>`;
+}
+
 function vehError(id, msg) {
   const el = document.getElementById(id);
   if (el) el.textContent = msg || '';
@@ -235,7 +242,7 @@ function vehSeccionVencimientos(editandoId) {
     <tr class="${x.estado === 'ok' ? '' : x.estado}">
       <td>${VEH_VENC[x.tipo] || x.tipo}</td><td>${vehEsc(x.descripcion || '')}</td>
       <td>${vehFecha(x.fecha_limite)}</td><td>${x.km_limite !== null ? vehNum(x.km_limite) : '—'}</td>
-      <td>${vehTextoPlazo(x)}</td>
+      <td>${vehTextoPlazo(x)}${vehCitaHtml(x)}</td>
       <td><span class="veh-dot" style="background:${VEH_COLOR[x.estado]}"></span>${VEH_ESTADO_TXT[x.estado]}</td>
       <td style="white-space:nowrap;"><button class="veh-btn mini" onclick="editarVencimiento(${x.id})">Editar</button>
         <button class="veh-btn mini peligro" onclick="borrarVencimiento(${x.id})">Borrar</button></td>
@@ -259,6 +266,15 @@ function vehFormVencimiento(x) {
       ${c('periodicidad_meses', 'Se renueva cada (meses)', 'number', x.periodicidad_meses)}
       ${c('periodicidad_km', 'Se renueva cada (km)', 'number', x.periodicidad_km)}
     </div>
+    <div class="veh-form" style="margin:6px 0; align-items:end;">
+      <div><label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-primary); cursor:pointer;">
+        <input id="vv-${id}-cita_pedida" type="checkbox" style="width:auto;" ${x.cita_pedida ? 'checked' : ''}
+          onchange="document.getElementById('vv-${id}-cita-campos').style.display = this.checked ? 'contents' : 'none'"> Cita pedida (taller / ITV)</label></div>
+      <div id="vv-${id}-cita-campos" style="display:${x.cita_pedida ? 'contents' : 'none'};">
+        ${c('cita_fecha', 'Fecha de la cita', 'date', x.cita_fecha)}
+        ${c('cita_lugar', 'Lugar', 'text', x.cita_lugar)}
+      </div>
+    </div>
     <div class="veh-error" id="vv-${id}-error"></div>
     <div style="display:flex; gap:8px; margin:6px 0 10px;"><button class="veh-btn prim" onclick="guardarVencimiento(${x.id || 'null'})">Guardar</button>
       <button class="veh-btn" onclick="cancelarVencimiento()">Cancelar</button></div>`;
@@ -272,7 +288,8 @@ async function guardarVencimiento(id) {
   const k = id || 'nuevo';
   const val = c => document.getElementById('vv-' + k + '-' + c).value.trim();
   const datos = {};
-  ['tipo', 'descripcion', 'fecha_limite', 'km_limite', 'aviso_dias', 'aviso_km', 'periodicidad_meses', 'periodicidad_km'].forEach(c => { datos[c] = val(c); });
+  ['tipo', 'descripcion', 'fecha_limite', 'km_limite', 'aviso_dias', 'aviso_km', 'periodicidad_meses', 'periodicidad_km', 'cita_fecha', 'cita_lugar'].forEach(c => { datos[c] = val(c); });
+  datos.cita_pedida = document.getElementById('vv-' + k + '-cita_pedida').checked;
   const vid = vehFichaActual.vehiculo.id;
   try {
     await vehApi('/api/vehiculos/' + vid + '/vencimientos' + (id ? '/' + id : ''), { method: id ? 'PUT' : 'POST', body: datos });
@@ -450,14 +467,14 @@ async function cargarVencimientosVehiculos() {
         <td><b>${vehEsc(x.vehiculo.matricula || 'Sin matrícula')}</b> <span style="color:var(--text-muted)">${vehEsc(vehNombre(x.vehiculo))}</span></td>
         <td>${VEH_VENC[x.tipo] || x.tipo}</td><td>${vehEsc(x.descripcion || '')}</td>
         <td>${vehFecha(x.fecha_limite)}</td><td>${x.km_limite !== null ? vehNum(x.km_limite) : '—'}</td>
-        <td>${vehTextoPlazo(x)}</td><td><span class="veh-dot" style="background:${VEH_COLOR[x.estado]}"></span>${VEH_ESTADO_TXT[x.estado]}</td></tr>`).join('');
+        <td>${vehTextoPlazo(x)}${vehCitaHtml(x)}</td><td><span class="veh-dot" style="background:${VEH_COLOR[x.estado]}"></span>${VEH_ESTADO_TXT[x.estado]}</td></tr>`).join('');
     body.innerHTML = json.vencimientos.length
       ? `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">${json.contador} vencidos o próximos · pulsa una fila para abrir la ficha.</p>
          <div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Tipo</th><th>Descripción</th><th>Fecha límite</th><th>Km límite</th><th>Faltan</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div>`
       : '<p class="loading-text">No hay vencimientos registrados. Añádelos desde la ficha de cada vehículo.</p>';
     body.insertAdjacentHTML('beforeend', `<div class="veh-seccion" style="margin-top:16px;">
       <h3><span>Avisos por email</span></h3>
-      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 8px;">Cada día a las 8:00 se envía un email solo si algún vencimiento acaba de pasar a próximo (30 días o 1.000 km antes) o a vencido. Destinatarios: <span id="veh-avisos-dest">…</span></p>
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 8px;">Los lunes a las 8:00 llega un resumen con todo lo pendiente (si hay algo); el resto de días, un email solo si algún vencimiento acaba de pasar a próximo (30 días o 1.000 km antes) o a vencido. Destinatarios: <span id="veh-avisos-dest">…</span></p>
       <div class="veh-form" style="align-items:end;">
         <div><label>Enviar prueba a</label><input id="veh-avisos-para" type="email" value="logistica@orumevents.com"></div>
         <div><button class="veh-btn" onclick="enviarPruebaAvisos()">Enviar prueba</button></div>
