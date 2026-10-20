@@ -22,7 +22,7 @@ Hoy la información está repartida: Rutas usa nombres (`IVECO`, `FURGO NDL`…)
 | Mantenimiento ↔ coste | El mantenimiento lleva su importe y puede vincularse a la factura de compra. El coste del vehículo cuenta la factura una sola vez; si no hay factura vinculada aún, cuenta el importe apuntado. |
 | Km | Del Excel del localizador (km por trayecto). El cuentakilómetros = lectura base apuntada a mano + km del localizador desde esa fecha. Cada mantenimiento con km puede recalibrar. |
 | Importación | Subida manual del Excel del localizador en el panel. |
-| Conductor | **Siempre el de Rutas**, nunca el del localizador. Si van dos, cuenta solo el **primero** de la lista (el que conduce). |
+| Conductor | **Siempre el de Rutas**, nunca el del localizador. Si van dos o más, cuenta quien está marcado como **"Conduce"** en Rutas; sin marcar = "conductor sin determinar" (ver §6.3; antes decía "el primero", pero Rutas guarda la lista en orden alfabético). |
 | Dos vueltas el mismo día | Cada conductor se lleva el kilometraje de su vuelta (reparto descrito en §6.3). |
 | Combustible | Precio €/L con vigencia, apuntado cada vez que se reposta (como las tarifas). **Servicios Isabella pasa a leer este precio** en vez de su campo manual. |
 | Ranking | Km, horas, excesos de velocidad, tiempo con motor encendido en parada (ralentí), paradas, consumo frente al óptimo. |
@@ -187,10 +187,16 @@ Comprobación diaria (cron interno a las 8:00) y tras cada importación del loca
 Importar el Excel (`Informe detallado.xlsx`, hoja "Trayectos", 25 columnas) con vista previa: periodo, trayectos nuevos y ya existentes, y vehículos desconocidos a asignar. Las columnas de tiempo (`"0, 00:42:25"`) y fecha (`"30-09-2026 19:34:29"`) se parsean a segundos y a timestamp. La columna "Tiempo Motor enc." se guarda si viene (en el Excel de septiembre venía vacía). Los km del localizador se suman al cuentakilómetros.
 
 ### 6.3 Reparto por vueltas y conductor
-Los trayectos de un vehículo en un día se cruzan con `rutas_conductores` (`fecha`, `vehiculo` = `nombre_rutas`, `vuelta`). Conductor = primer elemento de `conductores`.
-- Una vuelta → todos los trayectos del día para ese conductor.
-- Varias vueltas → los trayectos se cortan cada vez que el vehículo termina en nave (Monda "CARRETERA A-355 KM. 20" o Nave Marbella). El bloque *n* es la vuelta *n*. Si el número de bloques no coincide con el de vueltas, el día queda **"a revisar"** y se fija una hora de corte manual.
-- Trayectos sin vuelta en Rutas → **"sin conductor"**, en una lista aparte.
+Los trayectos de un vehículo en un día se cruzan con `rutas_conductores` (`fecha`, `vehiculo` = `nombre_rutas`, `vuelta`).
+
+**Conductor (decisión 2026-10-20, opción A):** Rutas guardaba los conductores en orden alfabético (orden de las casillas), así que "el primero conduce" no era fiable. Se añade `rutas_conductores.conductor`: en el modal de Rutas, con dos o más personas marcadas, se elige quién conduce. Con una sola persona, conduce ella. Con varias sin marcar (incluido todo lo anterior a este cambio) = **"conductor sin determinar"**: cuenta para el uso del vehículo, no para ningún conductor.
+
+**Vueltas:**
+- Una vuelta → todos los trayectos del día a esa vuelta.
+- Varias → se cortan cada vez que el vehículo termina un trayecto en la nave de **Monda** ("CARRETERA A-355 KM. 20", Monda). La nave de Marbella (Calle Mercurio) **no** corta: las furgonetas pasan por ella a mitad de ruta (con ella el acierto en septiembre bajaba de 124/132 a 119/132 días). Los trayectos de < 0,8 km (maniobras en el patio) no cuentan como salida.
+- Si el número de salidas no coincide con el de vueltas → día **"a revisar"**; se guardan horas de corte manuales en `vehiculos_cortes_vuelta`.
+- Trayectos sin vuelta en Rutas → **"sin conductor"**, en una lista aparte (septiembre: 14 días, 1.278 km).
+- Vehículos dados de baja (p. ej. la Mobil Home 2786NDL, de otra empresa del grupo) se ignoran al importar.
 
 ### 6.4 Fase 4: combustible y costes
 Pestaña Combustible con el histórico de €/L con vigencia. Servicios Isabella lee el vigente (se retira `fuelPrice` de `isabella_config`). Coste estimado por trayecto = litros del localizador × €/L vigente. Coste real por vehículo/mes = facturas con matrícula (combustible, taller) + mantenimientos sin factura vinculada + `gastos_anuales` con `vehiculo_id` prorrateados + renting → total, €/km, €/día de uso. Vínculo mantenimiento ↔ factura de `FACTURAS_LOG` por `fileId + numeroFactura`.
