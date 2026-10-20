@@ -92,9 +92,6 @@ insert into vehiculos (matricula, marca, modelo, tipo, nombre_rutas, propiedad, 
   ('9063NCW', 'MAN', 'TGE 3.140 (Furgo ORUM)', 'furgoneta', 'FURGO NCW', 'propio', null, 'carga inicial'),
   ('2786NDL', 'MAN', 'TGE 3.140 (Furgo Mobil Home)', 'furgoneta', 'FURGO NDL', 'propio', null, 'carga inicial'),
   ('4424HVB', 'Volkswagen', 'Crafter', 'furgoneta', 'VOLKSWAGEN', 'propio', null, 'carga inicial'),
-  ('7710NHY', 'Citroën', 'C3 Aircross', 'turismo', null, 'renting', null, 'carga inicial')
+  ('7710NHY', 'Citroën', 'C3 Aircross', 'turismo', null, 'renting', null, 'carga inicial'),
+  ('1663HNF', 'Mercedes', 'Comercial', 'furgoneta', null, 'propio', 'Propiedad por confirmar', 'carga inicial')
 on conflict do nothing;
--- Sin matrícula no hay clave única que evite duplicarlo al re-ejecutar.
-insert into vehiculos (matricula, marca, modelo, tipo, propiedad, notas, creado_por)
-select null, 'Mercedes', 'Comercial', 'furgoneta', 'propio', 'Propiedad por confirmar', 'carga inicial'
-where not exists (select 1 from vehiculos where matricula is null and marca = 'Mercedes' and modelo = 'Comercial');
