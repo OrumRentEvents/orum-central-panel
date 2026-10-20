@@ -6,7 +6,7 @@
 const VEH_TIPOS = { furgoneta: 'Furgoneta', camion: 'Camión', turismo: 'Turismo', otro: 'Otro' };
 const VEH_PROPIEDAD = { propio: 'Propio', renting: 'Renting', leasing: 'Leasing', alquilado: 'Alquilado' };
 const VEH_VENC = { itv: 'ITV', seguro: 'Seguro', ivtm: 'IVTM (circulación)', revision: 'Revisión', tacografo: 'Tacógrafo', fin_renting: 'Fin de renting', otro: 'Otro' };
-const VEH_MANT = { revision: 'Revisión', itv: 'ITV', reparacion: 'Reparación', neumaticos: 'Neumáticos', averia: 'Avería', limpieza: 'Limpieza', otro: 'Otro' };
+const VEH_MANT = { mantenimiento: 'Mantenimiento', revision: 'Revisión', itv: 'ITV', reparacion: 'Reparación', neumaticos: 'Neumáticos', averia: 'Avería', limpieza: 'Limpieza', otro: 'Otro' };
 const VEH_DOC = { permiso_circulacion: 'Permiso de circulación', ficha_tecnica: 'Ficha técnica', poliza: 'Póliza de seguro', itv: 'Tarjeta ITV', contrato_renting: 'Contrato de renting', otro: 'Otro' };
 const VEH_COLOR = { ok: 'var(--green)', aviso: 'var(--orange)', vencido: 'var(--red)' };
 const VEH_ESTADO_TXT = { ok: 'Al día', aviso: 'Próximo', vencido: 'Vencido' };
@@ -14,6 +14,8 @@ const VEH_ESTADO_TXT = { ok: 'Al día', aviso: 'Próximo', vencido: 'Vencido' };
 let vehVerInactivos = false;
 let vehFichaActual = null; // última respuesta de GET /api/vehiculos/:id
 let vehOrdenMant = { campo: 'fecha', asc: false };
+let vehEditandoMant = null; // id del mantenimiento en edición
+let vehEditandoDoc = null;  // id del documento en edición
 
 (function estilosVehiculos() {
   const css = `
@@ -161,6 +163,7 @@ async function abrirFichaVehiculo(id) {
   body.innerHTML = '<p class="loading-text">Cargando ficha...</p>';
   try {
     vehFichaActual = await vehApi('/api/vehiculos/' + id);
+    vehEditandoMant = null; vehEditandoDoc = null;
     pintarFicha();
   } catch (err) {
     body.innerHTML = vehVolver() + '<p class="loading-text">Error: ' + vehEsc(err.message) + '</p>';
@@ -302,11 +305,12 @@ function vehSeccionMantenimientos() {
   const th = (campo, txt) => `<th class="ord" onclick="ordenarMantenimientos('${campo}')">${txt}${o.campo === campo ? (o.asc ? ' ▲' : ' ▼') : ''}</th>`;
   const vencPorId = {};
   vehFichaActual.vencimientos.forEach(x => { vencPorId[x.id] = x; });
-  const filas = lista.map(m => `<tr>
+  const filas = lista.map(m => vehEditandoMant === m.id ? `<tr><td colspan="8">${vehFormMantenimiento(m)}</td></tr>` : `<tr>
       <td>${vehFecha(m.fecha)}</td><td>${VEH_MANT[m.tipo] || m.tipo}</td><td>${vehEsc(m.descripcion || '')}</td><td>${vehEsc(m.taller || '')}</td>
       <td>${m.km !== null ? vehNum(m.km) : '—'}</td><td style="text-align:right;">${vehEuros(m.importe)}</td>
       <td>${m.vencimiento_id && vencPorId[m.vencimiento_id] ? 'Renovó ' + (VEH_VENC[vencPorId[m.vencimiento_id].tipo] || '') : ''}</td>
-      <td><button class="veh-btn mini peligro" onclick="borrarMantenimiento(${m.id})">Borrar</button></td></tr>`).join('');
+      <td style="white-space:nowrap;"><button class="veh-btn mini" onclick="editarMantenimiento(${m.id})">Editar</button>
+        <button class="veh-btn mini peligro" onclick="borrarMantenimiento(${m.id})">Borrar</button></td></tr>`).join('');
   return `<h3><span>Mantenimientos · ${anio}: ${vehEuros(totalAnio)}</span><button class="veh-btn" onclick="nuevoMantenimiento()">+ Registrar mantenimiento</button></h3>
     <div id="veh-mant-nuevo"></div>
     ${lista.length ? `<div class="veh-tabla-wrap"><table><thead><tr>${th('fecha', 'Fecha')}${th('tipo', 'Tipo')}${th('descripcion', 'Descripción')}${th('taller', 'Taller')}${th('km', 'Km')}${th('importe', 'Importe (sin IVA)')}<th></th><th></th></tr></thead><tbody>${filas}</tbody></table></div>`
@@ -318,32 +322,41 @@ function ordenarMantenimientos(campo) {
   document.getElementById('veh-sec-mant').innerHTML = vehSeccionMantenimientos();
 }
 
-function nuevoMantenimiento() {
+// Mismo formulario para registrar (m vacío) y editar (m = mantenimiento).
+function vehFormMantenimiento(m) {
+  const k = m.id || 'nuevo';
   const hoy = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
-  const vencs = vehFichaActual.vencimientos.map(x => `<option value="${x.id}">${VEH_VENC[x.tipo] || x.tipo}${x.descripcion ? ' · ' + vehEsc(x.descripcion) : ''}</option>`).join('');
-  document.getElementById('veh-mant-nuevo').innerHTML = `<div class="veh-form" style="margin:6px 0;">
-      <div><label>Fecha</label><input id="vm-fecha" type="date" value="${hoy}"></div>
-      <div><label>Tipo</label><select id="vm-tipo">${vehOpts(VEH_MANT, 'revision')}</select></div>
-      <div><label>Descripción</label><input id="vm-descripcion" type="text" placeholder="Cambio de aceite y filtros..."></div>
-      <div><label>Taller</label><input id="vm-taller" type="text"></div>
-      <div><label>Km del vehículo</label><input id="vm-km" type="number"></div>
-      <div><label>Importe sin IVA (€)</label><input id="vm-importe" type="number" step="0.01"></div>
-      <div><label>Renueva el vencimiento</label><select id="vm-vencimiento_id"><option value="">— Ninguno —</option>${vencs}</select></div>
+  const vencs = vehFichaActual.vencimientos.map(x => `<option value="${x.id}" ${String(x.id) === String(m.vencimiento_id || '') ? 'selected' : ''}>${VEH_VENC[x.tipo] || x.tipo}${x.descripcion ? ' · ' + vehEsc(x.descripcion) : ''}</option>`).join('');
+  const c = (campo, etiqueta, tipo, valor, extra) => `<div><label>${etiqueta}</label><input id="vm-${k}-${campo}" type="${tipo}" value="${vehEsc(valor == null ? '' : valor)}" ${extra || ''}></div>`;
+  return `<div class="veh-form" style="margin:6px 0;">
+      ${c('fecha', 'Fecha', 'date', m.fecha || hoy)}
+      <div><label>Tipo</label><select id="vm-${k}-tipo">${vehOpts(VEH_MANT, m.tipo || 'mantenimiento')}</select></div>
+      ${c('descripcion', 'Descripción', 'text', m.descripcion, 'placeholder="Cambio de aceite y filtros..."')}
+      ${c('taller', 'Taller', 'text', m.taller)}
+      ${c('km', 'Km del vehículo', 'number', m.km)}
+      ${c('importe', 'Importe sin IVA (€)', 'number', m.importe, 'step="0.01"')}
+      <div><label>Renueva el vencimiento</label><select id="vm-${k}-vencimiento_id"><option value="">— Ninguno —</option>${vencs}</select></div>
     </div>
-    <div class="veh-error" id="vm-error"></div>
-    <div style="display:flex; gap:8px; margin:6px 0 10px;"><button class="veh-btn prim" onclick="guardarMantenimiento()">Guardar</button>
-      <button class="veh-btn" onclick="document.getElementById('veh-mant-nuevo').innerHTML=''">Cancelar</button></div>`;
+    <div class="veh-error" id="vm-${k}-error"></div>
+    <div style="display:flex; gap:8px; margin:6px 0 10px;"><button class="veh-btn prim" onclick="guardarMantenimiento(${m.id || 'null'})">Guardar</button>
+      <button class="veh-btn" onclick="cancelarMantenimiento()">Cancelar</button></div>`;
 }
 
-async function guardarMantenimiento() {
+function nuevoMantenimiento() { document.getElementById('veh-mant-nuevo').innerHTML = vehFormMantenimiento({}); }
+function editarMantenimiento(id) { vehEditandoMant = id; document.getElementById('veh-sec-mant').innerHTML = vehSeccionMantenimientos(); }
+function cancelarMantenimiento() { vehEditandoMant = null; document.getElementById('veh-sec-mant').innerHTML = vehSeccionMantenimientos(); }
+
+async function guardarMantenimiento(id) {
+  const k = id || 'nuevo';
   const datos = {};
-  ['fecha', 'tipo', 'descripcion', 'taller', 'km', 'importe', 'vencimiento_id'].forEach(c => { datos[c] = document.getElementById('vm-' + c).value.trim(); });
+  ['fecha', 'tipo', 'descripcion', 'taller', 'km', 'importe', 'vencimiento_id'].forEach(c => { datos[c] = document.getElementById('vm-' + k + '-' + c).value.trim(); });
   const vid = vehFichaActual.vehiculo.id;
   try {
-    await vehApi('/api/vehiculos/' + vid + '/mantenimientos', { method: 'POST', body: datos });
+    await vehApi('/api/vehiculos/' + vid + '/mantenimientos' + (id ? '/' + id : ''), { method: id ? 'PUT' : 'POST', body: datos });
+    vehEditandoMant = null;
     await abrirFichaVehiculo(vid);
     actualizarContadorVehiculos();
-  } catch (err) { vehError('vm-error', err.message); }
+  } catch (err) { vehError('vm-' + k + '-error', err.message); }
 }
 
 async function borrarMantenimiento(id) {
@@ -359,9 +372,16 @@ async function borrarMantenimiento(id) {
 // ── Documentos ──
 function vehSeccionDocumentos() {
   const docs = vehFichaActual.documentos;
-  const filas = docs.map(d => `<tr><td>${VEH_DOC[d.tipo] || d.tipo}</td><td>${vehEsc(d.nombre_archivo)}</td><td>${vehFecha(d.fecha_caducidad)}</td>
+  const filas = docs.map(d => vehEditandoDoc === d.id ? `<tr><td colspan="5">
+      <div class="veh-form" style="margin:6px 0; align-items:end;">
+        <div><label>Tipo</label><select id="vde-tipo">${vehOpts(VEH_DOC, d.tipo)}</select></div>
+        <div><label>Caduca</label><input id="vde-fecha" type="date" value="${vehEsc(d.fecha_caducidad || '')}"></div>
+        <div style="display:flex; gap:8px;"><button class="veh-btn prim" onclick="guardarDocumentoVehiculo(${d.id})">Guardar</button>
+          <button class="veh-btn" onclick="editarDocumentoVehiculo(null)">Cancelar</button></div>
+      </div></td></tr>` : `<tr><td>${VEH_DOC[d.tipo] || d.tipo}</td><td>${vehEsc(d.nombre_archivo)}</td><td>${vehFecha(d.fecha_caducidad)}</td>
       <td>${vehFecha(String(d.subido_en || '').slice(0, 10))} · ${vehEsc(d.subido_por || '')}</td>
       <td style="white-space:nowrap;"><button class="veh-btn mini" onclick="descargarDocumentoVehiculo(${d.id})">Descargar</button>
+        <button class="veh-btn mini" onclick="editarDocumentoVehiculo(${d.id})">Editar</button>
         <button class="veh-btn mini peligro" onclick="borrarDocumentoVehiculo(${d.id})">Borrar</button></td></tr>`).join('');
   return `<h3><span>Documentos</span></h3>
     <div class="veh-form" style="margin-bottom:10px; align-items:end;">
@@ -387,6 +407,17 @@ async function subirDocumentoVehiculo() {
   vehError('vd-error', 'Subiendo...');
   try {
     await vehApi('/api/vehiculos/' + vid + '/documentos', { method: 'POST', form });
+    await abrirFichaVehiculo(vid);
+  } catch (err) { vehError('vd-error', err.message); }
+}
+
+function editarDocumentoVehiculo(id) { vehEditandoDoc = id; document.getElementById('veh-sec-docs').innerHTML = vehSeccionDocumentos(); }
+
+async function guardarDocumentoVehiculo(id) {
+  const vid = vehFichaActual.vehiculo.id;
+  try {
+    await vehApi('/api/vehiculos/' + vid + '/documentos/' + id, { method: 'PUT', body: { tipo: document.getElementById('vde-tipo').value, fecha_caducidad: document.getElementById('vde-fecha').value } });
+    vehEditandoDoc = null;
     await abrirFichaVehiculo(vid);
   } catch (err) { vehError('vd-error', err.message); }
 }
@@ -424,8 +455,29 @@ async function cargarVencimientosVehiculos() {
       ? `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">${json.contador} vencidos o próximos · pulsa una fila para abrir la ficha.</p>
          <div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Tipo</th><th>Descripción</th><th>Fecha límite</th><th>Km límite</th><th>Faltan</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div>`
       : '<p class="loading-text">No hay vencimientos registrados. Añádelos desde la ficha de cada vehículo.</p>';
+    body.insertAdjacentHTML('beforeend', `<div class="veh-seccion" style="margin-top:16px;">
+      <h3><span>Avisos por email</span></h3>
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 8px;">Cada día a las 8:00 se envía un email solo si algún vencimiento acaba de pasar a próximo (30 días o 1.000 km antes) o a vencido. Destinatarios: <span id="veh-avisos-dest">…</span></p>
+      <div class="veh-form" style="align-items:end;">
+        <div><label>Enviar prueba a</label><input id="veh-avisos-para" type="email" value="logistica@orumevents.com"></div>
+        <div><button class="veh-btn" onclick="enviarPruebaAvisos()">Enviar prueba</button></div>
+      </div>
+      <div class="veh-error" id="veh-avisos-msg"></div>
+    </div>`);
+    vehApi('/api/vehiculos/avisos/destinatarios').then(r => { document.getElementById('veh-avisos-dest').textContent = r.destinatarios.join(', ') || 'ninguno'; }).catch(() => {});
     actualizarContadorVehiculos();
   } catch (err) {
     body.innerHTML = '<p class="loading-text">Error: ' + vehEsc(err.message) + '</p>';
   }
+}
+
+async function enviarPruebaAvisos() {
+  const msg = document.getElementById('veh-avisos-msg');
+  msg.style.color = 'var(--text-muted)';
+  msg.textContent = 'Enviando...';
+  try {
+    const r = await vehApi('/api/vehiculos/avisos/prueba', { method: 'POST', body: { para: document.getElementById('veh-avisos-para').value.trim() } });
+    msg.style.color = 'var(--green)';
+    msg.textContent = 'Prueba enviada a ' + r.enviado_a + ' con la situación actual (no cuenta como aviso real).';
+  } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err.message; }
 }

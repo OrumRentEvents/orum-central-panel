@@ -203,7 +203,11 @@ function soloPersonal(req, res, next) {
 }
 
 // Módulo Vehículos (flota, vencimientos, mantenimientos, documentos) — ver lib/vehiculosRutas.js
-require('./lib/vehiculosRutas')(app, { supabase, requiereLogin });
+// Avisos por email: mismo transporte que el informe diario (lib/informeComerciales.js).
+const vehiculosModulo = require('./lib/vehiculosRutas')(app, {
+  supabase, requiereLogin,
+  enviarCorreo: (para, asunto, html) => require('./lib/informeComerciales')._test.enviarCorreo(para, asunto, html)
+});
 
 // ── Auditoría de Rutas: registra quién hizo qué en la pestaña HISTORIAL_RUTAS ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
@@ -4583,6 +4587,7 @@ app.post('/api/cuentas-gasto', requiereLogin, soloHolded, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`ORUM Central Panel escuchando en puerto ${PORT}`);
   informeComerciales.programarInformeDiario();
+  vehiculosModulo.avisos.programar();
   holdedSync.programarVolcadoDiario();
   holdedCompras.programarVolcadoGastos();
   holdedSync.recuperarVolcadoDeHoy().catch(e => console.error('[Holded] recuperarVolcadoDeHoy:', e.message));
