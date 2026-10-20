@@ -128,3 +128,15 @@ test('nombresRutasSinAsignar: un vehículo dado de baja también cuenta como asi
     v.nombresRutasSinAsignar(['IVECO', 'FURGO NDL'], [{ nombre_rutas: 'IVECO', activo: true }, { nombre_rutas: 'FURGO NDL', activo: false }]),
     []);
 });
+
+test('kmActuales con el localizador: lectura más reciente + km de los días posteriores', () => {
+  const diarios = [{ fecha: '2026-09-05', km: 50 }, { fecha: '2026-09-10', km: 30 }, { fecha: '2026-09-12', km: '40.5' }];
+  // lectura base el día 10: no suma el 5 ni el propio día 10
+  assert.equal(v.kmActuales({ km_base: 100000, km_base_fecha: '2026-09-10' }, [], diarios), 100040.5);
+  // un mantenimiento con más km y posterior pasa a ser la lectura
+  assert.equal(v.kmActuales({ km_base: 100000, km_base_fecha: '2026-09-10' }, [{ km: 105000, fecha: '2026-09-11' }], diarios), 105040.5);
+  // lectura sin fecha: no se puede saber desde cuándo sumar
+  assert.equal(v.kmActuales({ km_base: 100000 }, [], diarios), 100000);
+  // sin ninguna lectura no hay cuentakilómetros
+  assert.equal(v.kmActuales({ km_base: null }, [], diarios), null);
+});
