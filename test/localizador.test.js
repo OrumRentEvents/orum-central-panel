@@ -143,3 +143,47 @@ test('calcularUso: reparte km por vuelta y conductor, separa revisar y sin condu
   assert.equal(u2.revisar.length, 0);
   assert.equal(u2.porConductor.find(c => c.conductor === 'Wilson').km, 90);
 });
+
+// ── Segundo formato: "Detalle de trayectos" (sin matrícula, velocidades ni consumo) ──
+const CAB_DETALLE = ['Fecha', 'Vehículo', 'Conductor', 'Hora Inicio', 'Inicio', 'Loc. Inicio', 'Hora Destino', 'Destino', 'Loc. Destino', 'Kilometros', 'En marcha', 'Parado', 'Tipo Parada'];
+const DET = [
+  ['16-10-2026', 'IVECO DAILY (IVECO)', '', '09:57:54', 'CARRETERA A-355 KM. 20', 'Monda', '11:02:47', 'Calle Padre Mariano', 'Manilva', 60.96, '64 min 53 sec', '2 min 11 sec', 'Parada'],
+  ['16-10-2026', 'IVECO DAILY (IVECO)', '', '11:04:58', 'Calle Padre Mariano', 'Manilva', '11:04:58', 'Calle Padre Mariano', 'Manilva', 0, '0 min 0 sec', '30 min 59 sec', 'Estacionam.'],
+  ['16-10-2026', 'NISSAN INTERSTAR (NISSAN)', '', '23:40:00', 'Calle X', 'Marbella', '00:20:00', 'CARRETERA A-355 KM. 20', 'Monda', 31.2, '40 min 0 sec', '1 min 5 sec', 'Parada'],
+  ['TOTAL:', null, null, '', '', null, '', null, null, 92.16, '104 min 53 sec', '34 min 15 sec', null]
+];
+
+test('duracion: "64 min 53 sec" y variantes con horas', () => {
+  assert.equal(L.duracion('64 min 53 sec'), 3893);
+  assert.equal(L.duracion('0 min 0 sec'), 0);
+  assert.equal(L.duracion('1 h 4 min 5 sec'), 3845);
+  assert.equal(L.duracion(''), null);
+});
+
+test('parsearInforme: reconoce el "Detalle de trayectos"', () => {
+  const r = L.parsearInforme(libro(CAB_DETALLE, DET));
+  assert.equal(r.formato, 'detalle');
+  // la fila de estacionamiento (0 km) y la de TOTAL no son trayectos
+  assert.equal(r.trayectos.length, 2);
+  const t = r.trayectos[0];
+  assert.equal(t.vehiculo_nombre, 'IVECO DAILY (IVECO)');
+  assert.equal(t.matricula, null);
+  assert.equal(t.inicio, '2026-10-16 09:57:54');
+  assert.equal(t.fin, '2026-10-16 11:02:47');
+  assert.equal(t.km, 60.96);
+  assert.equal(t.seg_conduccion, 3893);
+  assert.equal(t.seg_paradas, 131);
+  assert.equal(t.destino, 'Calle Padre Mariano');
+  assert.equal(t.loc_destino, 'Manilva');
+  // pasa de medianoche: el fin es del día siguiente
+  assert.equal(r.trayectos[1].fin, '2026-10-17 00:20:00');
+  // campos que este informe no trae: se indican para no pisarlos al importar
+  assert.ok(!r.campos.includes('vel_max'));
+  assert.ok(r.campos.includes('km'));
+});
+
+test('parsearInforme: el "Informe detallado" indica su formato y todos sus campos', () => {
+  const r = L.parsearInforme(libro(CABECERAS, [FILA1]));
+  assert.equal(r.formato, 'informe');
+  assert.ok(r.campos.includes('vel_max'));
+});
