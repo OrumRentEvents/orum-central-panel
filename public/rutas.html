@@ -309,6 +309,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div style="padding:14px 16px;">
       <p style="font-size:12px;color:#6b6a64;margin-bottom:10px;">Selecciona uno o varios conductores para este vehículo y vuelta:</p>
       <div id="modal-cond-checks" class="vehs-checks" style="flex-direction:column;"></div>
+      <div id="modal-cond-conduce" class="vehs-checks" style="flex-direction:column;"></div>
       <button onclick="guardarConductoresModal()" style="width:100%;padding:12px;font-size:14px;font-weight:500;background:#1a1a18;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:14px;">Guardar conductores</button>
     </div>
   </div>
@@ -412,6 +413,8 @@ var estadoPago={}; // proyecto_id -> {estado_pago, detalle_pago, servicios_extra
 // Conductores: lista global editable y asignaciones por vehículo+vuelta+día
 var CHOFERES=['Adrian Cuesta','Antonio Jimenez','Carlos Maldonado','Jesus Aguilera','Jesus Calero','Joaquin','Jorge Cuesta','Jose Enriquez','Jose Ortiz','Juan Rios','Leo Ferreyra','Leo Haro','Nourdin','Rafa Perez','Ruben Romo','Sergio Gonzalez','Wilson'];
 var asignacionesConductores={}; // clave: "fecha_vehiculo_vuelta" → [nombres]
+// Quién conduce cuando van varios (la lista se guarda en orden alfabético) — clave igual; null = sin marcar
+var conductorPrincipal={};
 // Estado del vehiculo (EN RUTA / FINALIZADO) por vehiculo+vuelta+dia — solo editable por rol logistica
 var estadosVehiculo={}; // clave: "fecha_vehiculo_vuelta" → 'EN RUTA' | 'FINALIZADO' | ''
 // Estado de cada parada: preparado / cargado / incidencia
@@ -562,9 +565,11 @@ function load(silencioso){
     if(dataCond.choferes&&dataCond.choferes.length>0) CHOFERES=dataCond.choferes;
     if(!silencioso||dataCond.asignaciones){
       asignacionesConductores={};
+      conductorPrincipal={};
       (dataCond.asignaciones||[]).forEach(function(a){
         var clave=a.fecha+'_'+a.vehiculo+'_'+a.vuelta;
         asignacionesConductores[clave]=a.conductores||[];
+        conductorPrincipal[clave]=a.conductor||null;
       });
     }
 
@@ -631,7 +636,7 @@ var COMPROBACION_SILENCIOSA_MS=60*1000; // cambios que vienen de Rentman (no pas
 
 // Huella de todo lo que pinta render(): sirve para saber si una recarga silenciosa trae algo distinto
 function firmaDatos(){
-  return JSON.stringify([paradas,VEHS,asignacionesConductores,estadosVehiculo,estadosParada,estadoPago,checksArea,transpales]);
+  return JSON.stringify([paradas,VEHS,asignacionesConductores,conductorPrincipal,estadosVehiculo,estadosParada,estadoPago,checksArea,transpales]);
 }
 
 // Todos los guardados de Rutas pasan por aqui: se cuentan y llevan el id de esta pantalla,
@@ -675,7 +680,7 @@ function recibirEventoRutas(ev){
   if(!m||m.cid===CLIENTE_ID)return;
   var d=m.datos||{};
   if(m.tipo==='estado_vehiculo'){estadosVehiculo[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.estado||'';}
-  else if(m.tipo==='conductores'){asignacionesConductores[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.conductores||[];}
+  else if(m.tipo==='conductores'){asignacionesConductores[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.conductores||[];conductorPrincipal[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.conductor||null;}
   else if(m.tipo==='choferes'){if(d.choferes&&d.choferes.length>0)CHOFERES=d.choferes;return;}
   else if(m.tipo==='estado_parada'){estadosParada[d.clave]={preparado:!!d.preparado,cargado:!!d.cargado,incidencia:!!d.incidencia,incidencia_texto:d.incidencia_texto||''};}
   else if(m.tipo==='check_area'){
@@ -992,7 +997,8 @@ function renderGrupo(g){
   var fechaPrincipal=fechaPrincipalGrupo(g);
   var condsClave=fechaPrincipal+'_'+g.veh+'_'+g.vuelta;
   var conductoresAsignados=asignacionesConductores[condsClave]||[];
-  var conductorTexto=conductoresAsignados.join(' · ')||'';
+  var conduce=conductorPrincipal[condsClave];
+  var conductorTexto=conductoresAsignados.map(function(n){return n===conduce&&conductoresAsignados.length>1?'🚐 '+n:n;}).join(' · ')||'';
 
   // Badge de estado del vehiculo (EN RUTA / FINALIZADO) — junto al nombre del vehiculo
   var estadoBadgeHtml='';
@@ -1623,13 +1629,30 @@ function abrirModalConductores(gkey, fecha){
     var sel=seleccionados.indexOf(nombre)!==-1;
     var lbl=document.createElement('label');
     lbl.className='veh-check-lbl'+(sel?' seleccionado':'');
-    lbl.innerHTML='<input type="checkbox" value="'+nombre+'"'+(sel?' checked':'')+' onchange="toggleVehCheck(this,\'\')"> '+nombre;
+    lbl.innerHTML='<input type="checkbox" value="'+nombre+'"'+(sel?' checked':'')+' onchange="toggleVehCheck(this,\'\');pintarConduceModal()"> '+nombre;
     cont.appendChild(lbl);
   });
+  modalCondConduce=conductorPrincipal[clave]||null;
+  pintarConduceModal();
 
   var modal=document.getElementById('modal-conductores');
   modal.style.display='flex';
   document.body.style.overflow='hidden';
+}
+
+// Con dos o más marcados se elige quién conduce (para el uso de vehículos y el
+// ranking de conductores del panel). Con uno solo se da por hecho.
+var modalCondConduce=null;
+function pintarConduceModal(){
+  var cont=document.getElementById('modal-cond-conduce');
+  if(!cont)return;
+  var marcados=[];
+  document.querySelectorAll('#modal-cond-checks input[type=checkbox]:checked').forEach(function(c){marcados.push(c.value);});
+  if(marcados.indexOf(modalCondConduce)===-1)modalCondConduce=null;
+  if(marcados.length<2){cont.innerHTML='';return;}
+  cont.innerHTML='<p style="font-size:12px;color:#6b6a64;margin:12px 0 6px;">¿Quién conduce?</p>'+marcados.map(function(n){
+    return '<label class="veh-check-lbl'+(n===modalCondConduce?' seleccionado':'')+'" style="display:flex;"><input type="radio" name="cond-conduce" value="'+n+'"'+(n===modalCondConduce?' checked':'')+' onchange="modalCondConduce=this.value;pintarConduceModal()"> 🚐 '+n+'</label>';
+  }).join('');
 }
 
 function cerrarModalConductores(){
@@ -1644,6 +1667,8 @@ function guardarConductoresModal(){
 
   var clave=modalCondFecha+'_'+modalCondVeh+'_'+modalCondVuelta;
   asignacionesConductores[clave]=seleccionados;
+  var conduce=seleccionados.length>1&&seleccionados.indexOf(modalCondConduce)!==-1?modalCondConduce:null;
+  conductorPrincipal[clave]=conduce;
 
   // Guardar en Sheets
   fetch('/api/rutas/conductores',{
@@ -1656,6 +1681,7 @@ function guardarConductoresModal(){
       vehiculo:modalCondVeh,
       vuelta:modalCondVuelta,
       conductores:seleccionados,
+      conductor:conduce,
       usuario:NOMBRE_USUARIO
     })
   }).then(function(){toast('Conductores guardados');}).catch(function(){toast('Error al guardar');});

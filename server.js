@@ -1672,13 +1672,17 @@ app.post('/api/rutas/conductores', async (req, res) => {
       const fecha = resto.fecha, vehiculo = resto.vehiculo, vuelta = parseInt(resto.vuelta) || 1;
       if (!fecha || !vehiculo) return res.status(400).json({ error: 'Faltan datos' });
       const conductores = resto.conductores || [];
+      // Quién conduce (solo si va más de uno y está en la lista): Rutas guarda
+      // la lista en orden alfabético, así que no vale "el primero". Lo usa el
+      // módulo Vehículos (uso y ranking de conductores).
+      const conductor = conductores.length > 1 && conductores.includes(resto.conductor) ? resto.conductor : null;
       await enColaRutas('cond_' + fecha + '_' + vehiculo + '_' + vuelta, async () => {
         const { error } = await supabase.from('rutas_conductores').upsert(
-          { fecha, vehiculo, vuelta, conductores, updated: new Date().toISOString() },
+          { fecha, vehiculo, vuelta, conductores, conductor, updated: new Date().toISOString() },
           { onConflict: 'fecha,vehiculo,vuelta' });
         if (error) throw error;
-        emitirRutas('conductores', { fecha, vehiculo, vuelta, conductores }, cid);
-        await copiarARutasScript({ action: 'set_conductores', fecha, vehiculo, vuelta, conductores });
+        emitirRutas('conductores', { fecha, vehiculo, vuelta, conductores, conductor }, cid);
+        await copiarARutasScript({ action: 'set_conductores', fecha, vehiculo, vuelta, conductores, conductor });
       });
     }
     logHistorialRutas(usuarioLog, action, resto);
