@@ -342,6 +342,7 @@ function mostrarApp() {
   document.getElementById('sidebar-user-avatar').textContent = inicialesNombre(usuarioActual.nombre).toUpperCase();
   document.getElementById('sidebar-role-badge').textContent = ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol;
   construirMenu();
+  if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
   else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
   else cargarResumenGeneral();
@@ -992,6 +993,11 @@ const MENU = [
   ]},
   { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
+  // Módulo Vehículos (public/vehiculos.js): flota, fichas, vencimientos y mantenimientos.
+  { id: 'vehiculos', icon: 'truck', group: 'operaciones', label: 'Vehículos', submenu: [
+      { id: 'veh-flota', label: 'Flota', onClick: () => cargarVehiculos() },
+      { id: 'veh-vencimientos', label: 'Vencimientos', onClick: () => cargarVencimientosVehiculos() },
+  ]},
   { id: 'muelle', icon: 'truck', group: 'operaciones', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
   { id: 'sync-status', icon: 'refresh', group: 'sistema', label: 'Estado Sincronización', especial: true, onClick: () => {
       window.open('/sync-status', '_blank');
@@ -1020,7 +1026,7 @@ function construirMenu() {
   // desde ya). Nada más del menú en ninguno de los dos casos.
   const rolRestringido = usuarioActual.rol === 'Comercial' || usuarioActual.rol === 'Logistica';
   const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'muelle'].includes(item.id))
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle'].includes(item.id))
     : MENU;
 
   if (rolRestringido) {
@@ -8772,6 +8778,7 @@ function filaLead(l) {
 
 comprobarSesion();
 </script>
+<script src="vehiculos.js"></script>
 </body>
 </html>
 
