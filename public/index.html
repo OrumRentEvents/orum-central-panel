@@ -343,6 +343,7 @@ function mostrarApp() {
   document.getElementById('sidebar-role-badge').textContent = ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol;
   construirMenu();
   if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
+  if (usuarioActual.rol !== 'Comercial') cargarVehiculosFacturas();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
   else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
   else cargarResumenGeneral();
@@ -6894,9 +6895,12 @@ function aplicarFiltrosFacturasProveedores() {
 // Las pocas facturas antiguas que aún tengan ese valor literal guardado
 // simplemente no coincidirán con ninguna opción hasta que se corrijan a mano.
 const FORMAS_PAGO_FACTURA = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
-// Flota fija de ORUM - para facturas de vehículos externos al grupo (VMS,
+// Flota de ORUM - para facturas de vehículos externos al grupo (VMS,
 // Isabella...) se elige "Otro" y se escribe una nota libre en el campo de al lado.
-const VEHICULOS_ORUM_FACTURAS = [
+// Desde el módulo Vehículos (oct 2026) la lista sale de la tabla `vehiculos`
+// (cargarVehiculosFacturas, tras el login); esta lista fija queda de respaldo
+// por si la API falla.
+let VEHICULOS_ORUM_FACTURAS = [
   { matricula: '6625MYZ', label: '6625MYZ · Iveco Daily' },
   { matricula: '7594MPZ', label: '7594MPZ · Renault' },
   { matricula: '8939LDW', label: '8939LDW · Mercedes Atego' },
@@ -6905,6 +6909,13 @@ const VEHICULOS_ORUM_FACTURAS = [
   { matricula: '4424HVB', label: '4424HVB · Volkswagen Crafter' },
   { matricula: '7710NHY', label: '7710NHY · Citroën C3 Aircross (renting)' }
 ];
+async function cargarVehiculosFacturas() {
+  try {
+    const resp = await fetch('/api/vehiculos/lista');
+    const json = await resp.json();
+    if (json.ok && json.vehiculos && json.vehiculos.length) VEHICULOS_ORUM_FACTURAS = json.vehiculos.map(v => ({ matricula: v.matricula, label: v.label }));
+  } catch (e) { /* se queda la lista fija */ }
+}
 // NUEVO (3 sep 2026): fecha en la que se sincronizó/importó la factura desde
 // Drive (columna "procesadoEn" del Log, se escribe una sola vez al insertar
 // la fila). Llega del backend como Date -> string ISO tras el JSON.stringify
