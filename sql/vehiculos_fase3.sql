@@ -54,3 +54,7 @@ update vehiculos set nombre_localizador = n.nombre from (values
   ('4424HVB', 'VOLKSWAGEN CRAFTER (VOLKSWAGEN )'), ('8939LDW', 'MERCEDES ATEGO (AZUL)'), ('1663HNF', 'MERCEDES (MERCEDES COMERCIAL)')
 ) as n(matricula, nombre)
 where vehiculos.matricula = n.matricula and vehiculos.nombre_localizador is null;
+
+-- De qué informe viene cada trayecto: los dos cortan los trayectos distinto
+-- y para cada vehículo y día manda el "Informe detallado" (lib/localizador.js combinarFormatos).
+alter table vehiculos_trayectos add column if not exists formato text not null default 'informe' check (formato in ('informe', 'detalle'));

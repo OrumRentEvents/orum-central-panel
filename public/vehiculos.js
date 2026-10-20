@@ -498,3 +498,161 @@ async function enviarPruebaAvisos() {
     msg.textContent = 'Prueba enviada a ' + r.enviado_a + ' con la situación actual (no cuenta como aviso real).';
   } catch (err) { msg.style.color = 'var(--red)'; msg.textContent = err.message; }
 }
+
+// ── Uso (fase 3): localizador GPS + conductores de Rutas ──
+let vehUsoMes = null;
+let vehUsoTab = 'vehiculos';
+let vehUsoDatos = null;
+let vehUsoAbierto = null; // vehiculo_id con el detalle diario desplegado
+
+const vehHoras = seg => { const m = Math.round((Number(seg) || 0) / 60); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ' h'; };
+const vehMatriculaDe = id => { const v = (vehUsoDatos.vehiculos || []).find(x => x.id === id); return v ? (v.matricula || vehNombre(v)) : '#' + id; };
+const vehConductorTxt = c => (c === null ? '<span style="color:var(--text-muted)">Sin determinar</span>' : vehEsc(c));
+
+async function cargarUsoVehiculos(mes) {
+  document.getElementById('content-title').textContent = 'Vehículos · Uso';
+  marcarMenuActivo('menu-item-veh-uso');
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando uso...</p>';
+  try {
+    const elegido = mes || vehUsoMes;
+    vehUsoDatos = await vehApi('/api/vehiculos/uso' + (elegido ? '?mes=' + elegido : ''));
+    // Sin mes elegido y sin datos este mes: salta al último mes importado.
+    if (!elegido && !vehUsoDatos.porVehiculo.length && vehUsoDatos.ultimo_dia_importado) {
+      vehUsoDatos = await vehApi('/api/vehiculos/uso?mes=' + vehUsoDatos.ultimo_dia_importado.slice(0, 7));
+    }
+    vehUsoMes = vehUsoDatos.mes;
+    pintarUso();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error: ' + vehEsc(err.message) + '</p>';
+  }
+}
+
+function pintarUso() {
+  const d = vehUsoDatos;
+  const kmTotal = d.porVehiculo.reduce((s, v) => s + v.km, 0);
+  const kmSin = d.sinConductor.reduce((s, x) => s + x.km, 0);
+  const tab = (id, txt) => `<button class="veh-btn ${vehUsoTab === id ? 'prim' : ''}" onclick="vehUsoTab='${id}'; pintarUso();">${txt}</button>`;
+  const contenido = vehUsoTab === 'conductores' ? vehUsoConductores() : vehUsoTab === 'revisar' ? vehUsoRevisar() : vehUsoTab === 'sin' ? vehUsoSin() : vehUsoVehiculos();
+  document.getElementById('content-body').innerHTML = `
+    <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-bottom:12px;">
+      <div class="veh-form" style="grid-template-columns:auto;"><div><label>Mes</label><input type="month" value="${vehUsoMes}" onchange="vehUsoMes=this.value; cargarUsoVehiculos(this.value)"></div></div>
+      <span style="font-size:12px; color:var(--text-muted); padding-bottom:8px;">${d.ultimo_dia_importado ? 'Importado hasta el ' + vehFecha(d.ultimo_dia_importado) : 'Aún no hay datos del localizador'}</span>
+      <button class="veh-btn prim" style="margin-left:auto;" onclick="mostrarImportarLocalizador()">Importar localizador</button>
+    </div>
+    <div id="veh-import"></div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;">
+      ${kpiCard('Km del mes', vehNum(Math.round(kmTotal)))}
+      ${kpiCard('Vehículos con uso', d.porVehiculo.length)}
+      ${kpiCard('Días a revisar', `<span style="color:${d.revisar.length ? 'var(--orange)' : 'inherit'}">${d.revisar.length}</span>`)}
+      ${kpiCard('Km sin conductor en Rutas', vehNum(Math.round(kmSin)))}
+    </div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+      ${tab('vehiculos', 'Por vehículo')}${tab('conductores', 'Por conductor')}${tab('revisar', 'A revisar (' + d.revisar.length + ')')}${tab('sin', 'Sin conductor (' + d.sinConductor.length + ')')}
+    </div>
+    <div class="veh-seccion">${contenido}</div>`;
+}
+
+function vehUsoVehiculos() {
+  const d = vehUsoDatos;
+  if (!d.porVehiculo.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Sin trayectos este mes. Importa el informe del localizador.</p>';
+  const filas = [...d.porVehiculo].sort((a, b) => b.km - a.km).map(v => {
+    const abierto = vehUsoAbierto === v.vehiculo_id;
+    const detalle = abierto ? `<tr><td colspan="7" style="background:var(--gray-100);"><table style="width:100%;">
+      <thead><tr><th>Día</th><th>Km</th><th>Trayectos</th><th>Parado con motor</th><th>Vueltas y conductor</th></tr></thead><tbody>${v.detalle.map(dia => `<tr>
+        <td>${vehFecha(dia.fecha)}</td><td>${vehNum(dia.km)}</td><td>${dia.trayectos}</td><td>${vehHoras(dia.seg_paradas)}</td>
+        <td>${dia.sin_rutas ? '<span style="color:var(--orange)">Sin conductor en Rutas</span>'
+          : dia.revisar ? '<span style="color:var(--orange)">A revisar: las vueltas no cuadran</span>'
+          : dia.vueltas.map(x => `V${x.vuelta} · ${vehConductorTxt(x.conductor)} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
+    return `<tr style="cursor:pointer;" onclick="vehUsoAbierto = vehUsoAbierto === ${v.vehiculo_id} ? null : ${v.vehiculo_id}; pintarUso();">
+      <td><b>${vehEsc(vehMatriculaDe(v.vehiculo_id))}</b> ${abierto ? '▾' : '▸'}</td><td>${vehNum(Math.round(v.km))}</td><td>${v.dias}</td>
+      <td>${v.trayectos}</td><td>${vehHoras(v.seg_conduccion)}</td><td>${vehHoras(v.seg_paradas)}</td><td>${vehNum(Math.round(v.km / Math.max(v.dias, 1)))}</td></tr>${detalle}`;
+  }).join('');
+  return `<div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Km</th><th>Días</th><th>Trayectos</th><th>Conducción</th><th>Parado con motor</th><th>Km/día</th></tr></thead><tbody>${filas}</tbody></table></div>
+    <p style="font-size:12px; color:var(--text-muted); margin:8px 0 0;">Pulsa un vehículo para ver el detalle por día.</p>`;
+}
+
+function vehUsoConductores() {
+  const l = vehUsoDatos.porConductor;
+  if (!l.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Sin datos.</p>';
+  return `<div class="veh-tabla-wrap"><table><thead><tr><th>Conductor</th><th>Km</th><th>Conducción</th><th>Parado con motor</th><th>Días</th><th>Vueltas</th></tr></thead><tbody>
+    ${l.map(c => `<tr><td>${vehConductorTxt(c.conductor)}</td><td>${vehNum(Math.round(c.km))}</td><td>${vehHoras(c.seg_conduccion)}</td><td>${vehHoras(c.seg_paradas)}</td><td>${c.dias}</td><td>${c.vueltas}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p style="font-size:12px; color:var(--text-muted); margin:8px 0 0;">"Sin determinar": vueltas con varias personas en Rutas sin marcar quién conduce (márcalo en Rutas, sale con 🚐). No cuentan para nadie.</p>`;
+}
+
+function vehUsoRevisar() {
+  const l = vehUsoDatos.revisar;
+  if (!l.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Nada que revisar: todos los días se han repartido solos.</p>';
+  return `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">Las vueltas de Rutas no coinciden con las salidas desde la nave de Monda. Indica a qué hora empieza cada vuelta a partir de la segunda (p. ej. "13:30" o "11:00, 16:00").</p>` +
+    l.map(r => {
+      const k = r.vehiculo_id + '_' + r.fecha;
+      return `<div style="border-top:1px solid var(--border); padding:10px 0;">
+        <b>${vehEsc(vehMatriculaDe(r.vehiculo_id))}</b> · ${vehFecha(r.fecha)} · Rutas: ${r.vueltas} vueltas · localizador: ${r.salidas} salidas · ${vehNum(r.km)} km
+        <div style="font-size:12px; color:var(--text-secondary); margin:6px 0;">${r.trayectos.map(t => `${t.inicio} · ${vehNum(t.km)} km → ${vehEsc(t.destino || '')}${t.loc_destino ? ' (' + vehEsc(t.loc_destino) + ')' : ''}`).join('<br>')}</div>
+        <div class="veh-form" style="grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); align-items:end;">
+          <div><label>Horas de corte</label><input id="vc-${k}" type="text" placeholder="13:30"></div>
+          <div><button class="veh-btn prim" onclick="guardarCortesVuelta(${r.vehiculo_id}, '${r.fecha}')">Guardar</button></div>
+        </div>
+        <div class="veh-error" id="vc-${k}-error"></div>
+      </div>`;
+    }).join('');
+}
+
+async function guardarCortesVuelta(vehiculoId, fecha) {
+  const k = vehiculoId + '_' + fecha;
+  const cortes = document.getElementById('vc-' + k).value.split(/[,\s]+/).filter(Boolean);
+  try {
+    await vehApi('/api/vehiculos/uso/cortes', { method: 'PUT', body: { vehiculo_id: vehiculoId, fecha, cortes } });
+    await cargarUsoVehiculos(vehUsoMes);
+  } catch (err) { vehError('vc-' + k + '-error', err.message); }
+}
+
+function vehUsoSin() {
+  const l = vehUsoDatos.sinConductor;
+  if (!l.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Todos los días con movimiento tienen conductor en Rutas.</p>';
+  return `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">Días en que el localizador registra movimiento pero en Rutas no hay nadie asignado a ese vehículo.</p>
+    <div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Día</th><th>Km</th><th>Trayectos</th></tr></thead><tbody>
+    ${[...l].sort((a, b) => b.km - a.km).map(s => `<tr><td>${vehEsc(vehMatriculaDe(s.vehiculo_id))}</td><td>${vehFecha(s.fecha)}</td><td>${vehNum(s.km)}</td><td>${s.trayectos}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+// Importación: primero vista previa (nada se guarda), luego confirmar.
+// Admite varios archivos a la vez y los dos informes del localizador.
+function mostrarImportarLocalizador() {
+  document.getElementById('veh-import').innerHTML = `<div class="veh-seccion">
+    <h3><span>Importar informes del localizador</span></h3>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 8px;">"Informe detallado" (mejor: trae velocidades y consumo) o "Detalle de trayectos". Puedes elegir varios archivos a la vez; lo ya importado no se duplica.</p>
+    <div class="veh-form" style="align-items:end;">
+      <div><label>Archivos Excel (.xlsx)</label><input id="vi-archivo" type="file" accept=".xlsx,.xls" multiple></div>
+      <div><button class="veh-btn prim" onclick="importarLocalizador(false)">Revisar</button></div>
+    </div>
+    <div id="vi-resumen" style="font-size:12.5px; margin-top:10px;"></div>
+    <div class="veh-error" id="vi-error"></div></div>`;
+}
+
+async function importarLocalizador(confirmar) {
+  const archivos = [...document.getElementById('vi-archivo').files];
+  if (!archivos.length) return vehError('vi-error', 'Elige al menos un archivo');
+  const form = new FormData();
+  archivos.forEach(a => form.append('archivos', a));
+  vehError('vi-error', confirmar ? 'Guardando...' : 'Leyendo...');
+  try {
+    const r = await vehApi('/api/vehiculos/localizador' + (confirmar ? '?confirmar=1' : ''), { method: 'POST', form });
+    vehError('vi-error', '');
+    const s = r.resumen;
+    if (r.guardado) { vehUsoMes = s.hasta.slice(0, 7); await cargarUsoVehiculos(vehUsoMes); actualizarContadorVehiculos(); return; }
+    const conError = s.archivos.filter(a => a.error);
+    document.getElementById('vi-resumen').innerHTML = `
+      <p style="margin:0 0 6px;"><b>${vehFecha(s.desde)} – ${vehFecha(s.hasta)}</b> · ${s.archivos.length} archivo${s.archivos.length === 1 ? '' : 's'} · ${s.total} trayectos</p>
+      <ul style="margin:0 0 8px; padding-left:18px;">
+        ${s.archivos.length > 1 ? s.archivos.map(a => `<li style="color:${a.error ? 'var(--red)' : 'var(--text-muted)'}">${vehEsc(a.nombre)}: ${a.error ? vehEsc(a.error) : (a.formato === 'detalle' ? 'Detalle de trayectos' : 'Informe detallado') + ' · ' + a.trayectos + ' trayectos'}</li>`).join('') : (conError.length ? `<li style="color:var(--red)">${vehEsc(conError[0].error)}</li>` : '')}
+        <li><b>${s.nuevos}</b> nuevos (${vehNum(s.km_nuevos)} km) · ${s.existentes} ya importados (se actualizan, no se duplican)</li>
+        ${s.sin_velocidades ? `<li style="color:var(--text-muted)">${s.sin_velocidades} trayectos vienen del "Detalle de trayectos": sin velocidades ni consumo.</li>` : ''}
+        ${s.descartados_detalle ? `<li style="color:var(--text-muted)">${s.descartados_detalle} tramos del "Detalle de trayectos" no se usan porque esos días ya están en el "Informe detallado".</li>` : ''}
+        ${s.ignorados.map(x => `<li style="color:var(--text-muted)">${vehEsc(x.nombre)}: ${x.trayectos} trayectos ignorados (${vehEsc(x.motivo)})</li>`).join('')}
+        ${s.desconocidos.map(x => `<li style="color:var(--orange)">${vehEsc(x.nombre)}: ${x.trayectos} trayectos de un vehículo que no está en la flota (no se guardan). Si es nuestro, dalo de alta con su matrícula y vuelve a importar.</li>`).join('')}
+      </ul>
+      ${s.validos && !conError.length ? '<button class="veh-btn prim" onclick="importarLocalizador(true)">Confirmar importación</button>' : ''}`;
+  } catch (err) { vehError('vi-error', err.message); }
+}

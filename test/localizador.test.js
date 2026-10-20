@@ -111,7 +111,7 @@ test('conductorDeVuelta', () => {
 
 test('calcularUso: reparte km por vuelta y conductor, separa revisar y sin conductor', () => {
   const vehiculos = [{ id: 1, matricula: '6625MYZ', nombre_rutas: 'IVECO' }, { id: 2, matricula: '7594MPZ', nombre_rutas: 'RENAULT' }];
-  const t = (vid, fecha, hora, km, dest, loc) => ({ vehiculo_id: vid, fecha, inicio: fecha + ' ' + hora + ':00', km, destino: dest, loc_destino: loc, seg_conduccion: 1800 });
+  const t = (vid, fecha, hora, km, dest, loc) => ({ vehiculo_id: vid, fecha, inicio: fecha + ' ' + hora + ':00', km, destino: dest, loc_destino: loc, seg_conduccion: 1800, seg_paradas: 120 });
   const trayectos = [
     t(1, '2026-09-07', '08:00', 30, 'X', 'Marbella'), t(1, '2026-09-07', '11:00', 30, ...MONDA),
     t(1, '2026-09-07', '15:00', 20, 'Y', 'Coín'), t(1, '2026-09-07', '18:00', 20, ...MONDA),
@@ -131,6 +131,9 @@ test('calcularUso: reparte km por vuelta y conductor, separa revisar y sin condu
   assert.equal(iveco.dias, 2);
   const wilson = u.porConductor.find(c => c.conductor === 'Wilson');
   assert.equal(wilson.km, 60);
+  // tiempo parado con el motor en marcha (paradas dentro del trayecto)
+  assert.equal(iveco.seg_paradas, 7 * 120); // 4 trayectos el día 7 + 3 el día 8
+  assert.equal(wilson.seg_paradas, 2 * 120);
   assert.equal(wilson.dias, 1);
   const sinDet = u.porConductor.find(c => c.conductor === null);
   assert.equal(sinDet.km, 40);
@@ -186,4 +189,18 @@ test('parsearInforme: el "Informe detallado" indica su formato y todos sus campo
   const r = L.parsearInforme(libro(CABECERAS, [FILA1]));
   assert.equal(r.formato, 'informe');
   assert.ok(r.campos.includes('vel_max'));
+});
+
+test('combinarFormatos: para cada vehículo y día manda el "Informe detallado"', () => {
+  const tr = (vid, fecha, hora, formato) => ({ vehiculo_id: vid, fecha, inicio: fecha + ' ' + hora, _formato: formato });
+  const validos = [
+    tr(1, '2026-10-16', '09:00:00', 'informe'), tr(1, '2026-10-16', '09:30:00', 'detalle'), // mismo día en los dos: fuera el detalle
+    tr(1, '2026-10-17', '09:00:00', 'detalle'),                                             // solo detalle: se guarda
+    tr(2, '2026-10-16', '10:00:00', 'detalle')                                              // ya hay informe en la base: fuera
+  ];
+  const r = L.combinarFormatos(validos, new Set(['2|2026-10-16']));
+  assert.deepEqual(r.guardar.map(t => t.vehiculo_id + ' ' + t.inicio), ['1 2026-10-16 09:00:00', '1 2026-10-17 09:00:00']);
+  assert.equal(r.descartados, 2);
+  // días en los que entra el informe: hay que borrar lo que viniera del detalle
+  assert.deepEqual(r.diasInforme, ['1|2026-10-16']);
 });
