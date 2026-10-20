@@ -707,3 +707,133 @@ async function importarLocalizador(confirmar) {
       ${s.validos && !conError.length ? '<button class="veh-btn prim" onclick="importarLocalizador(true)">Confirmar importación</button>' : ''}`;
   } catch (err) { vehError('vi-error', err.message); }
 }
+
+// ── Ranking de conductores (fase 5): lib/ranking.js ──
+let vehRankMes = null;
+let vehRankDatos = null;
+let vehRankAbierto = null; // conductor con el detalle desplegado
+let vehRankAjustes = false;
+vehOrdenes.ranking = { campo: 'nota', asc: false };
+
+const vehNotaColor = n => (n >= 85 ? 'var(--green)' : n >= 70 ? 'var(--orange)' : 'var(--red)');
+const vehVehRank = id => (vehRankDatos.vehiculos || []).find(v => v.id === id) || { matricula: '#' + id };
+
+async function cargarRankingConductores(mes) {
+  document.getElementById('content-title').textContent = 'Vehículos · Ranking de conductores';
+  marcarMenuActivo('menu-item-veh-ranking');
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Calculando ranking...</p>';
+  try {
+    const elegido = mes || vehRankMes;
+    vehRankDatos = await vehApi('/api/vehiculos/ranking' + (elegido ? '?mes=' + elegido : ''));
+    if (!elegido && !vehRankDatos.ranking.length && !vehRankDatos.pocosKm.length && vehRankDatos.ultimo_dia_importado) {
+      vehRankDatos = await vehApi('/api/vehiculos/ranking?mes=' + vehRankDatos.ultimo_dia_importado.slice(0, 7));
+    }
+    vehRankMes = vehRankDatos.mes;
+    pintarRanking();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error: ' + vehEsc(err.message) + '</p>';
+  }
+}
+
+function pintarRanking() {
+  const d = vehRankDatos, cfg = d.config;
+  const r = d.ranking;
+  const mejor = r[0], peor = r[r.length - 1];
+  const graves = r.reduce((s, c) => s + c.graves, 0) + d.pocosKm.reduce((s, c) => s + c.graves, 0);
+  const valor = (c, campo) => (campo === 'conductor' ? c.conductor : c[campo] == null ? -1 : c[campo]);
+  const th = (c, t) => vehTh('ranking', c, t, 'pintarRanking');
+  const lista = vehOrdenar(r, vehOrdenes.ranking, valor);
+  const posicion = c => r.indexOf(c) + 1;
+  const fila = (c, enRanking) => {
+    const pos = enRanking ? posicion(c) : null;
+    const abierto = vehRankAbierto === c.conductor;
+    const fondo = enRanking && r.length >= 6 ? (pos <= 3 ? 'background:#eef7f0;' : pos > r.length - 3 ? 'background:#fdecea;' : '') : '';
+    return `<tr class="veh-filtrable" data-filtro="${vehEsc(c.conductor)}" style="cursor:pointer; ${fondo}" onclick="vehRankAbierto = vehRankAbierto === ${vehEsc(JSON.stringify(c.conductor))} ? null : ${vehEsc(JSON.stringify(c.conductor))}; pintarRanking();">
+      <td>${pos ? '<b>' + pos + '</b>' : '—'}</td>
+      <td><b>${vehEsc(c.conductor)}</b> ${abierto ? '▾' : '▸'}</td>
+      <td><span style="display:inline-block; min-width:42px; text-align:center; padding:2px 6px; border-radius:10px; color:#fff; font-weight:600; background:${vehNotaColor(c.nota)};">${vehNum(c.nota)}</span></td>
+      <td>${vehNum(Math.round(c.km))}</td>
+      <td>${c.graves} <span style="color:var(--text-muted)">(${vehNum(c.graves_100km)}/100 km)</span></td>
+      <td>${c.leves} <span style="color:var(--text-muted)">(${vehNum(c.leves_100km)}/100 km)</span></td>
+      <td>${c.vel_max ? c.vel_max + ' km/h' : '—'}</td>
+      <td>${vehNum(c.ralenti_min_h)} min/h</td>
+      <td>${c.consumo_exceso_pct == null ? '—' : (c.consumo_exceso_pct > 0 ? '+' : '') + vehNum(c.consumo_exceso_pct) + ' %'}</td>
+      <td>${c.dias}</td></tr>${abierto ? vehRankDetalle(c) : ''}`;
+  };
+  document.getElementById('content-body').innerHTML = `
+    <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-bottom:12px;">
+      <div class="veh-form" style="grid-template-columns:auto;"><div><label>Mes</label><input type="month" value="${vehRankMes}" onchange="vehRankMes=this.value; cargarRankingConductores(this.value)"></div></div>
+      <div style="flex:1; min-width:200px; display:flex; padding-bottom:2px;">${vehBuscadorHtml('Buscar conductor...')}</div>
+      <button class="veh-btn" onclick="vehRankAjustes = !vehRankAjustes; pintarRanking();">${vehRankAjustes ? 'Cerrar ajustes' : 'Ajustes del ranking'}</button>
+    </div>
+    ${vehRankAjustes ? vehRankAjustesHtml(cfg) : ''}
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;">
+      ${kpiCard('Conductores en el ranking', r.length)}
+      ${kpiCard('Mejor', mejor ? `${vehEsc(mejor.conductor)} · <span style="color:${vehNotaColor(mejor.nota)}">${vehNum(mejor.nota)}</span>` : '—')}
+      ${kpiCard('Peor', peor && r.length > 1 ? `${vehEsc(peor.conductor)} · <span style="color:${vehNotaColor(peor.nota)}">${vehNum(peor.nota)}</span>` : '—')}
+      ${kpiCard('Excesos graves del mes', `<span style="color:${graves ? 'var(--red)' : 'inherit'}">${graves}</span>`)}
+    </div>
+    <div class="veh-seccion">
+      ${r.length ? `<div class="veh-tabla-wrap"><table><thead><tr><th>#</th>${th('conductor', 'Conductor')}${th('nota', 'Nota')}${th('km', 'Km')}${th('graves_100km', 'Excesos graves')}${th('leves_100km', 'Excesos leves')}${th('vel_max', 'Vel. máx.')}${th('ralenti_min_h', 'Ralentí')}${th('consumo_exceso_pct', 'Consumo vs óptimo')}${th('dias', 'Días')}</tr></thead>
+        <tbody>${lista.map(c => fila(c, true)).join('')}</tbody></table></div>`
+        : '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Nadie llega todavía al mínimo de ' + vehNum(cfg.km_minimo) + ' km este mes.</p>'}
+      <p style="font-size:12px; color:var(--text-muted); margin:10px 0 0;">
+        Nota de 0 a 100. Excesos por trayecto (el localizador da la velocidad máxima de cada trayecto): furgoneta leve &gt; ${cfg.umbrales.furgoneta.leve} y grave &gt; ${cfg.umbrales.furgoneta.grave} km/h · camión &gt; ${cfg.umbrales.camion.leve} / &gt; ${cfg.umbrales.camion.grave} · turismo &gt; ${cfg.umbrales.turismo.leve} / &gt; ${cfg.umbrales.turismo.grave}.
+        Ralentí = minutos parado con el motor en marcha por hora de conducción. Pesos: graves ${cfg.pesos.graves} · leves ${cfg.pesos.leves} · ralentí ${cfg.pesos.ralenti} · consumo ${cfg.pesos.consumo}. Pulsa un conductor para ver sus peores trayectos.
+      </p>
+      ${d.km_sin_determinar || d.km_sin_conductor ? `<p style="font-size:12px; color:var(--orange); margin:6px 0 0;">No cuentan para nadie: ${vehNum(Math.round(d.km_sin_determinar))} km con varios conductores sin marcar quién conduce (márcalo en Rutas con 🚐) y ${vehNum(d.km_sin_conductor)} km sin conductor en Rutas${d.dias_revisar ? ' · ' + d.dias_revisar + ' días a revisar en Uso' : ''}.</p>` : ''}
+    </div>
+    ${d.pocosKm.length ? `<div class="veh-seccion"><h3><span>Con menos de ${vehNum(cfg.km_minimo)} km este mes (fuera del ranking)</span></h3>
+      <div class="veh-tabla-wrap"><table><thead><tr><th>#</th><th>Conductor</th><th>Nota</th><th>Km</th><th>Excesos graves</th><th>Excesos leves</th><th>Vel. máx.</th><th>Ralentí</th><th>Consumo vs óptimo</th><th>Días</th></tr></thead>
+      <tbody>${d.pocosKm.map(c => fila(c, false)).join('')}</tbody></table></div></div>` : ''}`;
+  vehFiltrar();
+}
+
+function vehRankDetalle(c) {
+  const p = c.penalizaciones;
+  const peores = c.peores.length ? `<table style="width:100%; margin-top:8px;"><thead><tr><th>Día</th><th>Vehículo</th><th>Velocidad máx.</th><th>Exceso</th><th>Km</th><th>Trayecto</th></tr></thead><tbody>
+    ${c.peores.map(t => { const v = vehVehRank(t.vehiculo_id); return `<tr>
+      <td>${vehFecha(t.fecha)} ${vehEsc(String(t.inicio).slice(11, 16))}</td>
+      <td><b>${vehEsc(v.matricula || '')}</b> <span style="color:var(--text-muted)">${vehEsc(vehNombre(v))}</span></td>
+      <td><b style="color:${t.exceso === 'grave' ? 'var(--red)' : 'var(--orange)'}">${t.vel_max} km/h</b></td>
+      <td>${t.exceso === 'grave' ? 'Grave' : 'Leve'}</td><td>${vehNum(t.km)}</td>
+      <td>${vehEsc(t.origen || '')}${t.loc_origen ? ' (' + vehEsc(t.loc_origen) + ')' : ''} → ${vehEsc(t.destino || '')}${t.loc_destino ? ' (' + vehEsc(t.loc_destino) + ')' : ''}</td></tr>`; }).join('')}
+    </tbody></table>` : '<p style="font-size:12.5px; margin:8px 0 0;">Sin excesos de velocidad este mes. 👏</p>';
+  return `<tr><td colspan="10" style="background:var(--gray-100);">
+    <div style="font-size:12.5px;">Pierde <b>${vehNum(Math.round((100 - c.nota) * 10) / 10)}</b> puntos: excesos graves ${vehNum(p.graves)} · excesos leves ${vehNum(p.leves)} · ralentí ${vehNum(p.ralenti)} · consumo ${vehNum(p.consumo)}.
+      ${vehNum(c.trayectos)} trayectos · ${vehHoras(c.seg_conduccion)} conduciendo · ${vehHoras(c.seg_paradas)} parado con motor · vehículos: ${c.vehiculos.map(id => vehEsc(vehVehRank(id).matricula || '')).join(', ')}</div>
+    ${peores}</td></tr>`;
+}
+
+function vehRankAjustesHtml(cfg) {
+  const n = (id, etiqueta, valor) => `<div><label>${etiqueta}</label><input id="vr-${id}" type="number" value="${vehEsc(valor)}"></div>`;
+  const u = cfg.umbrales, p = cfg.pesos;
+  return `<div class="veh-seccion"><h3><span>Ajustes del ranking</span></h3>
+    <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px;">Excesos de velocidad: un trayecto cuenta como exceso si su velocidad máxima pasa del umbral (km/h).</p>
+    <div class="veh-form">
+      ${n('furgoneta-leve', 'Furgoneta · leve', u.furgoneta.leve)}${n('furgoneta-grave', 'Furgoneta · grave', u.furgoneta.grave)}
+      ${n('camion-leve', 'Camión · leve', u.camion.leve)}${n('camion-grave', 'Camión · grave', u.camion.grave)}
+      ${n('turismo-leve', 'Turismo · leve', u.turismo.leve)}${n('turismo-grave', 'Turismo · grave', u.turismo.grave)}
+    </div>
+    <p style="font-size:12px; color:var(--text-muted); margin:10px 0 8px;">Peso de cada concepto en la nota (tienen que sumar 100) y km mínimos al mes para entrar en el ranking.</p>
+    <div class="veh-form">
+      ${n('p-graves', 'Excesos graves', p.graves)}${n('p-leves', 'Excesos leves', p.leves)}${n('p-ralenti', 'Ralentí', p.ralenti)}${n('p-consumo', 'Consumo', p.consumo)}${n('km_minimo', 'Km mínimo al mes', cfg.km_minimo)}
+    </div>
+    <div class="veh-error" id="vr-error"></div>
+    <div style="margin-top:10px;"><button class="veh-btn prim" onclick="guardarAjustesRanking()">Guardar ajustes</button></div></div>`;
+}
+
+async function guardarAjustesRanking() {
+  const v = id => document.getElementById('vr-' + id).value;
+  const body = {
+    umbrales: { furgoneta: { leve: v('furgoneta-leve'), grave: v('furgoneta-grave') }, camion: { leve: v('camion-leve'), grave: v('camion-grave') }, turismo: { leve: v('turismo-leve'), grave: v('turismo-grave') } },
+    pesos: { graves: v('p-graves'), leves: v('p-leves'), ralenti: v('p-ralenti'), consumo: v('p-consumo') },
+    km_minimo: v('km_minimo')
+  };
+  try {
+    await vehApi('/api/vehiculos/ranking/config', { method: 'PUT', body });
+    vehRankAjustes = false;
+    await cargarRankingConductores(vehRankMes);
+  } catch (err) { vehError('vr-error', err.message); }
+}
