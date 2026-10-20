@@ -105,3 +105,20 @@ test('nombresRutasSinAsignar ignora lo que no son vehículos', () => {
     v.nombresRutasSinAsignar(['IVECO', 'NAVE MONDA', 'ALQUILADO 1', 'ALQUILADO 2', 'NUEVA'], [{ nombre_rutas: 'IVECO', activo: true }]),
     ['NUEVA']);
 });
+
+test('validarMantenimiento: km e importe deben ser números', () => {
+  assert.ok(v.validarMantenimiento({ fecha: '2026-10-15', tipo: 'revision', importe: 'abc' }));
+  assert.ok(v.validarMantenimiento({ fecha: '2026-10-15', tipo: 'revision', km: '12x' }));
+  assert.equal(v.validarMantenimiento({ fecha: '2026-10-15', tipo: 'revision', importe: '45.50', km: '' }), null);
+});
+
+test('deshacerRenovacion: vuelve al límite anterior solo si nadie lo ha cambiado después', () => {
+  const registro = { antes: { fecha_limite: '2026-10-25', km_limite: null }, despues: { fecha_limite: '2027-10-18', km_limite: null } };
+  assert.deepEqual(v.deshacerRenovacion({ fecha_limite: '2027-10-18', km_limite: null }, registro), { fecha_limite: '2026-10-25', km_limite: null });
+  // Editado a mano después de la renovación: no se pisa
+  assert.equal(v.deshacerRenovacion({ fecha_limite: '2028-01-01', km_limite: null }, registro), null);
+  // km llegan de Postgres como texto
+  const regKm = { antes: { fecha_limite: null, km_limite: 210600 }, despues: { fecha_limite: null, km_limite: 240500 } };
+  assert.deepEqual(v.deshacerRenovacion({ fecha_limite: null, km_limite: '240500' }, regKm), { fecha_limite: null, km_limite: 210600 });
+  assert.equal(v.deshacerRenovacion({ fecha_limite: '2027-10-18' }, null), null);
+});

@@ -55,6 +55,7 @@ create table if not exists vehiculos_mantenimientos (
   importe numeric,            -- base sin IVA
   factura_ref jsonb,          -- {fileId, numeroFactura, proveedor, importeBase} de FACTURAS_LOG (fase 4)
   vencimiento_id bigint references vehiculos_vencimientos(id) on delete set null,
+  renovacion jsonb,           -- {antes, despues} del vencimiento renovado, para deshacerlo al borrar
   creado_por text,
   creado_en timestamptz not null default now()
 );

@@ -347,7 +347,8 @@ async function guardarMantenimiento() {
 }
 
 async function borrarMantenimiento(id) {
-  if (!confirm('¿Borrar este mantenimiento?')) return;
+  const m = vehFichaActual.mantenimientos.find(x => x.id === id);
+  if (!confirm('¿Borrar este mantenimiento?' + (m && m.renovacion ? ' El vencimiento que renovó vuelve a su límite anterior.' : ''))) return;
   const vid = vehFichaActual.vehiculo.id;
   try {
     await vehApi('/api/vehiculos/' + vid + '/mantenimientos/' + id, { method: 'DELETE' });

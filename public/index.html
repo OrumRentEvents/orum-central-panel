@@ -6977,7 +6977,7 @@ function renderTablaFacturasProveedores(lista) {
     const matriculaFija = VEHICULOS_ORUM_FACTURAS.some(v => v.matricula === f.matricula);
     const mostrarNota = !!f.matricula && !matriculaFija;
     const matriculaOpts = `<option value="">—</option>` +
-      VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${v.matricula}" ${v.matricula === f.matricula ? 'selected' : ''}>${v.label}</option>`).join('') +
+      VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${escHtml(v.matricula)}" ${v.matricula === f.matricula ? 'selected' : ''}>${escHtml(v.label)}</option>`).join('') +
       `<option value="__otro__" ${mostrarNota ? 'selected' : ''}>Otro (vehículo externo)</option>`;
     // El lápiz activa edición en la propia línea para los campos que extrae
     // la IA (Proveedor/Nº Factura/Fecha/Base/IVA/Total) - nada de modal.
@@ -7935,7 +7935,7 @@ function renderIsabellaRegistro() {
           <label style="display:block; font-size:12px; font-weight:600; margin-bottom:4px;">Vehículo</label>
           <select id="ir-vehnombre-select" onchange="isabellaOnVehiculoSelect()">
             <option value="">Selecciona...</option>
-            ${VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${v.label.replace(/"/g, '&quot;')}">${v.label}</option>`).join('')}
+            ${VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${escHtml(v.label)}">${escHtml(v.label)}</option>`).join('')}
             <option value="__otro__">Otro (escribir)...</option>
           </select>
           <input type="text" id="ir-vehnombre" placeholder="¿Qué vehículo?" style="display:none; margin-top:6px;">
