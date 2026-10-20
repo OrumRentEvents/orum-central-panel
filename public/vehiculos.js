@@ -94,6 +94,42 @@ function vehError(id, msg) {
   if (el) el.textContent = msg || '';
 }
 
+// ── Buscador (arriba en Flota, Vencimientos y Uso) y orden de columnas ──
+let vehBusqueda = '';
+const vehNorm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function vehBuscadorHtml(placeholder) {
+  return `<div class="search-box" style="flex:1; min-width:200px; max-width:380px;"><input type="text" id="veh-buscador" placeholder="${placeholder || 'Buscar matrícula, vehículo, conductor...'}" value="${vehEsc(vehBusqueda)}" oninput="vehBusqueda = this.value; vehFiltrar()"></div>`;
+}
+// Oculta lo que no coincide: usa data-filtro si lo hay (filas con detalle) o el texto visible.
+function vehFiltrar() {
+  const q = vehNorm(vehBusqueda).trim();
+  document.querySelectorAll('#content-body .veh-filtrable').forEach(el => {
+    el.style.display = !q || vehNorm(el.dataset.filtro || el.textContent).includes(q) ? '' : 'none';
+  });
+}
+const vehOrdenes = { usoVeh: { campo: 'km', asc: false }, usoCond: { campo: 'km', asc: false }, venc: null };
+function vehOrdenar(lista, orden, valor) {
+  if (!orden) return lista;
+  return [...lista].sort((a, b) => {
+    let va = valor(a, orden.campo), vb = valor(b, orden.campo);
+    if (typeof va === 'string' || typeof vb === 'string') { va = vehNorm(va); vb = vehNorm(vb); }
+    return (va < vb ? -1 : va > vb ? 1 : 0) * (orden.asc ? 1 : -1);
+  });
+}
+// Cabecera que ordena al pulsar; repinta con la función indicada.
+function vehTh(clave, campo, texto, repintar) {
+  const o = vehOrdenes[clave];
+  const flecha = o && o.campo === campo ? (o.asc ? ' ▲' : ' ▼') : '';
+  return `<th class="ord" onclick="vehCambiarOrden('${clave}', '${campo}', ${repintar})">${texto}${flecha}</th>`;
+}
+function vehCambiarOrden(clave, campo, repintar) {
+  const o = vehOrdenes[clave];
+  // Primer clic: textos de la A a la Z, números de mayor a menor.
+  const esTexto = ['vehiculo', 'conductor'].includes(campo);
+  vehOrdenes[clave] = { campo, asc: o && o.campo === campo ? !o.asc : esTexto };
+  repintar();
+}
+
 // ── Contador del menú ──
 async function actualizarContadorVehiculos() {
   try {
@@ -133,7 +169,7 @@ function pintarFlota(json) {
     const p = v.proximo;
     const linea = p ? `<span class="veh-dot" style="background:${VEH_COLOR[p.estado]}"></span>${vehEsc(VEH_VENC[p.tipo] || p.tipo)} · ${vehTextoPlazo(p)}`
       : '<span style="color:var(--text-muted)">Sin vencimientos</span>';
-    return `<div class="veh-card ${v.estado}" onclick="abrirFichaVehiculo(${v.id})">
+    return `<div class="veh-card veh-filtrable ${v.estado}" data-filtro="${vehEsc([v.matricula, vehNombre(v), v.nombre_rutas, v.nombre_localizador].filter(Boolean).join(' '))}" onclick="abrirFichaVehiculo(${v.id})">
       <div class="veh-mat">${vehEsc(v.matricula || 'Sin matrícula')}</div>
       <div class="veh-sub">${vehEsc(vehNombre(v))}${v.nombre_rutas ? ' · Rutas: ' + vehEsc(v.nombre_rutas) : ''}${v.propiedad !== 'propio' ? ' · ' + VEH_PROPIEDAD[v.propiedad] : ''}</div>
       <div style="font-size:12.5px; margin-top:10px;">${v.km_actuales !== null ? vehNum(v.km_actuales) + ' km' : '<span style="color:var(--text-muted)">Km sin registrar</span>'}</div>
@@ -149,6 +185,7 @@ function pintarFlota(json) {
     </div>
     ${sinFicha.length ? `<div class="veh-aviso-rutas">En Rutas hay vehículos sin ficha: <b>${sinFicha.map(vehEsc).join(', ')}</b>. Crea su ficha o asígnalos en el campo "Nombre en Rutas".</div>` : ''}
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+      ${vehBuscadorHtml('Buscar matrícula, modelo, nombre en Rutas...')}
       <select onchange="vehVerInactivos = this.value === '1'; cargarVehiculos();" style="padding:6px 8px; border:1px solid var(--border); border-radius:4px;">
         <option value="0" ${vehVerInactivos ? '' : 'selected'}>Activos</option>
         <option value="1" ${vehVerInactivos ? 'selected' : ''}>Dados de baja</option>
@@ -156,6 +193,7 @@ function pintarFlota(json) {
       <button class="veh-btn prim" style="margin-left:auto;" onclick="abrirFichaVehiculo(null)">+ Nuevo vehículo</button>
     </div>
     ${json.vehiculos.length ? `<div class="veh-grid">${tarjetas}</div>` : '<p class="loading-text">No hay vehículos ' + (vehVerInactivos ? 'dados de baja.' : 'activos.') + '</p>'}`;
+  vehFiltrar();
 }
 
 // ── Ficha ──
@@ -463,13 +501,13 @@ async function cargarVencimientosVehiculos() {
   body.innerHTML = '<p class="loading-text">Cargando vencimientos...</p>';
   try {
     const json = await vehApi('/api/vehiculos/vencimientos');
-    const filas = json.vencimientos.map(x => `<tr class="${x.estado === 'ok' ? '' : x.estado}" style="cursor:pointer;" onclick="abrirFichaVehiculo(${x.vehiculo.id})">
+    const filas = json.vencimientos.map(x => `<tr class="veh-filtrable ${x.estado === 'ok' ? '' : x.estado}" style="cursor:pointer;" onclick="abrirFichaVehiculo(${x.vehiculo.id})">
         <td><b>${vehEsc(x.vehiculo.matricula || 'Sin matrícula')}</b> <span style="color:var(--text-muted)">${vehEsc(vehNombre(x.vehiculo))}</span></td>
         <td>${VEH_VENC[x.tipo] || x.tipo}</td><td>${vehEsc(x.descripcion || '')}</td>
         <td>${vehFecha(x.fecha_limite)}</td><td>${x.km_limite !== null ? vehNum(x.km_limite) : '—'}</td>
         <td>${vehTextoPlazo(x)}${vehCitaHtml(x)}</td><td><span class="veh-dot" style="background:${VEH_COLOR[x.estado]}"></span>${VEH_ESTADO_TXT[x.estado]}</td></tr>`).join('');
     body.innerHTML = json.vencimientos.length
-      ? `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">${json.contador} vencidos o próximos · pulsa una fila para abrir la ficha.</p>
+      ? `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 10px;">${vehBuscadorHtml('Buscar matrícula, vehículo, tipo...')}<span style="font-size:12.5px; color:var(--text-muted);">${json.contador} vencidos o próximos · pulsa una fila para abrir la ficha.</span></div>
          <div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Tipo</th><th>Descripción</th><th>Fecha límite</th><th>Km límite</th><th>Faltan</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table></div>`
       : '<p class="loading-text">No hay vencimientos registrados. Añádelos desde la ficha de cada vehículo.</p>';
     body.insertAdjacentHTML('beforeend', `<div class="veh-seccion" style="margin-top:16px;">
@@ -481,6 +519,7 @@ async function cargarVencimientosVehiculos() {
       </div>
       <div class="veh-error" id="veh-avisos-msg"></div>
     </div>`);
+    vehFiltrar();
     vehApi('/api/vehiculos/avisos/destinatarios').then(r => { document.getElementById('veh-avisos-dest').textContent = r.destinatarios.join(', ') || 'ninguno'; }).catch(() => {});
     actualizarContadorVehiculos();
   } catch (err) {
@@ -506,7 +545,11 @@ let vehUsoDatos = null;
 let vehUsoAbierto = null; // vehiculo_id con el detalle diario desplegado
 
 const vehHoras = seg => { const m = Math.round((Number(seg) || 0) / 60); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ' h'; };
-const vehMatriculaDe = id => { const v = (vehUsoDatos.vehiculos || []).find(x => x.id === id); return v ? (v.matricula || vehNombre(v)) : '#' + id; };
+const vehUsoVeh = id => (vehUsoDatos.vehiculos || []).find(x => x.id === id) || { matricula: '#' + id };
+const vehMatriculaDe = id => { const v = vehUsoVeh(id); return v.matricula || vehNombre(v); };
+// "9063NCW  MAN TGE 3.140 (Furgo ORUM)" — matrícula en negrita y modelo en gris
+const vehEtiquetaHtml = id => { const v = vehUsoVeh(id); return `<b>${vehEsc(v.matricula || 'Sin matrícula')}</b> <span style="color:var(--text-muted)">${vehEsc(vehNombre(v))}</span>`; };
+const vehEtiquetaTexto = id => { const v = vehUsoVeh(id); return [v.matricula, vehNombre(v), v.nombre_rutas].filter(Boolean).join(' '); };
 const vehConductorTxt = c => (c === null ? '<span style="color:var(--text-muted)">Sin determinar</span>' : vehEsc(c));
 
 async function cargarUsoVehiculos(mes) {
@@ -538,6 +581,7 @@ function pintarUso() {
     <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-bottom:12px;">
       <div class="veh-form" style="grid-template-columns:auto;"><div><label>Mes</label><input type="month" value="${vehUsoMes}" onchange="vehUsoMes=this.value; cargarUsoVehiculos(this.value)"></div></div>
       <span style="font-size:12px; color:var(--text-muted); padding-bottom:8px;">${d.ultimo_dia_importado ? 'Importado hasta el ' + vehFecha(d.ultimo_dia_importado) : 'Aún no hay datos del localizador'}</span>
+      <div style="flex:1; min-width:200px; display:flex; padding-bottom:2px;">${vehBuscadorHtml()}</div>
       <button class="veh-btn prim" style="margin-left:auto;" onclick="mostrarImportarLocalizador()">Importar localizador</button>
     </div>
     <div id="veh-import"></div>
@@ -551,32 +595,38 @@ function pintarUso() {
       ${tab('vehiculos', 'Por vehículo')}${tab('conductores', 'Por conductor')}${tab('revisar', 'A revisar (' + d.revisar.length + ')')}${tab('sin', 'Sin conductor (' + d.sinConductor.length + ')')}
     </div>
     <div class="veh-seccion">${contenido}</div>`;
+  vehFiltrar();
 }
 
 function vehUsoVehiculos() {
   const d = vehUsoDatos;
   if (!d.porVehiculo.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Sin trayectos este mes. Importa el informe del localizador.</p>';
-  const filas = [...d.porVehiculo].sort((a, b) => b.km - a.km).map(v => {
+  const valor = (v, c) => (c === 'vehiculo' ? vehEtiquetaTexto(v.vehiculo_id) : c === 'km_dia' ? v.km / Math.max(v.dias, 1) : v[c]);
+  const filas = vehOrdenar(d.porVehiculo, vehOrdenes.usoVeh, valor).map(v => {
     const abierto = vehUsoAbierto === v.vehiculo_id;
-    const detalle = abierto ? `<tr><td colspan="7" style="background:var(--gray-100);"><table style="width:100%;">
+    const filtro = vehEsc(vehEtiquetaTexto(v.vehiculo_id) + ' ' + v.detalle.flatMap(dia => dia.vueltas.map(x => x.conductor || '')).join(' '));
+    const detalle = abierto ? `<tr class="veh-filtrable" data-filtro="${filtro}"><td colspan="7" style="background:var(--gray-100);"><table style="width:100%;">
       <thead><tr><th>Día</th><th>Km</th><th>Trayectos</th><th>Parado con motor</th><th>Vueltas y conductor</th></tr></thead><tbody>${v.detalle.map(dia => `<tr>
         <td>${vehFecha(dia.fecha)}</td><td>${vehNum(dia.km)}</td><td>${dia.trayectos}</td><td>${vehHoras(dia.seg_paradas)}</td>
         <td>${dia.sin_rutas ? '<span style="color:var(--orange)">Sin conductor en Rutas</span>'
           : dia.revisar ? '<span style="color:var(--orange)">A revisar: las vueltas no cuadran</span>'
           : dia.vueltas.map(x => `V${x.vuelta} · ${x.sin_rutas ? '<span style="color:var(--orange)">sin apuntar en Rutas</span>' : vehConductorTxt(x.conductor)} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
-    return `<tr style="cursor:pointer;" onclick="vehUsoAbierto = vehUsoAbierto === ${v.vehiculo_id} ? null : ${v.vehiculo_id}; pintarUso();">
-      <td><b>${vehEsc(vehMatriculaDe(v.vehiculo_id))}</b> ${abierto ? '▾' : '▸'}</td><td>${vehNum(Math.round(v.km))}</td><td>${v.dias}</td>
+    return `<tr class="veh-filtrable" data-filtro="${filtro}" style="cursor:pointer;" onclick="vehUsoAbierto = vehUsoAbierto === ${v.vehiculo_id} ? null : ${v.vehiculo_id}; pintarUso();">
+      <td>${vehEtiquetaHtml(v.vehiculo_id)} ${abierto ? '▾' : '▸'}</td><td>${vehNum(Math.round(v.km))}</td><td>${v.dias}</td>
       <td>${v.trayectos}</td><td>${vehHoras(v.seg_conduccion)}</td><td>${vehHoras(v.seg_paradas)}</td><td>${vehNum(Math.round(v.km / Math.max(v.dias, 1)))}</td></tr>${detalle}`;
   }).join('');
-  return `<div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Km</th><th>Días</th><th>Trayectos</th><th>Conducción</th><th>Parado con motor</th><th>Km/día</th></tr></thead><tbody>${filas}</tbody></table></div>
+  const th = (c, t) => vehTh('usoVeh', c, t, 'pintarUso');
+  return `<div class="veh-tabla-wrap"><table><thead><tr>${th('vehiculo', 'Vehículo')}${th('km', 'Km')}${th('dias', 'Días')}${th('trayectos', 'Trayectos')}${th('seg_conduccion', 'Conducción')}${th('seg_paradas', 'Parado con motor')}${th('km_dia', 'Km/día')}</tr></thead><tbody>${filas}</tbody></table></div>
     <p style="font-size:12px; color:var(--text-muted); margin:8px 0 0;">Pulsa un vehículo para ver el detalle por día.</p>`;
 }
 
 function vehUsoConductores() {
   const l = vehUsoDatos.porConductor;
   if (!l.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Sin datos.</p>';
-  return `<div class="veh-tabla-wrap"><table><thead><tr><th>Conductor</th><th>Km</th><th>Conducción</th><th>Parado con motor</th><th>Días</th><th>Vueltas</th></tr></thead><tbody>
-    ${l.map(c => `<tr><td>${vehConductorTxt(c.conductor)}</td><td>${vehNum(Math.round(c.km))}</td><td>${vehHoras(c.seg_conduccion)}</td><td>${vehHoras(c.seg_paradas)}</td><td>${c.dias}</td><td>${c.vueltas}</td></tr>`).join('')}
+  const th = (c, t) => vehTh('usoCond', c, t, 'pintarUso');
+  const valor = (c, campo) => (campo === 'conductor' ? (c.conductor || 'zzz') : c[campo]);
+  return `<div class="veh-tabla-wrap"><table><thead><tr>${th('conductor', 'Conductor')}${th('km', 'Km')}${th('seg_conduccion', 'Conducción')}${th('seg_paradas', 'Parado con motor')}${th('dias', 'Días')}${th('vueltas', 'Vueltas')}</tr></thead><tbody>
+    ${vehOrdenar(l, vehOrdenes.usoCond, valor).map(c => `<tr class="veh-filtrable"><td>${vehConductorTxt(c.conductor)}</td><td>${vehNum(Math.round(c.km))}</td><td>${vehHoras(c.seg_conduccion)}</td><td>${vehHoras(c.seg_paradas)}</td><td>${c.dias}</td><td>${c.vueltas}</td></tr>`).join('')}
     </tbody></table></div>
     <p style="font-size:12px; color:var(--text-muted); margin:8px 0 0;">"Sin determinar": vueltas con varias personas en Rutas sin marcar quién conduce (márcalo en Rutas, sale con 🚐). No cuentan para nadie.</p>`;
 }
@@ -587,8 +637,8 @@ function vehUsoRevisar() {
   return `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">Las vueltas de Rutas no coinciden con las salidas desde la nave de Monda. Indica a qué hora empieza cada vuelta a partir de la segunda (p. ej. "13:30" o "11:00, 16:00").</p>` +
     l.map(r => {
       const k = r.vehiculo_id + '_' + r.fecha;
-      return `<div style="border-top:1px solid var(--border); padding:10px 0;">
-        <b>${vehEsc(vehMatriculaDe(r.vehiculo_id))}</b> · ${vehFecha(r.fecha)} · Rutas: ${r.vueltas} vueltas · localizador: ${r.salidas} salidas · ${vehNum(r.km)} km
+      return `<div class="veh-filtrable" data-filtro="${vehEsc(vehEtiquetaTexto(r.vehiculo_id) + ' ' + vehFecha(r.fecha))}" style="border-top:1px solid var(--border); padding:10px 0;">
+        ${vehEtiquetaHtml(r.vehiculo_id)} · ${vehFecha(r.fecha)} · Rutas: ${r.vueltas} vueltas · localizador: ${r.salidas} salidas · ${vehNum(r.km)} km
         ${r.cortes_invalidos ? `<div style="font-size:12px; color:var(--red); margin-top:4px;">Las horas de corte guardadas (${r.cortes.map(vehEsc).join(', ')}) ya no cuadran con las vueltas de Rutas: pon ${r.vueltas - 1}.</div>` : ''}
         <div style="font-size:12px; color:var(--text-secondary); margin:6px 0;">${r.trayectos.map(t => `${t.inicio} · ${vehNum(t.km)} km → ${vehEsc(t.destino || '')}${t.loc_destino ? ' (' + vehEsc(t.loc_destino) + ')' : ''}`).join('<br>')}</div>
         <div class="veh-form" style="grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); align-items:end;">
@@ -614,7 +664,7 @@ function vehUsoSin() {
   if (!l.length) return '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">Todos los días con movimiento tienen conductor en Rutas.</p>';
   return `<p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">Días en que el localizador registra movimiento pero en Rutas no hay nadie asignado a ese vehículo.</p>
     <div class="veh-tabla-wrap"><table><thead><tr><th>Vehículo</th><th>Día</th><th>Vuelta</th><th>Km</th><th>Trayectos</th></tr></thead><tbody>
-    ${[...l].sort((a, b) => b.km - a.km).map(s => `<tr><td>${vehEsc(vehMatriculaDe(s.vehiculo_id))}</td><td>${vehFecha(s.fecha)}</td><td>${s.vuelta ? s.vuelta + 'ª sin apuntar' : 'todo el día'}</td><td>${vehNum(s.km)}</td><td>${s.trayectos}</td></tr>`).join('')}
+    ${[...l].sort((a, b) => b.km - a.km).map(s => `<tr class="veh-filtrable"><td>${vehEtiquetaHtml(s.vehiculo_id)}</td><td>${vehFecha(s.fecha)}</td><td>${s.vuelta ? s.vuelta + 'ª sin apuntar' : 'todo el día'}</td><td>${vehNum(s.km)}</td><td>${s.trayectos}</td></tr>`).join('')}
     </tbody></table></div>`;
 }
 
