@@ -963,7 +963,7 @@ async function construirRespuestaPreparacion(vista) {
     const periodo = clasificarPeriodo(fechaEntrega, modo);
     if (!periodo) return;
     const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado));
-    const item = { id: p.id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false };
+    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false };
     if (estaListo) porProyecto[periodo].preparado.push(item);
     else porProyecto[periodo].confirmado.push(item);
   });
@@ -1044,7 +1044,7 @@ async function construirRespuestaPreparacion(vista) {
       const fechaMs = inicioDelDia(fecha).getTime();
       return fechaMs >= hoyMs && fechaMs <= limite14diasMs;
     });
-    const mapear = p => ({ id: p.id, numero: p.numero, cliente: p.cliente, fecha_entrega: p.entrega_fecha, estado: p.estado });
+    const mapear = p => ({ id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, fecha_entrega: p.entrega_fecha, estado: p.estado });
     respuesta.logistica = {
       lavanderia: proyectosEnVentana.filter(p => idsLavanderia.has(String(p.id))).map(mapear).sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || '')),
       office: proyectosEnVentana.filter(p => idsOffice.has(String(p.id))).map(mapear).sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
@@ -1174,6 +1174,7 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
       tipo.salidas.push({
         clave,
         proyecto_id: g.proyecto.id,
+        subproyecto_id: g.proyecto.subproyecto_id || null,
         proyecto_numero: g.proyecto.numero,
         cliente: g.proyecto.cliente,
         localizacion: g.proyecto.localizacion,
@@ -1388,7 +1389,7 @@ async function construirServiciosExtra() {
       if (fechaMs < hoyMs || fechaMs > limiteMs) return;
       items.push({
         fecha_ms: fechaMs, fecha_iso: fechaDia.toISOString().slice(0, 10),
-        proyecto_id: s.proyecto_id, proyecto_numero: s.numero || proyecto.numero || null,
+        proyecto_id: s.proyecto_id, subproyecto_id: proyecto.subproyecto_id || null, proyecto_numero: s.numero || proyecto.numero || null,
         proyecto_nombre: proyecto.nombre || '', cliente: proyecto.cliente || '', comercial: proyecto.comercial || '',
         estado: proyecto.estado || '', localizacion: proyecto.localizacion || '', google_maps_url: proyecto.google_maps_url || '',
         entrega_hora: proyecto.entrega_hora || '', recogida_fecha: proyecto.recogida_fecha || '', recogida_hora: proyecto.recogida_hora || '',
@@ -1410,7 +1411,7 @@ async function construirServiciosExtra() {
     const clave = String(it.proyecto_id);
     if (!dia.proyectos[clave]) {
       dia.proyectos[clave] = {
-        proyecto_id: it.proyecto_id, proyecto_numero: it.proyecto_numero, proyecto_nombre: it.proyecto_nombre,
+        proyecto_id: it.proyecto_id, subproyecto_id: it.subproyecto_id, proyecto_numero: it.proyecto_numero, proyecto_nombre: it.proyecto_nombre,
         cliente: it.cliente, comercial: it.comercial, estado: it.estado, localizacion: it.localizacion,
         google_maps_url: it.google_maps_url, entrega_hora: it.entrega_hora, recogida_fecha: it.recogida_fecha, recogida_hora: it.recogida_hora,
         servicios: []

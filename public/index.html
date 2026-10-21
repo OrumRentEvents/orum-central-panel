@@ -5239,7 +5239,7 @@ function filaMantenimiento(s) {
       <td>${s.articulo || '—'}</td>
       <td style="text-align:right;">${s.cantidad || '—'}</td>
       <td>${s.cliente || '—'}</td>
-      <td>${s.proyecto_numero ? '<span class="celda-copiable" onclick="copiarAlPortapapeles(\'' + s.proyecto_numero + '\', event)" title="Clic para copiar">' + s.proyecto_numero + '</span>' : '—'}</td>
+      <td>${!s.proyecto_numero ? '—' : s.subproyecto_id ? enlaceAlmacenRentman(s.subproyecto_id, s.proyecto_numero) : '<span class="celda-copiable" onclick="copiarAlPortapapeles(\'' + s.proyecto_numero + '\', event)" title="Clic para copiar">' + s.proyecto_numero + '</span>'}</td>
       <td>${s.localizacion || '—'}${mapsUrl ? ' · <a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent-dark); text-decoration:none; font-weight:600;">📍 Maps</a>' : ''}</td>
       <td style="text-align:center;">
         <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
@@ -5577,7 +5577,7 @@ function renderTarjetasProyectosPrep(lista, tipoColor) {
   return lista.map(p => `
     <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px; cursor:pointer;" onclick="abrirDetalleProyectoPrep(${p.id}, '${String(p.numero).replace(/'/g, "\\'")}')">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:500;" onclick="event.stopPropagation(); copiarAlPortapapeles('${p.numero}', this)" title="Copiar nº proyecto">#${p.numero}</span>
+        ${p.subproyecto_id ? `<span style="font-weight:500;">${enlaceAlmacenRentman(p.subproyecto_id, '#' + p.numero)}</span>` : `<span style="font-weight:500;" onclick="event.stopPropagation(); copiarAlPortapapeles('${p.numero}', this)" title="Copiar nº proyecto">#${p.numero}</span>`}
         <span class="badge ${badgeClase}" style="font-size:10px;">${p.estado || ''}</span>
       </div>
       <div style="color:#4a4944; margin-top:3px;">${p.cliente || ''}</div>
@@ -5757,7 +5757,7 @@ function renderPreparacionLogistica() {
     return lista.map(p => `
       <div style="background:#fff; border:0.5px solid #e2e2de; border-radius:8px; padding:0.6rem 0.75rem; margin-bottom:6px; font-size:12px; cursor:pointer;" onclick="abrirDetalleProyectoPrep(${p.id}, '${String(p.numero).replace(/'/g, "\\'")}')">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-weight:500;">#${p.numero}</span>
+          <span style="font-weight:500;">${p.subproyecto_id ? enlaceAlmacenRentman(p.subproyecto_id, '#' + p.numero) : '#' + p.numero}</span>
           <span class="badge badge-neutral" style="font-size:10px;">${p.estado || ''}</span>
         </div>
         <div style="color:#4a4944; margin-top:3px;">${p.cliente || ''}</div>
@@ -5804,7 +5804,9 @@ function euros(valor) {
 // Enlaces a la web de Rentman (21 oct 2026): el nº de factura/proyecto abre
 // la ficha en una pestaña nueva, sin copiar y buscar. Las URLs usan el ID
 // interno de Rentman (factura_id / id de proyecto), no el número visible.
-// Solo en Financiero: Logística no tiene permiso para ver la ficha en Rentman.
+// Financiero abre la ficha del proyecto/factura. Logística no tiene permiso
+// para la ficha: abre la vista de almacén, que va por SUBPROYECTO
+// (proyectos.subproyecto_id); sin él se mantiene "clic para copiar".
 // target="rentman" (con nombre, no _blank): todos los enlaces reutilizan la
 // misma pestaña de Rentman en vez de abrir una nueva por clic. Sin
 // rel="noopener", que haría que el navegador ignore el nombre y abra otra.
@@ -5817,6 +5819,11 @@ function enlaceFacturaRentman(facturaId, texto) {
 }
 function enlaceProyectoRentman(proyectoId, texto) {
   return proyectoId ? enlaceRentman(`/projects/${proyectoId}/details`, texto, 'Abrir proyecto en Rentman') : texto;
+}
+// stopPropagation: en Preparación el enlace va dentro de una tarjeta que, al
+// pinchar, abre el detalle de material.
+function enlaceAlmacenRentman(subproyectoId, texto) {
+  return `<span onclick="event.stopPropagation()">${enlaceRentman(`/warehouse/booking/${subproyectoId}`, texto, 'Abrir en almacén de Rentman')}</span>`;
 }
 const ETIQUETAS_FORMA_PAGO = {
   'transferencia': 'Transferencia',
@@ -7644,7 +7651,7 @@ function pintarServiciosExtra() {
         <div class="servextra-card" id="${cardId}" style="border:1px solid var(--border); border-radius:8px; margin-bottom:8px; overflow:hidden; background:#fff;">
           <div onclick="toggleServExtraCard(this)" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 14px;">
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-              <span style="font-weight:600; font-size:13px;">${p.proyecto_numero ? `<span class="celda-copiable" onclick="copiarAlPortapapeles('${p.proyecto_numero}', event)" title="Clic para copiar">#${p.proyecto_numero}</span>` : 'Proyecto s/n'} — ${p.cliente || 'Sin cliente'}</span>
+              <span style="font-weight:600; font-size:13px;">${!p.proyecto_numero ? 'Proyecto s/n' : p.subproyecto_id ? enlaceAlmacenRentman(p.subproyecto_id, '#' + p.proyecto_numero) : `<span class="celda-copiable" onclick="copiarAlPortapapeles('${p.proyecto_numero}', event)" title="Clic para copiar">#${p.proyecto_numero}</span>`} — ${p.cliente || 'Sin cliente'}</span>
               ${badges}
             </div>
             <span class="servextra-chevron" style="font-size:11px; color:var(--gray-400); transition:transform .15s;">▾</span>
