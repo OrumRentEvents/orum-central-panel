@@ -510,7 +510,7 @@ app.get('/api/financiero', requiereLogin, bloquearComercial, async (req, res) =>
       const valorEsperado = parseFloat(p.valor) || 0;
       const diferencia = Math.round((valorEsperado - totalCobrado) * 100) / 100;
       return {
-        numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado,
+        id: p.id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado,
         fecha_entrega: p.entrega_fecha, valor_esperado: valorEsperado,
         total_cobrado_formulario: Math.round(totalCobrado * 100) / 100,
         diferencia, cuadra: Math.abs(diferencia) < 0.05, cobros_formulario: cobros
