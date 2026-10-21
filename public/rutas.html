@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ORUM Rutas</title>
 <!-- App instalable en la pantalla de inicio del movil (icono con camion para distinguirla de ORUM Central) -->
-<link rel="manifest" href="/rutas.webmanifest">
+<link rel="manifest" href="/rutas.webmanifest?v=2">
 <meta name="theme-color" content="#1a1a18">
-<link rel="icon" type="image/png" sizes="192x192" href="/icons/rutas-192.png">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon-rutas.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/rutas-192.png?v=2">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-rutas.png?v=2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Rutas">
@@ -251,6 +251,75 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .hist-user{font-size:12.5px;font-weight:600;color:#1a1a18;margin-bottom:6px;}
 .hist-detail{font-size:12.5px;color:#4a4944;line-height:1.6;white-space:normal;word-break:break-word;}
 .hist-detail b{color:#1a1a18;font-weight:600;}
+
+/* MOVIL: cada parada pasa de fila de tabla a tarjeta. Franja de color a la izquierda
+   con la inicial del tipo (E entrega, R recogida...) y los datos en lineas. */
+.tipo-ini{display:none;}
+@media (max-width:700px){
+  #body{padding:8px 8px 90px;}
+  .hdr-top{flex-wrap:wrap;gap:6px;}
+  .hdr-top>div{flex-wrap:wrap;}
+  /* Barra del vehiculo: titulo, conductor debajo y botones en otra linea (antes se pisaban) */
+  .grupo-hdr{flex-wrap:wrap;row-gap:6px;padding:8px 10px;}
+  .grupo-hdr-left{flex-wrap:wrap;row-gap:4px;}
+  .grupo-conductor{position:static;transform:none;order:2;width:100%;white-space:normal;font-size:13px;text-transform:none;letter-spacing:0;}
+  .grupo-hdr-right{order:3;width:100%;flex-wrap:wrap;}
+  .btn-wa{font-size:12px;padding:6px 10px;}
+  .veh-estado{font-size:10px;padding:4px 9px;}
+  /* Tabla -> tarjetas */
+  .tbl,.tbl tbody{display:block;}
+  .tbl colgroup,.tbl thead{display:none;}
+  .fila{display:grid;grid-template-columns:46px minmax(0,1fr) auto auto auto auto;
+    grid-template-areas:"tipo num num fecha chk exp" "tipo cli cli cli cli cli" "tipo loc loc loc loc loc" "tipo est off lav tpc tpc" "tipo notas notas notas notas notas";
+    column-gap:6px;padding:0 8px 8px 0;border-bottom:1px solid #e2e2de;}
+  .fila td{padding:2px 0;font-size:14px;min-width:0;}
+  .fila td:empty{display:none;}
+  .fila td.td-drag{display:none;}
+  .fila td.td-tipo{grid-area:tipo;margin-bottom:-8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px;padding:10px 0;background:#f0f0ea;}
+  .td-tipo .badge{display:none;}
+  .td-tipo br{display:none;}
+  .tipo-ini{display:block;font-size:22px;font-weight:800;line-height:1;}
+  .fila.tipo-entrega .td-tipo{background:#D6F5E3;color:#0A6640;}
+  .fila.tipo-recogida .td-tipo{background:#FDEBD0;color:#8B4A00;}
+  .fila.tipo-otro .td-tipo{background:#E6F1FB;color:#185FA5;}
+  .fila.tipo-manual .td-tipo{background:#EEEDFE;color:#3C3489;}
+  .fila.tipo-compra .td-tipo{background:#FFF3E0;color:#8B4513;}
+  .fila.tipo-taller .td-tipo{background:#FCE4EC;color:#880E4F;}
+  .td-tipo .tp-chip{font-size:7.5px;padding:1px 3px;letter-spacing:0;}
+  .fila td.td-num{grid-area:num;padding-top:8px;}
+  .num-proy{font-size:16px;padding:0;}
+  .btn-material,.btn-servicios{font-size:13px;padding:3px 7px;margin-left:6px;}
+  .pago-dot{width:11px;height:11px;margin-left:6px;}
+  .fila td.td-fecha{grid-area:fecha;padding-top:10px;font-size:12px;}
+  .fila td.td-chk{grid-area:chk;padding-top:10px;}
+  .chk-dot{width:10px;height:10px;}
+  .fila td.td-exp{grid-area:exp;padding-top:10px;font-size:12px;}
+  .fila td.td-cli{grid-area:cli;white-space:normal;font-size:15px;font-weight:600;}
+  .cli-nom{white-space:normal;}
+  .tel-cli,.tel-falta{font-size:13px;margin-top:3px;}
+  .tel-cli{display:inline-block;padding:3px 0;}
+  .fila td.td-loc{grid-area:loc;white-space:normal;font-size:13px;}
+  .loc-nom{white-space:normal;}
+  .a-maps{font-size:12px;padding:3px 8px;margin-left:6px;display:inline-block;}
+  .zona{font-size:10px;margin-top:4px;}
+  .fila td.td-est{grid-area:est;align-self:center;padding:4px 0;}
+  .be{font-size:10px;}
+  .fila td.td-off{grid-area:off;}
+  .fila td.td-lav{grid-area:lav;}
+  .fila td.td-tpc{grid-area:tpc;}
+  .fila td.td-area{display:flex;align-items:center;gap:3px;font-size:10px;color:#6b6a64;padding:4px 0;}
+  .fila td.td-area:empty{display:none;}
+  .td-off::before{content:"Office";}
+  .td-lav::before{content:"Lav.";}
+  .td-tpc::before{content:"Traspa";}
+  .td-area input[type=checkbox]{width:20px;height:20px;margin:0;}
+  .fila td.td-notas{grid-area:notas;white-space:normal;font-size:13px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;}
+  .fila.compartida,.fila.inc{border-left-width:4px !important;}
+  .fila-det.open{display:block;}
+  .fila-det td{display:block;}
+  .zona-sep{display:block;}
+  .zona-sep td{display:block;}
+}
 
 /* TOAST */
 #toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a18;color:#fff;font-size:13px;padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300;white-space:nowrap;}
@@ -1113,7 +1182,7 @@ function renderFila(idx,gkey){
 
   var html='<tr class="'+claseFila+'" data-idx="'+idx+'" data-gkey="'+gkey+'"'+dragAttr+'>';
   html+='<td class="td-drag">'+(ROL==='logistica'?'⠿':'')+'</td>';
-  html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span>'+(tp?'<br><span class="tp-chip" title="Esta parada necesita traspa">TRASPA</span>':'')+'</td>';
+  html+='<td class="td-tipo"><span class="badge '+bc+'">'+bt+'</span><span class="tipo-ini">'+bt.charAt(0)+'</span>'+(tp?'<br><span class="tp-chip" title="Esta parada necesita traspa">TRASPA</span>':'')+'</td>';
   html+='<td class="td-fecha">'+fechaH+'</td>';
   // CAMBIO 4: columna número independiente
   html+='<td class="td-num">'+numH+materialBtn+serviciosBtn+pagoDotH+'</td>';
@@ -1143,9 +1212,9 @@ function renderFila(idx,gkey){
   html+='<td class="td-loc"><div class="loc-nom">'+(p.localizacion||'—')+mapsH+'</div>'+etiquetaZona(p)+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
-  html+='<td class="td-area">'+areaChk('office')+'</td>';
-  html+='<td class="td-area">'+areaChk('lavanderia')+'</td>';
-  html+='<td class="td-area"><input type="checkbox" class="chk-tp"'+(tp?' checked':'')+(ROL==='logistica'?' onchange="toggleTranspale(this,'+idx+')"':' disabled')+' title="Necesita traspa'+((transpales[claveTranspale(p)]||{}).auto?' (marcado automáticamente al marcar la entrega)':'')+'"></td>';
+  html+='<td class="td-area td-off">'+areaChk('office')+'</td>';
+  html+='<td class="td-area td-lav">'+areaChk('lavanderia')+'</td>';
+  html+='<td class="td-area td-tpc"><input type="checkbox" class="chk-tp"'+(tp?' checked':'')+(ROL==='logistica'?' onchange="toggleTranspale(this,'+idx+')"':' disabled')+' title="Necesita traspa'+((transpales[claveTranspale(p)]||{}).auto?' (marcado automáticamente al marcar la entrega)':'')+'"></td>';
   html+='<td class="td-notas" title="'+String(p.notas||'').replace(/"/g,'&quot;')+'">'+String(p.notas||'')+'</td>';
   html+='<td class="td-exp">▾</td>';
   html+='</tr>';
