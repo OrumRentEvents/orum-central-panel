@@ -4512,6 +4512,9 @@ const emailFianzas = require('./lib/emailFianzas').crearEmailFianzas({
 });
 emailFianzas.registrarRutas(app, requiereLogin);
 
+// App del conductor: ruta de hoy de cada vehículo, sin importes — ver lib/rutasConductor.js
+require('./lib/rutasConductor').registrar(app, { requiereLogin, bloquearComercial });
+
 // Sincronización directa Rentman → Supabase (ver lib/rentmanSync.js). Tras cada
 // proyecto sincronizado se vacía la caché de datos y se avisa a las pantallas de Rutas.
 const rentmanSync = require('./lib/rentmanSync');

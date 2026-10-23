@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Enlaces conductores</title>
+<!-- Lista de las apps del conductor (una por vehiculo). Solo con sesion en el panel, rol distinto de Comercial. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#eeeee9;color:#1a1a18;padding:16px;}
+h1{font-size:18px;margin-bottom:4px;}
+p.sub{font-size:13px;color:#6b6a64;margin-bottom:14px;line-height:1.4;max-width:720px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+.v{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.1);display:flex;flex-direction:column;align-items:center;gap:10px;}
+.v h2{font-size:16px;letter-spacing:.5px;}
+.qr{width:180px;height:180px;}
+.url{font-size:11px;color:#6b6a64;word-break:break-all;text-align:center;}
+.acc{display:flex;gap:8px;}
+.acc a,.acc button{font-size:13px;font-weight:600;padding:7px 12px;border-radius:7px;border:none;cursor:pointer;text-decoration:none;font-family:inherit;}
+.acc a{background:#E6F1FB;color:#185FA5;}
+.acc button{background:#1a1a18;color:#fff;}
+.msg{padding:2rem;text-align:center;color:#6b6a64;}
+</style>
+</head>
+<body>
+<h1>Apps de conductor</h1>
+<p class="sub">Cada vehículo tiene su enlace con la ruta de hoy, sin importes. Ábrelo en el móvil del vehículo (o escanea el QR) y añádelo a la pantalla de inicio. No compartas estos enlaces: quien lo tenga ve la ruta de ese vehículo.</p>
+<div id="lista" class="grid"><div class="msg">Cargando...</div></div>
+<script>
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+fetch('/api/conductor/enlaces').then(function(r){return r.json();}).then(function(d){
+  var cont=document.getElementById('lista');
+  if(d.error){cont.innerHTML='<div class="msg">'+esc(d.error==='No autenticado'?'Inicia sesión en el panel de ORUM Central y vuelve a abrir esta página.':d.error)+'</div>';return;}
+  cont.innerHTML=d.enlaces.map(function(e,i){
+    return '<div class="v"><h2>'+esc(e.vehiculo)+'</h2><div class="qr" id="qr'+i+'"></div><div class="url">'+esc(e.url)+'</div>'+
+      '<div class="acc"><a href="'+esc(e.url)+'" target="_blank" rel="noopener">Abrir</a><button data-url="'+esc(e.url)+'">Copiar enlace</button></div></div>';
+  }).join('');
+  d.enlaces.forEach(function(e,i){if(window.QRCode)new QRCode(document.getElementById('qr'+i),{text:e.url,width:180,height:180});});
+  cont.querySelectorAll('button[data-url]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var u=b.getAttribute('data-url');
+      (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(function(){b.textContent='Copiado';setTimeout(function(){b.textContent='Copiar enlace';},1500);}).catch(function(){prompt('Copia el enlace:',u);});
+    });
+  });
+}).catch(function(){document.getElementById('lista').innerHTML='<div class="msg">No se ha podido cargar la lista.</div>';});
+</script>
+</body>
+</html>
