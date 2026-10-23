@@ -56,7 +56,7 @@ alter table fianza_email_destinatarios enable row level security;
 alter table fianza_email_envios        enable row level security;
 
 insert into fianza_email_destinatarios (nombre, email, tipo)
-select 'Ana', 'financiero@orumevents.com', 'para'
-where not exists (select 1 from fianza_email_destinatarios where email = 'financiero@orumevents.com');
+select 'Ana', 'financiero@grupoisabellapremium.com', 'para'
+where not exists (select 1 from fianza_email_destinatarios where email = 'financiero@grupoisabellapremium.com');
 -- María: añadir cuando se sepa su correo, p. ej.
 -- insert into fianza_email_destinatarios (nombre, email, tipo) values ('María', '...', 'cc');
