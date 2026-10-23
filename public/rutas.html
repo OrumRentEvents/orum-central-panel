@@ -1154,7 +1154,7 @@ function renderFila(idx,gkey){
   var fechaH=p.fecha?formatFechaCorta(p.fecha):'';
   // CAMBIO 4: número de proyecto
   var numH=p.numero?('<span class="num-proy" onclick="copiarNum(this,\''+p.numero+'\')" title="Clic para copiar">#'+p.numero+'</span>'):'<span style="color:#ccc">—</span>';
-  var materialBtn=p.proyecto_id?('<button class="btn-material" onclick="event.stopPropagation();abrirModalMaterial(\''+p.proyecto_id+'\',\''+(p.numero||'')+'\')" title="Ver material del proyecto">&#128230;</button>'):'';
+  var materialBtn=p.proyecto_id?('<button class="btn-material" onclick="event.stopPropagation();abrirModalMaterial(\''+p.proyecto_id+'\',\''+(p.numero||'')+'\',\''+(p.clave||'')+'\')" title="Ver material de esta parada">&#128230;</button>'):'';
   // Semaforo de pago (rojo/amarillo/verde/azul) + boton de servicios extra
   var epInfo=p.proyecto_id?estadoPago[String(p.proyecto_id)]:null;
   var pagoDotH=epInfo?('<span class="pago-dot pago-'+epInfo.estado_pago+'" title="'+tituloPago(epInfo)+'"></span>'):'';
@@ -1823,13 +1823,13 @@ function guardarListaChoferes(){
 }
 
 // ── MODAL MATERIAL DEL PROYECTO ──
-function abrirModalMaterial(proyectoId, numero){
+function abrirModalMaterial(proyectoId, numero, clave){
   document.getElementById('modal-material-titulo').textContent='Material'+(numero?' — Proyecto #'+numero:'');
   var body=document.getElementById('modal-material-body');
   body.innerHTML='<div class="load">Cargando...</div>';
   document.getElementById('modal-material').style.display='flex';
   document.body.style.overflow='hidden';
-  fetch('/api/rutas/material?proyecto_id='+encodeURIComponent(proyectoId)+'&token=ORUMx2026RutasPublic&t='+Date.now())
+  fetch('/api/rutas/material?proyecto_id='+encodeURIComponent(proyectoId)+'&clave='+encodeURIComponent(clave||'')+'&token=ORUMx2026RutasPublic&t='+Date.now())
     .then(function(r){return r.json();})
     .then(function(data){
       if(data.error||!data.material){body.innerHTML='<div class="load">Error al cargar material</div>';return;}

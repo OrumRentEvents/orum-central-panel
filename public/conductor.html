@@ -121,12 +121,14 @@ function tarjeta(p,pos,id){
   if(p.direccion||p.maps)h+='<a class="btn b-maps" href="'+esc(urlMaps(p))+'" target="_blank" rel="noopener">&#128205; Cómo llegar</a>';
   if(p.telefono)h+='<a class="btn b-tel" href="tel:'+esc(String(p.telefono).replace(/[^0-9+]/g,''))+'">&#128222; '+esc((p.contacto?p.contacto+' · ':'')+p.telefono)+'</a>';
   else if(p.proyecto_id)h+='<span class="sin-tel">Sin teléfono de contacto</span>';
-  if(p.material)h+='<button class="btn b-mat" onclick="verMaterial(\''+id+'\',\''+esc(p.proyecto_id)+'\')" id="bm-'+id+'">&#128230; '+(abiertos[id]?'Ocultar material':'Ver material')+'</button>';
+  if(p.material)h+='<button class="btn b-mat" onclick="verMaterial(\''+id+'\',\''+esc(p.proyecto_id)+'\',\''+esc(p.clave)+'\')" id="bm-'+id+'">&#128230; '+(abiertos[id]?'Ocultar material':'Ver material')+'</button>';
   h+='</div><div id="mat-'+id+'"></div></div></div>';
   return h;
 }
 
-function verMaterial(id,pid){
+function verMaterial(id,pid,clave){
+  // Una misma obra puede tener dos paradas con material distinto (subproyectos con otra fecha)
+  var k=pid+'|'+(clave||'');
   var b=document.getElementById('bm-'+id);
   if(abiertos[id]){
     abiertos[id]=null;
@@ -134,15 +136,15 @@ function verMaterial(id,pid){
     document.getElementById('mat-'+id).innerHTML='';
     return;
   }
-  abiertos[id]=pid;
+  abiertos[id]=k;
   if(b)b.innerHTML='&#128230; Ocultar material';
-  if(materiales[pid]){pintarMaterial(id);return;}
+  if(materiales[k]){pintarMaterial(id);return;}
   document.getElementById('mat-'+id).innerHTML='<div class="mat"><div class="mat-row">Cargando material...</div></div>';
-  fetch('/api/conductor/'+encodeURIComponent(codigo)+'/material?proyecto_id='+encodeURIComponent(pid)+'&t='+Date.now()).then(function(r){return r.json();}).then(function(d){
-    materiales[pid]=d.material||[];
-    if(d.error)materiales[pid]={error:d.error};
+  fetch('/api/conductor/'+encodeURIComponent(codigo)+'/material?proyecto_id='+encodeURIComponent(pid)+'&clave='+encodeURIComponent(clave||'')+'&t='+Date.now()).then(function(r){return r.json();}).then(function(d){
+    materiales[k]=d.material||[];
+    if(d.error)materiales[k]={error:d.error};
     pintarMaterial(id);
-  }).catch(function(){delete materiales[pid];document.getElementById('mat-'+id).innerHTML='<div class="mat"><div class="mat-row">Sin conexión</div></div>';});
+  }).catch(function(){delete materiales[k];document.getElementById('mat-'+id).innerHTML='<div class="mat"><div class="mat-row">Sin conexión</div></div>';});
 }
 
 function pintarMaterial(id){

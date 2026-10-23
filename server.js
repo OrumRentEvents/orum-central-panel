@@ -1903,7 +1903,7 @@ app.get('/api/rutas/material', async (req, res) => {
     if (!proyectoId) return res.status(400).json({ error: 'Falta proyecto_id' });
     // Antes: traía las 11.000+ filas de Equipment enteras y filtraba en
     // memoria. Ahora: consulta indexada por proyecto_id directo en Supabase.
-    const equipment = await obtenerMaterialDeProyecto(proyectoId);
+    const equipment = await obtenerMaterialDeProyecto(proyectoId, String(req.query.clave || ''));
     res.json({ ok: true, material: equipment });
   } catch (err) {
     console.error('Error en GET /api/rutas/material:', err);
