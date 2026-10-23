@@ -39,6 +39,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .chip{font-size:12px;font-weight:800;letter-spacing:.3px;padding:4px 9px;border-radius:7px;}
 .chip-tp{background:#FFE36E;color:#5C4400;border:1px solid #E0B800;}
 .chip-mt{background:#EEEDFE;color:#3C3489;}
+.chip-sub{background:#FAEEDA;color:#854F0B;}
 .chip-con{background:#f0f0ea;color:#4a4944;font-weight:600;}
 .notas{margin-top:8px;font-size:14px;background:#fafaf6;border-left:3px solid #c9c7bd;padding:6px 9px;border-radius:0 6px 6px 0;white-space:pre-wrap;word-wrap:break-word;}
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
@@ -110,6 +111,7 @@ function tarjeta(p,pos,id){
   h+='<div class="cli">'+esc(p.cliente||'—')+'</div>';
   if(p.direccion)h+='<div class="dir">'+esc(p.direccion)+'</div>';
   var chips='';
+  if(p.subproyectos)chips+='<span class="chip chip-sub">Solo '+esc(p.subproyectos)+'</span>';
   if(p.traspa)chips+='<span class="chip chip-tp">TRASPA</span>';
   p.montaje.forEach(function(m){chips+='<span class="chip chip-mt">'+esc(m)+'</span>';});
   if(p.con.length)chips+='<span class="chip chip-con">Con '+esc(p.con.join(', '))+'</span>';

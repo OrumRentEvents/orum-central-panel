@@ -124,6 +124,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tp-hdr{font-size:9px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:8px;background:#FFE36E;color:#5C4400;white-space:nowrap;}
 .td-area input.chk-tp{accent-color:#C99A00;}
 .tel-falta{display:block;font-size:10px;font-weight:700;color:#A32D2D;white-space:nowrap;margin-top:1px;}
+.sub-tag{display:inline-block;font-size:10px;font-weight:700;color:#3C3489;background:#EEEDFE;border-radius:4px;padding:0 5px;margin-top:2px;}
 .com-ini{width:20px;height:20px;border-radius:50%;border:1.5px solid #1a1a18;color:#1a1a18;font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;letter-spacing:0;cursor:default;}
 
 /* Casillas Office / Lavanderia */
@@ -1213,7 +1214,7 @@ function renderFila(idx,gkey){
     // Aviso para reclamarlo al comercial. Solo en paradas de hoy en adelante: en las pasadas ya no sirve de nada
     telH='<span class="tel-falta" title="El proyecto no tiene telefono en la persona de contacto de Rentman">Sin teléfono</span>';
   }
-  html+='<td class="td-cli"><div class="cli-wrap">'+comH+'<div class="cli-datos"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+telH+'</div></div></td>';
+  html+='<td class="td-cli"><div class="cli-wrap">'+comH+'<div class="cli-datos"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+(p.subproyectos?'<span class="sub-tag" title="Este proyecto tiene varias fechas: esta parada es la de estos subproyectos">'+String(p.subproyectos).replace(/</g,'&lt;')+'</span>':'')+telH+'</div></div></td>';
   html+='<td class="td-loc"><div class="loc-nom">'+(p.localizacion||'—')+mapsH+'</div>'+etiquetaZona(p)+'</td>';
   html+='<td class="td-est">'+estH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
@@ -1993,6 +1994,7 @@ function enviarWhatsApp(gkey){
     texto+=(pos+1)+'. '+p.tipo+(necesitaTranspale(p)?' — CON TRASPA':'')+'\n';
     if(p.numero)texto+='   #'+p.numero+'\n';
     texto+='   '+(p.cliente||'')+'\n';
+    if(p.subproyectos)texto+='   Subproyecto: '+p.subproyectos+'\n';
     if(p.localizacion)texto+='   '+p.localizacion+'\n';
     var epTel=p.proyecto_id?estadoPago[String(p.proyecto_id)]:null;
     if(epTel&&epTel.telefono)texto+='   Tel: '+(epTel.telefono_nombre?epTel.telefono_nombre+' ':'')+epTel.telefono+'\n';
@@ -2029,6 +2031,7 @@ function enviarWhatsAppCompartido(waKey){
     texto+=(pos+1)+'. '+p.tipo+(necesitaTranspale(p)?' — CON TRASPA':'')+'\n';
     if(p.numero)texto+='   #'+p.numero+'\n';
     texto+='   '+(p.cliente||'')+'\n';
+    if(p.subproyectos)texto+='   Subproyecto: '+p.subproyectos+'\n';
     if(p.localizacion)texto+='   '+p.localizacion+'\n';
     var epTel=p.proyecto_id?estadoPago[String(p.proyecto_id)]:null;
     if(epTel&&epTel.telefono)texto+='   Tel: '+(epTel.telefono_nombre?epTel.telefono_nombre+' ':'')+epTel.telefono+'\n';
