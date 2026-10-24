@@ -1585,9 +1585,18 @@ function guardarDetalle(btn){
 
   // Siempre enviar vehículo como string separado por comas (evita [Ljava.lang.Object])
   var body={action:'set_asignacion',clave:pData.clave,proyecto_id:paradas[idx].proyecto_id,tipo:paradas[idx].tipo,fecha:paradas[idx].fecha,vehiculo:vehsAString(vehsSeleccionados),conductor:conductor,notas:notas,vuelta:vuelta,orden:paradas[idx].orden||0};
-  if(pData.es_manual){body.action='update_manual';body.id=pData.id_manual;}
+  var envio;
+  if(pData.es_manual){
+    // update_manual guarda los datos de la parada manual pero ignora la vuelta y el orden
+    // (en las manuales van en la asignacion, igual que en las de proyecto): por eso se manda
+    // ademas set_asignacion. En serie, para no escribir la misma fila a la vez.
+    var bodyManual=Object.assign({},body,{action:'update_manual',id:pData.id_manual});
+    envio=apiPost(bodyManual).then(function(){return apiPost(body);});
+  } else {
+    envio=apiPost(body);
+  }
 
-  var promesas=[apiPost(body)];
+  var promesas=[envio];
   if(estadoParadaBody){
     promesas.push(fetch('/api/rutas/estados-parada',{
       method:'POST',
