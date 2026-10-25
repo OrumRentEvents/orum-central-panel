@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ORUM Preparacion</title>
+<link rel="manifest" href="/movil.webmanifest">
+<meta name="theme-color" content="#1a1a18">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-rutas.png?v=2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
@@ -94,7 +99,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </head>
 <body>
 
-<div id="pin-screen">
+<div id="pin-screen" style="display:none;">
   <div class="pin-box">
     <div class="pin-logo">ORUM</div>
     <div class="pin-subtitle">Introduce tu PIN de acceso</div>
@@ -112,7 +117,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <div id="app" style="display:none;">
   <div class="app-header">
     <div class="app-header-top">
-      <h1 id="app-titulo">ORUM</h1>
+      <button class="btn-recargar" id="btn-inicio" style="display:none;margin-right:10px;">&lsaquo; Inicio</button>
+      <h1 id="app-titulo" style="flex:1;">ORUM</h1>
+      <button class="btn-recargar" id="btn-salir" style="display:none;margin-right:8px;">Salir</button>
       <button class="btn-recargar" id="btn-recargar">Recargar</button>
     </div>
     <div class="ultima-actualizacion" id="ultima-act">Cargando...</div>
@@ -151,6 +158,14 @@ var TAB_SUBTABS = {
   office: ['Por proyecto', 'Por material'],
   almacen: ['Por proyecto', 'Por material', 'Servicios', 'Logistica']
 };
+
+// Desde la app móvil (/movil) se entra con la sesión de la persona, sin estos
+// PIN: Dirección y Logística ven las tres zonas; las tablets de Lavandería y
+// Office (roles del mismo nombre) solo la suya. Los PIN de arriba siguen
+// valiendo mientras se pasa todo el mundo a la app.
+var TABS_POR_ROL = { Lavanderia: ['lavanderia'], Office: ['office'] };
+var ROLES_TABLET = ['Lavanderia', 'Office'];
+var CLAVE_DISPOSITIVO = 'orum_movil_dispositivo';
 
 var pinActual = '';
 var perfilActivo = null;
@@ -251,8 +266,14 @@ function cambiarTab(tab) {
 function cargarDatos(tab) {
   document.getElementById('app-body').innerHTML = '<div class="loading">Cargando...</div>';
   document.getElementById('buscador-wrap').style.display = 'none';
-  var url = '/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab + '&t=' + Date.now();
-  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+  var url = perfilActivo.sesion
+    ? '/api/preparacion?vista=' + tab + '&t=' + Date.now()
+    : '/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab + '&t=' + Date.now();
+  fetch(url).then(function(r) {
+    // Sesión caducada (p. ej. tras publicar una versión nueva): se vuelve a entrar con la llave del dispositivo
+    if (r.status === 401 && perfilActivo.sesion) { location.reload(); return new Promise(function() {}); }
+    return r.json();
+  }).then(function(data) {
     if (data.error) { document.getElementById('app-body').innerHTML = '<div class="loading">Error: ' + data.error + '</div>'; return; }
     datosCache[tab] = data;
     equipmentCache = {};
@@ -494,6 +515,37 @@ document.getElementById('buscador') && document.getElementById('buscador').addEv
 });
 
 initKeypad();
+
+function entrarConSesion(u) {
+  var tabs = TABS_POR_ROL[u.rol] || ['almacen', 'lavanderia', 'office'];
+  perfilActivo = { sesion: true, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparacion', tabs: tabs };
+  tabActiva = tabs[0];
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('app-titulo').textContent = perfilActivo.nombre;
+  var tablet = ROLES_TABLET.indexOf(u.rol) !== -1;
+  document.getElementById('btn-inicio').style.display = tablet ? 'none' : '';
+  document.getElementById('btn-salir').style.display = tablet ? '' : 'none';
+  construirTabs();
+  cargarDatos(tabActiva);
+}
+function sinSesion() { document.getElementById('pin-screen').style.display = 'flex'; }
+document.getElementById('btn-inicio').addEventListener('click', function() { location.href = '/movil'; });
+document.getElementById('btn-salir').addEventListener('click', function() {
+  if (!confirm('¿Salir? Habrá que volver a teclear el PIN en esta tablet.')) return;
+  var llave = ''; try { llave = localStorage.getItem(CLAVE_DISPOSITIVO) || ''; localStorage.removeItem(CLAVE_DISPOSITIVO); } catch (e) {}
+  fetch('/api/movil/salir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) })
+    .catch(function() {}).then(function() { location.href = '/movil'; });
+});
+// Arranque: sesión abierta, o dispositivo recordado por la app móvil; si no, el PIN de siempre.
+fetch('/api/sesion').then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; }).then(function(d) {
+  if (d && d.usuario && d.usuario.rol !== 'Comercial') return entrarConSesion(d.usuario);
+  var llave = ''; try { llave = localStorage.getItem(CLAVE_DISPOSITIVO) || ''; } catch (e) {}
+  if (!llave) return sinSesion();
+  fetch('/api/movil/dispositivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) })
+    .then(function(r) { return r.json(); })
+    .then(function(r) { if (r.ok && r.usuario.rol !== 'Comercial') entrarConSesion(r.usuario); else sinSesion(); })
+    .catch(sinSesion);
+});
 </script>
 </body>
 </html>

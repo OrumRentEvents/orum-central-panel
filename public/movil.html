@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>ORUM</title>
+<link rel="manifest" href="/movil.webmanifest">
+<meta name="theme-color" content="#1a1a18">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/rutas-192.png?v=2">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-rutas.png?v=2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="ORUM">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
+button { font-family: inherit; }
+.oculto { display: none !important; }
+.cargando { text-align: center; padding: 4rem 1rem; color: #6b6a64; font-size: 14px; }
+
+/* PIN (igual que Rutas y Preparación) */
+#pin-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
+.pin-box { background: #fff; border: 0.5px solid #e2e2de; border-radius: 16px; padding: 2rem 1.5rem; width: 100%; max-width: 320px; text-align: center; }
+.pin-logo { font-size: 13px; font-weight: 600; letter-spacing: 2px; margin-bottom: 6px; }
+.pin-sub { font-size: 12px; color: #9a988f; margin-bottom: 1.5rem; }
+.pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
+.pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #ccc; background: #fff; transition: all .1s; }
+.pin-dot.filled { background: #1a1a18; border-color: #1a1a18; }
+.pin-dot.error { background: #A32D2D; border-color: #A32D2D; }
+.pin-err { font-size: 12px; color: #A32D2D; min-height: 16px; margin-bottom: 1rem; }
+.pin-kp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pin-k { background: #f7f6f2; border: 0.5px solid #e2e2de; border-radius: 10px; padding: 16px 8px; font-size: 20px; color: #1a1a18; cursor: pointer; user-select: none; }
+.pin-k:active { background: #e2e2de; }
+.pin-k.borrar { font-size: 16px; color: #6b6a64; }
+.pin-k.vacia { background: transparent; border-color: transparent; cursor: default; }
+.pin-recordar { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 1.25rem; font-size: 13px; color: #6b6a64; }
+.pin-recordar input { width: 18px; height: 18px; accent-color: #1a1a18; }
+.pin-pie { margin-top: 1rem; font-size: 12px; color: #9a988f; }
+.pin-pie a { color: #6b6a64; }
+
+/* Cabecera */
+.cab { background: #1a1a18; color: #fff; padding: calc(14px + env(safe-area-inset-top)) 16px 14px; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px; }
+.cab h1 { font-size: 16px; font-weight: 500; flex: 1; }
+.cab .quien { font-size: 12px; color: rgba(255,255,255,.6); }
+.cab button { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 13px; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.cuerpo { padding: 16px; max-width: 680px; margin: 0 auto; }
+
+/* Inicio */
+.saludo { font-size: 13px; color: #6b6a64; margin: 4px 0 14px; }
+.botones { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.boton { background: #fff; border: 0.5px solid #e2e2de; border-radius: 14px; padding: 20px 14px; text-align: left; cursor: pointer; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.boton:active { background: #f0efe9; }
+.boton .ico { width: 40px; height: 40px; border-radius: 10px; background: #f3ead9; display: flex; align-items: center; justify-content: center; }
+.boton .ico svg { width: 22px; height: 22px; stroke: #8a6d1e; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.boton .tit { font-size: 15px; font-weight: 600; }
+.boton .sub { font-size: 12px; color: #6b6a64; line-height: 1.35; }
+.enlace-panel { display: block; text-align: center; margin-top: 22px; font-size: 13px; color: #6b6a64; }
+
+/* Subir factura */
+.acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.accion { background: #1a1a18; color: #fff; border: none; border-radius: 12px; padding: 18px 10px; font-size: 15px; font-weight: 500; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.accion.sec { background: #fff; color: #1a1a18; border: 0.5px solid #e2e2de; }
+.accion svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.accion:active { opacity: .8; }
+.campo label { display: block; font-size: 12px; color: #6b6a64; margin-bottom: 4px; }
+.campo input { width: 100%; padding: 11px 12px; font-size: 16px; border: 0.5px solid #d8d4c8; border-radius: 10px; background: #fff; color: #1a1a18; }
+.campo input:focus { outline: none; border-color: #1a1a18; }
+.nota { font-size: 12px; color: #9a988f; margin-top: 6px; line-height: 1.4; }
+.lista { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.item { background: #fff; border: 0.5px solid #e2e2de; border-radius: 12px; padding: 12px; display: flex; gap: 12px; align-items: flex-start; }
+.item img, .item .pdf { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #f0efe9; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #8a6d1e; }
+.item .txt { flex: 1; min-width: 0; font-size: 13px; }
+.item .nom { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .est { font-size: 12px; color: #6b6a64; margin-top: 3px; line-height: 1.4; }
+.item.ok { border-color: #9FE1CB; background: #f4fcf9; }
+.item.error .est { color: #A32D2D; }
+.item.duplicada { border-color: #f0d9a8; background: #fdf8ee; }
+.item .quitar { background: none; border: none; color: #9a988f; font-size: 18px; padding: 0 4px; cursor: pointer; }
+.enviar { width: 100%; margin-top: 14px; padding: 15px; border: none; border-radius: 12px; background: #8a6d1e; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
+.enviar:disabled { opacity: .5; }
+</style>
+</head>
+<body>
+
+<div id="arranque" class="cargando">Cargando…</div>
+
+<div id="pin-screen" class="oculto">
+  <div class="pin-box">
+    <div class="pin-logo">ORUM</div>
+    <div class="pin-sub">Introduce tu PIN</div>
+    <div class="pin-dots"><div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div><div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div></div>
+    <div class="pin-err" id="pin-err"></div>
+    <div class="pin-kp" id="pin-kp"></div>
+    <label class="pin-recordar"><input type="checkbox" id="pin-recordar" checked> Recordar en este dispositivo</label>
+    <div class="pin-pie">¿Sin PIN? Pídeselo a Sergio · <a href="/">Entrar con contraseña</a></div>
+  </div>
+</div>
+
+<div id="app" class="oculto">
+  <div class="cab">
+    <button id="btn-volver" class="oculto" onclick="irInicio()" aria-label="Volver">‹ Inicio</button>
+    <h1 id="cab-titulo">ORUM</h1>
+    <button id="btn-salir" onclick="salir()">Salir</button>
+  </div>
+  <div class="cuerpo" id="cuerpo"></div>
+</div>
+
+<input type="file" id="in-camara" accept="image/*" capture="environment" class="oculto">
+<input type="file" id="in-archivo" accept="application/pdf,image/jpeg,image/png,image/webp" multiple class="oculto">
+
+<script>
+// App móvil de ORUM Central (oct 2026). Se entra con el PIN de 4 cifras de
+// Sistema → Usuarios; "Recordar" guarda en el dispositivo una llave para
+// volver a entrar solo (las sesiones del servidor se pierden en cada
+// despliegue). Cada rol ve sus botones; las tablets de Lavandería y Office
+// van directas a su zona de Preparación.
+var CLAVE_DISPOSITIVO = 'orum_movil_dispositivo';
+var USUARIO = null;
+var ROLES_TABLET = ['Lavanderia', 'Office'];
+
+function leerLlave() { try { return localStorage.getItem(CLAVE_DISPOSITIVO) || ''; } catch (e) { return ''; } }
+function guardarLlave(v) { try { if (v) localStorage.setItem(CLAVE_DISPOSITIVO, v); else localStorage.removeItem(CLAVE_DISPOSITIVO); } catch (e) {} }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function postJson(url, body) {
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; }); });
+}
+function mostrar(id) { ['arranque', 'pin-screen', 'app'].forEach(function (x) { document.getElementById(x).classList.toggle('oculto', x !== id); }); }
+
+// ── Arranque: sesión abierta → dispositivo recordado → PIN ──
+function arrancar() {
+  fetch('/api/sesion').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) {
+    if (d && d.usuario) return entrar(d.usuario);
+    var llave = leerLlave();
+    if (!llave) return pedirPin();
+    postJson('/api/movil/dispositivo', { dispositivo: llave }).then(function (r) {
+      if (r.ok) return entrar(r.usuario);
+      if (r._status === 401) guardarLlave('');
+      pedirPin();
+    }).catch(pedirPin);
+  });
+}
+
+// ── PIN ──
+var pin = '';
+function pedirPin() { pin = ''; puntos(false); mostrar('pin-screen'); }
+(function teclado() {
+  var kp = document.getElementById('pin-kp');
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].forEach(function (k) {
+    var b = document.createElement('button');
+    if (k === '') b.className = 'pin-k vacia';
+    else if (k === 'del') { b.className = 'pin-k borrar'; b.textContent = '⌫'; b.setAttribute('aria-label', 'Borrar'); b.onclick = function () { pin = pin.slice(0, -1); document.getElementById('pin-err').textContent = ''; puntos(false); }; }
+    else { b.className = 'pin-k'; b.textContent = k; b.onclick = function () { tecla(k); }; }
+    kp.appendChild(b);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (document.getElementById('pin-screen').classList.contains('oculto')) return;
+    if (/^\d$/.test(e.key)) tecla(e.key);
+    else if (e.key === 'Backspace') { pin = pin.slice(0, -1); puntos(false); }
+  });
+})();
+function tecla(n) { if (pin.length >= 4) return; pin += n; puntos(false); if (pin.length === 4) comprobarPin(); }
+function puntos(err) { for (var i = 0; i < 4; i++) { var d = document.getElementById('d' + i); d.className = 'pin-dot' + (err ? ' error' : (i < pin.length ? ' filled' : '')); } }
+function comprobarPin() {
+  var recordar = document.getElementById('pin-recordar').checked;
+  postJson('/api/login-pin', { pin: pin, recordar: recordar }).then(function (r) {
+    if (!r.ok) {
+      document.getElementById('pin-err').textContent = r.error || 'PIN incorrecto';
+      puntos(true);
+      setTimeout(function () { pin = ''; puntos(false); }, 900);
+      return;
+    }
+    guardarLlave(r.dispositivo || '');
+    entrar(r.usuario);
+  }).catch(function () { document.getElementById('pin-err').textContent = 'Sin conexión'; pin = ''; puntos(true); });
+}
+
+function salir() {
+  if (!confirm('¿Salir? Tendrás que volver a teclear tu PIN en este dispositivo.')) return;
+  postJson('/api/movil/salir', { dispositivo: leerLlave() }).catch(function () {}).then(function () { guardarLlave(''); USUARIO = null; pedirPin(); });
+}
+
+// ── Inicio ──
+var ICONOS = {
+  preparacion: '<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+  factura: '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  rutas: '<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+  archivo: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'
+};
+// Qué ve cada rol. Preparación: almacén ve las tres zonas.
+var BOTONES = [
+  { id: 'preparacion', titulo: 'Preparación', sub: 'Material por proyecto: almacén, lavandería y office', roles: ['Direccion', 'Logistica'], href: '/preparacion' },
+  { id: 'factura', titulo: 'Subir factura', sub: 'Foto o PDF de una factura de proveedor', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaFactura(); } },
+  { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' }
+];
+
+function entrar(u) {
+  USUARIO = u;
+  if (ROLES_TABLET.indexOf(u.rol) !== -1) { location.replace('/preparacion'); return; }
+  mostrar('app');
+  irInicio();
+}
+function irInicio() {
+  document.getElementById('btn-volver').classList.add('oculto');
+  document.getElementById('btn-salir').classList.remove('oculto');
+  document.getElementById('cab-titulo').textContent = 'ORUM';
+  var mios = BOTONES.filter(function (b) { return b.roles.indexOf(USUARIO.rol) !== -1; });
+  var html = '<div class="saludo">Hola, ' + esc((USUARIO.nombre || USUARIO.usuario).split(' ')[0]) + '</div><div class="botones">';
+  mios.forEach(function (b) {
+    var interior = '<span class="ico">' + ICONOS[b.id] + '</span><span class="tit">' + b.titulo + '</span><span class="sub">' + b.sub + '</span>';
+    html += b.href ? '<a class="boton" href="' + b.href + '">' + interior + '</a>' : '<button class="boton" data-b="' + b.id + '">' + interior + '</button>';
+  });
+  html += '</div>';
+  if (!mios.length) html = '<div class="cargando">Tu usuario todavía no tiene nada en la app móvil.</div>';
+  if (['Direccion', 'Contabilidad'].indexOf(USUARIO.rol) !== -1) html += '<a class="enlace-panel" href="/">Abrir el panel completo</a>';
+  document.getElementById('cuerpo').innerHTML = html;
+  document.querySelectorAll('[data-b]').forEach(function (el) {
+    el.onclick = function () { BOTONES.filter(function (b) { return b.id === el.getAttribute('data-b'); })[0].abrir(); };
+  });
+  window.scrollTo(0, 0);
+}
+function abrirPantalla(titulo) {
+  document.getElementById('cab-titulo').textContent = titulo;
+  document.getElementById('btn-volver').classList.remove('oculto');
+  document.getElementById('btn-salir').classList.add('oculto');
+  window.scrollTo(0, 0);
+}
+
+// ── Subir factura ──
+// Igual que en el panel (POST /api/facturas-proveedores/subir): cada archivo
+// se sube y la IA lo lee en el servidor, de uno en uno. Las fotos se reducen
+// antes (lado largo 2400 px, JPEG), que desde el móvil pesan mucho.
+var subidas = [];
+var subiendo = false;
+function pantallaFactura() {
+  abrirPantalla('Subir factura');
+  subidas = [];
+  document.getElementById('cuerpo').innerHTML =
+    '<div class="acciones">' +
+      '<button class="accion" onclick="document.getElementById(\'in-camara\').click()">' + ICONOS.factura + 'Hacer foto</button>' +
+      '<button class="accion sec" onclick="document.getElementById(\'in-archivo\').click()">' + ICONOS.archivo + 'Elegir PDF o foto</button>' +
+    '</div>' +
+    '<div class="campo"><label for="f-proveedor">Proveedor (opcional)</label>' +
+      '<input id="f-proveedor" list="f-proveedores" placeholder="Se detecta solo por el NIF" autocomplete="off"><datalist id="f-proveedores"></datalist></div>' +
+    '<div class="nota">Si la factura tiene varias hojas, haz una foto de cada una o, mejor, súbela en PDF.</div>' +
+    '<div class="lista" id="f-lista"></div>' +
+    '<button class="enviar oculto" id="f-enviar" onclick="enviarFacturas()">Subir y leer</button>';
+  fetch('/api/facturas-proveedores/proveedores').then(function (r) { return r.json(); }).then(function (d) {
+    var dl = document.getElementById('f-proveedores');
+    if (dl && d.proveedores) dl.innerHTML = d.proveedores.map(function (p) { return '<option value="' + esc(p) + '">'; }).join('');
+  }).catch(function () {});
+}
+function anadirArchivos(files) {
+  [].slice.call(files || []).forEach(function (file) {
+    var valido = /^(application\/pdf|image\/)/.test(file.type) || /\.pdf$/i.test(file.name);
+    subidas.push({ file: file, estado: valido ? 'pendiente' : 'error', mensaje: valido ? 'Lista para subir' : 'Formato no admitido (solo PDF o foto)', vista: /^image\//.test(file.type) ? URL.createObjectURL(file) : null });
+  });
+  pintarSubidas();
+}
+document.getElementById('in-camara').onchange = function () { anadirArchivos(this.files); this.value = ''; };
+document.getElementById('in-archivo').onchange = function () { anadirArchivos(this.files); this.value = ''; };
+function pintarSubidas() {
+  var cont = document.getElementById('f-lista');
+  if (!cont) return;
+  cont.innerHTML = subidas.map(function (x, i) {
+    var mini = x.vista ? '<img src="' + x.vista + '" alt="">' : '<div class="pdf">PDF</div>';
+    var quitar = (x.estado === 'pendiente' || x.estado === 'error') && !subiendo ? '<button class="quitar" onclick="subidas.splice(' + i + ',1); pintarSubidas();" aria-label="Quitar">×</button>' : '';
+    return '<div class="item ' + x.estado + '">' + mini + '<div class="txt"><div class="nom">' + esc(x.file.name) + '</div><div class="est">' + x.mensaje + '</div></div>' + quitar + '</div>';
+  }).join('');
+  var hay = subidas.some(function (x) { return x.estado === 'pendiente'; });
+  var btn = document.getElementById('f-enviar');
+  btn.classList.toggle('oculto', !hay && !subiendo);
+  btn.disabled = subiendo;
+  btn.textContent = subiendo ? 'Subiendo…' : 'Subir y leer (' + subidas.filter(function (x) { return x.estado === 'pendiente'; }).length + ')';
+}
+function prepararArchivo(file) {
+  if (!/^image\//.test(file.type)) return Promise.resolve(file);
+  return new Promise(function (ok, ko) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = function () { ko(new Error('No se puede abrir la foto')); }; i.src = URL.createObjectURL(file); })
+    .then(function (img) {
+      var escala = Math.min(1, 2400 / Math.max(img.width, img.height));
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      return new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.85); });
+    })
+    .then(function (blob) { return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }); });
+}
+function euros(n) { return n == null || n === '' ? '' : Number(n).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }); }
+async function enviarFacturas() {
+  if (subiendo) return;
+  subiendo = true;
+  var proveedor = document.getElementById('f-proveedor').value.trim();
+  for (var x of subidas.filter(function (y) { return y.estado === 'pendiente'; })) {
+    x.estado = 'subiendo'; x.mensaje = 'Subiendo y leyendo con la IA…'; pintarSubidas();
+    try {
+      var fd = new FormData();
+      fd.append('archivo', await prepararArchivo(x.file));
+      fd.append('proveedor', proveedor);
+      var r = await fetch('/api/facturas-proveedores/subir', { method: 'POST', body: fd });
+      var d = await r.json().catch(function () { return { error: 'El servidor respondió ' + r.status }; });
+      if (r.status === 401) { x.estado = 'pendiente'; x.mensaje = 'La sesión ha caducado: vuelve a entrar y pulsa Subir otra vez'; subiendo = false; pintarSubidas(); return arrancar(); }
+      if (d.duplicada) { x.estado = 'duplicada'; x.mensaje = 'Ya estaba subida (' + esc(d.proveedor) + ' nº ' + esc(d.numero || '') + '): no se ha guardado otra vez'; }
+      else if (!r.ok || d.error) { x.estado = 'error'; x.mensaje = esc(d.error || 'Error'); }
+      else if (d.adjuntado) { x.estado = 'ok'; x.mensaje = 'Ya estaba cargada sin archivo: se le ha adjuntado esta (' + esc(d.proveedor) + ')'; }
+      else {
+        var l = d.lectura || {};
+        x.estado = 'ok';
+        x.mensaje = '<b>' + esc(d.proveedor) + '</b>' + (d.proveedor_nuevo ? ' (nuevo)' : '') + ' · nº ' + esc(l.numero || '—') + ' · ' + esc(l.fecha || '') + ' · ' + euros(l.total) + (l.confianza === 'baja' ? '<br>⚠ Lectura dudosa: la revisarán en el panel' : '');
+      }
+    } catch (e) { x.estado = 'error'; x.mensaje = 'Sin conexión: ' + esc(e.message); }
+    pintarSubidas();
+  }
+  subiendo = false;
+  pintarSubidas();
+}
+
+if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('/movil-sw.js', { scope: '/movil' }).catch(function () {}); });
+arrancar();
+</script>
+</body>
+</html>

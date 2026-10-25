@@ -194,6 +194,7 @@ const vehiculosModulo = require('./lib/vehiculosRutas')(app, {
 const rutasGuardado = require('./lib/rutasGuardado').crearRutasGuardado(supabase);
 
 // ── Usuarios del panel: Sistema → Usuarios (solo Sergio), en Supabase ──
+const { ROLES_SOLO_MOVIL } = require('./lib/usuariosAdmin');
 require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
 
 // ── Auditoría de Rutas: quién hizo qué (tabla rutas_historial) ──
@@ -222,6 +223,7 @@ app.post('/api/login', async (req, res) => {
 
     const passwordValida = bcrypt.compareSync(password, usuarioEncontrado.password_hash);
     if (!passwordValida) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    if (ROLES_SOLO_MOVIL.includes(usuarioEncontrado.rol)) return res.status(403).json({ error: 'Este usuario solo entra desde la app móvil (/movil) con su PIN' });
 
     req.session.usuario = {
       usuario: usuarioEncontrado.usuario,
@@ -1208,9 +1210,11 @@ app.post('/api/mantenimiento/check', requiereLogin, async (req, res) => {
   }
 });
 
+// Las tablets de Lavandería y Office (roles del mismo nombre) solo ven su zona.
+const VISTA_PREPARACION_POR_ROL = { Lavanderia: 'lavanderia', Office: 'office' };
 app.get('/api/preparacion', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const vista = req.query.vista || 'almacen';
+    const vista = VISTA_PREPARACION_POR_ROL[req.session.usuario.rol] || req.query.vista || 'almacen';
     res.json(await construirRespuestaPreparacion(vista));
   } catch (err) {
     console.error('Error en /api/preparacion:', err);
@@ -1238,6 +1242,11 @@ app.get('/api/preparacion-publica', async (req, res) => {
 
 app.get('/preparacion', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'preparacion.html'));
+});
+
+// App móvil (oct 2026): entrada con PIN y botones según el rol — public/movil.html.
+app.get('/movil', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'movil.html'));
 });
 
 // ================================================================
@@ -2180,6 +2189,16 @@ app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, su
     await supabase.from('facturas_proveedores').delete().eq('file_id', fileId);
     res.status(500).json({ error: 'Error guardando la factura: ' + e.message });
   }
+});
+
+// Nombres de proveedor para elegir al subir desde el móvil (sin importes:
+// Logística también sube facturas y no ve el listado con cifras).
+app.get('/api/facturas-proveedores/proveedores', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('facturas_proveedores').select('proveedor').not('proveedor', 'is', null).limit(5000);
+    if (error) throw error;
+    res.json({ ok: true, proveedores: [...new Set((data || []).map(r => String(r.proveedor || '').trim()).filter(Boolean))].sort() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Abrir el PDF/foto de una factura: enlace temporal de Supabase; las antiguas
