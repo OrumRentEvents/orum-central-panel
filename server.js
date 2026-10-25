@@ -193,6 +193,9 @@ const vehiculosModulo = require('./lib/vehiculosRutas')(app, {
 // se guardan directo en Supabase (ver lib/rutasGuardado.js) ──
 const rutasGuardado = require('./lib/rutasGuardado').crearRutasGuardado(supabase);
 
+// ── Usuarios del panel: Sistema → Usuarios (solo Sergio), en Supabase ──
+require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
+
 // ── Auditoría de Rutas: quién hizo qué (tabla rutas_historial) ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
 function logHistorialRutas(usuario, accion, detalle) {

@@ -1005,6 +1005,8 @@ const MENU = [
       { id: 'veh-ranking', label: 'Ranking conductores', onClick: () => cargarRankingConductores() },
   ]},
   { id: 'muelle', icon: 'truck', group: 'operaciones', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
+  // Usuarios del panel (oct 2026): antes en la hoja USUARIOS de Google. Solo Sergio.
+  { id: 'usuarios', icon: 'users', group: 'sistema', label: 'Usuarios', soloUsuario: 'sergio', onClick: () => cargarUsuarios() },
   { id: 'sync-status', icon: 'refresh', group: 'sistema', label: 'Estado Sincronización', especial: true, onClick: () => {
       window.open('/sync-status', '_blank');
   }},
@@ -1033,7 +1035,7 @@ function construirMenu() {
   const rolRestringido = usuarioActual.rol === 'Comercial' || usuarioActual.rol === 'Logistica';
   const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
     : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle'].includes(item.id))
-    : MENU;
+    : MENU.filter(item => !item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase());
 
   if (rolRestringido) {
     // Con un único apartado visible, una sección temática no aporta nada:
@@ -1923,6 +1925,97 @@ function tooltipVerificadoGasto(g) {
   return `Verificado${f ? ' el ' + f : ''}${g.verificado_por ? ' por ' + g.verificado_por : ''}`;
 }
 let gastosAnualesGlobal = { anio: new Date().getFullYear(), categorias: [], data: [] };
+// ================================================================
+// USUARIOS DEL PANEL (oct 2026) — Sistema → Usuarios, solo Sergio.
+// Antes se editaban a mano en la pestaña USUARIOS de la hoja de Google.
+// ================================================================
+let usuariosGlobal = { data: [], roles: [] };
+const escU = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function cargarUsuarios() {
+  document.getElementById('content-title').textContent = 'Sistema · Usuarios';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const data = await fetch('/api/usuarios').then(r => r.json());
+    if (data.error) { body.innerHTML = '<p class="loading-text">Error: ' + escU(data.error) + '</p>'; return; }
+    usuariosGlobal = { data: data.data || [], roles: data.roles || [] };
+    pintarUsuarios();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+function selectRolUsuario(id, valor) {
+  return `<select id="${id}" style="padding:6px; border:1px solid var(--border); border-radius:4px; font-size:13px;">${usuariosGlobal.roles.map(r => `<option value="${r}" ${r === valor ? 'selected' : ''}>${ETIQUETA_ROL[r] || r}</option>`).join('')}</select>`;
+}
+function pintarUsuarios() {
+  const inp = 'padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px;';
+  const filas = usuariosGlobal.data.map((u, i) => `
+    <tr>
+      <td style="padding:8px; font-weight:600;">${escU(u.usuario)}</td>
+      <td style="padding:8px;"><input id="usr-nombre-${i}" value="${escU(u.nombre)}" style="${inp} width:180px;"></td>
+      <td style="padding:8px;">${selectRolUsuario('usr-rol-' + i, u.rol)}</td>
+      <td style="padding:8px;"><input id="usr-filtro-${i}" value="${escU(u.comercial_filtro || '')}" placeholder="Solo comerciales" style="${inp} width:170px;"></td>
+      <td style="padding:8px;"><input id="usr-pass-${i}" type="password" placeholder="Dejar en blanco = no cambiar" autocomplete="new-password" style="${inp} width:190px;"></td>
+      <td style="padding:8px; white-space:nowrap;">
+        <button onclick="guardarUsuario(${i})" style="padding:6px 12px; background:var(--gold, #b8860b); color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:12px;">Guardar</button>
+        ${String(u.usuario).toLowerCase() === 'sergio' ? '' : `<button onclick="borrarUsuario(${i})" style="padding:6px 10px; background:#fff; color:#b91c1c; border:1px solid #fecaca; border-radius:4px; cursor:pointer; font-size:12px;">Borrar</button>`}
+      </td>
+    </tr>`).join('');
+  document.getElementById('content-body').innerHTML = `
+    <p style="color:var(--text-secondary); font-size:13px; margin-bottom:12px;">Quién puede entrar en ORUM Central y con qué rol. En <strong>Filtro comercial</strong> va el nombre del comercial tal como sale en Rentman: ese usuario solo verá sus proyectos. Las contraseñas se guardan cifradas; para cambiar una, escríbela y pulsa Guardar.</p>
+    <div style="overflow-x:auto; background:#fff; border:1px solid var(--border); border-radius:6px; margin-bottom:20px;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:var(--gray-50, #f7f7f5); text-align:left;"><th style="padding:8px;">Usuario</th><th style="padding:8px;">Nombre</th><th style="padding:8px;">Rol</th><th style="padding:8px;">Filtro comercial</th><th style="padding:8px;">Nueva contraseña</th><th style="padding:8px;"></th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>
+    <div style="background:#fff; border:1px solid var(--border); border-radius:6px; padding:16px;">
+      <div style="font-weight:600; margin-bottom:10px;">Nuevo usuario</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input id="usr-nuevo-usuario" placeholder="usuario (sin espacios)" style="${inp} width:150px;">
+        <input id="usr-nuevo-nombre" placeholder="Nombre y apellido" style="${inp} width:180px;">
+        ${selectRolUsuario('usr-nuevo-rol', 'Comercial')}
+        <input id="usr-nuevo-filtro" placeholder="Filtro comercial (opcional)" style="${inp} width:180px;">
+        <input id="usr-nuevo-pass" type="password" placeholder="Contraseña (mín. 6)" autocomplete="new-password" style="${inp} width:160px;">
+        <button onclick="crearUsuario()" style="padding:7px 14px; background:var(--gold, #b8860b); color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:13px;">Crear</button>
+      </div>
+    </div>`;
+}
+async function enviarUsuario(url, method, body) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status);
+  return d;
+}
+async function guardarUsuario(i) {
+  const u = usuariosGlobal.data[i];
+  const body = {
+    nombre: document.getElementById('usr-nombre-' + i).value,
+    rol: document.getElementById('usr-rol-' + i).value,
+    comercial_filtro: document.getElementById('usr-filtro-' + i).value,
+    password: document.getElementById('usr-pass-' + i).value
+  };
+  try { await enviarUsuario('/api/usuarios/' + encodeURIComponent(u.usuario), 'PUT', body); alert('✅ Guardado ' + u.usuario + (body.password ? ' (contraseña cambiada)' : '')); cargarUsuarios(); }
+  catch (e) { alert('Error: ' + e.message); }
+}
+async function borrarUsuario(i) {
+  const u = usuariosGlobal.data[i];
+  if (!confirm('¿Borrar el usuario "' + u.usuario + '" (' + (u.nombre || '') + ')? Ya no podrá entrar en ORUM Central.')) return;
+  try { await enviarUsuario('/api/usuarios/' + encodeURIComponent(u.usuario), 'DELETE'); cargarUsuarios(); }
+  catch (e) { alert('Error: ' + e.message); }
+}
+async function crearUsuario() {
+  const body = {
+    usuario: document.getElementById('usr-nuevo-usuario').value,
+    nombre: document.getElementById('usr-nuevo-nombre').value,
+    rol: document.getElementById('usr-nuevo-rol').value,
+    comercial_filtro: document.getElementById('usr-nuevo-filtro').value,
+    password: document.getElementById('usr-nuevo-pass').value
+  };
+  try { await enviarUsuario('/api/usuarios', 'POST', body); alert('✅ Usuario ' + body.usuario + ' creado'); cargarUsuarios(); }
+  catch (e) { alert('Error: ' + e.message); }
+}
+
 async function cargarGastosAnuales() {
   document.getElementById('content-title').textContent = 'Financiero · Config. Pagos Anuales';
   const body = document.getElementById('content-body');
