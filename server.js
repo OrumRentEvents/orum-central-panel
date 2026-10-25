@@ -2036,8 +2036,13 @@ app.get('/api/material/estadisticas', requiereLogin, async (req, res) => {
 // FACTURAS PROVEEDORES
 // ================================================================
 
+// El Apps Script de facturas ya solo se usa para Google Drive (listar la
+// carpeta de PDFs y descargar cada PDF al sincronizar). Listado, reparto,
+// campos editables, historial y errores están en Supabase desde oct 2026
+// (lib/facturasProveedoresDatos.js) - antes cada pantalla esperaba a la Sheet.
 const APPS_SCRIPT_FACTURAS_URL = process.env.APPS_SCRIPT_FACTURAS_URL || 'PEGA_AQUI_LA_URL_DEL_SCRIPT_DE_FACTURAS';
 const APPS_SCRIPT_FACTURAS_TOKEN = 'ORUMx2026#Facturas$Sync';
+const facturasDatos = require('./lib/facturasProveedoresDatos').crearDatos(supabase);
 
 // ACTUALIZADO (5 oct 2026): la lectura de cada PDF la hace ahora
 // lib/lecturaFacturas.js UNA sola vez y la guarda completa en Supabase
@@ -2085,11 +2090,7 @@ function duplicadaEnSheet(lectura, indice) {
   return existente && existente.fileId !== String(lectura.file_id) ? existente : null;
 }
 async function listadoFacturasSheet() {
-  const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
-  const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error);
-  return data.facturas || [];
+  return facturasDatos.listado();
 }
 
 // Sacado a función aparte (28 ago 2026) para poder llamarla tanto desde el
@@ -2100,7 +2101,10 @@ async function sincronizarFacturasProveedoresInterno(anio) {
   const dataLista = await respLista.json();
   if (dataLista.error) throw new Error('Error listando pendientes: ' + dataLista.error);
 
-  const pendientes = dataLista.pendientes || [];
+  // El Apps Script marca "pendiente" lo que no está en su hoja, que ya no se
+  // actualiza: lo ya cargado se descarta aquí contra Supabase.
+  const yaCargados = await facturasDatos.idsProcesados();
+  const pendientes = (dataLista.pendientes || []).filter(p => !yaCargados.has(String(p.fileId)));
   const resultados = [], errores = [], duplicadas = [];
   // Si no se puede leer la Sheet, se sigue sin comprobar duplicados (como antes).
   let indiceSheet = null;
@@ -2147,12 +2151,7 @@ async function sincronizarFacturasProveedoresInterno(anio) {
       const original = duplicadaEnSheet(lectura, indiceSheet);
       if (original) { duplicadas.push({ ...item, numero: lectura.numero, duplicadaDe: original.nombreArchivo }); return; }
       const lineas = lecturaFacturas.lineasSheet(lectura);
-      const respGuardado = await fetch(APPS_SCRIPT_FACTURAS_URL, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, lineas })
-      });
-      const dataGuardado = await respGuardado.json();
-      if (dataGuardado.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataGuardado.error }); return; }
+      await facturasDatos.guardarLineas({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, lineas });
       resultados.push({ ...item, lineas, nLineas: lineas.length });
     } catch (errItem) {
       errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: errItem.message });
@@ -2172,10 +2171,7 @@ async function sincronizarFacturasProveedoresInterno(anio) {
   // diagnosticar qué PDFs concretos fallan y por qué, sin que se pierda.
   if (errores.length > 0) {
     try {
-      await fetch(APPS_SCRIPT_FACTURAS_URL, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'registrarErrores', errores })
-      });
+      await facturasDatos.registrarErrores(errores);
     } catch (errReg) {
       console.error('No se pudieron registrar los errores de sincronización de facturas:', errReg.message);
     }
@@ -2260,16 +2256,7 @@ function sugerirTipoGasto(proveedor) {
 }
 
 async function obtenerFacturasProveedoresEnriquecidas() {
-  const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
-  const paramsReparto = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
-  const [respListado, respReparto] = await Promise.all([fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsListado.toString()}`), fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsReparto.toString()}`)]);
-  const dataListado = await respListado.json();
-  const dataReparto = await respReparto.json();
-  if (dataListado.error) throw new Error(dataListado.error);
-  if (dataReparto.error) throw new Error(dataReparto.error);
-
-  const facturas = dataListado.facturas || [];
-  const reparto = dataReparto.reparto || [];
+  const [facturas, reparto] = await Promise.all([facturasDatos.listado(), facturasDatos.reparto()]);
   const repartoPorProveedor = {};
   reparto.forEach(r => {
     const prov = String(r.proveedor);
@@ -3874,12 +3861,28 @@ app.get('/api/cierre-mensual', requiereLogin, bloquearComercial, async (req, res
 
 app.get('/api/facturas-proveedores/proveedores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'proveedores' });
-    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
-    const data = await resp.json();
-    if (data.error) return res.status(500).json({ error: data.error });
-    res.json(data);
+    res.json({ ok: true, proveedores: await facturasDatos.proveedores() });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Paso de la Sheet a Supabase (una vez; se puede repetir sin duplicar).
+// Lee FACTURAS_LOG, REPARTO_PROVEEDORES, ERRORES_PROCESAMIENTO e
+// HISTORIAL_FACTURAS a través del Apps Script. Solo Dirección.
+app.post('/api/facturas-proveedores/importar-desde-hoja', requiereLogin, async (req, res) => {
+  if (req.session.usuario.rol !== 'Direccion') return res.status(403).json({ error: 'Solo Dirección' });
+  try {
+    const leerHoja = async (action, extra = {}) => {
+      const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action, ...extra });
+      const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
+      const data = await resp.json();
+      if (data.error) throw new Error(`Hoja (${action}): ${data.error}`);
+      return data;
+    };
+    res.json({ ok: true, ...(await facturasDatos.importarDesdeHoja(leerHoja)) });
+  } catch (err) {
+    console.error('Error importando facturas desde la hoja:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/facturas-proveedores/tipos', requiereLogin, bloquearComercial, async (req, res) => {
@@ -3899,21 +3902,13 @@ app.post('/api/facturas-proveedores/tipos', requiereLogin, bloquearComercial, as
 });
 app.get('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'reparto' });
-    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
-    const data = await resp.json();
-    if (data.error) return res.status(500).json({ error: data.error });
-    res.json(data);
+    res.json({ ok: true, reparto: await facturasDatos.reparto() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const reparto = req.body.reparto || [];
-    const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'guardarReparto', reparto }) });
-    const data = await resp.json();
-    if (data.error) return res.status(500).json({ error: data.error });
-    res.json(data);
+    res.json(await facturasDatos.guardarReparto(req.body.reparto || []));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -3930,8 +3925,7 @@ app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercia
     if (!fila) return res.status(400).json({ error: 'fila requerida' });
     if (!CAMPOS_FACTURA_EDITABLES.includes(campo)) return res.status(400).json({ error: 'Campo no editable: ' + campo });
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
-    const resp = await fetch(APPS_SCRIPT_FACTURAS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: APPS_SCRIPT_FACTURAS_TOKEN, accion: 'actualizarCampo', fila, campo, valor, usuario }) });
-    const data = await resp.json();
+    const data = await facturasDatos.actualizarCampo(fila, campo, valor, usuario);
     if (data.error) return res.status(500).json({ error: data.error });
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -3943,16 +3937,10 @@ app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercia
 // visto el aviso justo cuando se sincronizó.
 app.get('/api/facturas-proveedores/errores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'erroresRecientes', limite: '200' });
-    const paramsListado = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listado' });
-    const [resp, respListado] = await Promise.all([fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`), fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsListado.toString()}`)]);
-    const data = await resp.json();
-    if (data.error) return res.status(500).json({ error: data.error });
-    // NUEVO (5 oct 2026): la pestaña de errores guarda el histórico entero;
-    // aquí solo se devuelven los de facturas que SIGUEN sin estar en la Sheet
+    const [data, facturasSheet] = await Promise.all([facturasDatos.erroresRecientes(200), facturasDatos.listado()]);
+    // NUEVO (5 oct 2026): la tabla de errores guarda el histórico entero;
+    // aquí solo se devuelven los de facturas que SIGUEN sin estar cargadas
     // (si una sincronización posterior la procesó, su error ya no importa).
-    const listado = await respListado.json().catch(() => ({}));
-    const facturasSheet = (listado && listado.facturas) || [];
     const procesadas = new Set(facturasSheet.map(f => String(f.fileId)));
     const vistos = new Set();
     data.errores = (data.errores || []).filter(e => {
@@ -3975,11 +3963,7 @@ app.get('/api/facturas-proveedores/errores', requiereLogin, bloquearComercial, a
 
 app.get('/api/facturas-proveedores/:fileId/historial', requiereLogin, bloquearComercial, async (req, res) => {
   try {
-    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'historialFactura', fileId: req.params.fileId });
-    const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
-    const data = await resp.json();
-    if (data.error) return res.status(500).json({ error: data.error });
-    res.json(data);
+    res.json(await facturasDatos.historialFactura(req.params.fileId));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -4527,7 +4511,7 @@ app.post('/api/holded/volcar', requiereLogin, soloHolded, async (req, res) => {
 // 9 oct: se preparan solas y el contable las aprueba aquí antes de volcar —
 // ver lib/holdedCompras.js.
 const holdedCompras = require('./lib/holdedCompras');
-holdedCompras.configurar({ url: APPS_SCRIPT_FACTURAS_URL, token: APPS_SCRIPT_FACTURAS_TOKEN });
+holdedCompras.configurar({ url: APPS_SCRIPT_FACTURAS_URL, token: APPS_SCRIPT_FACTURAS_TOKEN, datos: facturasDatos });
 app.get('/api/holded/gastos', requiereLogin, soloHolded, async (req, res) => {
   try { res.json({ ok: true, ...(await holdedCompras.estadoGastos()) }); }
   catch (err) { console.error('Error en /api/holded/gastos:', err); res.status(500).json({ error: err.message }); }
