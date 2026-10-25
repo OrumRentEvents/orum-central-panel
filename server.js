@@ -29,10 +29,8 @@ app.set('etag', false);
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'PEGA_AQUI_LA_URL_DEL_DOGET';
 const APPS_SCRIPT_TOKEN = process.env.APPS_SCRIPT_TOKEN || 'ORUMx2026CentralData9Q';
 
-// ── URL del Apps Script de RUTAS (para conductores) ──
-// Añade en Railway la variable: RUTAS_SCRIPT_URL = URL del doGet de Rutas ORUM 2026
-const RUTAS_SCRIPT_URL = process.env.RUTAS_SCRIPT_URL || '';
-const RUTAS_SCRIPT_TOKEN = 'ORUMx2026#Rutas$Stats';
+// (RUTAS_SCRIPT_URL ya no se usa: choferes e historial de Rutas están en
+// Supabase desde oct 2026 - ver lib/rutasGuardado.js.)
 
 // ── Hoja de Sheets "HORAS EXTRAS 2026" (Financiero → Personal → Extras) ──
 // Compartida por el usuario como "Cualquiera con el enlace, Lector" (11 sep
@@ -146,24 +144,6 @@ async function llamarOrumCentralPost(body) {
   return resp.json();
 }
 
-// ── Helper: llamar al Apps Script de RUTAS (para conductores) ──
-async function llamarRutasScript(action, extraParams = {}, method = 'GET', body = null) {
-  if (!RUTAS_SCRIPT_URL) throw new Error('RUTAS_SCRIPT_URL no configurada en Railway');
-  if (method === 'GET') {
-    const params = new URLSearchParams({ token: RUTAS_SCRIPT_TOKEN, action, ...extraParams });
-    const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
-    return resp.json();
-  } else {
-    // El POST usa el token de RutasPublic, no el de Stats
-    const resp = await fetch(RUTAS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'ORUMx2026RutasPublic', action, ...body })
-    });
-    return resp.json();
-  }
-}
-
 function requiereLogin(req, res, next) {
   if (!req.session.usuario) return res.status(401).json({ error: 'No autenticado' });
   next();
@@ -209,15 +189,14 @@ const vehiculosModulo = require('./lib/vehiculosRutas')(app, {
   enviarCorreo: (para, asunto, html) => require('./lib/informeComerciales')._test.enviarCorreo(para, asunto, html)
 });
 
-// ── Auditoría de Rutas: registra quién hizo qué en la pestaña HISTORIAL_RUTAS ──
+// ── Rutas sin Google: asignaciones, paradas manuales, choferes e historial
+// se guardan directo en Supabase (ver lib/rutasGuardado.js) ──
+const rutasGuardado = require('./lib/rutasGuardado').crearRutasGuardado(supabase);
+
+// ── Auditoría de Rutas: quién hizo qué (tabla rutas_historial) ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
 function logHistorialRutas(usuario, accion, detalle) {
-  if (!RUTAS_SCRIPT_URL) return;
-  fetch(RUTAS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: 'ORUMx2026RutasPublic', action: 'log_historial', usuario: usuario || 'Desconocido', accion, detalle: JSON.stringify(detalle || {}) })
-  }).catch(() => {});
+  rutasGuardado.logHistorial(usuario, accion, detalle).catch(() => {});
 }
 
 // ================================================================
@@ -1503,9 +1482,26 @@ app.post('/api/rutas/manual', async (req, res) => {
   }
   try {
     const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
-    const body = { ...req.body, token: 'ORUMx2026RutasWrite', usuario };
-    const resp = await fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await resp.json();
+    // Antes iba al Apps Script "ORUM CENTRAL" (hoja + copia a Supabase).
+    // Ahora directo a Supabase, en cola por parada para que dos clics
+    // seguidos no se pisen.
+    const b = req.body || {};
+    const action = b.action || 'set_asignacion';
+    let data;
+    if (action === 'set_asignacion') {
+      await enColaRutas('asig_' + b.clave, () => rutasGuardado.setAsignacion(b));
+      data = { ok: true };
+    } else if (action === 'add_manual') {
+      data = { ok: true, id: await rutasGuardado.addManual(b, usuario) };
+    } else if (action === 'update_manual') {
+      await enColaRutas('asig_MAN_' + b.id, () => rutasGuardado.updateManual(b));
+      data = { ok: true };
+    } else if (action === 'del_manual') {
+      await enColaRutas('asig_MAN_' + b.id, () => rutasGuardado.delManual(b.id));
+      data = { ok: true };
+    } else {
+      return res.status(400).json({ error: 'Accion no reconocida: ' + action });
+    }
     logHistorialRutas(usuario, req.body.action || 'set_asignacion', {
       clave: req.body.clave, id: req.body.id, proyecto_id: req.body.proyecto_id, tipo: req.body.tipo,
       fecha: req.body.fecha, vehiculo: req.body.vehiculo, vuelta: req.body.vuelta, notas: req.body.notas,
@@ -1520,21 +1516,16 @@ app.post('/api/rutas/manual', async (req, res) => {
   }
 });
 
+// El backup "RUTA HOY" ya no es una hoja de Google: rutas.html descarga un
+// archivo con las rutas de los próximos 7 días (generarBackupHoy). Esta ruta
+// solo apunta en el historial que se descargó.
 app.post('/api/rutas/backup-hoy', async (req, res) => {
   if (req.body.clientToken !== 'ORUMx2026RutasPublic' && !req.session.usuario) {
     return res.status(401).json({ error: 'No autorizado' });
   }
-  try {
-    const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
-    const body = { token: 'ORUMx2026RutasWrite', action: 'generar_backup_hoy', fecha: req.body.fecha || '', usuario };
-    const resp = await fetch(APPS_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await resp.json();
-    logHistorialRutas(usuario, 'generar_backup_hoy', { fecha: req.body.fecha || '' });
-    res.json(data);
-  } catch (err) {
-    console.error('Error en /api/rutas/backup-hoy:', err);
-    res.status(500).json({ error: err.message });
-  }
+  const usuario = req.session.usuario ? (req.session.usuario.nombre || req.session.usuario.usuario) : (req.body.usuario || 'Logistica');
+  logHistorialRutas(usuario, 'generar_backup_hoy', { fecha: req.body.fecha || '' });
+  res.json({ ok: true });
 });
 
 // ── TIEMPO REAL: aviso a todas las pantallas de Rutas abiertas ──
@@ -1580,10 +1571,8 @@ app.get('/api/rutas/eventos', (req, res) => {
 // actualizando como copia de seguridad.
 
 // Cola por dato: las escrituras sobre un mismo vehículo+vuelta+día (o una
-// misma parada) se ejecutan de una en una y en orden de llegada. La tarea
-// espera a que Google termine antes de soltar la cola — el Apps Script
-// también escribe en Supabase por su cuenta, y sin esto un guardado viejo
-// todavía en curso podría pisar a uno más nuevo.
+// misma parada) se ejecutan de una en una y en orden de llegada, para que un
+// guardado viejo todavía en curso no pise a uno más nuevo.
 const COLAS_RUTAS = new Map();
 function enColaRutas(clave, tarea) {
   const previa = COLAS_RUTAS.get(clave) || Promise.resolve();
@@ -1593,41 +1582,20 @@ function enColaRutas(clave, tarea) {
   return actual;
 }
 
-// Copia de seguridad en la hoja de Google. Nunca rompe el guardado: si
-// Google falla o tarda demasiado, el dato ya está en Supabase.
-async function copiarARutasScript(payload) {
-  if (!RUTAS_SCRIPT_URL) return;
-  try {
-    const resp = await fetch(RUTAS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'ORUMx2026RutasPublic', ...payload }),
-      signal: AbortSignal.timeout(25000)
-    });
-    const data = await resp.json();
-    if (data && data.error) console.error('Copia a Google de Rutas (' + payload.action + ') devolvió error:', data.error);
-  } catch (err) {
-    console.error('Copia a Google de Rutas (' + payload.action + ') falló:', err.message);
-  }
-}
-
-// La lista de choferes (nombres que salen al asignar conductores) sigue
-// viviendo en la pestaña CONFIG de la hoja de Google. Cambia muy poco, así
-// que se guarda en memoria para no llamar a Google en cada carga.
+// La lista de choferes (nombres que salen al asignar conductores) vive en
+// rutas_config (antes, pestaña CONFIG de la hoja de Google). Cambia muy
+// poco, así que se guarda en memoria un rato.
 let CACHE_CHOFERES = { lista: null, timestamp: 0 };
 const CACHE_CHOFERES_TTL_MS = 10 * 60 * 1000;
 async function obtenerChoferes() {
   if (CACHE_CHOFERES.lista && (Date.now() - CACHE_CHOFERES.timestamp) < CACHE_CHOFERES_TTL_MS) return CACHE_CHOFERES.lista;
-  if (!RUTAS_SCRIPT_URL) return [];
   try {
-    // Rango vacío a propósito: solo interesa la lista, no las asignaciones.
-    const data = await llamarRutasScript('get_conductores', { desde: '1900-01-01', hasta: '1900-01-01' });
-    if (data && Array.isArray(data.choferes)) CACHE_CHOFERES = { lista: data.choferes, timestamp: Date.now() };
+    CACHE_CHOFERES = { lista: await rutasGuardado.getChoferes(), timestamp: Date.now() };
   } catch (err) {
-    console.error('No se pudo leer la lista de choferes de Google:', err.message);
+    console.error('No se pudo leer la lista de choferes:', err.message);
   }
-  // Si Google falla se sirve la última lista conocida; si no hay ninguna,
-  // el frontend usa la suya por defecto.
+  // Si falla se sirve la última lista conocida; si no hay ninguna, el
+  // frontend usa la suya por defecto.
   return CACHE_CHOFERES.lista || [];
 }
 
@@ -1663,11 +1631,7 @@ app.post('/api/rutas/conductores', async (req, res) => {
     }
     const usuarioLog = resto.usuario || usuarioRutas(req);
     if (action === 'set_choferes') {
-      // La lista solo vive en Google: aquí sí hay que esperar su respuesta.
-      if (!RUTAS_SCRIPT_URL) return res.json({ ok: true });
-      const data = await llamarRutasScript('set_choferes', {}, 'POST', resto);
-      if (data && data.error) throw new Error(data.error);
-      CACHE_CHOFERES = { lista: resto.choferes || [], timestamp: Date.now() };
+      CACHE_CHOFERES = { lista: await rutasGuardado.setChoferes(resto.choferes), timestamp: Date.now() };
       emitirRutas('choferes', { choferes: CACHE_CHOFERES.lista }, cid);
     } else {
       const fecha = resto.fecha, vehiculo = resto.vehiculo, vuelta = parseInt(resto.vuelta) || 1;
@@ -1689,7 +1653,6 @@ app.post('/api/rutas/conductores', async (req, res) => {
           { onConflict: 'fecha,vehiculo,vuelta' });
         if (error) throw error;
         emitirRutas('conductores', { fecha, vehiculo, vuelta, conductores, conductor }, cid);
-        await copiarARutasScript({ action: 'set_conductores', fecha, vehiculo, vuelta, conductores, conductor });
       });
     }
     logHistorialRutas(usuarioLog, action, resto);
@@ -1731,7 +1694,6 @@ app.post('/api/rutas/estado-vehiculos', async (req, res) => {
         { onConflict: 'fecha,vehiculo,vuelta' });
       if (error) throw error;
       emitirRutas('estado_vehiculo', { fecha, vehiculo, vuelta, estado }, req.body.cid);
-      await copiarARutasScript({ action: 'set_estado_vehiculo', fecha, vehiculo, vuelta, estado, usuario });
     });
     logHistorialRutas(usuario, 'set_estado_vehiculo', { fecha, vehiculo, vuelta, estado });
     res.json({ ok: true });
@@ -1762,10 +1724,7 @@ app.get('/api/rutas/historial', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    if (!RUTAS_SCRIPT_URL) return res.json({ ok: true, historial: [] });
-    const params = new URLSearchParams({ token: RUTAS_SCRIPT_TOKEN, action: 'get_historial_rutas', limit: req.query.limit || '200' });
-    const resp = await fetch(`${RUTAS_SCRIPT_URL}?${params.toString()}`);
-    res.json(await resp.json());
+    res.json({ ok: true, historial: await rutasGuardado.getHistorial(req.query.limit) });
   } catch (err) {
     console.error('Error en GET /api/rutas/historial:', err);
     res.status(500).json({ error: err.message });
@@ -1789,7 +1748,6 @@ app.post('/api/rutas/estados-parada', async (req, res) => {
         { clave, ...estado, incidencia_texto: estado.incidencia_texto || null, usuario, updated_raw: new Date().toISOString() });
       if (error) throw error;
       emitirRutas('estado_parada', { clave, ...estado }, req.body.cid);
-      await copiarARutasScript({ action: 'set_estado_parada', clave, ...estado, usuario });
     });
     logHistorialRutas(usuario, 'set_estado_parada', { clave, ...estado });
     res.json({ ok: true });

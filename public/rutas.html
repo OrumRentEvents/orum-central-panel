@@ -341,7 +341,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="app" style="display:none;">
   <div class="hdr">
-    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-backup" style="display:none;" title="Genera en Sheets la ruta de hoy + los 6 dias siguientes, por si falla la web">Generar backup</button><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
+    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-backup" style="display:none;" title="Descarga un archivo (se abre en Excel) con la ruta de hoy + los 6 dias siguientes, por si falla la web">Descargar backup</button><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
     <div class="hdr-nav">
       <button class="btn-s on" id="btn-hoy">Hoy</button>
       <button class="btn-s" id="btn-sem">Esta semana</button>
@@ -2085,22 +2085,43 @@ function aplicarCambioVehiculoGrupo(nuevoVeh){
   cerrarModalCambiarVeh();
 }
 
-// ── BACKUP: genera la hoja "RUTA HOY" en Sheets, por si falla la web ──
+// ── BACKUP: descarga la ruta de hoy + 6 días en un archivo, por si falla la web ──
+// Antes generaba la hoja "RUTA HOY" en Google Sheets; ahora es un archivo
+// (CSV con ";" y BOM, se abre directo en Excel) hecho con los mismos datos
+// que se ven en pantalla.
 function generarBackupHoy(btn){
-  if(btn){btn.disabled=true;btn.textContent='Generando...';}
-  var fecha=document.getElementById('fpicker').value||hoy();
-  fetch('/api/rutas/backup-hoy',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({clientToken:'ORUMx2026RutasPublic',fecha:fecha,usuario:NOMBRE_USUARIO})
-  })
-    .then(function(r){return r.json();})
-    .then(function(data){
-      if(data&&data.error){toast('Error: '+data.error);}
-      else{toast('Backup generado — hoja "RUTA HOY" en Sheets');}
-    })
-    .catch(function(){toast('Error al generar backup');})
-    .finally(function(){if(btn){btn.disabled=false;btn.textContent='Generar backup';}});
+  if(btn){btn.disabled=true;btn.textContent='Preparando...';}
+  var desde=hoy();
+  var d=new Date(desde+'T12:00:00');d.setDate(d.getDate()+6);
+  var hasta=d.toISOString().slice(0,10);
+  var q='desde='+desde+'&hasta='+hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
+  Promise.all([
+    fetch('/api/rutas?'+q).then(function(r){return r.json();}),
+    fetch('/api/rutas/conductores?'+q).then(function(r){return r.json();})
+  ]).then(function(res){
+    var lista=(res[0]&&res[0].paradas)||[];
+    var cond={};
+    ((res[1]&&res[1].asignaciones)||[]).forEach(function(a){cond[a.fecha+'_'+a.vehiculo+'_'+(parseInt(a.vuelta)||1)]=(a.conductores||[]).join(' + ');});
+    lista.sort(function(a,b){
+      return String(a.fecha).localeCompare(String(b.fecha))||String(a.vehiculo||'~').localeCompare(String(b.vehiculo||'~'))||((a.vuelta||1)-(b.vuelta||1))||((a.orden||0)-(b.orden||0));
+    });
+    var esc=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';};
+    var cab=['Fecha','Vehículo','Vuelta','Orden','Tipo','Hora','Nº proyecto','Cliente','Dirección','Conductores','Notas','Estado'];
+    var filas=lista.map(function(p){
+      var vehs=String(p.vehiculo||'');
+      var conductores=vehs.split(',').map(function(v){return cond[p.fecha+'_'+v.trim()+'_'+(parseInt(p.vuelta)||1)]||'';}).filter(Boolean).join(' / ');
+      return [p.fecha,vehs||'Sin vehículo',p.vuelta||1,p.orden||0,p.tipo,p.hora,p.numero,p.cliente,p.localizacion,conductores,p.notas,p.estado].map(esc).join(';');
+    });
+    var csv='﻿'+cab.join(';')+'\r\n'+filas.join('\r\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+    a.download='Rutas_'+desde+'_a_'+hasta+'.csv';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    // Solo para el historial (quién descargó el backup)
+    fetch('/api/rutas/backup-hoy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientToken:'ORUMx2026RutasPublic',fecha:desde,usuario:NOMBRE_USUARIO})}).catch(function(){});
+    toast('Backup descargado ('+lista.length+' paradas)');
+  }).catch(function(){toast('Error al preparar el backup');})
+    .finally(function(){if(btn){btn.disabled=false;btn.textContent='Descargar backup';}});
 }
 
 // ── HISTORIAL DE CAMBIOS (solo Sergio) ──
