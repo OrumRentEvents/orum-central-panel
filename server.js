@@ -2043,6 +2043,25 @@ app.get('/api/material/estadisticas', requiereLogin, async (req, res) => {
 const APPS_SCRIPT_FACTURAS_URL = process.env.APPS_SCRIPT_FACTURAS_URL || 'PEGA_AQUI_LA_URL_DEL_SCRIPT_DE_FACTURAS';
 const APPS_SCRIPT_FACTURAS_TOKEN = 'ORUMx2026#Facturas$Sync';
 const facturasDatos = require('./lib/facturasProveedoresDatos').crearDatos(supabase);
+// Los PDF/fotos de las facturas viven en Supabase Storage (lib/facturasArchivos.js)
+const facturasArchivos = require('./lib/facturasArchivos').crearArchivos(supabase);
+// Descarga un PDF de Google Drive (solo para los que aún no se han copiado a
+// Supabase - copiar-pdfs-drive - y como respaldo del volcado a Holded).
+async function descargarPdfDrive(fileId) {
+  const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId });
+  const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
+  const texto = await resp.text();
+  try { return JSON.parse(texto); } catch (e) { throw new Error('Drive/Apps Script no respondió bien'); }
+}
+// Archivo de una factura: primero Supabase; si no está, Drive (facturas antiguas sin copiar).
+async function archivoFactura(fileId) {
+  const a = await facturasArchivos.leer(fileId);
+  if (a) return a;
+  if (String(fileId).startsWith('SUP_')) throw new Error('El archivo de esta factura no está en Supabase');
+  const d = await descargarPdfDrive(fileId);
+  if (d.error || !d.base64) throw new Error('Drive: ' + (d.error || 'sin contenido'));
+  return { base64: d.base64, mime: 'application/pdf', nombreArchivo: d.nombreArchivo };
+}
 
 // ACTUALIZADO (5 oct 2026): la lectura de cada PDF la hace ahora
 // lib/lecturaFacturas.js UNA sola vez y la guarda completa en Supabase
@@ -2093,134 +2112,96 @@ async function listadoFacturasSheet() {
   return facturasDatos.listado();
 }
 
-// Sacado a función aparte (28 ago 2026) para poder llamarla tanto desde el
-// botón manual como desde la sincronización automática diaria de abajo.
-async function sincronizarFacturasProveedoresInterno(anio) {
-  const paramsLista = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'listaPendientes', anio });
-  const respLista = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${paramsLista.toString()}`);
-  const dataLista = await respLista.json();
-  if (dataLista.error) throw new Error('Error listando pendientes: ' + dataLista.error);
-
-  // El Apps Script marca "pendiente" lo que no está en su hoja, que ya no se
-  // actualiza: lo ya cargado se descarta aquí contra Supabase.
-  const yaCargados = await facturasDatos.idsProcesados();
-  const pendientes = (dataLista.pendientes || []).filter(p => !yaCargados.has(String(p.fileId)));
-  const resultados = [], errores = [], duplicadas = [];
-  // Si no se puede leer la Sheet, se sigue sin comprobar duplicados (como antes).
-  let indiceSheet = null;
-  if (pendientes.length) {
-    try { indiceSheet = indiceFacturasSheet(await listadoFacturasSheet()); }
-    catch (e) { console.error('[Facturas Proveedores] No se pudo leer la Sheet para detectar duplicados:', e.message); }
-  }
-
-  // NUEVO (15 sep 2026): antes se procesaba una factura a la vez (descarga +
-  // IA + guardado, en serie), así que con varias pendientes el botón podía
-  // tardar minutos. El guardado en la Sheet ya va protegido por LockService
-  // en el Apps Script, así que es seguro lanzar varias en paralelo - se
-  // procesan en bloques de CONCURRENCIA para no saturar la API de Claude ni
-  // el Apps Script con demasiadas peticiones simultáneas.
-  const CONCURRENCIA = 4;
-  // NUEVO (5 oct 2026): a veces Apps Script devuelve una página de error
-  // HTML en vez de JSON ("Unexpected token '<'"), sobre todo con varias
-  // descargas a la vez. La descarga es segura de repetir: hasta 3 intentos.
-  // (El guardado en la Sheet NO se reintenta: podría duplicar filas.)
-  async function descargarPdfConReintentos(fileId) {
-    const params = new URLSearchParams({ token: APPS_SCRIPT_FACTURAS_TOKEN, action: 'descargarArchivo', fileId });
-    let ultimoError;
-    for (let intento = 1; intento <= 3; intento++) {
-      try {
-        const resp = await fetch(`${APPS_SCRIPT_FACTURAS_URL}?${params.toString()}`);
-        const texto = await resp.text();
-        return JSON.parse(texto);
-      } catch (e) {
-        ultimoError = e;
-        await new Promise(r => setTimeout(r, 2000 * intento));
-      }
-    }
-    throw new Error('Drive/Apps Script no respondió bien tras 3 intentos: ' + ultimoError.message);
-  }
-  async function procesarPendiente(item) {
-    try {
-      // Si ya se leyó (p. ej. falló el guardado en la Sheet), no se vuelve a leer.
-      let lectura = await lecturaFacturas.lecturaGuardada(item.fileId);
-      if (!lectura) {
-        const dataDescarga = await descargarPdfConReintentos(item.fileId);
-        if (dataDescarga.error) { errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: dataDescarga.error }); return; }
-        lectura = await lecturaFacturas.leerYGuardar({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, base64: dataDescarga.base64 });
-      }
-      const original = duplicadaEnSheet(lectura, indiceSheet);
-      if (original) { duplicadas.push({ ...item, numero: lectura.numero, duplicadaDe: original.nombreArchivo }); return; }
-      const lineas = lecturaFacturas.lineasSheet(lectura);
-      await facturasDatos.guardarLineas({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, lineas });
-      resultados.push({ ...item, lineas, nLineas: lineas.length });
-    } catch (errItem) {
-      errores.push({ fileId: item.fileId, proveedor: item.proveedor, nombreArchivo: item.nombreArchivo, error: errItem.message });
-    }
-  }
-
-  for (let i = 0; i < pendientes.length; i += CONCURRENCIA) {
-    const bloque = pendientes.slice(i, i + CONCURRENCIA);
-    await Promise.all(bloque.map(procesarPendiente));
-  }
-
-  // NUEVO (15 sep 2026): antes de esto, un fallo aquí solo se veía en el
-  // contador "X con error" del botón manual - en la sincronización
-  // automática de las 6:00 no lo veía nadie y se perdía en cuanto se
-  // recargaba la página. Se guarda en su propia pestaña (ver
-  // ERRORES_PROCESAMIENTO / botón "Ver errores" del panel) para poder
-  // diagnosticar qué PDFs concretos fallan y por qué, sin que se pierda.
-  if (errores.length > 0) {
-    try {
-      await facturasDatos.registrarErrores(errores);
-    } catch (errReg) {
-      console.error('No se pudieron registrar los errores de sincronización de facturas:', errReg.message);
-    }
-  }
-
-  return { total_pendientes: pendientes.length, procesadas: resultados.length, con_error: errores.length, resultados, errores, duplicadas };
+// ── SUBIR FACTURAS DESDE EL PANEL (oct 2026) ──
+// Sustituye a la carpeta de Google Drive que se leía a las 6:00 (y con el
+// botón "Actualizar facturas"): el PDF o la foto se sube aquí, se guarda en
+// Supabase Storage, se lee con la IA en ese momento y aparece en el listado.
+// Si no se elige proveedor, se toma el que ya tenga ese NIF en facturas
+// anteriores o, si es nuevo, el nombre del emisor en mayúsculas.
+const subidaFactura = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+async function proveedorPorNif(nif, fileIdExcluir) {
+  if (!nif) return null;
+  const { data } = await supabase.from('facturas_proveedores').select('proveedor').eq('nif', nif).neq('file_id', fileIdExcluir).not('proveedor', 'is', null);
+  const cuenta = {};
+  (data || []).forEach(r => { const p = String(r.proveedor || '').trim(); if (p) cuenta[p] = (cuenta[p] || 0) + 1; });
+  const mejor = Object.entries(cuenta).sort((a, b) => b[1] - a[1])[0];
+  return mejor ? mejor[0] : null;
 }
-
-app.post('/api/facturas-proveedores/sincronizar', requiereLogin, bloquearComercial, async (req, res) => {
+app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, subidaFactura.single('archivo'), async (req, res) => {
+  const archivo = req.file;
+  if (!archivo) return res.status(400).json({ error: 'Falta el archivo' });
+  let mime = archivo.mimetype === 'image/jpg' ? 'image/jpeg' : archivo.mimetype;
+  if (/\.pdf$/i.test(archivo.originalname) && mime === 'application/octet-stream') mime = 'application/pdf';
+  if (!facturasArchivos.MIMES[mime]) return res.status(400).json({ error: 'Tipo de archivo no admitido: sube un PDF o una foto (JPG, PNG o WebP)' });
+  const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+  const nombreArchivo = archivo.originalname || 'factura';
+  const base64 = archivo.buffer.toString('base64');
+  const fileId = 'SUP_' + require('crypto').randomUUID();
+  const elegido = String((req.body && req.body.proveedor) || '').trim();
+  let lectura;
   try {
-    const anio = req.query.anio || String(new Date().getFullYear());
-    const resultado = await sincronizarFacturasProveedoresInterno(anio);
-    res.json({ ok: true, ...resultado });
-  } catch (err) {
-    console.error('Error en /api/facturas-proveedores/sincronizar:', err);
-    res.status(500).json({ error: 'Error al sincronizar facturas: ' + err.message });
+    lectura = await lecturaFacturas.leerYGuardar({ fileId, proveedor: elegido, nombreArchivo, base64, mime });
+  } catch (e) {
+    await facturasDatos.registrarErrores([{ fileId, proveedor: elegido, nombreArchivo, error: e.message }]).catch(() => {});
+    return res.status(422).json({ error: 'No se ha podido leer la factura: ' + e.message });
+  }
+  try {
+    let proveedor = elegido, proveedorNuevo = false;
+    if (!proveedor) {
+      proveedor = await proveedorPorNif(lectura.nif, fileId);
+      if (!proveedor) { proveedor = String(lectura.emisor_nombre || 'SIN PROVEEDOR').trim().toUpperCase(); proveedorNuevo = true; }
+      await supabase.from('facturas_proveedores').update({ proveedor }).eq('file_id', fileId);
+      lectura = { ...lectura, proveedor };
+    }
+    // ¿Ya está cargada (otro PDF de la misma factura)? Entonces no se guarda nada.
+    const original = duplicadaEnSheet(lectura, indiceFacturasSheet(await facturasDatos.listado()));
+    if (original) {
+      await supabase.from('facturas_proveedores').delete().eq('file_id', fileId);
+      return res.json({ ok: false, duplicada: true, proveedor, numero: lectura.numero, duplicadaDe: original.nombreArchivo });
+    }
+    const anio = lectura.fecha ? Number(String(lectura.fecha).slice(0, 4)) : null;
+    await facturasArchivos.guardar({ fileId, nombreArchivo, mime, base64, proveedor, usuario, origen: 'panel', anio });
+    const lineas = lecturaFacturas.lineasSheet(lectura);
+    const r = await facturasDatos.guardarLineas({ fileId, proveedor, nombreArchivo, lineas });
+    res.json({
+      ok: true, fileId, proveedor, proveedor_nuevo: proveedorNuevo, lineas: r.lineas_guardadas,
+      lectura: { emisor: lectura.emisor_nombre, nif: lectura.nif, numero: lectura.numero, fecha: lectura.fecha, total: lectura.total, confianza: lectura.confianza, dudas: lectura.dudas }
+    });
+  } catch (e) {
+    console.error('Error guardando factura subida:', e);
+    await facturasArchivos.borrar(fileId).catch(() => {});
+    await supabase.from('facturas_proveedores').delete().eq('file_id', fileId);
+    res.status(500).json({ error: 'Error guardando la factura: ' + e.message });
   }
 });
 
-// ── Sincronización automática diaria a las 6:00 (hora de Madrid) ──
-// Pedido explícito del usuario: que siempre esté al día sin tener que
-// acordarse de pulsar el botón. El botón manual se deja tal cual, por si
-// hace falta forzarla antes de las 6:00 de un día concreto.
-function msHastaProximaHoraMadrid(horaObjetivo) {
-  const ahoraMadrid = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
-  const objetivo = new Date(ahoraMadrid);
-  objetivo.setHours(horaObjetivo, 0, 0, 0);
-  if (objetivo <= ahoraMadrid) objetivo.setDate(objetivo.getDate() + 1);
-  return objetivo.getTime() - ahoraMadrid.getTime();
-}
-function programarSincronizacionDiariaFacturas() {
-  const delay = msHastaProximaHoraMadrid(6);
-  setTimeout(async () => {
-    try {
-      console.log('[Facturas Proveedores] Sincronización automática (06:00 Madrid) iniciando...');
-      const anio = String(new Date().getFullYear());
-      const resultado = await sincronizarFacturasProveedoresInterno(anio);
-      console.log(`[Facturas Proveedores] Sincronización automática completada: ${resultado.procesadas} nuevas, ${resultado.con_error} con error (de ${resultado.total_pendientes} pendientes).`);
-    } catch (err) {
-      console.error('[Facturas Proveedores] Error en sincronización automática:', err.message);
-    } finally {
-      programarSincronizacionDiariaFacturas(); // se reprograma sola para el día siguiente
-    }
-  }, delay);
-  console.log(`[Facturas Proveedores] Próxima sincronización automática en ${Math.round(delay / 60000)} min.`);
-}
-if (APPS_SCRIPT_FACTURAS_URL && APPS_SCRIPT_FACTURAS_URL !== 'PEGA_AQUI_LA_URL_DEL_SCRIPT_DE_FACTURAS') {
-  programarSincronizacionDiariaFacturas();
-}
+// Abrir el PDF/foto de una factura: enlace temporal de Supabase; las antiguas
+// que aún no se hayan copiado, en Drive como antes.
+app.get('/api/facturas-proveedores/:fileId/archivo', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const url = await facturasArchivos.urlFirmada(req.params.fileId);
+    if (url) return res.redirect(url);
+    if (String(req.params.fileId).startsWith('SUP_')) return res.status(404).send('Archivo no encontrado');
+    res.redirect('https://drive.google.com/file/d/' + encodeURIComponent(req.params.fileId) + '/view');
+  } catch (err) { res.status(500).send('Error: ' + err.message); }
+});
+
+// Copia única de los PDF de Drive a Supabase (en segundo plano; se consulta
+// el avance con GET .../estado). Solo Dirección. Se puede repetir: solo copia
+// lo que falta.
+const COPIA_PDFS_DRIVE = {};
+app.post('/api/facturas-proveedores/copiar-pdfs-drive', requiereLogin, (req, res) => {
+  if (req.session.usuario.rol !== 'Direccion') return res.status(403).json({ error: 'Solo Dirección' });
+  if (COPIA_PDFS_DRIVE.total != null && !COPIA_PDFS_DRIVE.terminado) return res.json({ ok: true, enMarcha: true, ...COPIA_PDFS_DRIVE });
+  Object.keys(COPIA_PDFS_DRIVE).forEach(k => delete COPIA_PDFS_DRIVE[k]);
+  COPIA_PDFS_DRIVE.total = null;
+  facturasArchivos.copiarDesdeDrive(descargarPdfDrive, COPIA_PDFS_DRIVE)
+    .catch(e => { COPIA_PDFS_DRIVE.terminado = true; COPIA_PDFS_DRIVE.fallo = e.message; });
+  res.json({ ok: true, iniciado: true });
+});
+app.get('/api/facturas-proveedores/copiar-pdfs-drive/estado', requiereLogin, (req, res) => {
+  res.json({ ok: true, ...COPIA_PDFS_DRIVE });
+});
 
 const MESES_ES = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -3932,7 +3913,7 @@ app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercia
 });
 
 // NUEVO (15 sep 2026): consulta los fallos de sincronización guardados en
-// ERRORES_PROCESAMIENTO (ver sincronizarFacturasProveedoresInterno) - así se
+// ERRORES_PROCESAMIENTO (ahora facturas_proveedores_errores) - así se
 // puede revisar qué PDFs no se cargaron y por qué sin depender de haber
 // visto el aviso justo cuando se sincronizó.
 app.get('/api/facturas-proveedores/errores', requiereLogin, bloquearComercial, async (req, res) => {
@@ -4511,7 +4492,7 @@ app.post('/api/holded/volcar', requiereLogin, soloHolded, async (req, res) => {
 // 9 oct: se preparan solas y el contable las aprueba aquí antes de volcar —
 // ver lib/holdedCompras.js.
 const holdedCompras = require('./lib/holdedCompras');
-holdedCompras.configurar({ url: APPS_SCRIPT_FACTURAS_URL, token: APPS_SCRIPT_FACTURAS_TOKEN, datos: facturasDatos });
+holdedCompras.configurar({ url: APPS_SCRIPT_FACTURAS_URL, token: APPS_SCRIPT_FACTURAS_TOKEN, datos: facturasDatos, archivo: archivoFactura });
 app.get('/api/holded/gastos', requiereLogin, soloHolded, async (req, res) => {
   try { res.json({ ok: true, ...(await holdedCompras.estadoGastos()) }); }
   catch (err) { console.error('Error en /api/holded/gastos:', err); res.status(500).json({ error: err.message }); }

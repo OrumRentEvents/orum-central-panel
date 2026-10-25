@@ -6827,38 +6827,105 @@ async function cargarFacturasProveedores() {
     body.innerHTML = '<p class="loading-text">Error de conexión</p>';
   }
 }
-async function sincronizarFacturasProveedores() {
-  const btn = document.getElementById('btn-sync-facturas');
-  const estadoSync = document.getElementById('estado-sync-facturas');
-  btn.disabled = true;
-  btn.textContent = '⏳ Sincronizando...';
-  estadoSync.textContent = '';
-  try {
-    const anio = document.getElementById('filtro-fact-sync-anio').value;
-    const resp = await fetch('/api/facturas-proveedores/sincronizar?anio=' + encodeURIComponent(anio), { method: 'POST' });
-    const data = await resp.json();
-    if (data.error) {
-      estadoSync.textContent = 'Error: ' + data.error;
-      estadoSync.style.color = '#A32D2D';
-    } else {
-      // NUEVO (15 sep 2026): antes solo se veía "X con error" sin detalle -
-      // para diagnosticar qué PDFs concretos fallan (y por qué) hay que
-      // mostrar la lista, no solo el contador.
-      const detalleErrores = (data.errores || []).map(e => `${e.nombreArchivo}: ${e.error}`).join('\n');
-      const nDuplicadas = (data.duplicadas || []).length;
-      estadoSync.innerHTML = `✓ ${data.procesadas} facturas nuevas procesadas${data.con_error > 0 ? ', ' + data.con_error + ' con error' : ''}${nDuplicadas ? ', ' + nDuplicadas + ' PDF duplicado' + (nDuplicadas > 1 ? 's' : '') + ' omitido' + (nDuplicadas > 1 ? 's' : '') : ''}.` +
-        (data.con_error > 0 ? `<br><span style="font-size:12px; white-space:pre-line;">${detalleErrores.replace(/</g, '&lt;')}</span>` : '');
-      estadoSync.style.color = data.con_error > 0 ? '#9C6500' : '#27500A';
-      await cargarFacturasProveedores();
-      return;
-    }
-  } catch (err) {
-    estadoSync.textContent = 'Error de conexión';
-    estadoSync.style.color = '#A32D2D';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🔄 Actualizar facturas';
+// ── SUBIR FACTURAS (oct 2026) ──
+// Ventana para subir uno o varios PDF o fotos. Cada archivo se sube y se lee
+// con la IA en el servidor (POST /api/facturas-proveedores/subir), de uno en
+// uno para ir viendo el resultado. Las fotos se reducen antes de subirlas
+// (lado largo 2400 px, JPEG): una foto del móvil pesa mucho y la IA no la necesita tan grande.
+let subidaFacturasLista = [];
+function abrirSubirFacturas() {
+  subidaFacturasLista = [];
+  let modal = document.getElementById('modal-subir-facturas');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-subir-facturas';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;';
+    document.body.appendChild(modal);
   }
+  const proveedores = [...new Set(((facturasProveedoresDataGlobal && facturasProveedoresDataGlobal.facturas) || []).map(f => f.proveedor).filter(Boolean))].sort();
+  modal.innerHTML = `
+    <div style="background:#fff; border-radius:10px; width:640px; max-width:100%; max-height:90vh; overflow:auto; padding:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h2 style="font-size:16px; margin:0;">⬆️ Subir facturas de proveedor</h2>
+        <button onclick="cerrarSubirFacturas()" style="border:none; background:none; font-size:18px; cursor:pointer;">✕</button>
+      </div>
+      <label style="font-size:12px; color:#6b6a64; display:block; margin-bottom:4px;">Proveedor (déjalo vacío para que lo detecte por el NIF de la factura)</label>
+      <input id="subir-fact-proveedor" list="subir-fact-proveedores" placeholder="Detectar automáticamente" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:13px; margin-bottom:12px;">
+      <datalist id="subir-fact-proveedores">${proveedores.map(p => `<option value="${escHtml(p)}">`).join('')}</datalist>
+      <div id="subir-fact-zona" onclick="document.getElementById('subir-fact-input').click()"
+        ondragover="event.preventDefault(); this.style.background='#f3ead9';" ondragleave="this.style.background='#f7f6f2';"
+        ondrop="event.preventDefault(); this.style.background='#f7f6f2'; anadirArchivosFactura(event.dataTransfer.files);"
+        style="border:2px dashed #d8d4c8; background:#f7f6f2; border-radius:8px; padding:28px; text-align:center; cursor:pointer; font-size:13px; color:#6b6a64;">
+        Arrastra aquí los PDF o fotos de las facturas, o haz clic para elegirlos
+      </div>
+      <input id="subir-fact-input" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" style="display:none;" onchange="anadirArchivosFactura(this.files); this.value='';">
+      <div id="subir-fact-lista" style="margin-top:12px;"></div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+        <button onclick="cerrarSubirFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer;">Cerrar</button>
+        <button id="subir-fact-btn" onclick="subirFacturasPendientes()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Subir y leer</button>
+      </div>
+    </div>`;
+  modal.style.display = 'flex';
+  pintarListaSubidaFacturas();
+}
+function cerrarSubirFacturas() {
+  const m = document.getElementById('modal-subir-facturas');
+  if (m) m.style.display = 'none';
+  if (subidaFacturasLista.some(x => x.estado === 'ok')) cargarFacturasProveedores();
+}
+function anadirArchivosFactura(files) {
+  [...files].forEach(file => {
+    if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(file.type) && !/\.pdf$/i.test(file.name)) {
+      subidaFacturasLista.push({ file, estado: 'error', mensaje: 'Formato no admitido (solo PDF, JPG, PNG o WebP)' });
+    } else subidaFacturasLista.push({ file, estado: 'pendiente', mensaje: '' });
+  });
+  pintarListaSubidaFacturas();
+}
+function pintarListaSubidaFacturas() {
+  const cont = document.getElementById('subir-fact-lista');
+  if (!cont) return;
+  const iconos = { pendiente: '⏳', subiendo: '🔄', ok: '✅', duplicada: '♻️', error: '❌' };
+  cont.innerHTML = subidaFacturasLista.map((x, i) => `
+    <div style="display:flex; gap:8px; align-items:flex-start; padding:6px 0; border-bottom:1px solid #f0efe9; font-size:13px;">
+      <span>${iconos[x.estado] || ''}</span>
+      <div style="flex:1;"><div style="font-weight:500;">${escHtml(x.file.name)}</div>${x.mensaje ? `<div style="font-size:12px; color:${x.estado === 'error' ? '#A32D2D' : '#6b6a64'};">${x.mensaje}</div>` : ''}</div>
+      ${x.estado === 'pendiente' || x.estado === 'error' ? `<span onclick="subidaFacturasLista.splice(${i},1); pintarListaSubidaFacturas();" style="cursor:pointer; color:#9a988f;">✕</span>` : ''}
+    </div>`).join('');
+}
+// Foto → JPEG de como mucho 2400 px de lado (el resto se sube tal cual).
+async function prepararArchivoFactura(file) {
+  if (!/^image\//.test(file.type)) return file;
+  const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error('No se puede abrir la imagen')); i.src = URL.createObjectURL(file); });
+  const escala = Math.min(1, 2400 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.85));
+  return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+}
+async function subirFacturasPendientes() {
+  const btn = document.getElementById('subir-fact-btn');
+  const proveedor = document.getElementById('subir-fact-proveedor').value.trim();
+  btn.disabled = true;
+  for (const x of subidaFacturasLista.filter(y => y.estado === 'pendiente')) {
+    x.estado = 'subiendo'; x.mensaje = 'Subiendo y leyendo con la IA…'; pintarListaSubidaFacturas();
+    try {
+      const fd = new FormData();
+      fd.append('archivo', await prepararArchivoFactura(x.file));
+      fd.append('proveedor', proveedor);
+      const r = await fetch('/api/facturas-proveedores/subir', { method: 'POST', body: fd });
+      const d = await r.json().catch(() => ({ error: 'El servidor respondió ' + r.status }));
+      if (d.duplicada) { x.estado = 'duplicada'; x.mensaje = `Ya estaba cargada (${escHtml(d.proveedor)} nº ${escHtml(d.numero || '')}, de "${escHtml(d.duplicadaDe || '')}"): no se ha guardado otra vez`; }
+      else if (!r.ok || d.error) { x.estado = 'error'; x.mensaje = escHtml(d.error || 'Error'); }
+      else {
+        const l = d.lectura || {};
+        x.estado = 'ok';
+        x.mensaje = `${escHtml(d.proveedor)}${d.proveedor_nuevo ? ' <b>(proveedor nuevo: revisa su reparto en Config.)</b>' : ''} · nº ${escHtml(l.numero || '—')} · ${escHtml(l.fecha || '')} · ${euros(l.total)} · confianza ${escHtml(l.confianza || '')}${d.lineas > 1 ? ' · ' + d.lineas + ' periodos' : ''}${l.dudas ? '<br>⚠ ' + escHtml(l.dudas) : ''}`;
+      }
+    } catch (e) { x.estado = 'error'; x.mensaje = 'Error de conexión: ' + escHtml(e.message); }
+    pintarListaSubidaFacturas();
+  }
+  btn.disabled = false;
 }
 function pintarFacturasProveedores() {
   const body = document.getElementById('content-body');
@@ -6886,21 +6953,12 @@ function pintarFacturasProveedores() {
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
       <div style="display:flex; gap:12px; align-items:center;">
-        <button id="btn-sync-facturas" onclick="sincronizarFacturasProveedores()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">🔄 Actualizar facturas</button>
-        <!-- NUEVO (15 sep 2026): el botón (y la sincronización automática de
-        las 6:00) solo mira la carpeta de Drive del año elegido aquí - por
-        defecto el año en curso, pero años atrasados (facturas subidas a la
-        carpeta 2024/2025 que nunca se sincronizaron) hay que forzarlos una
-        vez a mano eligiéndolos aquí. -->
-        <select id="filtro-fact-sync-anio" title="Año de la carpeta de Drive a sincronizar" style="width:auto; font-size:12px;">
-          <option value="2026" selected>Sincronizar año: 2026</option>
-          <option value="2025">Sincronizar año: 2025</option>
-          <option value="2024">Sincronizar año: 2024</option>
-        </select>
+        <!-- Oct 2026: las facturas se suben aquí (PDF o foto) y se leen al
+        momento; antes se dejaban en una carpeta de Google Drive que se leía
+        a las 6:00 o con "Actualizar facturas". -->
+        <button onclick="abrirSubirFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">⬆️ Subir facturas</button>
         <button onclick="abrirHistoricoImportaciones()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#1a1a18; cursor:pointer;">📅 Histórico de importaciones</button>
         <button onclick="abrirErroresFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#A32D2D; cursor:pointer;">⚠️ Ver errores</button>
-        <span style="font-size:12px; color:#9a988f;">Se sincroniza sola todos los días a las 6:00 — este botón es para forzarlo antes</span>
-        <span id="estado-sync-facturas" style="font-size:12px;"></span>
       </div>
     </div>
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.25rem;">
@@ -7127,7 +7185,7 @@ function renderTablaFacturasProveedores(lista) {
           <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${filaAttr}')">${matriculaOpts}</select>
           <input type="text" value="${String(mostrarNota ? f.matricula : '').replace(/"/g, '&quot;')}" placeholder="Nota (VMS, Isabella...)" style="font-size:11px; width:100px; margin-top:2px; ${mostrarNota ? '' : 'display:none;'}" onblur="actualizarCampoFacturaUI(this,'${filaAttr}','matricula')">
         </td>
-        <td style="color:#9a988f; font-size:12px; white-space:nowrap;" title="Fecha en la que se importó/sincronizó desde la carpeta de Drive">${formatoFechaImportada(f.procesadoEn)}</td>
+        <td style="color:#9a988f; font-size:12px; white-space:nowrap;" title="Fecha en la que se subió o importó la factura">${formatoFechaImportada(f.procesadoEn)}</td>
         <td style="white-space:nowrap;">
           <span onclick="verArchivoFactura('${idAttr}')" title="Ver factura escaneada" style="cursor:pointer; font-size:14px; margin-right:8px;">📄</span>
           <span onclick="toggleEdicionFactura('${idAttr}')" title="${editando ? 'Terminar de editar' : 'Corregir Proveedor/Nº Factura/Fecha/Importes'}" style="cursor:pointer; font-size:14px; margin-right:8px;">${editando ? '✅' : '✏️'}</span>
@@ -7145,8 +7203,10 @@ function renderTablaFacturasProveedores(lista) {
 // de red) - con archivos grandes tardaba muchísimo. Como quien lo abre ya
 // tiene acceso a esa carpeta de Drive (es la misma donde se suben las
 // facturas a mano), el enlace directo funciona sin pasar por nuestro server.
+// Oct 2026: los archivos están en Supabase; el servidor da un enlace temporal
+// (y para las antiguas que aún no se hayan copiado, redirige a Drive como antes).
 function verArchivoFactura(fileId) {
-  window.open('https://drive.google.com/file/d/' + encodeURIComponent(fileId) + '/view', '_blank');
+  window.open('/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo', '_blank');
 }
 // Lápiz: activa/desactiva edición en la propia línea para Proveedor/Nº
 // Factura/Fecha/Base/IVA/Total (los que extrae la IA). Sin modal - se
