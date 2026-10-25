@@ -2157,6 +2157,13 @@ app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, su
     const original = duplicadaEnSheet(lectura, indiceFacturasSheet(await facturasDatos.listado()));
     if (original) {
       await supabase.from('facturas_proveedores').delete().eq('file_id', fileId);
+      // Si la factura ya cargada no tiene archivo (p. ej. su PDF desapareció de
+      // Drive antes de copiarlo), se le adjunta este en vez de descartarlo.
+      if (!(await facturasArchivos.info(original.fileId))) {
+        const anioOrig = lectura.fecha ? Number(String(lectura.fecha).slice(0, 4)) : null;
+        await facturasArchivos.guardar({ fileId: original.fileId, nombreArchivo, mime, base64, proveedor, usuario, origen: 'panel', anio: anioOrig });
+        return res.json({ ok: true, adjuntado: true, fileId: original.fileId, proveedor, lineas: 0, lectura: { numero: lectura.numero, fecha: lectura.fecha, total: lectura.total, confianza: lectura.confianza, emisor: lectura.emisor_nombre } });
+      }
       return res.json({ ok: false, duplicada: true, proveedor, numero: lectura.numero, duplicadaDe: original.nombreArchivo });
     }
     const anio = lectura.fecha ? Number(String(lectura.fecha).slice(0, 4)) : null;

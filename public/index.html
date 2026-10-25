@@ -6917,6 +6917,7 @@ async function subirFacturasPendientes() {
       const d = await r.json().catch(() => ({ error: 'El servidor respondió ' + r.status }));
       if (d.duplicada) { x.estado = 'duplicada'; x.mensaje = `Ya estaba cargada (${escHtml(d.proveedor)} nº ${escHtml(d.numero || '')}, de "${escHtml(d.duplicadaDe || '')}"): no se ha guardado otra vez`; }
       else if (!r.ok || d.error) { x.estado = 'error'; x.mensaje = escHtml(d.error || 'Error'); }
+      else if (d.adjuntado) { x.estado = 'ok'; x.mensaje = `Esta factura ya estaba cargada pero sin archivo (${escHtml(d.proveedor)} nº ${escHtml((d.lectura || {}).numero || '')}): se le ha adjuntado este.`; }
       else {
         const l = d.lectura || {};
         x.estado = 'ok';
