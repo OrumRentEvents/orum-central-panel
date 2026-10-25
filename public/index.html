@@ -1951,21 +1951,27 @@ function pintarUsuarios() {
   const inp = 'padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:13px;';
   const filas = usuariosGlobal.data.map((u, i) => `
     <tr>
-      <td style="padding:8px; font-weight:600;">${escU(u.usuario)}</td>
+      <td style="padding:8px;">${String(u.usuario).toLowerCase() === 'sergio'
+        ? `<strong>${escU(u.usuario)}</strong>`
+        : `<input id="usr-usuario-${i}" value="${escU(u.usuario)}" autocomplete="off" style="${inp} width:110px; font-weight:600;">`}</td>
       <td style="padding:8px;"><input id="usr-nombre-${i}" value="${escU(u.nombre)}" style="${inp} width:180px;"></td>
       <td style="padding:8px;">${selectRolUsuario('usr-rol-' + i, u.rol)}</td>
       <td style="padding:8px;"><input id="usr-filtro-${i}" value="${escU(u.comercial_filtro || '')}" placeholder="Solo comerciales" style="${inp} width:170px;"></td>
       <td style="padding:8px;"><input id="usr-pass-${i}" type="password" placeholder="Dejar en blanco = no cambiar" autocomplete="new-password" style="${inp} width:190px;"></td>
+      <td style="padding:8px; white-space:nowrap;">
+        <input id="usr-pin-${i}" type="password" inputmode="numeric" maxlength="4" placeholder="${u.tiene_pin ? '•••• (cambiar)' : 'Sin PIN'}" autocomplete="new-password" style="${inp} width:100px;">
+        ${u.tiene_pin ? `<button onclick="quitarPinUsuario(${i})" title="Quitar el PIN: ya no podrá entrar con él" style="padding:5px 8px; background:#fff; color:#b91c1c; border:1px solid #fecaca; border-radius:4px; cursor:pointer; font-size:11px;">Quitar</button>` : ''}
+      </td>
       <td style="padding:8px; white-space:nowrap;">
         <button onclick="guardarUsuario(${i})" style="padding:6px 12px; background:var(--gold, #b8860b); color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:12px;">Guardar</button>
         ${String(u.usuario).toLowerCase() === 'sergio' ? '' : `<button onclick="borrarUsuario(${i})" style="padding:6px 10px; background:#fff; color:#b91c1c; border:1px solid #fecaca; border-radius:4px; cursor:pointer; font-size:12px;">Borrar</button>`}
       </td>
     </tr>`).join('');
   document.getElementById('content-body').innerHTML = `
-    <p style="color:var(--text-secondary); font-size:13px; margin-bottom:12px;">Quién puede entrar en ORUM Central y con qué rol. En <strong>Filtro comercial</strong> va el nombre del comercial tal como sale en Rentman: ese usuario solo verá sus proyectos. Las contraseñas se guardan cifradas; para cambiar una, escríbela y pulsa Guardar.</p>
+    <p style="color:var(--text-secondary); font-size:13px; margin-bottom:12px;">Quién puede entrar en ORUM Central y con qué rol. En <strong>Filtro comercial</strong> va el nombre del comercial tal como sale en Rentman: ese usuario solo verá sus proyectos. Las contraseñas se guardan cifradas; para cambiar una, escríbela y pulsa Guardar. El <strong>PIN</strong> (4 cifras, distinto para cada persona) es para entrar desde el móvil; también se guarda cifrado, así que aquí no se ve, solo se cambia. Si cambias el <strong>usuario</strong> de acceso, esa persona tendrá que entrar con el nuevo.</p>
     <div style="overflow-x:auto; background:#fff; border:1px solid var(--border); border-radius:6px; margin-bottom:20px;">
       <table style="width:100%; border-collapse:collapse; font-size:13px;">
-        <thead><tr style="background:var(--gray-50, #f7f7f5); text-align:left;"><th style="padding:8px;">Usuario</th><th style="padding:8px;">Nombre</th><th style="padding:8px;">Rol</th><th style="padding:8px;">Filtro comercial</th><th style="padding:8px;">Nueva contraseña</th><th style="padding:8px;"></th></tr></thead>
+        <thead><tr style="background:var(--gray-50, #f7f7f5); text-align:left;"><th style="padding:8px;">Usuario</th><th style="padding:8px;">Nombre</th><th style="padding:8px;">Rol</th><th style="padding:8px;">Filtro comercial</th><th style="padding:8px;">Nueva contraseña</th><th style="padding:8px;">PIN móvil</th><th style="padding:8px;"></th></tr></thead>
         <tbody>${filas}</tbody>
       </table>
     </div>
@@ -1977,6 +1983,7 @@ function pintarUsuarios() {
         ${selectRolUsuario('usr-nuevo-rol', 'Comercial')}
         <input id="usr-nuevo-filtro" placeholder="Filtro comercial (opcional)" style="${inp} width:180px;">
         <input id="usr-nuevo-pass" type="password" placeholder="Contraseña (mín. 6)" autocomplete="new-password" style="${inp} width:160px;">
+        <input id="usr-nuevo-pin" type="password" inputmode="numeric" maxlength="4" placeholder="PIN (opcional)" autocomplete="new-password" style="${inp} width:110px;">
         <button onclick="crearUsuario()" style="padding:7px 14px; background:var(--gold, #b8860b); color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:13px;">Crear</button>
       </div>
     </div>`;
@@ -1993,9 +2000,21 @@ async function guardarUsuario(i) {
     nombre: document.getElementById('usr-nombre-' + i).value,
     rol: document.getElementById('usr-rol-' + i).value,
     comercial_filtro: document.getElementById('usr-filtro-' + i).value,
-    password: document.getElementById('usr-pass-' + i).value
+    password: document.getElementById('usr-pass-' + i).value,
+    pin: document.getElementById('usr-pin-' + i).value
   };
-  try { await enviarUsuario('/api/usuarios/' + encodeURIComponent(u.usuario), 'PUT', body); alert('✅ Guardado ' + u.usuario + (body.password ? ' (contraseña cambiada)' : '')); cargarUsuarios(); }
+  const campoUsuario = document.getElementById('usr-usuario-' + i);
+  if (campoUsuario) body.nuevo_usuario = campoUsuario.value;
+  const nuevo = (body.nuevo_usuario || u.usuario).trim().toLowerCase();
+  if (nuevo !== u.usuario && !confirm('¿Cambiar el usuario de acceso "' + u.usuario + '" a "' + nuevo + '"? Desde ahora tendrá que entrar como "' + nuevo + '".')) return;
+  const cambios = [body.password ? 'contraseña cambiada' : '', body.pin ? 'PIN cambiado' : '', nuevo !== u.usuario ? 'ahora entra como ' + nuevo : ''].filter(Boolean);
+  try { await enviarUsuario('/api/usuarios/' + encodeURIComponent(u.usuario), 'PUT', body); alert('✅ Guardado ' + nuevo + (cambios.length ? ' (' + cambios.join(', ') + ')' : '')); cargarUsuarios(); }
+  catch (e) { alert('Error: ' + e.message); }
+}
+async function quitarPinUsuario(i) {
+  const u = usuariosGlobal.data[i];
+  if (!confirm('¿Quitar el PIN de "' + u.usuario + '"? Ya no podrá entrar con PIN desde el móvil (con su contraseña sí).')) return;
+  try { await enviarUsuario('/api/usuarios/' + encodeURIComponent(u.usuario), 'PUT', { quitar_pin: true }); cargarUsuarios(); }
   catch (e) { alert('Error: ' + e.message); }
 }
 async function borrarUsuario(i) {
@@ -2010,7 +2029,8 @@ async function crearUsuario() {
     nombre: document.getElementById('usr-nuevo-nombre').value,
     rol: document.getElementById('usr-nuevo-rol').value,
     comercial_filtro: document.getElementById('usr-nuevo-filtro').value,
-    password: document.getElementById('usr-nuevo-pass').value
+    password: document.getElementById('usr-nuevo-pass').value,
+    pin: document.getElementById('usr-nuevo-pin').value
   };
   try { await enviarUsuario('/api/usuarios', 'POST', body); alert('✅ Usuario ' + body.usuario + ' creado'); cargarUsuarios(); }
   catch (e) { alert('Error: ' + e.message); }
