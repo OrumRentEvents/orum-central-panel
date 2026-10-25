@@ -3173,6 +3173,10 @@ async function leerMovimientosExtras(anio) {
 const EXTRAS_PRIMER_ANIO_HOJA = 2026;
 
 app.post('/api/extras/sincronizar', requiereLogin, soloPersonal, async (req, res) => {
+  // Oct 2026: retirado. Los extras van por el formulario propio desde sep
+  // 2026 y el histórico de la hoja ya está importado; el panel no lee Google.
+  return res.status(410).json({ error: 'Ya no se sincroniza con la hoja de Google: los extras se registran en el formulario del panel' });
+  // eslint-disable-next-line no-unreachable
   try {
     const anio = parseInt(req.query.anio) || new Date().getFullYear();
     if (anio < EXTRAS_PRIMER_ANIO_HOJA) return res.status(400).json({ error: 'Los extras de ' + anio + ' son histórico importado (fijo) y no se sincronizan desde la hoja.' });

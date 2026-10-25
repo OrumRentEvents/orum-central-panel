@@ -5019,20 +5019,17 @@ function pintarPersonalExtras() {
       </table>
     </div>
   ` : `
-    ${personalGlobal.inicioFormularioExtras ? `<div style="background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.8rem 1rem; margin-bottom:1rem; font-size:12.5px; color:#2F6280;">Desde <strong>${MESES_ES_FACTURAS[parseInt(personalGlobal.inicioFormularioExtras.split('-')[1])]} ${personalGlobal.inicioFormularioExtras.split('-')[0]}</strong> los extras se registran en <span onclick="marcarMenuActivo('menu-item-per-registrar-extras'); cargarRegistrarExtras();" style="text-decoration:underline; cursor:pointer;">Registrar extras</span> y cuentan al aprobarlos en <span onclick="marcarMenuActivo('menu-item-per-aprobar-extras'); cargarGestionExtras();" style="text-decoration:underline; cursor:pointer;">Aprobar y pagar extras</span>. La hoja de Google solo se lee para los meses anteriores.</div>` : ''}
-    <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1.25rem; margin-bottom:1.5rem;">
-      <p style="font-size:14px; font-weight:500; margin:0 0 4px;">Sincronizar extras del año ${personalGlobal.anio}</p>
-      <p style="font-size:12px; color:#6b6a64; margin:0 0 12px;">Lee en vivo la hoja "HORAS EXTRAS 2026" (pestaña "PAGOS &lt;mes&gt; ${personalGlobal.anio}" de cada mes) y guarda el total por trabajador. Los meses que aún no tengan esa pestaña se saltan sin dar error.</p>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <button onclick="sincronizarExtras()" style="border:none; background:#1a1a18; color:#fff; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px;">Sincronizar</button>
-        <span id="estado-sync-extras" style="font-size:12px;"></span>
-      </div>
-      <div id="aviso-sin-departamento-extras"></div>
+    ${personalGlobal.inicioFormularioExtras ? `<div style="background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.8rem 1rem; margin-bottom:1rem; font-size:12.5px; color:#2F6280;">Desde <strong>${MESES_ES_FACTURAS[parseInt(personalGlobal.inicioFormularioExtras.split('-')[1])]} ${personalGlobal.inicioFormularioExtras.split('-')[0]}</strong> los extras se registran en <span onclick="marcarMenuActivo('menu-item-per-registrar-extras'); cargarRegistrarExtras();" style="text-decoration:underline; cursor:pointer;">Registrar extras</span> y cuentan al aprobarlos en <span onclick="marcarMenuActivo('menu-item-per-aprobar-extras'); cargarGestionExtras();" style="text-decoration:underline; cursor:pointer;">Aprobar y pagar extras</span>. Los meses anteriores son el histórico importado de la hoja de Google.</div>` : ''}
+    <!-- Oct 2026: ya no hay botón "Sincronizar" - los meses anteriores al
+    formulario propio se importaron una vez de la hoja "HORAS EXTRAS 2026"
+    (Google) y quedan fijos; desde entonces todo sale del formulario. -->
+    <div style="background:#f7f6f2; border:0.5px solid #e2e2de; border-radius:8px; padding:0.8rem 1rem; margin-bottom:1rem;">
+      <p style="font-size:12px; color:#6b6a64; margin:0;">Los meses anteriores al formulario propio se importaron una vez de la hoja de Google "HORAS EXTRAS 2026" y quedan como histórico fijo; ya no se lee esa hoja.</p>
     </div>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:hidden;">
       <table>
         <thead><tr><th>Mes</th><th style="text-align:right;">Trabajadores</th><th style="text-align:right;">Total pagado</th></tr></thead>
-        <tbody>${filasHtml || '<tr><td colspan="3" style="padding:1.5rem 4px; color:#9a988f;">Sin extras sincronizados para ' + personalGlobal.anio + '. Pulsa "Sincronizar".</td></tr>'}</tbody>
+        <tbody>${filasHtml || '<tr><td colspan="3" style="padding:1.5rem 4px; color:#9a988f;">Sin extras de la hoja para ' + personalGlobal.anio + '.</td></tr>'}</tbody>
       </table>
     </div>
   `;
