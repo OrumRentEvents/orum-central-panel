@@ -14,3 +14,7 @@ create table if not exists vehiculos_repostajes (
 );
 create index if not exists vehiculos_repostajes_vehiculo_fecha on vehiculos_repostajes (vehiculo_id, fecha);
 alter table vehiculos_repostajes enable row level security;
+
+-- Qué vehículos salen en el botón Repostaje de la app (el Citroën C3 no se reposta así).
+alter table vehiculos add column if not exists repostaje boolean not null default true;
+update vehiculos set repostaje = false where id = 8 and matricula = '7710NHY';

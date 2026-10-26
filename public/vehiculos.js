@@ -241,6 +241,7 @@ function vehFormDatos(v) {
       ${campo('fecha_alta', 'Fecha de alta', v.fecha_alta, 'date')}
       ${campo('km_base', 'Lectura cuentakilómetros (km)', v.km_base, 'number')}
       ${campo('km_base_fecha', 'Fecha de la lectura', v.km_base_fecha, 'date')}
+      <div><label>Repostaje</label><label style="display:flex; align-items:center; gap:6px; font-size:13px; color:inherit; padding-top:5px;"><input id="vf-repostaje" type="checkbox" style="width:auto;" ${v.repostaje === false ? '' : 'checked'}> Sale en el botón Repostaje de la app</label></div>
     </div>
     <div class="veh-form" style="grid-template-columns:1fr; margin-top:10px;"><div><label>Notas</label><textarea id="vf-notas" rows="2">${vehEsc(v.notas || '')}</textarea></div></div>
     <div class="veh-error" id="vf-error"></div>
@@ -255,6 +256,7 @@ async function guardarDatosVehiculo() {
   const val = id => document.getElementById('vf-' + id).value.trim();
   const datos = {};
   ['matricula', 'marca', 'modelo', 'tipo', 'propiedad', 'nombre_rutas', 'nombre_localizador', 'fecha_alta', 'km_base', 'km_base_fecha', 'notas'].forEach(c => { datos[c] = val(c); });
+  datos.repostaje = document.getElementById('vf-repostaje').checked;
   vehError('vf-error', '');
   try {
     const id = vehFichaActual && vehFichaActual.vehiculo.id;
