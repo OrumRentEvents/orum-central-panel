@@ -1153,9 +1153,31 @@ const CATEGORIAS_ESPECIAL_CUIDADO = [
   { etiqueta: 'Barra', palabras: ['barra'] },
 ].map(c => ({ etiqueta: c.etiqueta, palabras: c.palabras.map(normalizarTexto) }));
 
-function categoriaEspecialCuidado(articulo) {
+// Familias de Rentman que entran enteras (oct 2026: el chill out no tiene
+// palabras comunes en sus nombres). Van antes que las categorías por palabras,
+// así un "PUFF ... CHILL OUT" cuenta como Chill Out y no como Puff.
+const FAMILIAS_ESPECIAL_CUIDADO = [
+  { etiqueta: 'Chill Out', familia: normalizarTexto('Chill Out') },
+];
+function categoriaEspecialCuidado(articulo, familia) {
+  const f = normalizarTexto(familia);
+  const porFamilia = f && FAMILIAS_ESPECIAL_CUIDADO.find(c => f === c.familia);
+  if (porFamilia) return porFamilia;
   const a = normalizarTexto(articulo);
   return CATEGORIAS_ESPECIAL_CUIDADO.find(c => c.palabras.every(palabra => a.indexOf(palabra) !== -1)) || null;
+}
+
+// Dos casillas por salida (sql/mantenimiento_responsables.sql):
+// "mantenimiento" la marca el equipo de Mantenimiento (rol Mantenimiento, o
+// Leo, que es de Logística y también hace mantenimiento); "responsables" la
+// marcan los responsables de Logística. Dirección puede marcar las dos.
+const USUARIOS_MANTENIMIENTO = ['leo'];
+function permisosMantenimiento(u) {
+  const usuario = String(u.usuario || '').toLowerCase();
+  return {
+    mantenimiento: u.rol === 'Mantenimiento' || u.rol === 'Direccion' || USUARIOS_MANTENIMIENTO.includes(usuario),
+    responsables: u.rol === 'Logistica' || u.rol === 'Direccion'
+  };
 }
 
 // Piezas/accesorios que van SIEMPRE pegados al artículo principal (p.ej. el
@@ -1185,9 +1207,9 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
     const checksPorClave = {};
     (checksResp.data || []).forEach(c => { checksPorClave[c.clave] = c; });
 
-    // Ventana de 14 días (2 semanas) desde hoy, pedida explícitamente.
+    // Ventana de 15 días desde hoy (oct 2026; antes 14).
     const hoy = inicioDelDia(new Date());
-    const limite = new Date(hoy); limite.setDate(limite.getDate() + 14);
+    const limite = new Date(hoy); limite.setDate(limite.getDate() + 15);
 
     // Los accesorios (pie, protector...) no cuentan como fila propia. El
     // artículo principal a veces aparece DUPLICADO tal cual en Rentman
@@ -1198,7 +1220,7 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
     // como su propia fila - es justo lo que se quiere ver por separado.
     const gruposPorProyectoYArticulo = {};
     (equipmentResp.data || []).forEach(e => {
-      const categoria = categoriaEspecialCuidado(e.articulo);
+      const categoria = categoriaEspecialCuidado(e.articulo, e.familia);
       if (!categoria) return;
       if (esAccesorio(e.articulo)) return;
       const proyecto = proyectoPorId[String(e.proyecto_id)];
@@ -1229,8 +1251,10 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
       const clave = String(g.proyecto.id) + '::' + g.categoria + '::' + normalizarTexto(g.articulo);
       const check = checksPorClave[clave];
       const revisado = !!(check && check.revisado);
+      const respRevisado = !!(check && check.resp_revisado);
       tipo.total_unidades += g.cantidad;
       if (!revisado) tipo.pendientes++;
+      const f = parsearFechaDDMMYYYY(g.proyecto.entrega_fecha);
       tipo.salidas.push({
         clave,
         proyecto_id: g.proyecto.id,
@@ -1243,14 +1267,20 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
         articulo: g.articulo,
         cantidad: g.cantidad,
         revisado,
-        revisado_por: check ? check.revisado_por : null
+        revisado_por: check ? check.revisado_por : null,
+        revisado_ts: check && check.revisado ? check.revisado_ts : null,
+        resp_revisado: respRevisado,
+        resp_por: check ? check.resp_por : null,
+        resp_ts: check && check.resp_revisado ? check.resp_ts : null,
+        dia: f ? f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0') : null,
+        entrega_hora: g.proyecto.entrega_hora || ''
       });
     });
 
     const tipos = Object.values(tiposPorEtiqueta).sort((a, b) => a.tipo.localeCompare(b.tipo));
     tipos.forEach(t => t.salidas.sort((a, b) => parsearFechaDDMMYYYY(a.fecha_entrega) - parsearFechaDDMMYYYY(b.fecha_entrega)));
 
-    res.json({ ok: true, tipos, ultima_actualizacion: proyectosResp.ultima_actualizacion });
+    res.json({ ok: true, tipos, permisos: permisosMantenimiento(req.session.usuario), ultima_actualizacion: proyectosResp.ultima_actualizacion });
   } catch (err) {
     console.error('Error en /api/mantenimiento:', err);
     res.status(500).json({ error: 'Error al leer mantenimiento: ' + err.message });
@@ -1264,22 +1294,25 @@ app.get('/api/mantenimiento', requiereLogin, async (req, res) => {
 app.post('/api/mantenimiento/check', requiereLogin, async (req, res) => {
   try {
     if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
-    const { clave, proyecto_id, articulo, revisado } = req.body || {};
+    const b = req.body || {};
+    const { clave, proyecto_id, articulo } = b;
     if (!clave || !proyecto_id || !articulo) return res.status(400).json({ error: 'Faltan datos' });
-    if (revisado) {
-      const { error } = await supabase.from('mantenimiento_checks').upsert({
-        clave, proyecto_id: String(proyecto_id), articulo,
-        revisado: true,
-        revisado_por: req.session.usuario.nombre || req.session.usuario.usuario,
-        revisado_ts: new Date().toISOString(),
-        updated_raw: new Date().toISOString()
-      });
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('mantenimiento_checks').delete().eq('clave', clave);
-      if (error) throw error;
-    }
-    res.json({ ok: true });
+    // tipo: 'mantenimiento' (por defecto, la casilla de siempre) o 'responsables'
+    const tipo = b.tipo === 'responsables' ? 'responsables' : 'mantenimiento';
+    const marcado = b.marcado !== undefined ? !!b.marcado : !!b.revisado;
+    if (!permisosMantenimiento(req.session.usuario)[tipo]) return res.status(403).json({ error: tipo === 'responsables' ? 'Esta casilla la marcan los responsables de Logística' : 'Esta casilla la marca el equipo de Mantenimiento' });
+    const quien = req.session.usuario.nombre || req.session.usuario.usuario, ahora = new Date().toISOString();
+    const { data: previa, error: e1 } = await supabase.from('mantenimiento_checks').select('*').eq('clave', clave);
+    if (e1) throw e1;
+    const fila = Object.assign({ clave, proyecto_id: String(proyecto_id), articulo, revisado: false, resp_revisado: false }, (previa && previa[0]) || {}, { updated_raw: ahora });
+    if (tipo === 'mantenimiento') Object.assign(fila, { revisado: marcado, revisado_por: marcado ? quien : null, revisado_ts: marcado ? ahora : null });
+    else Object.assign(fila, { resp_revisado: marcado, resp_por: marcado ? quien : null, resp_ts: marcado ? ahora : null });
+    // Sin ninguna de las dos casillas marcada no se guarda nada
+    const r = !fila.revisado && !fila.resp_revisado
+      ? await supabase.from('mantenimiento_checks').delete().eq('clave', clave)
+      : await supabase.from('mantenimiento_checks').upsert(fila);
+    if (r.error) throw r.error;
+    res.json({ ok: true, por: marcado ? quien : null, ts: marcado ? ahora : null });
   } catch (err) {
     console.error('Error en /api/mantenimiento/check:', err);
     res.status(500).json({ error: 'Error al guardar la revisión: ' + err.message });
@@ -1396,6 +1429,11 @@ app.get('/api/preparacion-publica', async (req, res) => {
 
 app.get('/preparacion', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'preparacion.html'));
+});
+
+// Mantenimiento (oct 2026): misma pantalla en la app y dentro del panel — public/mantenimiento.html.
+app.get('/mantenimiento', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'mantenimiento.html'));
 });
 
 // App móvil (oct 2026): entrada con PIN y botones según el rol — public/movil.html.

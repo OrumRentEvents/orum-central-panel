@@ -358,7 +358,7 @@ async function comprobarSesion() {
     }
   } catch (err) {}
 }
-const ETIQUETA_ROL = { Direccion: 'Dirección', Contabilidad: 'Contabilidad', Logistica: 'Logística', Comercial: 'Comercial', Lavanderia: 'Tablet Lavandería', Office: 'Tablet Office' };
+const ETIQUETA_ROL = { Direccion: 'Dirección', Contabilidad: 'Contabilidad', Logistica: 'Logística', Comercial: 'Comercial', Lavanderia: 'Tablet Lavandería', Office: 'Tablet Office', Mantenimiento: 'Mantenimiento (solo app)' };
 function inicialesNombre(nombre) {
   if (!nombre) return '?';
   const partes = nombre.trim().split(/\s+/);
@@ -5387,7 +5387,16 @@ function renderTablaFianzas(listaOriginal) {
 // ================================================================
 // MANTENIMIENTO — Fase 1: aviso de material de "especial cuidado"
 // ================================================================
-async function cargarMantenimiento() {
+// Oct 2026: el panel muestra la misma pantalla que la app (public/mantenimiento.html):
+// por día y por material, chill out y las dos casillas (Mantenimiento y
+// Responsables). La versión anterior (cargarMantenimientoAntiguo) queda sin uso.
+function cargarMantenimiento() {
+  document.getElementById('content-title').textContent = 'Mantenimiento';
+  marcarMenuActivo('menu-item-mantenimiento');
+  document.getElementById('content-body').innerHTML = `<iframe src="/mantenimiento?embebido=1" title="Mantenimiento"
+    style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
+}
+async function cargarMantenimientoAntiguo() {
   document.getElementById('content-title').textContent = 'Mantenimiento · Especial cuidado (próximos 14 días)';
   marcarMenuActivo('menu-item-mantenimiento');
   const body = document.getElementById('content-body');

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ORUM Mantenimiento</title>
+<link rel="manifest" href="/movil.webmanifest?v=2">
+<meta name="theme-color" content="#1a1a18">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
+button { font-family: inherit; }
+.cab { background: #1a1a18; color: #fff; padding: calc(14px + env(safe-area-inset-top)) 16px 10px; position: sticky; top: 0; z-index: 10; }
+.cab-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.cab h1 { font-size: 15px; font-weight: 500; flex: 1; }
+.cab button { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+.act { font-size: 11px; color: rgba(255,255,255,.5); margin-bottom: 8px; }
+.tabs { display: flex; gap: 4px; }
+.tabs button { border: none; background: transparent; color: rgba(255,255,255,.6); font-size: 13px; padding: 6px 14px; border-radius: 6px; }
+.tabs button.on { background: rgba(255,255,255,.15); color: #fff; font-weight: 500; }
+.cuerpo { padding: 12px 16px 24px; max-width: 1000px; margin: 0 auto; }
+.cargando { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
+.buscar { width: 100%; padding: 9px 12px; font-size: 15px; border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; margin-bottom: 12px; }
+.resumen { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; }
+.resumen > span { background: #fff; border: 0.5px solid #e2e2de; border-radius: 12px; padding: 3px 10px; color: #6b6a64; }
+.resumen .pend { color: #854F0B; font-weight: 600; } .resumen .ok { color: #0F6E56; font-weight: 600; }
+.dia-barra { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.dia-barra button { background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
+.dia-barra input { flex: 1; padding: 9px 10px; font-size: 15px; border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; }
+.rapidos { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.rapidos button { font-size: 12px; padding: 5px 10px; border-radius: 14px; border: 0.5px solid #e2e2de; background: #fff; cursor: pointer; }
+.rapidos button.on { background: #1a1a18; color: #fff; border-color: #1a1a18; }
+.dia-tit { font-size: 13px; color: #6b6a64; margin-bottom: 10px; }
+.grupo { background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+.grupo-cab { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f7f6f2; border-bottom: 0.5px solid #e2e2de; cursor: pointer; user-select: none; }
+.grupo-cab b { font-size: 14px; }
+.grupo-cab span { font-size: 12px; color: #6b6a64; }
+.grupo-cab .pend { color: #854F0B; font-weight: 600; }
+.grupo-cab .ok { color: #0F6E56; font-weight: 600; }
+.grupo-cuerpo.cerrado { display: none; }
+.art-tit { padding: 10px 14px 4px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; }
+.fila { display: flex; gap: 10px; align-items: center; padding: 9px 14px; border-top: 0.5px solid #f0efe9; font-size: 13px; }
+.fila.todo { background: #f4fcf9; }
+.fila .info { flex: 1; min-width: 0; }
+.fila .info .t { font-weight: 500; }
+.fila .info .s { font-size: 11px; color: #6b6a64; margin-top: 2px; }
+.fila .cant { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.checks { display: flex; gap: 6px; flex-shrink: 0; }
+.chk { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: none; padding: 0; cursor: pointer; width: 58px; }
+.chk .caja { width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid #c9c6bb; background: #fff; display: flex; align-items: center; justify-content: center; }
+.chk .caja svg { width: 18px; height: 18px; stroke: #fff; fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.chk.on .caja { background: #1D9E75; border-color: #1D9E75; }
+.chk.on .caja svg { opacity: 1; }
+.chk .et { font-size: 9px; color: #6b6a64; text-transform: uppercase; letter-spacing: .3px; }
+.chk .quien { font-size: 9px; color: #0F6E56; max-width: 58px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chk.solo-ver { cursor: default; }
+.chk.solo-ver .caja { border-style: dashed; }
+.chk.guardando { opacity: .5; }
+.vacio { padding: 16px; font-size: 13px; color: #9a988f; }
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; }
+#toast.show { opacity: 1; }
+@media (min-width: 700px) { .chk { width: 72px; } .chk .quien { max-width: 72px; } }
+</style>
+</head>
+<body>
+<div class="cab">
+  <div class="cab-top">
+    <button id="btn-inicio" style="display:none;">&lsaquo; Inicio</button>
+    <h1>Mantenimiento</h1>
+    <button id="btn-salir" style="display:none;">Salir</button>
+    <button id="btn-recargar">Recargar</button>
+  </div>
+  <div class="act" id="act">Cargando…</div>
+  <div class="tabs"><button data-vista="dia" class="on">Por día</button><button data-vista="material">Por material</button></div>
+</div>
+<div class="cuerpo" id="cuerpo"><div class="cargando">Cargando…</div></div>
+<div id="toast"></div>
+
+<script>
+// Mantenimiento (oct 2026): material de especial cuidado (y todo el chill
+// out) que sale en los próximos 15 días, por día o por material. Dos
+// casillas por salida: Mantenimiento (Leo / Nourdin) y Responsables
+// (Logística). Misma pantalla en la app (/mantenimiento) y en el panel
+// (Operaciones → Mantenimiento, con ?embebido=1).
+var PARAMS = new URLSearchParams(location.search);
+var EMBEBIDO = PARAMS.get('embebido') === '1';
+var DATOS = null, USUARIO = null, vista = 'dia', diaElegido = null, filtro = '', abiertos = {};
+var ICONO_CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function toast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(function () { t.classList.remove('show'); }, 1600); }
+function isoDia(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function sumarDias(iso, n) { var p = iso.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + n); return isoDia(d); }
+function corta(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : ''; }
+function hora(ts) { return ts ? new Date(ts).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; }
+
+// ── Entrada: sesión de la app o del panel, o la llave del dispositivo ──
+function entrar() {
+  fetch('/api/sesion').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) {
+    if (d && d.usuario) return arrancar(d.usuario);
+    var llave = ''; try { llave = localStorage.getItem('orum_movil_dispositivo') || ''; } catch (e) {}
+    if (!llave) return irALaApp();
+    fetch('/api/movil/dispositivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) })
+      .then(function (r) { return r.json(); }).then(function (r) { if (r.ok) arrancar(r.usuario); else irALaApp(); }).catch(irALaApp);
+  });
+}
+function irALaApp() { location.replace(EMBEBIDO ? '/' : '/movil'); }
+function arrancar(u) {
+  USUARIO = u;
+  var soloMant = u.rol === 'Mantenimiento';
+  document.getElementById('btn-inicio').style.display = EMBEBIDO || soloMant ? 'none' : '';
+  document.getElementById('btn-salir').style.display = soloMant && !EMBEBIDO ? '' : 'none';
+  cargar();
+}
+function cargar(silencioso) {
+  if (!silencioso) document.getElementById('cuerpo').innerHTML = '<div class="cargando">Cargando…</div>';
+  return fetch('/api/mantenimiento?t=' + Date.now()).then(function (r) {
+    if (r.status === 401) { location.reload(); return new Promise(function () {}); }
+    return r.json();
+  }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    DATOS = d;
+    document.getElementById('act').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ' · próximos 15 días';
+    if (!silencioso || !document.activeElement.matches('input')) pintar();
+  }).catch(function (e) { if (!silencioso) document.getElementById('cuerpo').innerHTML = '<div class="cargando">Error: ' + esc(e.message) + '</div>'; });
+}
+
+// ── Casillas ──
+function casilla(s, tipo) {
+  var on = tipo === 'mantenimiento' ? s.revisado : s.resp_revisado;
+  var por = tipo === 'mantenimiento' ? s.revisado_por : s.resp_por;
+  var puede = DATOS.permisos && DATOS.permisos[tipo];
+  var et = tipo === 'mantenimiento' ? 'Mant.' : 'Resp.';
+  var titulo = (tipo === 'mantenimiento' ? 'Mantenimiento' : 'Responsables') + (on ? ': ' + (por || '') + ' ' + hora(tipo === 'mantenimiento' ? s.revisado_ts : s.resp_ts) : ': pendiente');
+  return '<button class="chk' + (on ? ' on' : '') + (puede ? '' : ' solo-ver') + '"' + (puede ? ' data-clave="' + esc(s.clave) + '" data-tipo="' + tipo + '"' : '') + ' title="' + esc(titulo) + '">' +
+    '<span class="caja">' + ICONO_CHECK + '</span><span class="et">' + et + '</span>' + (on && por ? '<span class="quien">' + esc(String(por).split(' ')[0]) + '</span>' : '') + '</button>';
+}
+function todasLasSalidas() {
+  var out = [];
+  (DATOS.tipos || []).forEach(function (t) { t.salidas.forEach(function (s) { s.tipo = t.tipo; out.push(s); }); });
+  return out;
+}
+function marcar(btn) {
+  if (btn.classList.contains('guardando')) return;
+  var clave = btn.getAttribute('data-clave'), tipo = btn.getAttribute('data-tipo');
+  var s = todasLasSalidas().filter(function (x) { return x.clave === clave; })[0];
+  if (!s) return;
+  var marcado = !btn.classList.contains('on');
+  btn.classList.add('guardando');
+  fetch('/api/mantenimiento/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clave: clave, proyecto_id: s.proyecto_id, articulo: s.articulo, tipo: tipo, marcado: marcado }) })
+    .then(function (r) { return r.json().then(function (d) { d._ok = r.ok; return d; }); })
+    .then(function (d) {
+      btn.classList.remove('guardando');
+      if (!d._ok || d.error) { toast(d.error || 'No se ha podido guardar'); return; }
+      if (tipo === 'mantenimiento') { s.revisado = marcado; s.revisado_por = d.por; s.revisado_ts = d.ts; }
+      else { s.resp_revisado = marcado; s.resp_por = d.por; s.resp_ts = d.ts; }
+      pintar();
+      toast(marcado ? 'Verificado' : 'Desmarcado');
+    }).catch(function () { btn.classList.remove('guardando'); toast('Sin conexión'); });
+}
+function filaSalida(s, conArticulo) {
+  var todo = s.revisado && s.resp_revisado;
+  var info = conArticulo
+    ? '<div class="t">' + esc(s.articulo) + '</div><div class="s">#' + esc(s.proyecto_numero) + ' ' + esc(s.cliente || '') + (s.entrega_hora ? ' · ' + esc(s.entrega_hora) : '') + (s.localizacion ? ' · ' + esc(s.localizacion) : '') + '</div>'
+    : '<div class="t">#' + esc(s.proyecto_numero) + ' ' + esc(s.cliente || '') + '</div><div class="s">' + corta(s.dia) + (s.entrega_hora ? ' ' + esc(s.entrega_hora) : '') + (s.localizacion ? ' · ' + esc(s.localizacion) : '') + '</div>';
+  return '<div class="fila' + (todo ? ' todo' : '') + '"><div class="info">' + info + '</div><span class="cant">x' + s.cantidad + '</span><div class="checks">' + casilla(s, 'mantenimiento') + casilla(s, 'responsables') + '</div></div>';
+}
+function coincide(s) { return !filtro || (s.tipo + ' ' + s.articulo + ' ' + s.cliente + ' ' + s.proyecto_numero + ' ' + (s.localizacion || '')).toLowerCase().indexOf(filtro) !== -1; }
+function contadores(lista) {
+  var m = lista.filter(function (s) { return s.revisado; }).length, r = lista.filter(function (s) { return s.resp_revisado; }).length;
+  return '<span>Mant. <span class="' + (m === lista.length ? 'ok' : 'pend') + '">' + m + '/' + lista.length + '</span> · Resp. <span class="' + (r === lista.length ? 'ok' : 'pend') + '">' + r + '/' + lista.length + '</span></span>';
+}
+
+// ── Vistas ──
+function pintar() {
+  if (!DATOS) return;
+  var html = '<input class="buscar" id="buscar" placeholder="Buscar material, cliente o nº de proyecto…" value="' + esc(filtro) + '" autocomplete="off">';
+  html += vista === 'dia' ? vistaDia() : vistaMaterial();
+  document.getElementById('cuerpo').innerHTML = html;
+  var b = document.getElementById('buscar');
+  b.oninput = function () { filtro = b.value.trim().toLowerCase(); var pos = b.selectionStart; pintar(); var b2 = document.getElementById('buscar'); b2.focus(); b2.setSelectionRange(pos, pos); };
+  var di = document.getElementById('dia-input');
+  if (di) di.onchange = function () { if (di.value) { diaElegido = di.value; pintar(); } };
+}
+function vistaDia() {
+  var hoy = isoDia(new Date());
+  if (!diaElegido) diaElegido = sumarDias(hoy, 1);
+  var p = diaElegido.split('-'), nombre = new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  var h = '<div class="dia-barra"><button data-dia="-1" aria-label="Día anterior">‹</button><input type="date" id="dia-input" value="' + diaElegido + '" min="' + hoy + '" max="' + sumarDias(hoy, 15) + '"><button data-dia="1" aria-label="Día siguiente">›</button></div>';
+  h += '<div class="rapidos">' + [['Hoy', hoy], ['Mañana', sumarDias(hoy, 1)], ['Pasado mañana', sumarDias(hoy, 2)]].map(function (x) { return '<button data-ir="' + x[1] + '"' + (x[1] === diaElegido ? ' class="on"' : '') + '>' + x[0] + '</button>'; }).join('') + '</div>';
+  h += '<div class="dia-tit">' + nombre.charAt(0).toUpperCase() + nombre.slice(1) + '</div>';
+  var del = todasLasSalidas().filter(function (s) { return s.dia === diaElegido && coincide(s); });
+  if (!del.length) return h + '<div class="cargando">' + (filtro ? 'Nada coincide ese día' : 'Ese día no sale material de mantenimiento') + '</div>';
+  h += '<div class="resumen">' + contadores(del) + '</div>';
+  var porTipo = {};
+  del.forEach(function (s) { (porTipo[s.tipo] = porTipo[s.tipo] || []).push(s); });
+  Object.keys(porTipo).sort().forEach(function (t) {
+    var lista = porTipo[t].sort(function (a, b) { return (a.entrega_hora || '').localeCompare(b.entrega_hora || '') || a.articulo.localeCompare(b.articulo); });
+    h += '<div class="grupo"><div class="grupo-cab"><b>' + esc(t) + '</b>' + contadores(lista) + '</div>' + lista.map(function (s) { return filaSalida(s, true); }).join('') + '</div>';
+  });
+  return h;
+}
+function vistaMaterial() {
+  var h = '', hay = false;
+  (DATOS.tipos || []).forEach(function (t) {
+    var lista = t.salidas.filter(coincide);
+    if (!lista.length) return;
+    hay = true;
+    var abierto = filtro || abiertos[t.tipo];
+    h += '<div class="grupo"><div class="grupo-cab" data-grupo="' + esc(t.tipo) + '"><b>' + esc(t.tipo) + ' <span>' + (abierto ? '▾' : '▸') + '</span></b>' + contadores(lista) + '</div><div class="grupo-cuerpo' + (abierto ? '' : ' cerrado') + '">';
+    var porArt = {};
+    lista.forEach(function (s) { (porArt[s.articulo] = porArt[s.articulo] || []).push(s); });
+    Object.keys(porArt).sort().forEach(function (a) {
+      var ss = porArt[a].sort(function (x, y) { return (x.dia || '').localeCompare(y.dia || ''); });
+      var total = ss.reduce(function (n, s) { return n + (Number(s.cantidad) || 0); }, 0);
+      h += '<div class="art-tit"><span>' + esc(a) + '</span><span>' + total + '</span></div>' + ss.map(function (s) { return filaSalida(s, false); }).join('');
+    });
+    h += '</div></div>';
+  });
+  return hay ? h : '<div class="cargando">' + (filtro ? 'Nada coincide con la búsqueda' : 'No sale material de mantenimiento en los próximos 15 días') + '</div>';
+}
+
+document.addEventListener('click', function (e) {
+  var c = e.target.closest('[data-clave]');
+  if (c) { marcar(c); return; }
+  var f = e.target.closest('[data-dia]');
+  if (f) { diaElegido = sumarDias(diaElegido, +f.getAttribute('data-dia')); pintar(); return; }
+  var r = e.target.closest('[data-ir]');
+  if (r) { diaElegido = r.getAttribute('data-ir'); pintar(); return; }
+  var g = e.target.closest('[data-grupo]');
+  if (g) { var t = g.getAttribute('data-grupo'); abiertos[t] = !abiertos[t]; pintar(); return; }
+  var v = e.target.closest('[data-vista]');
+  if (v) { vista = v.getAttribute('data-vista'); document.querySelectorAll('[data-vista]').forEach(function (x) { x.classList.toggle('on', x === v); }); pintar(); }
+});
+document.getElementById('btn-recargar').onclick = function () { cargar(); };
+document.getElementById('btn-inicio').onclick = function () { location.href = '/movil'; };
+document.getElementById('btn-salir').onclick = function () {
+  if (!confirm('¿Salir? Tendrás que volver a teclear tu PIN.')) return;
+  var llave = ''; try { llave = localStorage.getItem('orum_movil_dispositivo') || ''; localStorage.removeItem('orum_movil_dispositivo'); } catch (e) {}
+  fetch('/api/movil/salir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) }).catch(function () {}).then(function () { location.href = '/movil'; });
+};
+// Se actualiza solo cada minuto (lo que marquen los demás) si la pantalla está a la vista
+setInterval(function () { if (USUARIO && !document.hidden) cargar(true); }, 60000);
+entrar();
+</script>
+</body>
+</html>
