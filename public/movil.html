@@ -125,6 +125,8 @@ button { font-family: inherit; }
 .est { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #f0efe9; color: #6b6a64; }
 .est.pendiente { background: #FAEEDA; color: #854F0B; } .est.aprobado { background: #E6F1FB; color: #185FA5; } .est.pagado { background: #E1F5EE; color: #0F6E56; } .est.rechazado { background: #FCEBEB; color: #A32D2D; }
 .reg-pie button { background: none; border: none; color: #8a6d1e; font-size: 13px; cursor: pointer; padding: 4px; }
+.boton.pronto { opacity: .6; }
+.boton .pronto-et { font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: #8a6d1e; background: #f3ead9; border-radius: 8px; padding: 2px 7px; align-self: flex-start; }
 .enlace-panel { display: block; text-align: center; margin-top: 22px; font-size: 13px; color: #6b6a64; }
 
 /* Subir factura */
@@ -353,6 +355,10 @@ var ICONOS = {
   rutas: '<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
   archivo: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
   extras: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  incidencias: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20.5h20L12 3Z"/><path d="M12 9.5v4.5"/><path d="M12 17.2h.01"/></svg>',
+  repostaje: '<svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><path d="M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 8h4"/></svg>',
+  vehiculos: '<svg viewBox="0 0 24 24"><path d="M5 17h14v-5l-2-5H7l-2 5v5Z"/><path d="M5 12h14"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg>',
+  caja: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>',
   mantenimiento: '<svg viewBox="0 0 24 24"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.9 5.6L3 14.7 6.3 18l5.8-5.8a4.5 4.5 0 0 0 5.6-5.9l-3 3-2.5-2.5 3-3Z"/></svg>',
   isabella: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>'
 };
@@ -363,17 +369,31 @@ var BOTONES = [
   { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' },
   { id: 'mantenimiento', titulo: 'Mantenimiento', sub: 'Material de especial cuidado y chill out, próximos 15 días', roles: ['Direccion', 'Logistica'], href: '/mantenimiento' },
   { id: 'extras', titulo: 'Registrar extras', sub: 'Horas de más, domingos, festivos, nocturnos', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaExtras(); } },
-  { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } }
+  { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
+  // Próximamente (oct 2026): se ven ya en el inicio y se van construyendo
+  { id: 'incidencias', titulo: 'Incidencias', sub: 'Registrar y seguir lo que va pasando', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], pronto: true },
+  { id: 'repostaje', titulo: 'Repostaje', sub: 'Registrar un repostaje de un vehículo', roles: ['Direccion', 'Logistica'], pronto: true },
+  { id: 'vehiculos', titulo: 'Vehículos', sub: 'Flota, revisión antes de salir y vencimientos', roles: ['Direccion', 'Logistica'], pronto: true },
+  { id: 'caja', titulo: 'Caja', sub: 'Registrar cobros en efectivo o TPV', roles: ['Direccion', 'Contabilidad', 'Comercial'], pronto: true }
 ];
+BOTONES.forEach(function (b) { if (b.pronto) b.abrir = function () { pantallaProximamente(b); }; });
+function pantallaProximamente(b) {
+  abrirPantalla(b.titulo);
+  document.getElementById('cuerpo').innerHTML = '<div class="cargando"><div style="width:56px;height:56px;margin:0 auto 14px;border-radius:14px;background:#f3ead9;display:flex;align-items:center;justify-content:center;"><span style="width:28px;height:28px;display:inline-flex;">' + ICONOS[b.id].replace('<svg', '<svg style="width:28px;height:28px;stroke:#8a6d1e;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"') + '</span></div><b style="color:#1a1a18;font-size:16px;">' + b.titulo + '</b><br><br>Muy pronto en la app.<br>' + b.sub + '.</div>';
+}
 
 // Botones del inicio elegidos por cada usuario (usuarios.accesos.movil, en
-// orden). Sin elegir nada: los de su rol, como siempre.
-var MIS_BOTONES = null;
+// orden). Sin elegir nada: los de su rol, como siempre. accesos.movil_conocidos
+// guarda qué botones existían al guardar: los que se añadan después a la app
+// salen solos al final; solo se ocultan los que la persona apagó.
+var MIS_BOTONES = null, CONOCIDOS = null;
 function botonesDisponibles() { return BOTONES.filter(function (b) { return b.roles.indexOf(USUARIO.rol) !== -1; }); }
 function misBotones() {
   var disp = botonesDisponibles();
   if (!MIS_BOTONES) return disp;
-  return MIS_BOTONES.map(function (id) { return disp.filter(function (b) { return b.id === id; })[0]; }).filter(Boolean);
+  var conocidos = CONOCIDOS || MIS_BOTONES;
+  return MIS_BOTONES.map(function (id) { return disp.filter(function (b) { return b.id === id; })[0]; }).filter(Boolean)
+    .concat(disp.filter(function (b) { return conocidos.indexOf(b.id) === -1 && MIS_BOTONES.indexOf(b.id) === -1; }));
 }
 function entrar(u) {
   USUARIO = u;
@@ -382,6 +402,7 @@ function entrar(u) {
   irInicio();
   fetch('/api/mis-accesos').then(function (r) { return r.json(); }).then(function (d) {
     MIS_BOTONES = (d.accesos && d.accesos.movil) || null;
+    CONOCIDOS = (d.accesos && d.accesos.movil_conocidos) || null;
     if (document.getElementById('btn-volver').classList.contains('oculto')) irInicio();
   }).catch(function () {});
 }
@@ -393,8 +414,8 @@ function irInicio() {
   var html = '<div class="saludo-fila"><div class="saludo">Hola, ' + esc((USUARIO.nombre || USUARIO.usuario).split(' ')[0]) + '</div>' +
     (botonesDisponibles().length > 1 ? '<button class="btn-editar" onclick="editarBotones()">Editar</button>' : '') + '</div><div class="botones">';
   mios.forEach(function (b) {
-    var interior = '<span class="ico">' + ICONOS[b.id] + '</span><span class="tit">' + b.titulo + '</span><span class="sub">' + b.sub + '</span>';
-    html += b.href ? '<a class="boton" href="' + b.href + '">' + interior + '</a>' : '<button class="boton" data-b="' + b.id + '">' + interior + '</button>';
+    var interior = '<span class="ico">' + ICONOS[b.id] + '</span><span class="tit">' + b.titulo + '</span><span class="sub">' + b.sub + '</span>' + (b.pronto ? '<span class="pronto-et">Próximamente</span>' : '');
+    html += b.href ? '<a class="boton" href="' + b.href + '">' + interior + '</a>' : '<button class="boton' + (b.pronto ? ' pronto' : '') + '" data-b="' + b.id + '">' + interior + '</button>';
   });
   html += '</div>';
   if (!mios.length) html = botonesDisponibles().length
@@ -432,8 +453,9 @@ function pintarEdicion() {
 }
 function moverBoton(i, d) { var j = i + d; if (j < 0 || j >= edicion.length) return; var t = edicion[i]; edicion[i] = edicion[j]; edicion[j] = t; pintarEdicion(); }
 function enviarBotones(lista) {
-  return fetch('/api/mis-accesos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ movil: lista }) })
-    .then(function (r) { if (!r.ok) throw new Error('Error ' + r.status); MIS_BOTONES = lista; irInicio(); })
+  var conocidos = lista ? botonesDisponibles().map(function (b) { return b.id; }) : null;
+  return fetch('/api/mis-accesos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ movil: lista, movil_conocidos: conocidos }) })
+    .then(function (r) { if (!r.ok) throw new Error('Error ' + r.status); MIS_BOTONES = lista; CONOCIDOS = conocidos; irInicio(); })
     .catch(function () { alert('No se han podido guardar tus botones. Inténtalo de nuevo.'); });
 }
 function guardarBotones() { enviarBotones(edicion.filter(function (x) { return x.ver; }).map(function (x) { return x.id; })); }
