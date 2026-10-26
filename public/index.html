@@ -960,6 +960,7 @@ const MENU = [
       { id: 'fin-extracto-cliente', label: 'Extracto de Cliente', onClick: () => cargarExtractoCliente() },
       { id: 'fin-vencidas', label: 'Vencidas y morosidad', onClick: () => cargarFinancieroVencidas() },
       { id: 'fin-cierre-mensual', label: 'Cierre Mensual', onClick: () => cargarCierreMensual() },
+      { id: 'fin-informe-semanal', label: 'Informe semanal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarInformeSemanal() },
       { id: 'fin-fianzas', label: 'Fianzas', onClick: () => cargarFianzas() },
       { id: 'fin-historico', label: 'Histórico mensual', onClick: () => renderProximamente('Financiero · Histórico mensual') },
       { id: 'fin-auditoria', label: 'Auditoría / Alertas', onClick: () => cargarFinancieroAuditoria() },
@@ -1587,6 +1588,67 @@ function renderTablaVencidas(listaOriginal) {
 // ================================================================
 let cierreMensualDataActual = null;
 let mesSeleccionadoCierre = null;
+// Financiero · Informe semanal (oct 2026): Isabel lo genera los lunes y se lo
+// manda a Alberto. Cada semana se genera una vez; el PDF queda guardado y
+// siempre se abre ese mismo (lib/informeSemanalProyectos.js).
+async function cargarInformeSemanal() {
+  document.getElementById('content-title').textContent = 'Financiero · Informe semanal';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const d = await (await fetch('/api/informe-semanal')).json();
+    if (d.error) { body.innerHTML = '<p class="loading-text">Error: ' + escHtml(d.error) + '</p>'; return; }
+    const ddmm = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+    const domingo = l => { const x = new Date(l + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 6); return x.toISOString().slice(0, 10); };
+    const opciones = d.pendientes.map(p => `<option value="${p.lunes}" ${p.lunes === d.sugerido ? 'selected' : ''}>Semana ${p.semana} · ${ddmm(p.lunes)} – ${ddmm(p.domingo)}</option>`).join('');
+    const generador = d.pendientes.length ? `
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; padding:1rem; margin-bottom:1.25rem; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <span style="font-size:13px;">Generar el informe de la</span>
+        <select id="is-semana" style="font-size:13px; padding:6px; border-radius:6px; border:1px solid #e2e2de;">${opciones}</select>
+        <button id="is-generar" onclick="generarInformeSemanal()" style="font-size:13px; padding:7px 14px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Generar y guardar PDF</button>
+        <span id="is-msg" style="font-size:12px; color:#6b6a64;"></span>
+      </div>` : '';
+    const filas = d.informes.map(i => {
+      const nc = i.resumen.noConfirmados, r = i.resumen.resto;
+      const gen = new Date(i.generado_en).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return `<tr>
+        <td><strong>Semana ${i.semana}</strong></td>
+        <td>${ddmm(i.lunes)} – ${ddmm(domingo(i.lunes))}/${i.lunes.slice(0, 4)}</td>
+        <td style="text-align:right;">${nc.proyectos} · ${formatearEuros(nc.conIva)}</td>
+        <td style="text-align:right;">${r.proyectos} · ${formatearEuros(r.conIva)}</td>
+        <td style="font-size:12px; color:#6b6a64;">${escHtml(i.generado_por || '')} · ${gen}</td>
+        <td style="white-space:nowrap;">
+          <a href="/api/informe-semanal/pdf?lunes=${i.lunes}" target="_blank" style="font-size:12px; margin-right:10px;">Ver PDF</a>
+          <a href="/api/informe-semanal/pdf?lunes=${i.lunes}&descargar=1" style="font-size:12px;">Descargar</a>
+        </td></tr>`;
+    }).join('');
+    body.innerHTML = `
+      <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Ventas de la semana (lunes a domingo, por fecha de inicio del evento) con el mismo formato que el Excel: Proyectos No Confirmados y Resto de proyectos. Sin pendientes, cancelados, consultas ni conceptos. Cada semana se genera una sola vez y el PDF queda guardado con las cifras de ese momento.</p>
+      ${generador}
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
+        <table>
+          <thead><tr><th>Semana</th><th>Fechas</th><th style="text-align:right;">No Confirmados (con IVA)</th><th style="text-align:right;">Resto (con IVA)</th><th>Generado</th><th></th></tr></thead>
+          <tbody>${filas || '<tr><td colspan="6" style="padding:1.5rem 4px; color:#9a988f;">Aún no se ha generado ningún informe.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error de conexión</p>';
+  }
+}
+async function generarInformeSemanal() {
+  const lunes = document.getElementById('is-semana').value;
+  const boton = document.getElementById('is-generar'), msg = document.getElementById('is-msg');
+  boton.disabled = true; msg.style.color = '#6b6a64'; msg.textContent = 'Generando...';
+  try {
+    const d = await (await fetch('/api/informe-semanal/generar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lunes }) })).json();
+    if (d.error) { msg.style.color = '#A32D2D'; msg.textContent = d.error; boton.disabled = false; return; }
+    window.open('/api/informe-semanal/pdf?lunes=' + d.informe.lunes, '_blank');
+    cargarInformeSemanal();
+  } catch (err) {
+    msg.style.color = '#A32D2D'; msg.textContent = 'Error de conexión'; boton.disabled = false;
+  }
+}
+
 async function cargarCierreMensual() {
   document.getElementById('content-title').textContent = 'Financiero · Cierre Mensual';
   const body = document.getElementById('content-body');

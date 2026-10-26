@@ -198,6 +198,8 @@ const { ROLES_SOLO_MOVIL } = require('./lib/usuariosAdmin');
 require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
 // Chat por departamento (Office, Lavandería, Mantenimiento) — lib/chat.js
 require('./lib/chat').registrar(app, { supabase, requiereLogin });
+// Financiero → Informe semanal (No Confirmados / Resto en PDF guardado) — lib/informeSemanalProyectos.js
+require('./lib/informeSemanalProyectos').registrarRutas(app, { supabase, requiereLogin });
 
 // ── Auditoría de Rutas: quién hizo qué (tabla rutas_historial) ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
