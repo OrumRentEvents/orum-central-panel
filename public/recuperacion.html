@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ORUM Material recuperado</title>
+<link rel="manifest" href="/movil.webmanifest?v=2">
+<meta name="theme-color" content="#1a1a18">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
+button, input, select { font-family: inherit; }
+.oculto { display: none !important; }
+.cab { background: #1a1a18; color: #fff; padding: calc(12px + env(safe-area-inset-top)) 16px 10px; position: sticky; top: 0; z-index: 10; }
+.cab-top { display: flex; align-items: center; gap: 10px; }
+.cab h1 { font-size: 16px; font-weight: 600; flex: 1; }
+.cab button { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 12.5px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.act { font-size: 11px; color: rgba(255,255,255,.5); margin: 4px 0 8px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { border: none; background: transparent; color: rgba(255,255,255,.65); font-size: 13.5px; padding: 7px 12px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; display: inline-flex; gap: 6px; align-items: center; }
+.tabs button.on { background: rgba(255,255,255,.15); color: #fff; font-weight: 600; }
+.badge { background: #D93025; color: #fff; font-size: 11px; font-weight: 700; min-width: 19px; height: 19px; border-radius: 10px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; }
+.cuerpo { padding: 12px 16px 32px; max-width: 900px; margin: 0 auto; }
+.cargando { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
+.nota { font-size: 12.5px; color: #6b6a64; line-height: 1.45; margin-bottom: 12px; }
+.buscar { display: flex; gap: 8px; margin-bottom: 14px; }
+.buscar input { flex: 1; min-width: 0; padding: 11px 12px; font-size: 16px; border: 0.5px solid #d8d4c8; border-radius: 10px; background: #fff; }
+.buscar button { border: none; background: #1a1a18; color: #fff; border-radius: 10px; padding: 0 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tarjeta { background: #fff; border: 0.5px solid #e2e2de; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.tarjeta.proy { border: 1.5px solid #1a1a18; }
+.t-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.t-art { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.t-cant { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.t-sub { font-size: 12.5px; color: #6b6a64; margin-top: 3px; line-height: 1.4; }
+.t-proy { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid #efeee9; font-size: 13.5px; }
+.t-proy b { font-weight: 600; }
+.etq { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-left: 4px; }
+.etq.fact { background: #FCEBEB; color: #A32D2D; } .etq.ok { background: #E1F5EE; color: #0F6E56; } .etq.pend { background: #FAEEDA; color: #854F0B; }
+.acciones { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.acciones select, .acciones input { flex: 1; min-width: 140px; padding: 9px 10px; font-size: 15px; border: 0.5px solid #d8d4c8; border-radius: 8px; background: #fff; }
+.btn { border: none; border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn.pri { background: #1D9E75; color: #fff; } .btn.sec { background: #f0efe9; color: #1a1a18; } .btn.peli { background: none; color: #A32D2D; padding: 10px 6px; font-weight: 500; }
+.btn:disabled { opacity: .5; }
+.fila-sel { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-top: 0.5px solid #efeee9; font-size: 14px; }
+.fila-sel:first-child { border-top: none; }
+.fila-sel input { width: 22px; height: 22px; accent-color: #1D9E75; flex-shrink: 0; }
+.fila-sel .x { flex: 1; min-width: 0; }
+.fila-sel small { display: block; font-size: 12px; color: #6b6a64; }
+.estado { font-size: 13px; text-align: center; min-height: 18px; margin-top: 6px; }
+.estado.ok { color: #0F6E56; } .estado.mal { color: #A32D2D; }
+.vacio { text-align: center; color: #9a988f; font-size: 14px; padding: 2.5rem 1rem; }
+.cargos-proy { font-size: 13px; color: #6b6a64; margin-top: 8px; }
+.cargos-proy div { padding: 3px 0; }
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 9px 16px; border-radius: 20px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; max-width: 90%; text-align: center; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="cab">
+  <div class="cab-top">
+    <button id="btn-volver" class="oculto">&lsaquo; Inicio</button>
+    <h1>Material recuperado</h1>
+    <button id="btn-actualizar">Actualizar</button>
+  </div>
+  <div class="act" id="act">Cargando…</div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<div class="cuerpo" id="cuerpo"><div class="cargando">Cargando…</div></div>
+<div id="toast"></div>
+
+<script>
+// Recuperación de material (oct 2026). Logística marca en Rentman (Equipos
+// perdidos) lo que vuelve; aquí la misma persona confirma de qué proyecto es
+// y pasa a Administración, que quita el cargo "NO DEVUELTO" en Rentman. Al
+// desaparecer el cargo, se cierra solo. API en lib/recuperacionRutas.js.
+// Misma pantalla en la app (/recuperacion) y en el panel (?embebido=1).
+var PARAMS = new URLSearchParams(location.search);
+var EMBEBIDO = PARAMS.get('embebido') === '1';
+var USUARIO = null, D = null, vista = null, busqueda = null;
+var MOTIVO_TXT = { cargo_quitado: 'Cargo quitado en Rentman', cargo_reducido: 'Cargo reducido en Rentman', sin_cargo: 'No había cargo que quitar', abono: 'Abono hecho', se_cobra: 'Se cobra igualmente', otro: 'Cerrado a mano' };
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function num(n) { return Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 2 }); }
+function euros(n) { return Number(n || 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }); }
+function fecha(ts) { return ts ? new Date(ts).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; }
+function toast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(function () { t.classList.remove('show'); }, 2200); }
+function proyTxt(p) { return p ? '<b>' + esc(p.numero || ('id ' + p.id)) + '</b> · ' + esc(p.cliente || '') + (p.facturado ? ' <span class="etq fact">Facturado</span>' : '') : '—'; }
+function postJson(url, cuerpo) {
+  return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo || {}) })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok || d.error) throw new Error(d.error || ('Error ' + r.status)); return d; }); });
+}
+
+// ── Entrada: sesión abierta o la llave del dispositivo de la app ──
+function entrar() {
+  fetch('/api/sesion').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) {
+    if (d && d.usuario) return arrancar(d.usuario);
+    var llave = ''; try { llave = localStorage.getItem('orum_movil_dispositivo') || ''; } catch (e) {}
+    if (!llave) return location.replace(EMBEBIDO ? '/' : '/movil');
+    fetch('/api/movil/dispositivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) })
+      .then(function (r) { return r.json(); }).then(function (r) { if (r.ok) arrancar(r.usuario); else location.replace('/movil'); })
+      .catch(function () { location.replace('/movil'); });
+  });
+}
+function arrancar(u) {
+  USUARIO = u;
+  if (!EMBEBIDO) { var b = document.getElementById('btn-volver'); b.classList.remove('oculto'); b.onclick = function () { location.href = '/movil'; }; }
+  cargar();
+}
+function cargar(forzar) {
+  document.getElementById('act').textContent = forzar ? 'Leyendo Rentman…' : 'Cargando…';
+  return fetch('/api/recuperacion' + (forzar ? '?actualizar=1' : '')).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    D = d;
+    if (!vista) vista = d.permisos.cerrar && !d.permisos.confirmar ? 'quitar' : 'confirmar';
+    document.getElementById('act').textContent = (d.sincronizado_en ? 'Rentman leído a las ' + new Date(d.sincronizado_en).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'Sin leer Rentman todavía') + (d.error_sync ? ' · ⚠ ' + d.error_sync : '');
+    pintar();
+  }).catch(function (e) { document.getElementById('act').textContent = ''; document.getElementById('cuerpo').innerHTML = '<div class="vacio">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+document.getElementById('btn-actualizar').onclick = function () { cargar(true); };
+
+function pintarTabs() {
+  var t = function (id, txt, n) { return '<button data-vista="' + id + '"' + (vista === id ? ' class="on"' : '') + '>' + txt + (n ? '<span class="badge">' + n + '</span>' : '') + '</button>'; };
+  document.getElementById('tabs').innerHTML = t('confirmar', 'Por confirmar', D.por_confirmar.length) + t('quitar', 'Cargos por quitar', D.por_quitar.length) + t('historial', 'Historial', 0);
+}
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-vista]'); if (!b) return;
+  vista = b.getAttribute('data-vista'); pintar(); window.scrollTo(0, 0);
+});
+function pintar() {
+  pintarTabs();
+  document.getElementById('cuerpo').innerHTML = vista === 'quitar' ? vistaQuitar() : vista === 'historial' ? vistaHistorial() : vistaConfirmar();
+  var bi = document.getElementById('buscar-num');
+  if (bi) bi.onkeydown = function (e) { if (e.key === 'Enter') buscarProyecto(); };
+}
+
+// ── Por confirmar (Logística) ──
+function vistaConfirmar() {
+  var puede = D.permisos.confirmar;
+  var h = '<div class="nota">Lo que se ha marcado como recuperado en Rentman (Equipos perdidos). Quien lo recuperó confirma aquí de qué proyecto es; entonces pasa a Administración para quitar el cargo al cliente.</div>';
+  if (puede) h += '<div class="buscar"><input id="buscar-num" type="text" inputmode="numeric" placeholder="Nº de proyecto, p. ej. 2456" value="' + esc(busqueda ? busqueda.proyecto.numero : '') + '"><button onclick="buscarProyecto()">Buscar</button></div><div id="res-busqueda">' + (busqueda ? htmlBusqueda() : '') + '</div>';
+  if (!D.por_confirmar.length) return h + '<div class="vacio">No hay nada pendiente de confirmar.</div>';
+  return h + D.por_confirmar.map(function (r) { return htmlPorConfirmar(r, puede); }).join('');
+}
+function htmlPorConfirmar(r, puede) {
+  var h = '<div class="tarjeta"><div class="t-top"><div class="t-art">' + esc(r.articulo) + '</div><div class="t-cant">' + num(r.cantidad) + ' ud' + (Number(r.cantidad) === 1 ? '' : 's') + '</div></div>' +
+    '<div class="t-sub">Recuperado en Rentman el ' + fecha(r.fecha) + (r.marcado_por ? ' por <b>' + esc(r.marcado_por) + '</b>' : '') + '</div><div class="t-proy">';
+  var cand = r.candidatos || [];
+  if (r.propuesta) h += 'Proyecto propuesto: ' + proyTxt(r.propuesta.proyecto) + '<div class="t-sub">Tenía ' + num(r.propuesta.pendiente) + ' pendiente' + (r.propuesta.pendiente === 1 ? '' : 's') + ' de este artículo</div>';
+  else if (cand.length) h += '<b>Está pendiente en ' + cand.length + ' proyectos:</b> elige de cuál vuelve';
+  else h += 'Ningún proyecto tiene este artículo pendiente de cobro. Indica de qué proyecto es para dejarlo registrado.';
+  h += '</div>';
+  if (puede) {
+    var opciones = cand.map(function (c) { return '<option value="' + c.proyecto.id + '|' + c.cargo_id + '"' + (r.propuesta && r.propuesta.cargo_id === c.cargo_id ? ' selected' : '') + '>' + esc((c.proyecto.numero || '') + ' · ' + (c.proyecto.cliente || '') + ' · ' + num(c.pendiente) + ' pend.') + '</option>'; }).join('');
+    h += '<div class="acciones">' +
+      (cand.length ? '<select id="sel-' + r.id + '">' + (r.propuesta ? '' : '<option value="">Elige el proyecto…</option>') + opciones + '<option value="otro">Otro proyecto…</option></select>' : '') +
+      '<input id="otro-' + r.id + '" type="text" inputmode="numeric" placeholder="Nº de proyecto"' + (cand.length ? ' class="oculto"' : '') + '>' +
+      '<button class="btn pri" onclick="confirmarUno(' + r.id + ', this)">Confirmar</button></div>';
+  }
+  return h + '</div>';
+}
+document.addEventListener('change', function (e) {
+  if (e.target.id && e.target.id.indexOf('sel-') === 0) {
+    var id = e.target.id.slice(4);
+    document.getElementById('otro-' + id).classList.toggle('oculto', e.target.value !== 'otro');
+  }
+});
+// Un nº de proyecto escrito → su id (vía la búsqueda)
+function idDeNumero(numero) {
+  return fetch('/api/recuperacion/proyecto/' + encodeURIComponent(numero)).then(function (r) { return r.json(); }).then(function (d) { if (d.error) throw new Error(d.error); return d.proyecto.id; });
+}
+function confirmarUno(id, btn) {
+  var sel = document.getElementById('sel-' + id), otro = document.getElementById('otro-' + id);
+  var v = sel ? sel.value : 'otro';
+  var listo;
+  if (v && v !== 'otro') { var p = v.split('|'); listo = Promise.resolve({ id: id, proyecto_id: Number(p[0]), cargo_id: Number(p[1]) }); }
+  else {
+    var n = (otro.value || '').trim();
+    if (!n) { toast('Elige o escribe el proyecto'); return; }
+    listo = idDeNumero(n).then(function (pid) { return { id: id, proyecto_id: pid }; });
+  }
+  btn.disabled = true;
+  listo.then(function (item) { return postJson('/api/recuperacion/confirmar', { items: [item] }); })
+    .then(function (d) { toast(d.confirmados[0].estado === 'cerrado' ? 'Confirmado · no había cargo que quitar' : 'Confirmado · pasa a Administración'); busqueda = null; cargar(); })
+    .catch(function (e) { btn.disabled = false; toast(e.message); });
+}
+
+// Buscar un proyecto y confirmar de una vez todo lo suyo
+function buscarProyecto() {
+  var n = (document.getElementById('buscar-num').value || '').trim();
+  if (!n) return;
+  document.getElementById('res-busqueda').innerHTML = '<div class="cargando" style="padding:1rem;">Buscando…</div>';
+  fetch('/api/recuperacion/proyecto/' + encodeURIComponent(n)).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    busqueda = d;
+    document.getElementById('res-busqueda').innerHTML = htmlBusqueda();
+  }).catch(function (e) { busqueda = null; document.getElementById('res-busqueda').innerHTML = '<div class="estado mal" style="margin-bottom:12px;">' + esc(e.message) + '</div>'; });
+}
+function htmlBusqueda() {
+  var p = busqueda.proyecto, cargos = busqueda.cargos.filter(function (c) { return c.existe !== false; });
+  var arts = {}; cargos.forEach(function (c) { if (c.pendiente > 0) arts[c.articulo] = c; });
+  var encajan = D.por_confirmar.filter(function (r) { return arts[r.articulo]; });
+  var h = '<div class="tarjeta proy"><div class="t-top"><div class="t-art">Proyecto ' + esc(p.numero) + '</div>' + (p.facturado ? '<span class="etq fact">Facturado</span>' : '') + '</div>' +
+    '<div class="t-sub">' + esc(p.cliente || '') + (p.nombre ? ' · ' + esc(p.nombre) : '') + '</div>';
+  h += '<div class="cargos-proy">' + (cargos.length ? '<b>Material no devuelto que tiene cargado:</b>' + cargos.map(function (c) { return '<div>' + esc(c.articulo) + ' · ' + num(c.pendiente) + ' de ' + num(c.cantidad) + ' pendiente' + (c.pendiente === 1 ? '' : 's') + '</div>'; }).join('') : 'Este proyecto no tiene cargos de material no devuelto en Rentman.') + '</div>';
+  if (encajan.length) {
+    h += '<div class="t-proy"><b>Recuperado en Rentman que encaja con este proyecto:</b>' + encajan.map(function (r) {
+      return '<label class="fila-sel"><input type="checkbox" checked data-rec="' + r.id + '" data-cargo="' + arts[r.articulo].cargo_id + '"><span class="x">' + esc(r.articulo) + '<small>' + num(r.cantidad) + ' ud · ' + fecha(r.fecha) + (r.marcado_por ? ' · ' + esc(r.marcado_por) : '') + '</small></span></label>';
+    }).join('') + '<div class="acciones"><button class="btn pri" style="flex:1;" onclick="confirmarProyecto(this)">Confirmar seleccionados en el ' + esc(p.numero) + '</button></div></div>';
+  } else if (cargos.length) h += '<div class="t-proy t-sub">Todavía no hay nada marcado como recuperado en Rentman de estos artículos.</div>';
+  return h + '</div>';
+}
+function confirmarProyecto(btn) {
+  var items = [].slice.call(document.querySelectorAll('#res-busqueda [data-rec]:checked')).map(function (el) {
+    return { id: Number(el.getAttribute('data-rec')), proyecto_id: busqueda.proyecto.id, cargo_id: Number(el.getAttribute('data-cargo')) };
+  });
+  if (!items.length) { toast('Marca al menos uno'); return; }
+  btn.disabled = true;
+  postJson('/api/recuperacion/confirmar', { items: items }).then(function (d) {
+    toast(d.confirmados.length + ' confirmado' + (d.confirmados.length === 1 ? '' : 's') + ' · pasa a Administración');
+    busqueda = null; cargar();
+  }).catch(function (e) { btn.disabled = false; toast(e.message); });
+}
+
+// ── Cargos por quitar (Administración) ──
+function vistaQuitar() {
+  var h = '<div class="nota">Material que ha vuelto, confirmado por Logística. Quita el cargo "NO DEVUELTO" en Rentman (o baja su cantidad): al leer Rentman de nuevo, se cierra solo. Si el proyecto ya está facturado, hay que hacer un abono y cerrarlo aquí.</div>';
+  if (!D.por_quitar.length) return h + '<div class="vacio">No hay cargos pendientes de quitar.</div>';
+  var total = D.por_quitar.reduce(function (s, r) { return s + Number(r.importe || 0); }, 0);
+  h += '<div class="nota"><b>' + D.por_quitar.length + '</b> pendiente' + (D.por_quitar.length === 1 ? '' : 's') + ' · <b>' + euros(total) + '</b> a quitar a clientes</div>';
+  return h + D.por_quitar.map(function (r) {
+    var c = r.cargo;
+    var x = '<div class="tarjeta"><div class="t-top"><div class="t-art">' + esc(r.articulo) + '</div><div class="t-cant">' + euros(r.importe) + '</div></div>' +
+      '<div class="t-sub">Proyecto ' + proyTxt(r.proyecto) + '</div>' +
+      '<div class="t-proy">Han vuelto <b>' + num(r.cantidad) + '</b>. En Rentman quita ' + num(r.cantidad) + ' del cargo <b>"' + esc(r.articulo) + ' NO DEVUELTO"</b>' + (c ? ' (ahora tiene ' + num(c.cantidad) + ')' : '') + '.' +
+      (r.proyecto && r.proyecto.facturado ? '<div class="t-sub" style="color:#A32D2D;">El proyecto ya está facturado: hay que hacer un abono.</div>' : '') +
+      '<div class="t-sub">Confirmado por ' + esc(r.confirmado_por || '') + ' el ' + fecha(r.confirmado_en) + (r.marcado_por ? ' · recuperado por ' + esc(r.marcado_por) : '') + (r.notas ? ' · ' + esc(r.notas) : '') + '</div></div>';
+    var acc = '';
+    if (D.permisos.cerrar) acc += '<select id="mot-' + r.id + '"><option value="">Cerrar a mano…</option>' + Object.keys(D.motivos).map(function (k) { return '<option value="' + k + '">' + esc(D.motivos[k]) + '</option>'; }).join('') + '</select><button class="btn sec" onclick="cerrar(' + r.id + ', this)">Cerrar</button>';
+    if (D.permisos.confirmar) acc += '<button class="btn peli" onclick="deshacer(' + r.id + ', this)">Proyecto equivocado</button>';
+    return x + (acc ? '<div class="acciones">' + acc + '</div>' : '') + '</div>';
+  }).join('');
+}
+function cerrar(id, btn) {
+  var m = document.getElementById('mot-' + id).value;
+  if (!m) { toast('Elige el motivo'); return; }
+  btn.disabled = true;
+  postJson('/api/recuperacion/' + id + '/cerrar', { motivo: m }).then(function () { toast('Cerrado'); cargar(); }).catch(function (e) { btn.disabled = false; toast(e.message); });
+}
+function deshacer(id, btn) {
+  if (!confirm('¿Vuelve a "Por confirmar" para elegir otro proyecto?')) return;
+  btn.disabled = true;
+  postJson('/api/recuperacion/' + id + '/deshacer').then(function () { toast('Vuelve a Por confirmar'); cargar(); }).catch(function (e) { btn.disabled = false; toast(e.message); });
+}
+
+// ── Historial ──
+function vistaHistorial() {
+  if (!D.cerrados.length) return '<div class="vacio">Todavía no hay nada cerrado.</div>';
+  return D.cerrados.map(function (r) {
+    return '<div class="tarjeta"><div class="t-top"><div class="t-art">' + esc(r.articulo) + '</div><div class="t-cant">' + num(r.cantidad) + ' ud</div></div>' +
+      '<div class="t-sub">Proyecto ' + proyTxt(r.proyecto) + (r.importe ? ' · ' + euros(r.importe) : '') + '</div>' +
+      '<div class="t-sub"><span class="etq ok">' + esc(MOTIVO_TXT[r.cerrado_motivo] || r.cerrado_motivo || 'Cerrado') + '</span> ' + fecha(r.cerrado_en) + (r.cerrado_por ? ' · ' + esc(r.cerrado_por) : '') + '</div>' +
+      '<div class="t-sub">Recuperado ' + fecha(r.fecha) + (r.marcado_por ? ' por ' + esc(r.marcado_por) : '') + (r.confirmado_por ? ' · confirmado por ' + esc(r.confirmado_por) : '') + (r.notas ? ' · ' + esc(r.notas) : '') + '</div></div>';
+  }).join('');
+}
+
+// Se refresca sola cada 2 minutos si está a la vista y no se está escribiendo
+setInterval(function () { if (USUARIO && !document.hidden && !(document.activeElement && document.activeElement.matches('input, select'))) cargar(); }, 120000);
+entrar();
+</script>
+</body>
+</html>

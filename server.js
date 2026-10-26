@@ -4735,6 +4735,13 @@ rentmanSync.registrar(app, requiereLogin, {
   alSincronizar: () => { CACHE_ORUM_CENTRAL.clear(); emitirRutas('paradas', {}, ''); }
 });
 
+// Recuperación de material perdido: lo que Logística marca como recuperado en
+// Rentman, confirmado aquí y avisado a Administración — ver lib/recuperacionRutas.js
+require('./lib/recuperacionRutas').registrar(app, { supabase, requiereLogin, rentman: rentmanSync.rentman });
+app.get('/recuperacion', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'recuperacion.html'));
+});
+
 // Integración Rentman → Holded (prueba hasta 1 ene 2027) — ver lib/holded.js.
 // Pantalla de prueba en /holded.html. Solo Dirección y Contabilidad.
 const holdedSync = require('./lib/holded');

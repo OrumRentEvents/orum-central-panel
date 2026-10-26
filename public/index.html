@@ -373,6 +373,7 @@ function mostrarApp() {
   construirMenu();
   cargarMisAccesos();
   if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
+  if (['Direccion', 'Logistica', 'Contabilidad'].includes(usuarioActual.rol)) { actualizarContadorRecuperacion(); setInterval(actualizarContadorRecuperacion, 5 * 60 * 1000); }
   if (usuarioActual.rol !== 'Comercial') cargarVehiculosFacturas();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
   else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
@@ -1034,6 +1035,8 @@ const MENU = [
       { id: 'veh-ranking', label: 'Ranking conductores', onClick: () => cargarRankingConductores() },
   ]},
   { id: 'muelle', icon: 'truck', group: 'operaciones', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
+  // Material perdido que vuelve: Logística confirma el proyecto, Administración quita el cargo — public/recuperacion.html
+  { id: 'recuperacion', icon: 'box', group: 'operaciones', label: 'Material recuperado', rolesPermitidos: ['Direccion', 'Logistica', 'Contabilidad'], onClick: () => cargarRecuperacion() },
   // Chat por departamento (Office, Lavandería, Mantenimiento) — public/chat.html
   { id: 'chat', icon: 'chat', group: 'operaciones', label: 'Chat', rolesPermitidos: ['Direccion', 'Logistica'], onClick: () => cargarChat() },
   // Usuarios del panel (oct 2026): antes en la hoja USUARIOS de Google. Solo Sergio.
@@ -1097,7 +1100,7 @@ function construirMenu() {
 }
 function menuVisibleUsuario() {
   return usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle', 'chat'].includes(item.id))
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle', 'chat', 'recuperacion'].includes(item.id))
     : MENU.filter(item => (!item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase()) && (!item.rolesPermitidos || item.rolesPermitidos.includes(usuarioActual.rol)));
 }
 
@@ -5459,6 +5462,32 @@ function renderTablaFianzas(listaOriginal) {
 // Oct 2026: el panel muestra la misma pantalla que la app (public/mantenimiento.html):
 // por día y por material, chill out y las dos casillas (Mantenimiento y
 // Responsables). La versión anterior (cargarMantenimientoAntiguo) queda sin uso.
+function cargarRecuperacion() {
+  document.getElementById('content-title').textContent = 'Material recuperado';
+  marcarMenuActivo('menu-item-recuperacion');
+  document.getElementById('content-body').innerHTML = `<iframe src="/recuperacion?embebido=1" title="Material recuperado"
+    style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
+}
+// Contador en el menú: Logística ve lo que tiene que confirmar; Contabilidad,
+// los cargos por quitar; Dirección, las dos cosas.
+async function actualizarContadorRecuperacion() {
+  try {
+    const item = document.getElementById('menu-item-recuperacion');
+    if (!item) return;
+    const d = await (await fetch('/api/recuperacion/resumen')).json();
+    const rol = usuarioActual.rol;
+    const n = (rol === 'Contabilidad' ? 0 : d.por_confirmar || 0) + (rol === 'Logistica' ? 0 : d.por_quitar || 0);
+    let pastilla = item.querySelector('.recup-pastilla');
+    if (!n) { if (pastilla) pastilla.remove(); return; }
+    if (!pastilla) {
+      pastilla = document.createElement('span');
+      pastilla.className = 'recup-pastilla';
+      pastilla.style.cssText = 'background:var(--red); color:#fff; border-radius:9px; font-size:10.5px; font-weight:600; padding:1px 6px; margin-left:6px;';
+      (item.querySelector('span > span:not(.nav-icon)') || item).appendChild(pastilla);
+    }
+    pastilla.textContent = n;
+  } catch (e) { /* sin contador si falla */ }
+}
 function cargarChat() {
   document.getElementById('content-title').textContent = 'Chat';
   marcarMenuActivo('menu-item-chat');
