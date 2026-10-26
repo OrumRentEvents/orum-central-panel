@@ -198,6 +198,8 @@ const { ROLES_SOLO_MOVIL } = require('./lib/usuariosAdmin');
 require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
 // Chat por departamento (Office, Lavandería, Mantenimiento) — lib/chat.js
 require('./lib/chat').registrar(app, { supabase, requiereLogin });
+// Incidencias: crear, asignar y seguir hasta cerrarla — lib/incidencias.js
+require('./lib/incidencias').registrar(app, { supabase, requiereLogin });
 // Financiero → Informe semanal (No Confirmados / Resto en PDF guardado) — lib/informeSemanalProyectos.js
 require('./lib/informeSemanalProyectos').registrarRutas(app, { supabase, requiereLogin });
 
@@ -1445,6 +1447,11 @@ app.get('/chat', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
+// Incidencias (oct 2026): misma pantalla en la app y en el panel — public/incidencias.html.
+app.get('/incidencias', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'incidencias.html'));
+});
+
 // App móvil (oct 2026): entrada con PIN y botones según el rol — public/movil.html.
 app.get('/movil', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'movil.html'));
@@ -2382,7 +2389,8 @@ app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, su
     const r = await facturasDatos.guardarLineas({ fileId, proveedor, nombreArchivo, lineas });
     res.json({
       ok: true, fileId, proveedor, proveedor_nuevo: proveedorNuevo, lineas: r.lineas_guardadas,
-      lectura: { emisor: lectura.emisor_nombre, nif: lectura.nif, numero: lectura.numero, fecha: lectura.fecha, total: lectura.total, confianza: lectura.confianza, dudas: lectura.dudas }
+      lectura: { emisor: lectura.emisor_nombre, nif: lectura.nif, numero: lectura.numero, fecha: lectura.fecha, total: lectura.total, confianza: lectura.confianza, dudas: lectura.dudas },
+      ...(await datosParaCompletarFactura(proveedor, lectura.matricula_leida))
     });
   } catch (e) {
     console.error('Error guardando factura subida:', e);
@@ -2390,6 +2398,48 @@ app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, su
     await supabase.from('facturas_proveedores').delete().eq('file_id', fileId);
     res.status(500).json({ error: 'Error guardando la factura: ' + e.message });
   }
+});
+
+// Tras leer una factura subida se pregunta la forma de pago y, si es de un
+// vehículo, la matrícula (26 oct 2026), para que la factura quede completa
+// para el volcado a Holded sin tener que buscarla luego en el listado.
+// "De vehículo": el tipo de gasto del proveedor (Config.) o, si no tiene, el
+// sugerido por su nombre; o que la IA haya leído una matrícula de la flota.
+async function datosParaCompletarFactura(proveedor, matriculaLeida) {
+  try {
+    const { data } = await supabase.from('proveedores_tipo_gasto').select('tipo').eq('proveedor', proveedor).maybeSingle();
+    const tipo = (data && data.tipo) || sugerirTipoGasto(proveedor);
+    let matriculaSugerida = '';
+    if (matriculaLeida) {
+      const { data: flota } = await supabase.from('vehiculos').select('matricula').eq('activo', true).not('matricula', 'is', null);
+      const v = (flota || []).find(x => String(x.matricula).toUpperCase().replace(/[\s-]+/g, '') === matriculaLeida);
+      if (v) matriculaSugerida = v.matricula;
+    }
+    return { es_vehiculo: tipo === 'vehiculos' || !!matriculaSugerida, matricula_sugerida: matriculaSugerida, matricula_leida: matriculaLeida || '' };
+  } catch (e) {
+    return { es_vehiculo: false, matricula_sugerida: '', matricula_leida: matriculaLeida || '' };
+  }
+}
+const FORMAS_PAGO_SUBIDA = ['Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
+// Guarda forma de pago y matrícula en todas las líneas de la factura (una por
+// periodo). Forma de pago vacía = pendiente de pago (no se vuelca a Holded).
+app.post('/api/facturas-proveedores/:fileId/completar', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const formaPago = String((req.body && req.body.formaPago) || '').trim();
+    const matricula = String((req.body && req.body.matricula) || '').trim();
+    if (formaPago && !FORMAS_PAGO_SUBIDA.includes(formaPago)) return res.status(400).json({ error: 'Forma de pago no válida' });
+    const { data: lineas, error } = await supabase.from('facturas_proveedores_lineas').select('id').eq('file_id', req.params.fileId);
+    if (error) throw error;
+    if (!lineas || !lineas.length) return res.status(404).json({ error: 'Factura no encontrada' });
+    const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+    for (const l of lineas) {
+      for (const [campo, valor] of [['formaPago', formaPago], ['matricula', matricula]]) {
+        const d = await facturasDatos.actualizarCampo(l.id, campo, valor, usuario);
+        if (d.error) throw new Error(d.error);
+      }
+    }
+    res.json({ ok: true, lineas: lineas.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Nombres de proveedor para elegir al subir desde el móvil (sin importes:

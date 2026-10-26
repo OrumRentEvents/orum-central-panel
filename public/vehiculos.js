@@ -23,6 +23,9 @@ let vehEditandoDoc = null;  // id del documento en edición
     .veh-card { background:#fff; border:1px solid var(--border); border-radius:4px; padding:14px; cursor:pointer; border-left:4px solid var(--green); }
     .veh-card:hover { border-color:var(--gray-400); }
     .veh-card.aviso { border-left-color:var(--orange); } .veh-card.vencido { border-left-color:var(--red); }
+    .veh-card { position:relative; }
+    .veh-inc { position:absolute; top:10px; right:10px; border:0.5px solid #F0997B; background:#FAECE7; color:#993C1D; font-size:12px; font-weight:600; padding:3px 8px; border-radius:6px; cursor:pointer; font-family:inherit; }
+    .veh-inc.con { background:#D85A30; color:#fff; border-color:#D85A30; }
     .veh-mat { font-size:18px; font-weight:600; letter-spacing:.5px; }
     .veh-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
     .veh-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle; }
@@ -165,11 +168,13 @@ async function cargarVehiculos() {
 function pintarFlota(json) {
   const k = json.kpis;
   const sinFicha = json.rutas_sin_asignar || [];
+  const conIncidencias = ROLES_INCIDENCIAS.includes(usuarioActual.rol);
   const tarjetas = json.vehiculos.map(v => {
     const p = v.proximo;
     const linea = p ? `<span class="veh-dot" style="background:${VEH_COLOR[p.estado]}"></span>${vehEsc(VEH_VENC[p.tipo] || p.tipo)} · ${vehTextoPlazo(p)}`
       : '<span style="color:var(--text-muted)">Sin vencimientos</span>';
     return `<div class="veh-card veh-filtrable ${v.estado}" data-filtro="${vehEsc([v.matricula, vehNombre(v), v.nombre_rutas, v.nombre_localizador].filter(Boolean).join(' '))}" onclick="abrirFichaVehiculo(${v.id})">
+      ${conIncidencias ? `<button class="veh-inc" data-veh-inc="${v.id}" title="Registrar una incidencia de este vehículo" onclick="event.stopPropagation(); cargarIncidencias({ nueva: true, vehiculo: ${v.id}, origen: 'vehiculo' })">⚠</button>` : ''}
       <div class="veh-mat">${vehEsc(v.matricula || 'Sin matrícula')}</div>
       <div class="veh-sub">${vehEsc(vehNombre(v))}${v.nombre_rutas ? ' · Rutas: ' + vehEsc(v.nombre_rutas) : ''}${v.propiedad !== 'propio' ? ' · ' + VEH_PROPIEDAD[v.propiedad] : ''}</div>
       <div style="font-size:12.5px; margin-top:10px;">${v.km_actuales !== null ? vehNum(v.km_actuales) + ' km' : '<span style="color:var(--text-muted)">Km sin registrar</span>'}</div>
@@ -190,10 +195,26 @@ function pintarFlota(json) {
         <option value="0" ${vehVerInactivos ? '' : 'selected'}>Activos</option>
         <option value="1" ${vehVerInactivos ? 'selected' : ''}>Dados de baja</option>
       </select>
-      <button class="veh-btn prim" style="margin-left:auto;" onclick="abrirFichaVehiculo(null)">+ Nuevo vehículo</button>
+      ${conIncidencias ? `<button class="veh-btn" style="margin-left:auto;" onclick="cargarIncidencias({ nueva: true, tipo: 'vehiculo', origen: 'vehiculo' })">⚠ Incidencia de vehículo</button>` : ''}
+      <button class="veh-btn prim" style="${conIncidencias ? '' : 'margin-left:auto;'}" onclick="abrirFichaVehiculo(null)">+ Nuevo vehículo</button>
     </div>
     ${json.vehiculos.length ? `<div class="veh-grid">${tarjetas}</div>` : '<p class="loading-text">No hay vehículos ' + (vehVerInactivos ? 'dados de baja.' : 'activos.') + '</p>'}`;
   vehFiltrar();
+  if (conIncidencias) marcarIncidenciasFlota();
+}
+// En cada tarjeta, cuántas incidencias sin resolver tiene (de las que este usuario ve)
+async function marcarIncidenciasFlota() {
+  try {
+    const n = {};
+    (await vehApi('/api/incidencias')).incidencias.forEach(i => { if (i.vehiculo_id && i.estado !== 'resuelta') n[i.vehiculo_id] = (n[i.vehiculo_id] || 0) + 1; });
+    document.querySelectorAll('[data-veh-inc]').forEach(b => {
+      const c = n[b.getAttribute('data-veh-inc')];
+      if (!c) return;
+      b.classList.add('con');
+      b.textContent = '⚠ ' + c;
+      b.title = c + (c === 1 ? ' incidencia sin resolver' : ' incidencias sin resolver') + ' · pulsa para registrar otra';
+    });
+  } catch (e) { /* sin contador si falla */ }
 }
 
 // ── Ficha ──
@@ -225,7 +246,31 @@ function pintarFicha() {
       <span style="font-size:12.5px; font-weight:500;">Km actuales: ${f.km_actuales !== null ? vehNum(f.km_actuales) : '—'}</span></h3>${vehFormDatos(v)}</div>
     <div class="veh-seccion" id="veh-sec-venc">${vehSeccionVencimientos()}</div>
     <div class="veh-seccion" id="veh-sec-mant">${vehSeccionMantenimientos()}</div>
+    ${ROLES_INCIDENCIAS.includes(usuarioActual.rol) ? '<div class="veh-seccion" id="veh-sec-inc"><h3><span>Incidencias</span></h3><p style="font-size:12.5px; color:var(--text-muted); margin:0;">Cargando...</p></div>' : ''}
     <div class="veh-seccion" id="veh-sec-docs">${vehSeccionDocumentos()}</div>`;
+  if (ROLES_INCIDENCIAS.includes(usuarioActual.rol)) cargarIncidenciasVehiculo(v.id);
+}
+
+// ── Incidencias del vehículo (public/incidencias.html, API lib/incidencias.js) ──
+// Salen las que este usuario puede ver: las suyas y las asignadas (Dirección, todas).
+async function cargarIncidenciasVehiculo(id) {
+  const sec = document.getElementById('veh-sec-inc');
+  let lista = [], error = '';
+  try { lista = (await vehApi('/api/incidencias?vehiculo_id=' + id)).incidencias; } catch (err) { error = err.message; }
+  if (!sec || !vehFichaActual || vehFichaActual.vehiculo.id !== id) return;
+  const ESTADO = { abierta: ['Abierta', '#854F0B', '#FAEEDA'], en_curso: ['En curso', '#185FA5', '#E6F1FB'], resuelta: ['Resuelta', '#0F6E56', '#E1F5EE'] };
+  const abiertas = lista.filter(i => i.estado !== 'resuelta').length;
+  const filas = lista.map(i => {
+    const e = ESTADO[i.estado] || [i.estado, 'inherit', 'transparent'];
+    return `<tr style="cursor:pointer;" onclick="cargarIncidencias({ id: ${i.id} })">
+      <td>${vehFecha(String(i.creado_en || '').slice(0, 10))}</td>
+      <td><span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; color:${e[1]}; background:${e[2]};">${e[0]}</span>${i.prioridad === 'urgente' ? ' <span style="color:var(--red); font-size:11px; font-weight:600;">Urgente</span>' : ''}</td>
+      <td>${vehEsc(i.texto.length > 90 ? i.texto.slice(0, 90) + '…' : i.texto)}</td>
+      <td>${vehEsc(i.responsable_nombre || 'Sin asignar')}</td></tr>`;
+  }).join('');
+  sec.innerHTML = `<h3><span>Incidencias${abiertas ? ' · ' + abiertas + ' sin resolver' : ''}</span><button class="veh-btn" onclick="cargarIncidencias({ nueva: true, vehiculo: ${id}, origen: 'vehiculo' })">⚠ Nueva incidencia</button></h3>
+    ${error ? '<p class="veh-error">' + vehEsc(error) + '</p>' : lista.length ? `<div class="veh-tabla-wrap"><table><thead><tr><th>Fecha</th><th>Estado</th><th>Qué pasó</th><th>Responsable</th></tr></thead><tbody>${filas}</tbody></table></div>`
+      : '<p style="font-size:12.5px; color:var(--text-muted); margin:0;">Sin incidencias de este vehículo.</p>'}`;
 }
 
 function vehFormDatos(v) {

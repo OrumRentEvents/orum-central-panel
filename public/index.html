@@ -374,6 +374,7 @@ function mostrarApp() {
   cargarMisAccesos();
   if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
   if (['Direccion', 'Logistica', 'Contabilidad'].includes(usuarioActual.rol)) { actualizarContadorRecuperacion(); setInterval(actualizarContadorRecuperacion, 5 * 60 * 1000); }
+  if (ROLES_INCIDENCIAS.includes(usuarioActual.rol)) { actualizarContadorIncidencias(); setInterval(actualizarContadorIncidencias, 5 * 60 * 1000); }
   if (usuarioActual.rol !== 'Comercial') cargarVehiculosFacturas();
   iniciarGloboChat();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
@@ -953,6 +954,8 @@ function iconoMenuHtml(nombre) {
 function iconoInline(nombre, size, color) {
   return '<span style="display:inline-flex; width:' + size + 'px; height:' + size + 'px; color:' + (color || 'currentColor') + '; flex-shrink:0;">' + (ICONOS_MENU[nombre] || '') + '</span>';
 }
+// Mismos roles que lib/incidencias.js (ROLES)
+const ROLES_INCIDENCIAS = ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'];
 const MENU = [
   { id: 'resumen', icon: 'home', group: 'principal', label: 'Resumen', onClick: () => cargarResumenGeneral() },
   { id: 'proyectos', icon: 'folder', group: 'principal', label: 'Proyectos', onClick: () => cargarProyectos() },
@@ -1030,9 +1033,13 @@ const MENU = [
       { id: 'veh-uso', label: 'Uso', onClick: () => cargarUsoVehiculos() },
       { id: 'veh-repostajes', label: 'Repostajes', onClick: () => cargarRepostajesVehiculos() },
       { id: 'veh-ranking', label: 'Ranking conductores', onClick: () => cargarRankingConductores() },
+      // Incidencias de tipo Vehículo (la misma pantalla de Incidencias, filtrada)
+      { id: 'veh-incidencias', label: 'Incidencias', rolesPermitidos: ROLES_INCIDENCIAS, onClick: () => cargarIncidencias({ tipo: 'vehiculo', menu: 'veh-incidencias' }) },
   ]},
   // Material perdido que vuelve: Logística confirma el proyecto, Administración quita el cargo — public/recuperacion.html
   { id: 'recuperacion', icon: 'box', group: 'operaciones', label: 'Material recuperado', rolesPermitidos: ['Direccion', 'Logistica', 'Contabilidad'], onClick: () => cargarRecuperacion() },
+  // Incidencias: crear, asignar y seguir hasta cerrarla — public/incidencias.html
+  { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', rolesPermitidos: ROLES_INCIDENCIAS, onClick: () => cargarIncidencias() },
   // Chat por departamento (Office, Lavandería, Mantenimiento) — public/chat.html
   { id: 'chat', icon: 'chat', group: 'operaciones', label: 'Chat', rolesPermitidos: ['Direccion', 'Logistica'], onClick: () => cargarChat() },
   // Configuración (26 oct 2026): juntas aquí las "Config." que estaban
@@ -1067,10 +1074,9 @@ function construirMenu() {
   searchWrap.innerHTML = '<input type="text" id="menu-search-input" placeholder="🔍 Buscar en el menú..." style="width:100%; padding:7px 10px; font-size:12px; border:1px solid var(--border); border-radius:4px; background:#fff; color:var(--text-primary);">';
   nav.appendChild(searchWrap);
 
-  // Rol Comercial: solo ve el apartado Comercial. Rol Logística: el apartado
-  // Logística completo (incluye Servicios Isabella) + Mantenimiento,
-  // Vehículos, Chat y Material recuperado (Incidencias y Pantalla Muelle,
-  // que eran "próximamente", se quitaron del menú el 26 oct 2026).
+  // Rol Comercial: solo ve el apartado Comercial e Incidencias. Rol Logística:
+  // el apartado Logística completo (incluye Servicios Isabella) +
+  // Mantenimiento, Vehículos, Incidencias, Chat y Material recuperado.
   // Nada más del menú en ninguno de los dos casos.
   const rolRestringido = usuarioActual.rol === 'Comercial' || usuarioActual.rol === 'Logistica';
   const menuVisible = menuVisibleUsuario();
@@ -1105,8 +1111,8 @@ function construirMenu() {
   else if (usuarioActual.rol === 'Logistica') abrirGrupoMenu('log');
 }
 function menuVisibleUsuario() {
-  return usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'mantenimiento', 'vehiculos', 'chat', 'recuperacion'].includes(item.id))
+  return usuarioActual.rol === 'Comercial' ? MENU.filter(item => ['comercial', 'incidencias'].includes(item.id))
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'mantenimiento', 'vehiculos', 'incidencias', 'chat', 'recuperacion'].includes(item.id))
     : MENU.filter(itemVisibleUsuario);
 }
 
@@ -5556,6 +5562,41 @@ async function actualizarContadorRecuperacion() {
     pastilla.textContent = n;
   } catch (e) { /* sin contador si falla */ }
 }
+// Incidencias: la misma pantalla que la app (public/incidencias.html).
+// opciones = { nueva, proyecto, vehiculo, tipo, id } para abrirla ya en una
+// incidencia nueva, en una ficha o filtrada por tipo (Vehículos → Incidencias).
+function cargarIncidencias(opciones) {
+  const o = opciones || {};
+  document.getElementById('content-title').textContent = o.tipo === 'vehiculo' ? 'Vehículos · Incidencias' : 'Incidencias';
+  marcarMenuActivo('menu-item-' + (o.menu || 'incidencias'));
+  const params = new URLSearchParams({ embebido: '1' });
+  if (o.nueva) { params.set('nueva', '1'); params.set('origen', o.origen || 'panel'); }
+  if (o.proyecto) params.set('proyecto', o.proyecto);
+  if (o.vehiculo) params.set('vehiculo', o.vehiculo);
+  if (o.tipo) params.set('tipo', o.tipo);
+  if (o.id) params.set('id', o.id);
+  document.getElementById('content-body').innerHTML = `<iframe src="/incidencias?${params}" title="Incidencias"
+    style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
+}
+// Contador en el menú: incidencias sin resolver que tiene asignadas este usuario
+async function actualizarContadorIncidencias() {
+  try {
+    const item = document.getElementById('menu-item-incidencias');
+    if (!item) return;
+    const d = await (await fetch('/api/incidencias/resumen')).json();
+    const n = d.mias || 0;
+    let pastilla = item.querySelector('.inc-pastilla');
+    if (!n) { if (pastilla) pastilla.remove(); return; }
+    if (!pastilla) {
+      pastilla = document.createElement('span');
+      pastilla.className = 'inc-pastilla';
+      pastilla.title = 'Asignadas a ti sin resolver';
+      pastilla.style.cssText = 'background:var(--red); color:#fff; border-radius:9px; font-size:10.5px; font-weight:600; padding:1px 6px; margin-left:6px;';
+      (item.querySelector('span > span:not(.nav-icon)') || item).appendChild(pastilla);
+    }
+    pastilla.textContent = n;
+  } catch (e) { /* sin contador si falla */ }
+}
 function cargarChat() {
   cerrarChatFlotante(); // a pantalla completa no hace falta el globo abierto
   document.getElementById('content-title').textContent = 'Chat';
@@ -7304,6 +7345,8 @@ function abrirSubirFacturas() {
   pintarListaSubidaFacturas();
 }
 function cerrarSubirFacturas() {
+  const sinGuardar = subidaFacturasLista.filter(x => x.completar && !x.completar.guardado).length;
+  if (sinGuardar && !confirm(`Hay ${sinGuardar} factura(s) sin guardar la forma de pago: quedarán como pendientes de pago. ¿Cerrar igualmente?`)) return;
   const m = document.getElementById('modal-subir-facturas');
   if (m) m.style.display = 'none';
   if (subidaFacturasLista.some(x => x.estado === 'ok')) cargarFacturasProveedores();
@@ -7328,9 +7371,58 @@ function pintarListaSubidaFacturas() {
   cont.innerHTML = subidaFacturasLista.map((x, i) => `
     <div style="display:flex; gap:8px; align-items:flex-start; padding:6px 0; border-bottom:1px solid #f0efe9; font-size:13px;">
       <span>${iconos[x.estado] || ''}</span>
-      <div style="flex:1;"><div style="font-weight:500;">${escHtml(x.file.name)}</div>${x.mensaje ? `<div style="font-size:12px; color:${x.estado === 'error' ? '#A32D2D' : '#6b6a64'};">${x.mensaje}</div>` : ''}</div>
+      <div style="flex:1;"><div style="font-weight:500;">${escHtml(x.file.name)}</div>${x.mensaje ? `<div style="font-size:12px; color:${x.estado === 'error' ? '#A32D2D' : '#6b6a64'};">${x.mensaje}</div>` : ''}${x.completar ? htmlCompletarFactura(x.completar, i) : ''}</div>
       ${x.estado === 'pendiente' || x.estado === 'error' ? `<span onclick="subidaFacturasLista.splice(${i},1); pintarListaSubidaFacturas();" style="cursor:pointer; color:#9a988f;">✕</span>` : ''}
     </div>`).join('');
+}
+// Tras leer la factura (26 oct 2026): forma de pago y, si es de un vehículo,
+// matrícula, para que quede completa para el volcado a Holded. Lo elegido se
+// guarda en subidaFacturasLista[i].completar, así no se pierde al repintar la
+// lista mientras se suben las siguientes.
+function htmlCompletarFactura(c, i) {
+  if (c.guardado) return `<div style="font-size:12px; color:#3B6D11; margin-top:4px;">✔ ${escHtml(c.formaPago || 'Pendiente de pago')}${c.matricula ? ' · ' + escHtml(c.matricula) : ''}</div>`;
+  const sel = 'font-size:12px; padding:3px 6px; border:1px solid var(--border); border-radius:6px;';
+  const formas = FORMAS_PAGO_FACTURA.map(v => `<option value="${v}" ${v === c.formaPago ? 'selected' : ''}>${v || 'Pendiente de pago'}</option>`).join('');
+  let vehiculo;
+  if (c.esVehiculo) {
+    const fija = VEHICULOS_ORUM_FACTURAS.some(v => v.matricula === c.matricula);
+    const otro = c.otro || (!!c.matricula && !fija);
+    vehiculo = `<select style="${sel}" onchange="cambiarCompletarFactura(${i},'matricula',this.value)">
+        <option value="">Matrícula…</option>
+        ${VEHICULOS_ORUM_FACTURAS.map(v => `<option value="${escHtml(v.matricula)}" ${v.matricula === c.matricula ? 'selected' : ''}>${escHtml(v.label)}</option>`).join('')}
+        <option value="__otro__" ${otro ? 'selected' : ''}>Otro (nota)</option>
+      </select>
+      ${otro ? `<input type="text" value="${escHtml(fija ? '' : c.matricula)}" placeholder="Nota (VMS, Isabella...)" oninput="cambiarCompletarFactura(${i},'nota',this.value)" style="${sel} width:130px;">` : ''}`;
+  } else {
+    vehiculo = `<button type="button" onclick="cambiarCompletarFactura(${i},'esVehiculo',true)" style="font-size:12px; color:#6b6a64; text-decoration:underline; cursor:pointer; background:none; border:none; padding:0;">¿Es de un vehículo?</button>`;
+  }
+  return `<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+      <select style="${sel}" onchange="cambiarCompletarFactura(${i},'formaPago',this.value)">${formas}</select>
+      ${vehiculo}
+      <button onclick="guardarCompletarFactura(${i})" ${c.guardando ? 'disabled' : ''} style="font-size:12px; padding:4px 10px; border-radius:6px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">${c.guardando ? 'Guardando…' : 'Guardar'}</button>
+    </div>${c.error ? `<div style="font-size:12px; color:#A32D2D;">${escHtml(c.error)}</div>` : ''}`;
+}
+function cambiarCompletarFactura(i, campo, valor) {
+  const c = subidaFacturasLista[i].completar;
+  if (campo === 'matricula') { c.otro = valor === '__otro__'; c.matricula = c.otro ? '' : valor; }
+  else if (campo === 'nota') { c.matricula = valor; return; } // sin repintar: se perdería el cursor
+  else c[campo] = valor;
+  pintarListaSubidaFacturas();
+}
+async function guardarCompletarFactura(i) {
+  const c = subidaFacturasLista[i].completar;
+  c.guardando = true; c.error = ''; pintarListaSubidaFacturas();
+  try {
+    const r = await fetch('/api/facturas-proveedores/' + encodeURIComponent(c.fileId) + '/completar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ formaPago: c.formaPago, matricula: c.matricula.trim() })
+    });
+    const d = await r.json().catch(() => ({ error: 'El servidor respondió ' + r.status }));
+    if (!r.ok || d.error) throw new Error(d.error || 'Error');
+    c.guardado = true;
+  } catch (e) { c.error = 'No se ha guardado: ' + e.message; }
+  c.guardando = false;
+  pintarListaSubidaFacturas();
 }
 // Foto → JPEG de como mucho 2400 px de lado (el resto se sube tal cual).
 async function prepararArchivoFactura(file) {
@@ -7362,6 +7454,7 @@ async function subirFacturasPendientes() {
         const l = d.lectura || {};
         x.estado = 'ok';
         x.mensaje = `${escHtml(d.proveedor)}${d.proveedor_nuevo ? ' <b>(proveedor nuevo: revisa su reparto en Config.)</b>' : ''} · nº ${escHtml(l.numero || '—')} · ${escHtml(l.fecha || '')} · ${euros(l.total)} · confianza ${escHtml(l.confianza || '')}${d.lineas > 1 ? ' · ' + d.lineas + ' periodos' : ''}${l.dudas ? '<br>⚠ ' + escHtml(l.dudas) : ''}`;
+        x.completar = { fileId: d.fileId, formaPago: '', esVehiculo: !!d.es_vehiculo, matricula: d.matricula_sugerida || '', otro: false };
       }
     } catch (e) { x.estado = 'error'; x.mensaje = 'Error de conexión: ' + escHtml(e.message); }
     pintarListaSubidaFacturas();

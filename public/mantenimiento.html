@@ -61,6 +61,7 @@ button { font-family: inherit; }
 .chk.solo-ver .caja { border-style: dashed; }
 .chk.guardando { opacity: .5; }
 .vacio { padding: 16px; font-size: 13px; color: #9a988f; }
+.inc-btn { flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px; border: 0.5px solid #F0997B; background: #FAECE7; color: #993C1D; font-size: 15px; cursor: pointer; }
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; }
 #toast.show { opacity: 1; }
 @media (min-width: 700px) { .chk { width: 72px; } .chk .quien { max-width: 72px; } }
@@ -81,6 +82,7 @@ button { font-family: inherit; }
 <div id="toast"></div>
 
 <script src="/chat-boton.js"></script>
+<script src="/incidencia-boton.js"></script>
 <script>
 // Mantenimiento (oct 2026): material de especial cuidado (y todo el chill
 // out) que sale en los próximos 15 días, por día o por material. Dos
@@ -117,6 +119,8 @@ function arrancar(u) {
   document.getElementById('btn-salir').style.display = soloMant && !EMBEBIDO ? '' : 'none';
   // Botón Chat (public/chat-boton.js): solo si el usuario tiene algún chat
   if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.cab-top'), { antesDe: document.getElementById('btn-salir') });
+  // Botón "⚠" en cada salida para registrar una incidencia de ese proyecto
+  if (window.prepararIncidencias) prepararIncidencias(function (ok) { if (ok) pintar(); });
   cargar();
 }
 function cargar(silencioso) {
@@ -170,7 +174,8 @@ function filaSalida(s, conArticulo) {
   var info = conArticulo
     ? '<div class="t">' + esc(s.articulo) + '</div><div class="s">#' + esc(s.proyecto_numero) + ' ' + esc(s.cliente || '') + (s.entrega_hora ? ' · ' + esc(s.entrega_hora) : '') + (s.localizacion ? ' · ' + esc(s.localizacion) : '') + '</div>'
     : '<div class="t">#' + esc(s.proyecto_numero) + ' ' + esc(s.cliente || '') + '</div><div class="s">' + corta(s.dia) + (s.entrega_hora ? ' ' + esc(s.entrega_hora) : '') + (s.localizacion ? ' · ' + esc(s.localizacion) : '') + '</div>';
-  return '<div class="fila' + (todo ? ' todo' : '') + '"><div class="info">' + info + '</div><span class="cant">x' + s.cantidad + '</span><div class="checks">' + casilla(s, 'mantenimiento') + casilla(s, 'responsables') + '</div></div>';
+  var inc = window.INCIDENCIAS_OK ? '<button class="inc-btn" title="Registrar una incidencia de este proyecto" onclick="nuevaIncidencia({ proyecto: ' + (parseInt(s.proyecto_numero) || 0) + ', origen: &quot;mantenimiento&quot; })">&#9888;</button>' : '';
+  return '<div class="fila' + (todo ? ' todo' : '') + '"><div class="info">' + info + '</div><span class="cant">x' + s.cantidad + '</span>' + inc + '<div class="checks">' + casilla(s, 'mantenimiento') + casilla(s, 'responsables') + '</div></div>';
 }
 function coincide(s) { return !filtro || (s.tipo + ' ' + s.articulo + ' ' + s.cliente + ' ' + s.proyecto_numero + ' ' + (s.localizacion || '')).toLowerCase().indexOf(filtro) !== -1; }
 function contadores(lista) {

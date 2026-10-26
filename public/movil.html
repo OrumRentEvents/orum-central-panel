@@ -162,6 +162,13 @@ button { font-family: inherit; }
 .item.error .est { color: #A32D2D; }
 .item.duplicada { border-color: #f0d9a8; background: #fdf8ee; }
 .item .quitar { background: none; border: none; color: #9a988f; font-size: 18px; padding: 0 4px; cursor: pointer; }
+.completar { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.completar select, .completar input { width: 100%; padding: 9px 10px; font-size: 16px; border: 0.5px solid #d8d4c8; border-radius: 8px; background: #fff; color: #1a1a18; font-family: inherit; }
+.completar .enlace { font-size: 13px; color: #6b6a64; text-decoration: underline; background: none; border: none; padding: 2px 0; text-align: left; }
+.completar .guardar { padding: 10px; font-size: 15px; font-weight: 500; border: none; border-radius: 8px; background: #1a1a18; color: #fff; }
+.completar .hecho { font-size: 13px; color: #3B6D11; }
+.completar .fallo { font-size: 12px; color: #A32D2D; }
+.completar .etq { font-size: 12px; color: #6b6a64; margin-bottom: -2px; }
 .enviar { width: 100%; margin-top: 14px; padding: 15px; border: none; border-radius: 12px; background: #8a6d1e; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
 .enviar:disabled { opacity: .5; }
 </style>
@@ -389,8 +396,8 @@ var BOTONES = [
   { id: 'chat', titulo: 'Chat', sub: 'Office, Lavandería y Mantenimiento', roles: ['Direccion', 'Logistica'], href: '/chat' },
   { id: 'extras', titulo: 'Registrar extras', sub: 'Horas de más, domingos, festivos, nocturnos y saldo del personal', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaExtras(); } },
   { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
+  { id: 'incidencias', titulo: 'Incidencias', sub: 'Registrar y seguir lo que va pasando', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], href: '/incidencias' },
   // Próximamente (oct 2026): se ven ya en el inicio y se van construyendo
-  { id: 'incidencias', titulo: 'Incidencias', sub: 'Registrar y seguir lo que va pasando', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], pronto: true },
   { id: 'repostaje', titulo: 'Repostaje', sub: 'Km, litros y quién reposta', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaRepostaje(); } },
   { id: 'vehiculos', titulo: 'Vehículos', sub: 'Flota, revisión antes de salir y vencimientos', roles: ['Direccion', 'Logistica'], pronto: true },
   { id: 'caja', titulo: 'Caja', sub: 'Registrar cobros en efectivo o TPV', roles: ['Direccion', 'Contabilidad', 'Comercial'], pronto: true }
@@ -872,6 +879,7 @@ function pantallaFactura() {
     '<div class="nota">Después de la foto podrás ajustar las esquinas para quedarte solo con la hoja. Si la factura tiene varias hojas, haz una foto de cada una o, mejor, súbela en PDF.</div>' +
     '<div class="lista" id="f-lista"></div>' +
     '<button class="enviar oculto" id="f-enviar" onclick="enviarFacturas()">Subir y leer</button>';
+  cargarVehiculosFact();
   fetch('/api/facturas-proveedores/proveedores').then(function (r) { return r.json(); }).then(function (d) {
     var dl = document.getElementById('f-proveedores');
     if (dl && d.proveedores) dl.innerHTML = d.proveedores.map(function (p) { return '<option value="' + esc(p) + '">'; }).join('');
@@ -895,13 +903,65 @@ function pintarSubidas() {
   cont.innerHTML = subidas.map(function (x, i) {
     var mini = x.vista ? '<img src="' + x.vista + '" alt="">' : '<div class="pdf">PDF</div>';
     var quitar = (x.estado === 'pendiente' || x.estado === 'error') && !subiendo ? '<button class="quitar" onclick="subidas.splice(' + i + ',1); pintarSubidas();" aria-label="Quitar">×</button>' : '';
-    return '<div class="item ' + x.estado + '">' + mini + '<div class="txt"><div class="nom">' + esc(x.file.name) + '</div><div class="est">' + x.mensaje + '</div></div>' + quitar + '</div>';
+    return '<div class="item ' + x.estado + '">' + mini + '<div class="txt"><div class="nom">' + esc(x.file.name) + '</div><div class="est">' + x.mensaje + '</div>' + (x.completar ? htmlCompletar(x.completar, i) : '') + '</div>' + quitar + '</div>';
   }).join('');
   var hay = subidas.some(function (x) { return x.estado === 'pendiente'; });
   var btn = document.getElementById('f-enviar');
   btn.classList.toggle('oculto', !hay && !subiendo);
   btn.disabled = subiendo;
   btn.textContent = subiendo ? 'Subiendo…' : 'Subir y leer (' + subidas.filter(function (x) { return x.estado === 'pendiente'; }).length + ')';
+}
+// Tras leer la factura (26 oct 2026, igual que en el panel): forma de pago y,
+// si es de un vehículo, matrícula, guardadas en todas sus líneas
+// (POST /api/facturas-proveedores/:fileId/completar). Vacía = pendiente de pago.
+var FORMAS_PAGO = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
+var vehiculosFact = [];
+function cargarVehiculosFact() {
+  if (vehiculosFact.length) return;
+  fetch('/api/vehiculos/lista').then(function (r) { return r.json(); }).then(function (d) {
+    vehiculosFact = (d.vehiculos || []).map(function (v) { return { matricula: v.matricula, label: v.label }; });
+    pintarSubidas();
+  }).catch(function () {});
+}
+function htmlCompletar(c, i) {
+  if (c.guardado) return '<div class="completar"><div class="hecho">✔ ' + esc(c.formaPago || 'Pendiente de pago') + (c.matricula ? ' · ' + esc(c.matricula) : '') + '</div></div>';
+  var h = '<div class="completar"><label class="etq" for="fp-' + i + '">Forma de pago</label><select id="fp-' + i + '" onchange="cambiarCompletar(' + i + ',\'formaPago\',this.value)">' +
+    FORMAS_PAGO.map(function (v) { return '<option value="' + v + '"' + (v === c.formaPago ? ' selected' : '') + '>' + (v || 'Pendiente de pago') + '</option>'; }).join('') + '</select>';
+  if (c.esVehiculo) {
+    var fija = vehiculosFact.some(function (v) { return v.matricula === c.matricula; });
+    var otro = c.otro || (!!c.matricula && !fija);
+    h += '<select aria-label="Matrícula" onchange="cambiarCompletar(' + i + ',\'matricula\',this.value)"><option value="">Matrícula…</option>' +
+      vehiculosFact.map(function (v) { return '<option value="' + esc(v.matricula) + '"' + (v.matricula === c.matricula ? ' selected' : '') + '>' + esc(v.label) + '</option>'; }).join('') +
+      '<option value="__otro__"' + (otro ? ' selected' : '') + '>Otro (nota)</option></select>';
+    if (otro) h += '<input type="text" value="' + esc(fija ? '' : c.matricula) + '" placeholder="Nota (VMS, Isabella...)" oninput="cambiarCompletar(' + i + ',\'nota\',this.value)">';
+  } else {
+    h += '<button class="enlace" onclick="cambiarCompletar(' + i + ',\'esVehiculo\',true)">¿Es de un vehículo?</button>';
+  }
+  h += '<button class="guardar" onclick="guardarCompletar(' + i + ')"' + (c.guardando ? ' disabled' : '') + '>' + (c.guardando ? 'Guardando…' : 'Guardar') + '</button>';
+  if (c.error) h += '<div class="fallo">' + esc(c.error) + '</div>';
+  return h + '</div>';
+}
+function cambiarCompletar(i, campo, valor) {
+  var c = subidas[i].completar;
+  if (campo === 'matricula') { c.otro = valor === '__otro__'; c.matricula = c.otro ? '' : valor; }
+  else if (campo === 'nota') { c.matricula = valor; return; }
+  else c[campo] = valor;
+  pintarSubidas();
+}
+async function guardarCompletar(i) {
+  var c = subidas[i].completar;
+  c.guardando = true; c.error = ''; pintarSubidas();
+  try {
+    var r = await fetch('/api/facturas-proveedores/' + encodeURIComponent(c.fileId) + '/completar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ formaPago: c.formaPago, matricula: c.matricula.trim() })
+    });
+    var d = await r.json().catch(function () { return { error: 'El servidor respondió ' + r.status }; });
+    if (!r.ok || d.error) throw new Error(d.error || 'Error');
+    c.guardado = true;
+  } catch (e) { c.error = 'No se ha guardado: ' + e.message; }
+  c.guardando = false;
+  pintarSubidas();
 }
 function prepararArchivo(file) {
   if (!/^image\//.test(file.type)) return Promise.resolve(file);
@@ -936,6 +996,7 @@ async function enviarFacturas() {
         var l = d.lectura || {};
         x.estado = 'ok';
         x.mensaje = '<b>' + esc(d.proveedor) + '</b>' + (d.proveedor_nuevo ? ' (nuevo)' : '') + ' · nº ' + esc(l.numero || '—') + ' · ' + esc(l.fecha || '') + ' · ' + euros(l.total) + (l.confianza === 'baja' ? '<br>⚠ Lectura dudosa: la revisarán en el panel' : '');
+        x.completar = { fileId: d.fileId, formaPago: '', esVehiculo: !!d.es_vehiculo, matricula: d.matricula_sugerida || '', otro: false };
       }
     } catch (e) { x.estado = 'error'; x.mensaje = 'Sin conexión: ' + esc(e.message); }
     pintarSubidas();

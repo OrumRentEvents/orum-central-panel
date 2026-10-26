@@ -205,6 +205,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .btn-g{padding:6px 14px;font-size:13px;background:#1a1a18;color:#fff;border:none;border-radius:7px;cursor:pointer;}
 .btn-g.ok{background:#1D9E75;}
 .btn-g.del{background:#fff;color:#A32D2D;border:.5px solid #F09595;}
+.btn-g.inc{background:#D85A30;}
 .msg-ok{font-size:12px;color:#1D9E75;}
 
 /* Checks preparado / cargado / incidencia en el detalle */
@@ -566,6 +567,8 @@ function entrarRutas(cfg){
   }
   initVehs(); initSelectorMes(); setHoy(); load();
   iniciarTiempoReal();
+  // Botón "⚠ Incidencia" en el detalle de cada parada, si el usuario puede crearlas
+  if(window.prepararIncidencias)prepararIncidencias(function(ok){if(ok&&paradas.length)render();});
 }
 
 // Refresco automático QUITADO (25 ago 2026) - interrumpía a quien estaba
@@ -1273,6 +1276,8 @@ function renderFila(idx,gkey){
   html+='</div><div class="det-acts">';
   html+='<button class="btn-g btn-save" data-key="'+key+'" data-p="'+pEnc+'">Guardar</button>';
   if(p.es_manual)html+='<button class="btn-g btn-edit-manual" data-idx="'+idx+'">Editar</button><button class="btn-g del btn-del" data-id="'+p.id_manual+'">Eliminar</button>';
+  // Incidencias (public/incidencia-boton.js): con el proyecto de la parada ya puesto
+  if(window.INCIDENCIAS_OK)html+='<button class="btn-g inc" onclick="nuevaIncidencia({proyecto:'+(parseInt(p.numero)||0)+',origen:&quot;rutas&quot;})">&#9888; Incidencia</button>';
   html+='<span class="msg-ok" id="msg-'+key+'"></span>';
   html+='</div></td></tr>';
   return html;
@@ -2289,5 +2294,6 @@ document.addEventListener('DOMContentLoaded',function(){
 <script>
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/rutas-sw.js',{scope:'/rutas'}).catch(function(){});});}
 </script>
+<script src="/incidencia-boton.js"></script>
 </body>
 </html>
