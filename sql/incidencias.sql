@@ -9,7 +9,7 @@
 create table if not exists incidencias (
   id bigserial primary key,
   texto text not null,
-  tipo text not null default 'otro' check (tipo in ('material', 'vehiculo', 'cliente', 'almacen', 'personal', 'otro')),
+  tipo text not null default 'otro' check (tipo in ('material', 'vehiculo', 'cliente', 'almacen', 'personal', 'facturacion', 'fianza', 'otro')),
   prioridad text not null default 'normal' check (prioridad in ('normal', 'urgente')),
   estado text not null default 'abierta' check (estado in ('abierta', 'en_curso', 'resuelta')),
   proyecto_id bigint,                   -- = proyectos.id (Rentman)

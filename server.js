@@ -2442,6 +2442,35 @@ app.post('/api/facturas-proveedores/:fileId/completar', requiereLogin, bloquearC
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Eliminar una factura errónea (26 oct 2026): solo Dirección, y nunca si ya
+// está en Holded (quedaría allí una compra sin su factura en ORUM: primero se
+// borra en Holded). Se borran sus líneas, la lectura de la IA, el archivo y su
+// estado de volcado; el historial se conserva con una entrada "ELIMINADA".
+app.delete('/api/facturas-proveedores/:fileId', requiereLogin, async (req, res) => {
+  if (req.session.usuario.rol !== 'Direccion') return res.status(403).json({ error: 'Solo Dirección puede eliminar facturas' });
+  const fileId = String(req.params.fileId);
+  try {
+    const { data: holded, error: eh } = await supabase.from('holded_sync_compras').select('holded_purchase_id').eq('file_id', fileId).maybeSingle();
+    if (eh) throw eh;
+    if (holded && holded.holded_purchase_id) return res.status(409).json({ error: 'Esta factura ya está volcada en Holded: bórrala primero allí y avisa para quitar el enlace' });
+    const { data: lineas, error: el } = await supabase.from('facturas_proveedores_lineas').select('id,proveedor,numero_factura,fecha,importe_total,nombre_archivo').eq('file_id', fileId);
+    if (el) throw el;
+    if (!lineas || !lineas.length) return res.status(404).json({ error: 'Factura no encontrada' });
+    const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
+    const l0 = lineas[0];
+    const total = Math.round(lineas.reduce((s, l) => s + (Number(l.importe_total) || 0), 0) * 100) / 100;
+    const resumen = `${l0.proveedor || ''} nº ${l0.numero_factura || '—'} · ${l0.fecha || ''} · ${total} € · ${lineas.length} línea(s)`;
+    await facturasArchivos.borrar(fileId);
+    for (const tabla of ['facturas_proveedores_lineas', 'facturas_proveedores', 'holded_sync_compras']) {
+      const { error } = await supabase.from(tabla).delete().eq('file_id', fileId);
+      if (error) throw new Error(tabla + ': ' + error.message);
+    }
+    await supabase.from('facturas_proveedores_historial').insert({ file_id: fileId, nombre_archivo: l0.nombre_archivo, proveedor: l0.proveedor, campo: 'ELIMINADA', valor_anterior: resumen, valor_nuevo: '', usuario });
+    console.log('[Facturas] Eliminada por ' + usuario + ': ' + fileId + ' (' + resumen + ')');
+    res.json({ ok: true, lineas: lineas.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Nombres de proveedor para elegir al subir desde el móvil (sin importes:
 // Logística también sube facturas y no ve el listado con cifras).
 app.get('/api/facturas-proveedores/proveedores', requiereLogin, bloquearComercial, async (req, res) => {

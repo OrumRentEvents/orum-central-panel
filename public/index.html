@@ -7724,6 +7724,7 @@ function renderTablaFacturasProveedores(lista) {
           <span onclick="verArchivoFactura('${idAttr}')" title="Ver factura escaneada" style="cursor:pointer; font-size:14px; margin-right:8px;">📄</span>
           <span onclick="toggleEdicionFactura('${idAttr}')" title="${editando ? 'Terminar de editar' : 'Corregir Proveedor/Nº Factura/Fecha/Importes'}" style="cursor:pointer; font-size:14px; margin-right:8px;">${editando ? '✅' : '✏️'}</span>
           <span onclick="abrirHistorialFactura('${idAttr}')" title="Ver quién ha tocado esta factura" style="cursor:pointer; font-size:14px;">🕓</span>
+          ${usuarioActual.rol === 'Direccion' ? `<span onclick="eliminarFacturaProveedor('${idAttr}')" title="Eliminar esta factura (errónea o subida por error)" style="cursor:pointer; font-size:14px; margin-left:8px;">🗑️</span>` : ''}
         </td>
       </tr>
     `;
@@ -7741,6 +7742,24 @@ function renderTablaFacturasProveedores(lista) {
 // (y para las antiguas que aún no se hayan copiado, redirige a Drive como antes).
 function verArchivoFactura(fileId) {
   window.open('/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo', '_blank');
+}
+// 🗑️ (26 oct 2026, solo Dirección): borra la factura entera (todas sus
+// líneas, lectura, archivo). El servidor no deja si ya está en Holded.
+async function eliminarFacturaProveedor(fileId) {
+  const lineas = (facturasProveedoresDataGlobal.facturas || []).filter(x => String(x.fileId) === String(fileId));
+  const f = lineas[0] || {};
+  const total = lineas.reduce((s, x) => s + (parseFloat(x.importeTotal) || 0), 0);
+  const texto = `¿Eliminar la factura de ${f.proveedor || '—'} nº ${f.numeroFactura || '—'} (${euros(total)})?` +
+    (lineas.length > 1 ? `\n\nTiene ${lineas.length} líneas (periodos): se borran todas.` : '') +
+    '\n\nSe borra también el archivo escaneado y no se puede deshacer.';
+  if (!confirm(texto)) return;
+  try {
+    const r = await fetch('/api/facturas-proveedores/' + encodeURIComponent(fileId), { method: 'DELETE' });
+    const d = await r.json().catch(() => ({ error: 'El servidor respondió ' + r.status }));
+    if (!r.ok || d.error) throw new Error(d.error || 'Error');
+    facturasProveedoresDataGlobal.facturas = (facturasProveedoresDataGlobal.facturas || []).filter(x => String(x.fileId) !== String(fileId));
+    cargarFacturasProveedores();
+  } catch (e) { alert('No se ha eliminado: ' + e.message); }
 }
 // Lápiz: activa/desactiva edición en la propia línea para Proveedor/Nº
 // Factura/Fecha/Base/IVA/Total (los que extrae la IA). Sin modal - se
