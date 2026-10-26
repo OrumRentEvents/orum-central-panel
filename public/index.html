@@ -5558,7 +5558,18 @@ const TITULOS_PREP = { lavanderia: 'Lavandería', office: 'Office', almacen: 'Al
 let preparacionDataGlobal = {};
 let preparacionVistaActiva = null;
 let preparacionPestanaActiva = 'proyecto';
-async function cargarPreparacion(vista) {
+// Oct 2026: el panel muestra la misma pantalla que la app y las tablets
+// (public/preparacion.html, con la sesión del panel): checks por artículo,
+// buscador de material, vista Por día... Una sola Preparación que mantener.
+// La versión de escritorio anterior (cargarPreparacionAntigua y lo que pinta)
+// se queda de momento sin uso.
+function cargarPreparacion(vista) {
+  document.getElementById('content-title').textContent = 'Preparación';
+  const body = document.getElementById('content-body');
+  body.innerHTML = `<iframe src="/preparacion?embebido=1&vista=${encodeURIComponent(vista || 'almacen')}" title="Preparación"
+    style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
+}
+async function cargarPreparacionAntigua(vista) {
   preparacionVistaActiva = vista;
   preparacionPestanaActiva = 'proyecto';
   document.getElementById('content-title').textContent = 'Preparación · ' + TITULOS_PREP[vista];

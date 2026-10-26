@@ -702,15 +702,18 @@ document.getElementById('buscador') && document.getElementById('buscador').addEv
 
 initKeypad();
 
+// Dentro del panel de escritorio (Logística → Preparación) va en un iframe con ?embebido=1
+var PARAMS = new URLSearchParams(location.search);
+var EMBEBIDO = PARAMS.get('embebido') === '1';
 function entrarConSesion(u) {
   var tabs = TABS_POR_ROL[u.rol] || ['almacen', 'lavanderia', 'office'];
   perfilActivo = { sesion: true, rol: u.rol, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparacion', tabs: tabs };
-  tabActiva = tabs[0];
+  tabActiva = tabs.indexOf(PARAMS.get('vista')) !== -1 ? PARAMS.get('vista') : tabs[0];
   document.getElementById('app').style.display = 'block';
   document.getElementById('app-titulo').textContent = perfilActivo.nombre;
   var tablet = ROLES_TABLET.indexOf(u.rol) !== -1;
-  document.getElementById('btn-inicio').style.display = tablet ? 'none' : '';
-  document.getElementById('btn-salir').style.display = tablet ? '' : 'none';
+  document.getElementById('btn-inicio').style.display = tablet || EMBEBIDO ? 'none' : '';
+  document.getElementById('btn-salir').style.display = tablet && !EMBEBIDO ? '' : 'none';
   construirTabs();
   cargarDatos(tabActiva);
 }
