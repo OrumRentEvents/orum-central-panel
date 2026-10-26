@@ -1021,8 +1021,6 @@ const MENU = [
       // Formulario de extras de ORUM Central (28 sep 2026): los responsables
       // registran horas de más, domingos, festivos y nocturnos; Dirección aprueba.
       { id: 'log-extras', label: 'Registrar extras', onClick: () => cargarRegistrarExtras() },
-      // Saldo de días de descanso y horas extra de cada trabajador (solo lectura).
-      { id: 'log-saldos', label: 'Saldo del personal', onClick: () => cargarSaldosPersonal() },
   ]},
   { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
@@ -4662,12 +4660,19 @@ function textoTarifa(t) {
 }
 function valorTrabajadorExtra(t) { return t.empresa_nif + '|' + t.formato_origen + '|' + t.num_empleado; }
 
+// Pestañas de Registrar extras: el formulario y el saldo del personal en la
+// misma página, para no sumar entradas al menú.
+function pestanasExtras(activa) {
+  const b = (id, texto, fn) => `<button onclick="${fn}" style="font-size:13px; padding:7px 16px; border-radius:6px; border:none; cursor:pointer; ${activa === id ? 'background:#fff; color:#1a1a18; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.08);' : 'background:transparent; color:#6b6a64;'}">${texto}</button>`;
+  return `<div style="display:inline-flex; gap:2px; background:#efeee9; border-radius:8px; padding:3px; margin-bottom:1rem;">${b('registrar', 'Registrar', 'cargarRegistrarExtras()')}${b('saldos', 'Saldo del personal', 'cargarSaldosPersonal()')}</div>`;
+}
+
 // ── Saldo del personal ──
 // Días de descanso (aprobados) y horas extra de cada trabajador, para los
 // responsables de Logística. Lo pendiente de aprobar va aparte.
 let saldosPersonal = { datos: null, filtro: '' };
 async function cargarSaldosPersonal() {
-  document.getElementById('content-title').textContent = 'Saldo del personal';
+  document.getElementById('content-title').textContent = 'Registrar extras';
   const body = document.getElementById('content-body');
   body.innerHTML = '<p class="loading-text">Cargando...</p>';
   try {
@@ -4688,6 +4693,7 @@ function pintarSaldosPersonal() {
   const body = document.getElementById('content-body');
   body.innerHTML = `
     <div style="max-width:980px;">
+      ${pestanasExtras('saldos')}
       <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Días de descanso: saldo inicial + días generados (domingos, festivos, nocturnos…) − descansos disfrutados, contando lo ya aprobado. Horas: horas extra registradas (las negativas descuentan). Lo que aún está pendiente de aprobar se muestra aparte.</p>
       <input type="text" id="sp-buscar" value="${saldosPersonal.filtro.replace(/"/g, '&quot;')}" placeholder="Buscar trabajador..." oninput="saldosPersonal.filtro = this.value; pintarSaldosPersonal(); const b = document.getElementById('sp-buscar'); b.focus(); b.setSelectionRange(b.value.length, b.value.length);" style="font-size:14px; padding:8px 10px; border-radius:8px; border:1px solid #d9d7cf; width:100%; max-width:320px; box-sizing:border-box; margin-bottom:12px;">
       <div style="background:#fff; border:1px solid #e2e2de; border-radius:10px; overflow-x:auto;">
@@ -4734,6 +4740,7 @@ function pintarRegistrarExtras() {
   const lbl = (t) => `<label style="display:block; font-size:12px; color:#6b6a64; margin:0 0 4px;">${t}</label>`;
   body.innerHTML = `
     <div style="max-width:980px;">
+      ${pestanasExtras('registrar')}
       <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Registra las horas de más, domingos, festivos y nocturnos de cada trabajador. Dirección los revisa y aprueba antes de pagarlos. Puedes elegir varios trabajadores a la vez si hicieron lo mismo.</p>
       <div style="background:#fff; border:1px solid #e2e2de; border-radius:10px; padding:1.1rem 1.25rem; margin-bottom:1.25rem;">
         ${ed ? `<div style="background:#E8F0F6; color:#2F6280; font-size:13px; padding:8px 12px; border-radius:6px; margin-bottom:12px;">Editando el registro de <strong>${ed.nombre_trabajador}</strong> del ${fechaCorta(ed.fecha)} · <span onclick="cancelarEdicionExtra()" style="text-decoration:underline; cursor:pointer;">cancelar</span></div>` : ''}
