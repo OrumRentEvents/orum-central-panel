@@ -93,6 +93,37 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .modal-seccion { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #6b6a64; margin: 12px 0 6px; }
 .modal-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 0.5px solid #f0f0ec; font-size: 13px; }
 .modal-item:last-child { border-bottom: none; }
+/* Columnas Pendiente / Preparado (como en el panel de escritorio) */
+.columnas { display: grid; grid-template-columns: 1fr; gap: 0 12px; }
+.col-titulo { font-size: 12px; font-weight: 600; margin: 4px 0 6px; }
+.col-titulo.pend { color: #854F0B; }
+.col-titulo.prep { color: #0F6E56; }
+.col-vacia { font-size: 12px; color: #9a988f; padding: 6px 0 12px; }
+@media (min-width: 700px) {
+  .columnas { grid-template-columns: 1fr 1fr; }
+  #app-body, .buscador-wrap { max-width: 1100px; }
+}
+.zona-prog { font-size: 11px; color: #6b6a64; margin-left: auto; white-space: nowrap; }
+.zona-prog.ok { color: #0F6E56; font-weight: 600; }
+/* Check por artículo */
+.chk { width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid #c9c6bb; background: #fff; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; margin-right: 10px; }
+.chk svg { width: 18px; height: 18px; stroke: #fff; fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.chk.on { background: #1D9E75; border-color: #1D9E75; }
+.chk.on svg { opacity: 1; }
+.chk.guardando { opacity: .5; }
+.chk.solo-ver { cursor: default; }
+.modal-item.on, .articulo-proy-item.on { color: #0F6E56; }
+.quien { font-size: 10px; color: #9a988f; display: block; }
+.aviso-cambio { font-size: 11px; color: #854F0B; background: #FAEEDA; border-radius: 4px; padding: 1px 6px; display: inline-block; margin-top: 2px; }
+.articulo-proy-item .chk { width: 26px; height: 26px; margin-right: 8px; }
+/* Por día */
+.dia-barra { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.dia-barra button { background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
+.dia-barra input { flex: 1; padding: 9px 10px; font-size: 15px; border: 0.5px solid #e2e2de; border-radius: 8px; background: #fff; color: #1a1a18; }
+.dia-rapidos { display: flex; gap: 6px; margin: -6px 0 14px; }
+.dia-rapidos button { font-size: 12px; padding: 5px 10px; border-radius: 14px; border: 0.5px solid #e2e2de; background: #fff; cursor: pointer; }
+.dia-rapidos button.active { background: #1a1a18; color: #fff; border-color: #1a1a18; }
+.dia-titulo { font-size: 13px; color: #6b6a64; margin-bottom: 10px; }
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300; }
 #toast.show { opacity: 1; }
 </style>
@@ -154,10 +185,13 @@ var PINES = {
 };
 var TAB_NOMBRES = { lavanderia: 'Lavanderia', office: 'Office', almacen: 'Almacen' };
 var TAB_SUBTABS = {
-  lavanderia: ['Por proyecto', 'Por material'],
-  office: ['Por proyecto', 'Por material'],
-  almacen: ['Por proyecto', 'Por material', 'Servicios', 'Logistica']
+  lavanderia: ['Por proyecto', 'Por material', 'Por dia'],
+  office: ['Por proyecto', 'Por material', 'Por dia'],
+  almacen: ['Por proyecto', 'Por material', 'Por dia', 'Servicios', 'Logistica']
 };
+var CON_BUSCADOR = { 'Por proyecto': 'Buscar cliente o num proyecto...', 'Por material': 'Buscar material (p. ej. silla, mantel, copa)...', 'Por dia': 'Buscar material o cliente...' };
+var ICONO_CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
+var diaElegido = null; // 'YYYY-MM-DD'
 
 // Desde la app móvil (/movil) se entra con la sesión de la persona, sin estos
 // PIN: Dirección y Logística ven las tres zonas; las tablets de Lavandería y
@@ -259,7 +293,7 @@ function cambiarTab(tab) {
   var b = document.getElementById('buscador');
   if (b) b.value = '';
   construirTabs();
-  if (datosCache[tab]) renderizar(datosCache[tab]);
+  if (datosCache[tab]) { guardarDatos(tab, datosCache[tab]); renderizar(datosCache[tab]); }
   else cargarDatos(tab);
 }
 
@@ -275,13 +309,7 @@ function cargarDatos(tab) {
     return r.json();
   }).then(function(data) {
     if (data.error) { document.getElementById('app-body').innerHTML = '<div class="loading">Error: ' + data.error + '</div>'; return; }
-    datosCache[tab] = data;
-    equipmentCache = {};
-    (data.equipment_detalle || []).forEach(function(e) {
-      var pid = String(e.proyecto_id);
-      if (!equipmentCache[pid]) equipmentCache[pid] = [];
-      equipmentCache[pid].push(e);
-    });
+    guardarDatos(tab, data);
     renderizar(data);
     document.getElementById('ultima-act').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   }).catch(function() {
@@ -295,12 +323,14 @@ function renderizar(data) {
   var subtabs = TAB_SUBTABS[tabActiva];
   var html = '<div class="subtabs">';
   subtabs.forEach(function(st) {
-    html += '<button class="subtab-btn' + (st === subtabActiva ? ' active' : '') + '" data-st="' + st + '">' + st + '</button>';
+    html += '<button class="subtab-btn' + (st === subtabActiva ? ' active' : '') + '" data-st="' + st + '">' + (st === 'Por dia' ? 'Por día' : st) + '</button>';
   });
   html += '</div>';
-  document.getElementById('buscador-wrap').style.display = subtabActiva === 'Por proyecto' ? 'block' : 'none';
+  document.getElementById('buscador-wrap').style.display = CON_BUSCADOR[subtabActiva] ? 'block' : 'none';
+  if (CON_BUSCADOR[subtabActiva]) document.getElementById('buscador').placeholder = CON_BUSCADOR[subtabActiva];
   if (subtabActiva === 'Por proyecto') html += renderPorProyecto(data);
   else if (subtabActiva === 'Por material') html += renderPorMaterial(data);
+  else if (subtabActiva === 'Por dia') html += renderPorDia(data);
   else if (subtabActiva === 'Servicios') html += renderServicios(data);
   else if (subtabActiva === 'Logistica') html += renderLogistica(data);
   document.getElementById('app-body').innerHTML = html;
@@ -338,6 +368,8 @@ function renderPorProyecto(data) {
   (data.orden_periodos || []).forEach(function(periodo) {
     var r = resumen[periodo] || { listos: 0, total: 0 };
     var pp = data.por_proyecto[periodo] || { confirmado: [], preparado: [] };
+    pp.confirmado.forEach(function(p) { p._listo = false; });
+    pp.preparado.forEach(function(p) { p._listo = true; });
     var todos = pp.confirmado.concat(pp.preparado);
     if (filtroTexto) {
       todos = todos.filter(function(p) {
@@ -349,24 +381,151 @@ function renderPorProyecto(data) {
     var pct = r.total > 0 ? Math.round((r.listos / r.total) * 100) : 0;
     html += '<div class="periodo-header">' + periodo + '</div>';
     if (!filtroTexto) html += '<div class="periodo-progress"><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div><span class="progress-text">' + r.listos + '/' + r.total + '</span></div>';
-    todos.sort(function(a, b) { return (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''); });
-    todos.forEach(function(p) {
-      var listo = esListo(p.estado);
-      var num = String(p.numero || '');
-      var pid = JSON.stringify(p).replace(/"/g, '&quot;');
-      html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '" data-p="' + pid + '">';
-      html += '<div class="card-top"><div style="flex:1">';
-      html += '<div class="card-numero-wrap"><span class="card-numero">#' + num + '</span>';
-      html += '<button class="copy-btn" data-num="' + num + '">copiar</button></div>';
-      html += '<div class="card-cliente">' + (p.cliente || '-') + '</div>';
-      html += '</div>' + estadoBadge(p.estado) + '</div>';
-      html += '<div class="card-meta">';
-      if (p.fecha_entrega) html += '<span>Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
-      if (p.localizacion) html += '<span>Loc: ' + p.localizacion + '</span>';
-      html += '</div></div>';
-    });
+    var porFecha = function(a, b) { return fechaOrden(a) .localeCompare(fechaOrden(b)); };
+    var pend = todos.filter(function(p) { return !p._listo; }).sort(porFecha);
+    var prep = todos.filter(function(p) { return p._listo; }).sort(porFecha);
+    html += '<div class="columnas"><div><div class="col-titulo pend">Pendiente de preparar (' + pend.length + ')</div>' + (pend.map(tarjetaProyecto).join('') || '<div class="col-vacia">Nada pendiente</div>') + '</div>';
+    html += '<div><div class="col-titulo prep">Preparado (' + prep.length + ')</div>' + (prep.map(tarjetaProyecto).join('') || '<div class="col-vacia">Nada preparado todavía</div>') + '</div></div>';
   });
   if (!html) return '<div class="loading">No hay proyectos</div>';
+  return html;
+}
+
+function fechaOrden(p) { return (p.fecha_entrega || '').split('/').reverse().join('-') + ' ' + (p.entrega_hora || ''); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function tarjetaProyecto(p) {
+  var num = String(p.numero || '');
+  var pid = JSON.stringify(p).replace(/"/g, '&quot;');
+  var h = '<div class="proyecto-card' + (p._listo ? ' listo' : '') + '" data-p="' + pid + '">';
+  h += '<div class="card-top"><div style="flex:1">';
+  h += '<div class="card-numero-wrap"><span class="card-numero">#' + num + '</span>';
+  h += '<button class="copy-btn" data-num="' + num + '">copiar</button></div>';
+  h += '<div class="card-cliente">' + esc(p.cliente || '-') + '</div>';
+  h += '</div>' + (p.zona_preparada ? '<span class="badge-estado badge-listo">Preparado</span>' : estadoBadge(p.estado)) + '</div>';
+  h += '<div class="card-meta">';
+  if (p.fecha_entrega) h += '<span>Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
+  if (p.localizacion) h += '<span>Loc: ' + esc(p.localizacion) + '</span>';
+  if (zonaActual() && p.zona_total) h += '<span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
+  h += '</div></div>';
+  return h;
+}
+
+// ── Checks por artículo (Lavandería y Office) ──
+function zonaActual() { return (tabActiva === 'lavanderia' || tabActiva === 'office') ? tabActiva : null; }
+function puedeMarcar() {
+  if (!zonaActual() || !perfilActivo || !perfilActivo.sesion) return false;
+  var propia = TABS_POR_ROL[perfilActivo.rol];
+  return propia ? propia[0] === tabActiva : ['Direccion', 'Logistica'].indexOf(perfilActivo.rol) !== -1;
+}
+function botonCheck(pid, articulo, check) {
+  if (!zonaActual() || !check) return '';
+  var on = check.marcado;
+  var attrs = puedeMarcar() ? ' data-chk="1" data-pid="' + esc(pid) + '" data-art="' + esc(articulo) + '" data-on="' + (on ? 1 : 0) + '"' : '';
+  return '<button class="chk' + (on ? ' on' : '') + (puedeMarcar() ? '' : ' solo-ver') + '"' + attrs + ' aria-label="' + (on ? 'Preparado' : 'Marcar como preparado') + '">' + ICONO_CHECK + '</button>';
+}
+function textoCheck(check) {
+  if (!check) return '';
+  if (check.marcado && check.usuario) {
+    var h = check.marcado_en ? new Date(check.marcado_en).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    return '<span class="quien">' + esc(check.usuario) + (h ? ' · ' + h : '') + '</span>';
+  }
+  if (check.cambio) return '<span class="aviso-cambio">Cantidad cambiada en Rentman: ' + check.cambio.antes + ' → ' + check.cambio.ahora + '. Vuelve a marcar</span>';
+  return '';
+}
+var proyectoModal = null;
+function marcarArticulo(btn) {
+  if (btn.classList.contains('guardando')) return;
+  var marcado = btn.getAttribute('data-on') !== '1';
+  var pid = btn.getAttribute('data-pid'), art = btn.getAttribute('data-art');
+  btn.classList.add('guardando');
+  fetch('/api/preparacion/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proyecto_id: pid, area: tabActiva, articulo: art, marcado: marcado }) })
+    .then(function(r) { return r.json().then(function(d) { d._ok = r.ok; return d; }); })
+    .then(function(d) {
+      btn.classList.remove('guardando');
+      if (!d._ok || d.error) { mostrarToast(d.error || 'No se ha podido guardar'); return; }
+      // Se aplica en lo que ya hay en pantalla y se recargan los datos en segundo plano
+      aplicarCheckLocal(pid, art, d.check);
+      if (proyectoModal) abrirModal(proyectoModal);
+      else if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
+      mostrarToast(marcado ? 'Marcado como preparado' : 'Desmarcado');
+      recargarSilencioso();
+    })
+    .catch(function() { btn.classList.remove('guardando'); mostrarToast('Sin conexión'); });
+}
+function aplicarCheckLocal(pid, art, check) {
+  var d = datosCache[tabActiva];
+  if (!d) return;
+  (equipmentCache[String(pid)] || []).forEach(function(e) { if (e.articulo === art) e.check = check; });
+  (d.lineas_dia || []).forEach(function(l) { if (String(l.proyecto_id) === String(pid) && l.articulo === art) l.check = check; });
+  (d.por_material || []).forEach(function(f) { f.articulos.forEach(function(a) { if (a.articulo === art) a.detalle.forEach(function(x) { if (String(x.proyecto_id) === String(pid)) x.check = check; }); }); });
+}
+function recargarSilencioso() {
+  var tab = tabActiva;
+  var url = perfilActivo.sesion ? '/api/preparacion?vista=' + tab + '&t=' + Date.now() : '/api/preparacion-publica?token=' + perfilActivo.token + '&vista=' + tab + '&t=' + Date.now();
+  fetch(url).then(function(r) { return r.ok ? r.json() : null; }).then(function(data) {
+    if (!data || data.error || tab !== tabActiva) return;
+    guardarDatos(tab, data);
+    // No se repinta con el detalle de un proyecto abierto ni mientras se escribe en el buscador
+    if (!proyectoModal && document.activeElement !== document.getElementById('buscador') && document.activeElement !== document.getElementById('dia-input')) renderizar(data);
+    else if (proyectoModal) {
+      var todos = [];
+      (data.orden_periodos || []).forEach(function(per) { var pp = data.por_proyecto[per]; if (pp) todos = todos.concat(pp.confirmado, pp.preparado); });
+      var nuevo = todos.filter(function(p) { return String(p.id) === String(proyectoModal.id); })[0];
+      if (nuevo) { proyectoModal = nuevo; abrirModal(nuevo); }
+    }
+    document.getElementById('ultima-act').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }).catch(function() {});
+}
+function guardarDatos(tab, data) {
+  datosCache[tab] = data;
+  equipmentCache = {};
+  (data.equipment_detalle || []).forEach(function(e) {
+    var pid = String(e.proyecto_id);
+    if (!equipmentCache[pid]) equipmentCache[pid] = [];
+    equipmentCache[pid].push(e);
+  });
+}
+
+// ── Por día: el material de un día concreto, agrupado por familia ──
+function isoDia(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function sumarDias(iso, n) { var p = iso.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + n); return isoDia(d); }
+function renderPorDia(data) {
+  var hoy = isoDia(new Date());
+  if (!diaElegido) diaElegido = sumarDias(hoy, 1);
+  var min = sumarDias(hoy, -3), max = sumarDias(hoy, 30);
+  var p = diaElegido.split('-');
+  var nombre = new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  var html = '<div class="dia-barra"><button data-dia="-1" aria-label="Día anterior">‹</button><input type="date" id="dia-input" value="' + diaElegido + '" min="' + min + '" max="' + max + '"><button data-dia="1" aria-label="Día siguiente">›</button></div>';
+  html += '<div class="dia-rapidos">' + [['Hoy', hoy], ['Mañana', sumarDias(hoy, 1)], ['Pasado mañana', sumarDias(hoy, 2)]].map(function(x) { return '<button data-ir="' + x[1] + '"' + (x[1] === diaElegido ? ' class="active"' : '') + '>' + x[0] + '</button>'; }).join('') + '</div>';
+  html += '<div class="dia-titulo">' + nombre.charAt(0).toUpperCase() + nombre.slice(1) + '</div>';
+  var lineas = (data.lineas_dia || []).filter(function(l) { return l.dia === diaElegido; });
+  if (filtroTexto) lineas = lineas.filter(function(l) { return (l.articulo + ' ' + l.familia + ' ' + l.cliente + ' ' + l.numero).toLowerCase().indexOf(filtroTexto) !== -1; });
+  if (!lineas.length) return html + '<div class="loading">' + (filtroTexto ? 'Nada coincide ese día' : 'No sale material ese día') + '</div>';
+  // familia → artículo → { total, proyectos }
+  var fams = {};
+  lineas.forEach(function(l) {
+    var f = fams[l.familia] = fams[l.familia] || {};
+    var a = f[l.articulo] = f[l.articulo] || { total: 0, proyectos: {} };
+    a.total += l.cantidad;
+    var pr = a.proyectos[l.proyecto_id] = a.proyectos[l.proyecto_id] || { numero: l.numero, cliente: l.cliente, hora: l.hora, cantidad: 0, check: l.check, proyecto_id: l.proyecto_id };
+    pr.cantidad += l.cantidad;
+  });
+  Object.keys(fams).sort().forEach(function(fam, fi) {
+    var arts = fams[fam];
+    // Desplegadas desde el principio: se ve de un vistazo todo lo que sale ese día
+    html += '<div class="familia-header" data-fi="d' + fi + '"><span class="familia-nombre">' + esc(fam) + '</span><span class="familia-chevron open" id="chev-d' + fi + '">v</span></div>';
+    html += '<div class="familia-body open" id="fam-d' + fi + '">';
+    Object.keys(arts).sort().forEach(function(art) {
+      var a = arts[art];
+      html += '<div class="articulo-row"><div class="articulo-top"><span class="articulo-nombre">' + esc(art) + '</span><span class="articulo-total">' + Math.round(a.total * 100) / 100 + '</span></div><div style="margin-top:4px;">';
+      Object.keys(a.proyectos).map(function(k) { return a.proyectos[k]; }).sort(function(x, y) { return (x.hora || '').localeCompare(y.hora || ''); }).forEach(function(d) {
+        var on = d.check && d.check.marcado;
+        html += '<div class="articulo-proy-item' + (on ? ' on' : '') + '">' + botonCheck(d.proyecto_id, art, d.check) + '<span style="flex:1;">#' + d.numero + ' ' + esc(d.cliente || '') + textoCheck(d.check) + '</span><span style="color:#9a988f;font-size:11px;margin:0 8px;">' + esc(d.hora || '') + '</span><span style="font-weight:500;">x' + Math.round(d.cantidad * 100) / 100 + '</span></div>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
   return html;
 }
 
@@ -375,10 +534,15 @@ function renderPorMaterial(data) {
   if (!familias.length) return '<div class="loading">Sin articulos en este periodo</div>';
   var html = '';
   familias.forEach(function(f, fi) {
-    html += '<div class="familia-header" data-fi="' + fi + '"><span class="familia-nombre">' + f.familia + '</span><span class="familia-chevron" id="chev-' + fi + '">v</span></div>';
-    html += '<div class="familia-body" id="fam-' + fi + '">';
-    f.articulos.forEach(function(a) {
-      html += '<div class="articulo-row"><div class="articulo-top"><span class="articulo-nombre">' + a.articulo + '</span><span class="articulo-total">' + a.total + '</span></div>';
+    // Con texto en el buscador: solo los artículos que coinciden (o toda la familia si coincide su nombre), desplegados
+    var articulos = !filtroTexto || f.familia.toLowerCase().indexOf(filtroTexto) !== -1 ? f.articulos
+      : f.articulos.filter(function(a) { return a.articulo.toLowerCase().indexOf(filtroTexto) !== -1; });
+    if (!articulos.length) return;
+    var abierta = filtroTexto ? ' open' : '';
+    html += '<div class="familia-header" data-fi="' + fi + '"><span class="familia-nombre">' + esc(f.familia) + (filtroTexto ? ' <span style="color:#9a988f;font-weight:400;">(' + articulos.length + ')</span>' : '') + '</span><span class="familia-chevron' + abierta + '" id="chev-' + fi + '">v</span></div>';
+    html += '<div class="familia-body' + abierta + '" id="fam-' + fi + '">';
+    articulos.forEach(function(a) {
+      html += '<div class="articulo-row"><div class="articulo-top"><span class="articulo-nombre">' + esc(a.articulo) + '</span><span class="articulo-total">' + a.total + '</span></div>';
       if (a.detalle && a.detalle.length) {
         var sorted = a.detalle.slice().sort(function(x, y) {
           var fx = x.fecha_entrega ? x.fecha_entrega.split('/').reverse().join('-') : '';
@@ -387,7 +551,8 @@ function renderPorMaterial(data) {
         });
         html += '<div style="margin-top:4px;">';
         sorted.forEach(function(d) {
-          html += '<div class="articulo-proy-item"><span style="color:#1a1a18;">#' + d.proyecto_numero + ' ' + (d.cliente || '') + '</span><span style="color:#9a988f;font-size:11px;margin:0 8px;">' + (d.fecha_entrega || '') + '</span><span style="font-weight:500;">x' + d.cantidad + '</span></div>';
+          var on = d.check && d.check.marcado;
+          html += '<div class="articulo-proy-item' + (on ? ' on' : '') + '">' + botonCheck(d.proyecto_id, a.articulo, d.check) + '<span style="flex:1;">#' + d.proyecto_numero + ' ' + esc(d.cliente || '') + textoCheck(d.check) + '</span><span style="color:#9a988f;font-size:11px;margin:0 8px;">' + (d.fecha_entrega || '') + '</span><span style="font-weight:500;">x' + d.cantidad + '</span></div>';
         });
         html += '</div>';
       }
@@ -395,6 +560,7 @@ function renderPorMaterial(data) {
     });
     html += '</div>';
   });
+  if (!html) return '<div class="loading">Ningún material coincide con "' + esc(filtroTexto) + '"</div>';
   return html;
 }
 
@@ -436,12 +602,15 @@ function renderLogistica(data) {
 }
 
 function abrirModal(p) {
+  proyectoModal = p;
   document.getElementById('modal-numero').textContent = '#' + p.numero;
   document.getElementById('modal-titulo').textContent = p.cliente || '-';
   var body = document.getElementById('modal-body');
   var html = '';
   if (p.fecha_entrega) html += '<div style="font-size:13px;color:#6b6a64;margin-bottom:8px;">Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + (p.localizacion ? '  Loc: ' + p.localizacion : '') + '</div>';
-  html += estadoBadge(p.estado);
+  html += p.zona_preparada ? '<span class="badge-estado badge-listo">Preparado</span>' : estadoBadge(p.estado);
+  if (zonaActual() && p.zona_total) html += ' <span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '" style="margin-left:6px;">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
+  if (puedeMarcar()) html += '<div style="font-size:12px;color:#6b6a64;margin-top:8px;">Marca cada artículo cuando esté preparado. Con todo marcado, el proyecto pasa a Preparado.</div>';
   var items = equipmentCache[String(p.id)] || [];
   html += '<div class="modal-seccion">Material</div>';
   if (items.length) {
@@ -453,8 +622,12 @@ function abrirModal(p) {
     });
     Object.keys(familias).sort().forEach(function(fam) {
       html += '<div style="font-size:11px;color:#9a988f;margin:8px 0 4px;font-weight:600;">' + fam + '</div>';
-      familias[fam].forEach(function(e) {
-        html += '<div class="modal-item"><span style="flex:1;">' + (e.articulo || '') + '</span><span style="font-weight:500;">x' + (e.cantidad || 0) + '</span></div>';
+      // Un artículo puede venir en varias líneas (subproyectos): una fila por artículo con la suma
+      var porArt = {};
+      familias[fam].forEach(function(e) { var a = porArt[e.articulo] = porArt[e.articulo] || { articulo: e.articulo, cantidad: 0, check: e.check }; a.cantidad += e.cantidad || 0; });
+      Object.keys(porArt).forEach(function(k) {
+        var e = porArt[k], on = e.check && e.check.marcado;
+        html += '<div class="modal-item' + (on ? ' on' : '') + '">' + botonCheck(p.id, e.articulo, e.check) + '<span style="flex:1;">' + esc(e.articulo || '') + textoCheck(e.check) + '</span><span style="font-weight:500;">x' + Math.round(e.cantidad * 100) / 100 + '</span></div>';
       });
     });
   } else {
@@ -466,6 +639,8 @@ function abrirModal(p) {
 }
 
 function cerrarModal() {
+  proyectoModal = null;
+  if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
   document.getElementById('modal-overlay').classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -483,6 +658,12 @@ document.addEventListener('click', function(e) {
   var famHeader = e.target.closest('.familia-header');
   var modalOverlay = e.target.closest('#modal-overlay');
   var modalBox = e.target.closest('#modal-box');
+  var chk = e.target.closest('[data-chk]');
+  if (chk) { e.stopPropagation(); marcarArticulo(chk); return; }
+  var flecha = e.target.closest('[data-dia]');
+  if (flecha) { diaElegido = sumarDias(diaElegido, +flecha.getAttribute('data-dia')); renderizar(datosCache[tabActiva]); return; }
+  var rapido = e.target.closest('[data-ir]');
+  if (rapido) { diaElegido = rapido.getAttribute('data-ir'); renderizar(datosCache[tabActiva]); return; }
 
   if (copyBtn) {
     e.stopPropagation();
@@ -508,6 +689,11 @@ document.addEventListener('click', function(e) {
 });
 
 document.getElementById('modal-close-btn').addEventListener('click', cerrarModal);
+document.addEventListener('change', function(e) {
+  if (e.target.id === 'dia-input' && e.target.value) { diaElegido = e.target.value; renderizar(datosCache[tabActiva]); }
+});
+// Se actualiza solo cada minuto (lo que marquen otros, cambios de Rentman) si la pantalla está a la vista
+setInterval(function() { if (perfilActivo && !document.hidden && datosCache[tabActiva]) recargarSilencioso(); }, 60000);
 document.getElementById('btn-recargar').addEventListener('click', recargar);
 document.getElementById('buscador') && document.getElementById('buscador').addEventListener('input', function() {
   filtroTexto = this.value.toLowerCase();
@@ -518,7 +704,7 @@ initKeypad();
 
 function entrarConSesion(u) {
   var tabs = TABS_POR_ROL[u.rol] || ['almacen', 'lavanderia', 'office'];
-  perfilActivo = { sesion: true, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparacion', tabs: tabs };
+  perfilActivo = { sesion: true, rol: u.rol, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparacion', tabs: tabs };
   tabActiva = tabs[0];
   document.getElementById('app').style.display = 'block';
   document.getElementById('app-titulo').textContent = perfilActivo.nombre;

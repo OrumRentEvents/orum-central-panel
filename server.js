@@ -935,6 +935,34 @@ async function construirRespuestaPreparacion(vista) {
   else if (vista === 'office') equipmentFiltrado = equipment.filter(e => familiaPerteneceA(e.familia, FAMILIAS_OFFICE));
   equipmentFiltrado = equipmentFiltrado.filter(e => proyectoPorId[String(e.proyecto_id)]);
 
+  // Checks por artículo de Lavandería/Office (sql/preparacion_checks.sql). Un
+  // check vale mientras la cantidad en Rentman sea la que había al marcarlo.
+  const area = (vista === 'lavanderia' || vista === 'office') ? vista : null;
+  const claveArt = (pid, art) => String(pid) + '|' + (art || '');
+  const cantidadesArt = {};
+  equipmentFiltrado.forEach(e => { const k = claveArt(e.proyecto_id, e.articulo); cantidadesArt[k] = (cantidadesArt[k] || 0) + (parseFloat(e.cantidad) || 0); });
+  const checks = {};
+  if (area) {
+    const { data, error } = await supabase.from('preparacion_checks').select('proyecto_id,articulo,cantidad,usuario,marcado_en').eq('area', area);
+    if (error) throw error;
+    (data || []).forEach(c => { checks[claveArt(c.proyecto_id, c.articulo)] = c; });
+  }
+  const estadoCheck = (pid, art) => {
+    if (!area) return null;
+    const k = claveArt(pid, art), c = checks[k];
+    if (!c) return { marcado: false };
+    const ahora = Math.round((cantidadesArt[k] || 0) * 100) / 100, antes = Math.round(Number(c.cantidad) * 100) / 100;
+    if (ahora !== antes) return { marcado: false, cambio: { antes, ahora } };
+    return { marcado: true, usuario: c.usuario, marcado_en: c.marcado_en };
+  };
+  const progresoArea = {}; // pid -> { marcados, total }
+  if (area) Object.keys(cantidadesArt).forEach(k => {
+    const i = k.indexOf('|'), pid = k.slice(0, i), art = k.slice(i + 1);
+    if (!progresoArea[pid]) progresoArea[pid] = { marcados: 0, total: 0 };
+    progresoArea[pid].total++;
+    if (estadoCheck(pid, art).marcado) progresoArea[pid].marcados++;
+  });
+
   const idsProyectosConEquipo = new Set(equipmentFiltrado.map(e => String(e.proyecto_id)));
   const proyectosVista = vista === 'almacen'
     ? proyectosConfirmados
@@ -946,8 +974,11 @@ async function construirRespuestaPreparacion(vista) {
     const fechaEntrega = parsearFechaDDMMYYYY(p.entrega_fecha);
     const periodo = clasificarPeriodo(fechaEntrega, modo);
     if (!periodo) return;
-    const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado));
-    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false };
+    // En Lavandería/Office, "preparado" también cuando su zona tiene todo marcado
+    const prog = progresoArea[String(p.id)];
+    const zonaLista = !!(prog && prog.total && prog.marcados === prog.total);
+    const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado)) || zonaLista;
+    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: zonaLista, zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0 };
     if (estaListo) porProyecto[periodo].preparado.push(item);
     else porProyecto[periodo].confirmado.push(item);
   });
@@ -965,7 +996,7 @@ async function construirRespuestaPreparacion(vista) {
     if (!porMaterial[familia][articulo]) porMaterial[familia][articulo] = { total: 0, detalle: [] };
     const cantidad = parseFloat(e.cantidad) || 0;
     porMaterial[familia][articulo].total += cantidad;
-    porMaterial[familia][articulo].detalle.push({ proyecto_numero: proyecto.numero, cliente: proyecto.cliente, fecha_entrega: proyecto.entrega_fecha, periodo, cantidad });
+    porMaterial[familia][articulo].detalle.push({ proyecto_id: proyecto.id, proyecto_numero: proyecto.numero, cliente: proyecto.cliente, fecha_entrega: proyecto.entrega_fecha, periodo, cantidad, check: estadoCheck(proyecto.id, e.articulo) });
   });
 
   const porMaterialArray = Object.keys(porMaterial).sort().map(familia => ({
@@ -993,10 +1024,27 @@ async function construirRespuestaPreparacion(vista) {
 
   const equipmentDetalle = equipmentFiltrado.map(e => ({
     proyecto_id: e.proyecto_id, familia: e.familia || 'Sin familia',
-    articulo: e.articulo || '', cantidad: parseFloat(e.cantidad) || 0
+    articulo: e.articulo || '', cantidad: parseFloat(e.cantidad) || 0, check: estadoCheck(e.proyecto_id, e.articulo)
   }));
 
-  const respuesta = { vista, modo, orden_periodos: ordenPeriodos, resumen_periodos: resumenPeriodos, por_proyecto: porProyecto, por_material: porMaterialArray, equipment_detalle: equipmentDetalle, ultima_actualizacion: proyectosResp.ultima_actualizacion };
+  // Vista "Por día": todo el material de cada día, de 3 días atrás a 30 por
+  // delante, para elegir la fecha en pantalla sin volver a pedir datos.
+  const hoy0 = inicioDelDia(new Date()).getTime();
+  const lineasDia = [];
+  equipmentFiltrado.forEach(e => {
+    const p = proyectoPorId[String(e.proyecto_id)];
+    const f = p && parsearFechaDDMMYYYY(p.entrega_fecha);
+    if (!f) return;
+    const dias = Math.round((inicioDelDia(f).getTime() - hoy0) / 86400000);
+    if (dias < -3 || dias > 30) return;
+    lineasDia.push({
+      dia: f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0'),
+      proyecto_id: p.id, numero: p.numero, cliente: p.cliente, hora: p.entrega_hora || '',
+      familia: e.familia || 'Sin familia', articulo: e.articulo || '', cantidad: parseFloat(e.cantidad) || 0, check: estadoCheck(p.id, e.articulo)
+    });
+  });
+
+  const respuesta = { vista, modo, area, orden_periodos: ordenPeriodos, resumen_periodos: resumenPeriodos, por_proyecto: porProyecto, por_material: porMaterialArray, equipment_detalle: equipmentDetalle, lineas_dia: lineasDia, ultima_actualizacion: proyectosResp.ultima_actualizacion };
 
   if (vista === 'almacen') {
     const serviciosResp = await llamarOrumCentral('servicios');
@@ -1219,6 +1267,39 @@ app.get('/api/preparacion', requiereLogin, bloquearComercial, async (req, res) =
   } catch (err) {
     console.error('Error en /api/preparacion:', err);
     res.status(500).json({ error: 'Error al construir vista de preparación: ' + err.message });
+  }
+});
+
+// Marcar / desmarcar un artículo como preparado en Lavandería u Office. La
+// zona marca lo suyo; Dirección y Logística (almacén) pueden corregir ambas.
+// La cantidad se toma de Supabase en ese momento (no del navegador).
+app.post('/api/preparacion/check', requiereLogin, async (req, res) => {
+  try {
+    const u = req.session.usuario;
+    const { proyecto_id, area, articulo, marcado } = req.body || {};
+    if (!['lavanderia', 'office'].includes(area)) return res.status(400).json({ error: 'Zona no válida' });
+    const zonaPropia = VISTA_PREPARACION_POR_ROL[u.rol];
+    if (!(zonaPropia === area || (!zonaPropia && ['Direccion', 'Logistica'].includes(u.rol)))) return res.status(403).json({ error: 'No puedes marcar artículos de esta zona' });
+    const pid = Number(proyecto_id);
+    if (!pid || !articulo) return res.status(400).json({ error: 'Faltan datos' });
+    if (!marcado) {
+      const { error } = await supabase.from('preparacion_checks').delete().eq('area', area).eq('proyecto_id', pid).eq('articulo', articulo);
+      if (error) throw error;
+      return res.json({ ok: true, check: { marcado: false } });
+    }
+    const familias = area === 'lavanderia' ? FAMILIAS_LAVANDERIA : FAMILIAS_OFFICE;
+    const { data, error } = await supabase.from('equipment').select('familia,articulo,cantidad').eq('proyecto_id', pid).eq('articulo', articulo);
+    if (error) throw error;
+    const lineas = (data || []).filter(e => familiaPerteneceA(e.familia, familias));
+    if (!lineas.length) return res.status(404).json({ error: 'Ese artículo ya no está en el proyecto: recarga' });
+    const cantidad = Math.round(lineas.reduce((t, e) => t + (parseFloat(e.cantidad) || 0), 0) * 100) / 100;
+    const fila = { area, proyecto_id: pid, articulo, cantidad, usuario: u.nombre || u.usuario, marcado_en: new Date().toISOString() };
+    const r = await supabase.from('preparacion_checks').upsert(fila, { onConflict: 'area,proyecto_id,articulo' });
+    if (r.error) throw r.error;
+    res.json({ ok: true, check: { marcado: true, usuario: fila.usuario, marcado_en: fila.marcado_en } });
+  } catch (err) {
+    console.error('Error en /api/preparacion/check:', err);
+    res.status(500).json({ error: 'No se ha podido guardar: ' + err.message });
   }
 });
 
