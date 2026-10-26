@@ -942,6 +942,7 @@ const ICONOS_MENU = {
   wrench: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.9 5.6L3 14.7 6.3 18l5.8-5.8a4.5 4.5 0 0 0 5.6-5.9l-3 3-2.5-2.5 3-3Z"/></svg>',
   truck: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7.5" cy="18.5" r="1.6"/><circle cx="17.5" cy="18.5" r="1.6"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M3 16v-4h4"/><path d="M21 8v4h-4"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>',
 };
 function iconoMenuHtml(nombre) {
   return '<span class="nav-icon">' + (ICONOS_MENU[nombre] || '') + '</span>';
@@ -962,16 +963,11 @@ const MENU = [
       { id: 'fin-cierre-mensual', label: 'Cierre Mensual', onClick: () => cargarCierreMensual() },
       { id: 'fin-informe-semanal', label: 'Informe semanal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarInformeSemanal() },
       { id: 'fin-fianzas', label: 'Fianzas', onClick: () => cargarFianzas() },
-      { id: 'fin-historico', label: 'Histórico mensual', onClick: () => renderProximamente('Financiero · Histórico mensual') },
       { id: 'fin-auditoria', label: 'Auditoría / Alertas', onClick: () => cargarFinancieroAuditoria() },
-      { id: 'fin-rentabilidad', label: 'Rentabilidad', onClick: () => renderProximamente('Financiero · Rentabilidad') },
-      { id: 'fin-evolucion', label: 'Evolución', onClick: () => renderProximamente('Financiero · Evolución') },
-      { id: 'fin-caja', label: 'Caja', onClick: () => window.open('https://caja-orum-production.up.railway.app', '_blank') },
-      { id: 'fin-holded', label: 'Holded', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => window.open('/holded.html', '_blank') },
       { id: 'fin-fact-listado', label: 'Facturas Proveedores', onClick: () => cargarFacturasProveedores() },
-      { id: 'fin-fact-config', label: 'Config. Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
-      { id: 'fin-cuentas-gasto', label: 'Config. Cuentas de gasto', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarCuentasGasto() },
-      { id: 'fin-gastos-anuales', label: 'Config. Pagos Anuales', onClick: () => cargarGastosAnuales() },
+      // "↗" = se abre en pestaña nueva (otra app)
+      { id: 'fin-caja', label: 'Caja ↗', especial: true, onClick: () => window.open('https://caja-orum-production.up.railway.app', '_blank') },
+      { id: 'fin-holded', label: 'Holded ↗', especial: true, rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => window.open('/holded.html', '_blank') },
   ]},
   // Personal (28 sep 2026): antes Financiero → Personal; ahora módulo propio
   // (nóminas, informes, extras, análisis, histórico y comparador). Solo
@@ -985,23 +981,21 @@ const MENU = [
       { id: 'per-analisis', label: 'Análisis', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('analisis') },
       { id: 'per-historico', label: 'Histórico de personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('historico') },
       { id: 'per-comparador', label: 'Comparador', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('comparador') },
-      { id: 'per-config', label: 'Configuración', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('config') },
   ]},
   { id: 'comercial', icon: 'star', group: 'gestion', label: 'Comercial', submenu: [
       { id: 'com-resumen', label: 'Resumen', onClick: () => cargarResumenComercial() },
-      { id: 'com-proyectos', label: 'Proyectos', onClick: () => cargarProyectos() },
+      // El rol Comercial solo ve este apartado: para el resto Proyectos ya está arriba.
+      { id: 'com-proyectos', label: 'Proyectos', rolesPermitidos: ['Comercial'], onClick: () => cargarProyectos() },
       { id: 'com-presupuestos', label: 'Presupuestos', onClick: () => cargarPresupuestos() },
       { id: 'com-leads', label: 'Leads', onClick: () => cargarLeads() },
-      { id: 'com-fianzas', label: 'Fianzas', onClick: () => renderProximamente('Fianzas') },
-      { id: 'com-comisiones', label: 'Comisiones', onClick: () => renderProximamente('Comisiones') },
   ]},
-  { id: 'informe', icon: 'chart', group: 'gestion', label: 'Informe Mensual', especial: true, onClick: () => {
-      const hoy = new Date();
-      window.open('/api/reporte-mes?mes=' + (hoy.getMonth() + 1) + '&año=' + hoy.getFullYear(), '_blank');
-  }},
   { id: 'analisis', icon: 'flask', group: 'gestion', label: 'Análisis', submenu: [
       { id: 'analisis-material', label: 'Material', onClick: () => cargarEstadisticasMaterial() },
       { id: 'analisis-rutas', label: 'Rutas & Conductores', onClick: () => cargarEstadisticasRutas() },
+      { id: 'informe', label: 'Informe mensual ↗', especial: true, onClick: () => {
+          const hoy = new Date();
+          window.open('/api/reporte-mes?mes=' + (hoy.getMonth() + 1) + '&año=' + hoy.getFullYear(), '_blank');
+      }},
   ]},
   { id: 'log', icon: 'box', group: 'operaciones', label: 'Logística', submenu: [
       { id: 'log-resumen', label: 'Inicio', onClick: () => cargarResumenLogistica() },
@@ -1010,11 +1004,12 @@ const MENU = [
       // App de conductores (PIN propio, no la contraseña de USUARIOS) — vive en el mismo
       // Railway (public/rutas.html) pero no estaba enlazada desde el menú, solo accesible
       // con la URL directa. Se abre en pestaña nueva, igual que Caja.
-      { id: 'log-rutas-app', label: 'Rutas', onClick: () => window.open('/rutas.html', '_blank') },
+      { id: 'log-rutas-app', label: 'Rutas ↗', especial: true, onClick: () => window.open('/rutas.html', '_blank') },
       // Mismas estadísticas que Análisis → Rutas & Conductores (misma función,
       // no se duplica lógica) — pedido explícito del usuario para que Logística
-      // las tenga también en su propio apartado.
-      { id: 'log-rutas-stats', label: 'Rutas & Conductores (estadísticas)', onClick: () => cargarEstadisticasRutas() },
+      // las tenga también en su propio apartado. Solo rol Logística: el resto
+      // ya las tiene en Análisis.
+      { id: 'log-rutas-stats', label: 'Rutas & Conductores (estadísticas)', rolesPermitidos: ['Logistica'], onClick: () => cargarEstadisticasRutas() },
       // Antes 3 items sueltos (Lavandería/Office/Almacén) — mismo dato y misma
       // función cargarPreparacion() de siempre, solo que ahora la vista se
       // cambia con pestañas dentro de la página en vez de con 3 entradas de
@@ -1023,9 +1018,9 @@ const MENU = [
       { id: 'log-preparacion', label: 'Preparación', onClick: () => cargarPreparacion('almacen') },
       // Formulario de extras de ORUM Central (28 sep 2026): los responsables
       // registran horas de más, domingos, festivos y nocturnos; Dirección aprueba.
-      { id: 'log-extras', label: 'Registrar extras', onClick: () => cargarRegistrarExtras() },
+      // Solo rol Logística: Dirección/Contabilidad lo tienen en Personal.
+      { id: 'log-extras', label: 'Registrar extras', rolesPermitidos: ['Logistica'], onClick: () => cargarRegistrarExtras() },
   ]},
-  { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
   // Módulo Vehículos (public/vehiculos.js): flota, fichas, vencimientos y mantenimientos.
   { id: 'vehiculos', icon: 'truck', group: 'operaciones', label: 'Vehículos', submenu: [
@@ -1035,17 +1030,26 @@ const MENU = [
       { id: 'veh-repostajes', label: 'Repostajes', onClick: () => cargarRepostajesVehiculos() },
       { id: 'veh-ranking', label: 'Ranking conductores', onClick: () => cargarRankingConductores() },
   ]},
-  { id: 'muelle', icon: 'truck', group: 'operaciones', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
   // Material perdido que vuelve: Logística confirma el proyecto, Administración quita el cargo — public/recuperacion.html
   { id: 'recuperacion', icon: 'box', group: 'operaciones', label: 'Material recuperado', rolesPermitidos: ['Direccion', 'Logistica', 'Contabilidad'], onClick: () => cargarRecuperacion() },
   // Chat por departamento (Office, Lavandería, Mantenimiento) — public/chat.html
   { id: 'chat', icon: 'chat', group: 'operaciones', label: 'Chat', rolesPermitidos: ['Direccion', 'Logistica'], onClick: () => cargarChat() },
-  // Usuarios del panel (oct 2026): antes en la hoja USUARIOS de Google. Solo Sergio.
-  { id: 'usuarios', icon: 'users', group: 'sistema', label: 'Usuarios', soloUsuario: 'sergio', onClick: () => cargarUsuarios() },
-  { id: 'sync-status', icon: 'refresh', group: 'sistema', label: 'Estado Sincronización', especial: true, onClick: () => {
-      window.open('/sync-status', '_blank');
-  }},
+  // Configuración (26 oct 2026): juntas aquí las "Config." que estaban
+  // repartidas por Financiero y Personal, más Usuarios y Estado Sincronización.
+  { id: 'config', icon: 'gear', group: 'sistema', label: 'Configuración', submenu: [
+      { id: 'fin-fact-config', label: 'Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
+      { id: 'fin-cuentas-gasto', label: 'Cuentas de gasto', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarCuentasGasto() },
+      { id: 'fin-gastos-anuales', label: 'Pagos Anuales', onClick: () => cargarGastosAnuales() },
+      { id: 'per-config', label: 'Personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('config') },
+      // Usuarios del panel (oct 2026): antes en la hoja USUARIOS de Google. Solo Sergio.
+      { id: 'usuarios', label: 'Usuarios', soloUsuario: 'sergio', onClick: () => cargarUsuarios() },
+      { id: 'sync-status', label: 'Estado Sincronización ↗', especial: true, onClick: () => window.open('/sync-status', '_blank') },
+  ]},
 ];
+// Mismo criterio de permisos para apartados y subapartados
+function itemVisibleUsuario(item) {
+  return (!item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase()) && (!item.rolesPermitidos || item.rolesPermitidos.includes(usuarioActual.rol));
+}
 const GRUPOS_MENU = [
   { id: 'principal', label: 'Principal' },
   { id: 'gestion', label: 'Gestión' },
@@ -1063,10 +1067,10 @@ function construirMenu() {
   nav.appendChild(searchWrap);
 
   // Rol Comercial: solo ve el apartado Comercial. Rol Logística: el apartado
-  // Logística completo (incluye Servicios Isabella) + Incidencias,
-  // Mantenimiento y Pantalla Muelle (pedido explícito del usuario — hoy son
-  // placeholders "próximamente", pero deben ser visibles para Logística
-  // desde ya). Nada más del menú en ninguno de los dos casos.
+  // Logística completo (incluye Servicios Isabella) + Mantenimiento,
+  // Vehículos, Chat y Material recuperado (Incidencias y Pantalla Muelle,
+  // que eran "próximamente", se quitaron del menú el 26 oct 2026).
+  // Nada más del menú en ninguno de los dos casos.
   const rolRestringido = usuarioActual.rol === 'Comercial' || usuarioActual.rol === 'Logistica';
   const menuVisible = menuVisibleUsuario();
 
@@ -1101,8 +1105,8 @@ function construirMenu() {
 }
 function menuVisibleUsuario() {
   return usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle', 'chat', 'recuperacion'].includes(item.id))
-    : MENU.filter(item => (!item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase()) && (!item.rolesPermitidos || item.rolesPermitidos.includes(usuarioActual.rol)));
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'mantenimiento', 'vehiculos', 'chat', 'recuperacion'].includes(item.id))
+    : MENU.filter(itemVisibleUsuario);
 }
 
 // ================================================================
@@ -1118,8 +1122,8 @@ function accesosDisponibles() {
   const mapa = {};
   menuVisibleUsuario().forEach(item => {
     if (item.submenu && !item.especial) {
-      item.submenu.filter(sub => !sub.rolesPermitidos || sub.rolesPermitidos.includes(usuarioActual.rol)).forEach(sub => {
-        mapa[sub.id] = { id: sub.id, label: sub.label, seccion: item.label, icon: item.icon, abrir: () => { abrirGrupoMenu(item.id); marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); } };
+      item.submenu.filter(itemVisibleUsuario).forEach(sub => {
+        mapa[sub.id] = { id: sub.id, label: sub.label, seccion: item.label, icon: item.icon, abrir: () => { if (!sub.especial) { abrirGrupoMenu(item.id); marcarMenuActivo('menu-item-' + sub.id); } sub.onClick(); } };
       });
     } else {
       mapa[item.id] = { id: item.id, label: item.label, seccion: '', icon: item.icon, abrir: () => { if (!item.especial) marcarMenuActivo('menu-item-' + item.id); item.onClick(); } };
@@ -1246,14 +1250,15 @@ function renderItemMenu(nav, item) {
     const submenuEl = document.createElement('div');
     submenuEl.id = 'submenu-' + item.id;
     submenuEl.style.cssText = 'padding-left:1.25rem; display:none;';
-    item.submenu.filter(sub => !sub.rolesPermitidos || sub.rolesPermitidos.includes(usuarioActual.rol)).forEach(sub => {
+    item.submenu.filter(itemVisibleUsuario).forEach(sub => {
       const subEl = document.createElement('div');
       subEl.className = 'nav-subitem';
       subEl.id = 'menu-item-' + sub.id;
       subEl.dataset.label = sub.label.toLowerCase();
       subEl.style.cssText = 'display:flex; align-items:center; padding:7px 0.75rem 7px 1.5rem; font-size:13px; cursor:pointer; color:var(--text-secondary);';
       subEl.innerHTML = '<span>' + sub.label + '</span>' + htmlEstrella(sub.id);
-      subEl.onclick = () => { marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); };
+      // Los que abren pestaña nueva (especial) no se marcan como activos
+      subEl.onclick = sub.especial ? sub.onClick : () => { marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); };
       submenuEl.appendChild(subEl);
     });
     nav.appendChild(submenuEl);
