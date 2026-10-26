@@ -80,6 +80,7 @@ button { font-family: inherit; }
 <div class="cuerpo" id="cuerpo"><div class="cargando">Cargando…</div></div>
 <div id="toast"></div>
 
+<script src="/chat-boton.js"></script>
 <script>
 // Mantenimiento (oct 2026): material de especial cuidado (y todo el chill
 // out) que sale en los próximos 15 días, por día o por material. Dos
@@ -114,6 +115,8 @@ function arrancar(u) {
   var soloMant = u.rol === 'Mantenimiento';
   document.getElementById('btn-inicio').style.display = EMBEBIDO || soloMant ? 'none' : '';
   document.getElementById('btn-salir').style.display = soloMant && !EMBEBIDO ? '' : 'none';
+  // Botón Chat (public/chat-boton.js): solo si el usuario tiene algún chat
+  if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.cab-top'), { antesDe: document.getElementById('btn-salir') });
   cargar();
 }
 function cargar(silencioso) {

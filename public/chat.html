@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>ORUM Chat</title>
+<link rel="manifest" href="/movil.webmanifest?v=2">
+<meta name="theme-color" content="#1a1a18">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+button { font-family: inherit; }
+.oculto { display: none !important; }
+.cab { background: #1a1a18; color: #fff; padding: calc(12px + env(safe-area-inset-top)) 16px 10px; flex-shrink: 0; }
+.cab-top { display: flex; align-items: center; gap: 10px; }
+.cab h1 { font-size: 16px; font-weight: 600; flex: 1; }
+.cab button.volver { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.canales { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.canales::-webkit-scrollbar { display: none; }
+.canales button { border: none; background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); font-size: 14px; padding: 8px 14px; border-radius: 18px; white-space: nowrap; cursor: pointer; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.canales button.on { background: #fff; color: #1a1a18; font-weight: 600; }
+.badge { background: #D93025; color: #fff; font-size: 11px; font-weight: 700; min-width: 19px; height: 19px; border-radius: 10px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; }
+.lista { flex: 1; overflow-y: auto; padding: 12px 12px 6px; display: flex; flex-direction: column; gap: 4px; -webkit-overflow-scrolling: touch; }
+.cargando { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
+.mas { align-self: center; background: #fff; border: 0.5px solid #e2e2de; border-radius: 14px; padding: 6px 14px; font-size: 12px; color: #6b6a64; cursor: pointer; margin-bottom: 8px; }
+.dia { align-self: center; font-size: 11.5px; color: #6b6a64; background: #ebe9e2; border-radius: 10px; padding: 3px 10px; margin: 10px 0 6px; }
+.msg { max-width: 82%; align-self: flex-start; background: #fff; border: 0.5px solid #e2e2de; border-radius: 14px 14px 14px 4px; padding: 7px 11px 5px; font-size: 15px; line-height: 1.35; word-wrap: break-word; overflow-wrap: anywhere; }
+.msg.mio { align-self: flex-end; background: #DCF3E8; border-color: #bfe6d2; border-radius: 14px 14px 4px 14px; }
+.msg .quien { font-size: 12px; font-weight: 700; color: #8a6d1e; margin-bottom: 2px; }
+.msg.mio .quien { display: none; }
+.msg .txt { white-space: pre-wrap; }
+.msg .hora { font-size: 10.5px; color: #9a988f; text-align: right; margin-top: 2px; }
+.msg img { display: block; max-width: 100%; max-height: 320px; border-radius: 10px; margin: 2px 0 4px; cursor: zoom-in; background: #f0efe9; min-width: 120px; min-height: 80px; object-fit: cover; }
+.msg.seguido { margin-top: -1px; }
+.msg.seguido .quien { display: none; }
+.vacio { text-align: center; color: #9a988f; font-size: 14px; margin: auto; padding: 2rem; }
+.escribir { flex-shrink: 0; background: #fff; border-top: 0.5px solid #e2e2de; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+.previa { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; color: #6b6a64; }
+.previa img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; }
+.previa button { background: none; border: none; color: #A32D2D; font-size: 13px; cursor: pointer; }
+.fila { display: flex; align-items: flex-end; gap: 8px; }
+.fila textarea { flex: 1; resize: none; border: 0.5px solid #d8d4c8; border-radius: 20px; padding: 10px 14px; font-size: 16px; font-family: inherit; max-height: 120px; line-height: 1.3; background: #f7f6f2; outline: none; }
+.fila textarea:focus { border-color: #1a1a18; background: #fff; }
+.btn-red { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.btn-red svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn-foto { background: #f0efe9; color: #1a1a18; }
+.btn-enviar { background: #1D9E75; color: #fff; }
+.btn-enviar:disabled { opacity: .45; }
+.error { font-size: 12.5px; color: #A32D2D; text-align: center; margin-top: 6px; }
+.visor { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 50; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+.visor img { max-width: 100%; max-height: 100%; }
+@media (min-width: 700px) { .lista, .escribir { padding-left: max(12px, calc(50% - 380px)); padding-right: max(12px, calc(50% - 380px)); } .msg { max-width: 70%; } }
+</style>
+</head>
+<body>
+<div class="cab">
+  <div class="cab-top">
+    <button class="volver oculto" id="btn-volver">&lsaquo; Volver</button>
+    <h1 id="titulo">Chat</h1>
+  </div>
+  <div class="canales oculto" id="canales"></div>
+</div>
+<div class="lista" id="lista"><div class="cargando">Cargando…</div></div>
+<div class="escribir oculto" id="escribir">
+  <div class="previa oculto" id="previa"></div>
+  <div class="fila">
+    <button class="btn-red btn-foto" id="btn-foto" aria-label="Mandar foto"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+    <textarea id="texto" rows="1" placeholder="Escribe un mensaje…"></textarea>
+    <button class="btn-red btn-enviar" id="btn-enviar" aria-label="Enviar"><svg viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></button>
+  </div>
+  <div class="error" id="error"></div>
+</div>
+<input type="file" id="in-foto" accept="image/*" class="oculto">
+
+<script>
+// Chat por departamento (oct 2026): Office, Lavandería y Mantenimiento.
+// Misma pantalla en la app (/chat), en las tablets (botón Chat de
+// Preparación y Mantenimiento) y en el panel (?embebido=1). API en
+// lib/chat.js. Los mensajes no se borran ni se editan.
+var PARAMS = new URLSearchParams(location.search);
+var EMBEBIDO = PARAMS.get('embebido') === '1';
+var USUARIO = null, CANALES = [], canal = null, MENSAJES = [], hayMas = false, foto = null, enviando = false;
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function hora(ts) { return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
+function diaDe(ts) { var d = new Date(ts); return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }
+function textoDia(ts) {
+  var d = new Date(ts), hoy = new Date(), ayer = new Date(); ayer.setDate(hoy.getDate() - 1);
+  if (diaDe(d) === diaDe(hoy)) return 'Hoy';
+  if (diaDe(d) === diaDe(ayer)) return 'Ayer';
+  var t = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// ── Entrada: sesión abierta o la llave del dispositivo de la app ──
+function entrar() {
+  fetch('/api/sesion').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) {
+    if (d && d.usuario) return arrancar(d.usuario);
+    var llave = ''; try { llave = localStorage.getItem('orum_movil_dispositivo') || ''; } catch (e) {}
+    if (!llave) return location.replace(EMBEBIDO ? '/' : '/movil');
+    fetch('/api/movil/dispositivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) })
+      .then(function (r) { return r.json(); }).then(function (r) { if (r.ok) arrancar(r.usuario); else location.replace('/movil'); })
+      .catch(function () { location.replace('/movil'); });
+  });
+}
+function arrancar(u) {
+  USUARIO = u;
+  var volver = PARAMS.get('volver');
+  if (!EMBEBIDO) {
+    var b = document.getElementById('btn-volver');
+    b.classList.remove('oculto');
+    b.onclick = function () { location.href = volver && volver.charAt(0) === '/' ? volver : '/movil'; };
+  }
+  cargarCanales(true);
+  conectarEventos();
+}
+function cargarCanales(primeraVez) {
+  return fetch('/api/chat/canales').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    CANALES = d.canales || [];
+    if (!CANALES.length) { document.getElementById('lista').innerHTML = '<div class="vacio">No tienes ningún chat.</div>'; return; }
+    if (primeraVez) {
+      var pedido = PARAMS.get('canal');
+      abrirCanal(CANALES.some(function (c) { return c.id === pedido; }) ? pedido : CANALES[0].id);
+    } else pintarCanales();
+  }).catch(function (e) { if (primeraVez) document.getElementById('lista').innerHTML = '<div class="vacio">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+function pintarCanales() {
+  var cont = document.getElementById('canales');
+  cont.classList.toggle('oculto', CANALES.length < 2);
+  cont.innerHTML = CANALES.map(function (c) {
+    return '<button data-canal="' + c.id + '"' + (c.id === canal ? ' class="on"' : '') + '>' + esc(c.nombre) + (c.sin_leer && c.id !== canal ? '<span class="badge">' + c.sin_leer + '</span>' : '') + '</button>';
+  }).join('');
+  var actual = CANALES.filter(function (c) { return c.id === canal; })[0];
+  document.getElementById('titulo').textContent = CANALES.length < 2 && actual ? 'Chat · ' + actual.nombre : 'Chat';
+}
+document.getElementById('canales').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-canal]');
+  if (b && b.getAttribute('data-canal') !== canal) abrirCanal(b.getAttribute('data-canal'));
+});
+
+// ── Mensajes ──
+function abrirCanal(id) {
+  canal = id; MENSAJES = []; quitarFoto();
+  CANALES.forEach(function (c) { if (c.id === id) c.sin_leer = 0; });
+  pintarCanales();
+  document.getElementById('escribir').classList.remove('oculto');
+  document.getElementById('lista').innerHTML = '<div class="cargando">Cargando…</div>';
+  fetch('/api/chat/' + id + '/mensajes').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    if (canal !== id) return;
+    MENSAJES = d.mensajes; hayMas = d.hay_mas;
+    pintarMensajes(true);
+    marcarLeido();
+  }).catch(function (e) { document.getElementById('lista').innerHTML = '<div class="vacio">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+function cargarAnteriores() {
+  if (!MENSAJES.length) return;
+  var lista = document.getElementById('lista'), alto = lista.scrollHeight;
+  fetch('/api/chat/' + canal + '/mensajes?antes=' + MENSAJES[0].id).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) return;
+    MENSAJES = d.mensajes.concat(MENSAJES); hayMas = d.hay_mas;
+    pintarMensajes(false);
+    lista.scrollTop = lista.scrollHeight - alto;
+  });
+}
+function htmlMensaje(m, anterior) {
+  var mio = USUARIO && m.usuario === USUARIO.usuario;
+  var seguido = anterior && anterior.usuario === m.usuario && diaDe(anterior.creado_en) === diaDe(m.creado_en) && (new Date(m.creado_en) - new Date(anterior.creado_en)) < 5 * 60000;
+  return '<div class="msg' + (mio ? ' mio' : '') + (seguido ? ' seguido' : '') + '">' +
+    '<div class="quien">' + esc(m.nombre) + '</div>' +
+    (m.foto ? '<img src="/api/chat/foto/' + m.id + '" alt="Foto" loading="lazy" data-foto="' + m.id + '">' : '') +
+    (m.texto ? '<div class="txt">' + esc(m.texto) + '</div>' : '') +
+    '<div class="hora">' + hora(m.creado_en) + '</div></div>';
+}
+function pintarMensajes(alFinal) {
+  var lista = document.getElementById('lista');
+  if (!MENSAJES.length) { lista.innerHTML = '<div class="vacio">Todavía no hay mensajes.<br>Escribe el primero.</div>'; return; }
+  var h = hayMas ? '<button class="mas" onclick="cargarAnteriores()">Ver mensajes anteriores</button>' : '';
+  MENSAJES.forEach(function (m, i) {
+    var ant = MENSAJES[i - 1];
+    if (!ant || diaDe(ant.creado_en) !== diaDe(m.creado_en)) h += '<div class="dia">' + textoDia(m.creado_en) + '</div>';
+    h += htmlMensaje(m, ant && diaDe(ant.creado_en) === diaDe(m.creado_en) ? ant : null);
+  });
+  lista.innerHTML = h;
+  if (alFinal) bajarAlFinal();
+}
+function bajarAlFinal() {
+  var lista = document.getElementById('lista');
+  lista.scrollTop = lista.scrollHeight;
+  // Las fotos cargan después y cambian la altura
+  lista.querySelectorAll('img').forEach(function (img) { if (!img.complete) img.addEventListener('load', function () { lista.scrollTop = lista.scrollHeight; }, { once: true }); });
+}
+function cercaDelFinal() { var l = document.getElementById('lista'); return l.scrollHeight - l.scrollTop - l.clientHeight < 150; }
+function marcarLeido() {
+  if (!MENSAJES.length || document.hidden) return;
+  fetch('/api/chat/' + canal + '/leido', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ultimo_id: MENSAJES[MENSAJES.length - 1].id }) }).catch(function () {});
+}
+function recibir(m) {
+  if (m.canal === canal) {
+    if (MENSAJES.some(function (x) { return x.id === m.id; })) return;
+    var abajo = cercaDelFinal();
+    MENSAJES.push(m);
+    pintarMensajes(false);
+    if (abajo || (USUARIO && m.usuario === USUARIO.usuario)) bajarAlFinal();
+    marcarLeido();
+  } else if (!USUARIO || m.usuario !== USUARIO.usuario) {
+    CANALES.forEach(function (c) { if (c.id === m.canal) c.sin_leer = (c.sin_leer || 0) + 1; });
+    pintarCanales();
+  }
+}
+
+// ── Tiempo real ──
+var fuente = null;
+function conectarEventos() {
+  if (!window.EventSource) return;
+  fuente = new EventSource('/api/chat/eventos');
+  fuente.onmessage = function (e) { try { var d = JSON.parse(e.data); if (d.tipo === 'mensaje') recibir(d.mensaje); } catch (err) {} };
+}
+// Al volver a la pantalla (móvil bloqueado, otra app…) se recupera lo que llegó mientras tanto
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden || !canal) return;
+  var ultimo = MENSAJES.length ? MENSAJES[MENSAJES.length - 1].id : 0;
+  fetch('/api/chat/' + canal + '/mensajes').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) return;
+    d.mensajes.filter(function (m) { return m.id > ultimo; }).forEach(recibir);
+    marcarLeido();
+  });
+  cargarCanales(false);
+});
+
+// ── Escribir ──
+var texto = document.getElementById('texto');
+texto.addEventListener('input', function () { texto.style.height = 'auto'; texto.style.height = Math.min(texto.scrollHeight, 120) + 'px'; });
+texto.addEventListener('keydown', function (e) {
+  // En el ordenador Intro envía (Mayúsculas+Intro, salto de línea); en el móvil Intro es salto de línea
+  if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); enviar(); }
+});
+document.getElementById('btn-enviar').onclick = enviar;
+document.getElementById('btn-foto').onclick = function () { document.getElementById('in-foto').click(); };
+document.getElementById('in-foto').onchange = function () {
+  var f = this.files && this.files[0]; this.value = '';
+  if (!f || !/^image\//.test(f.type)) return;
+  reducirFoto(f).then(function (blob) {
+    foto = blob;
+    var p = document.getElementById('previa');
+    p.innerHTML = '<img src="' + URL.createObjectURL(blob) + '" alt=""><span>Foto lista para enviar</span><button onclick="quitarFoto()">Quitar</button>';
+    p.classList.remove('oculto');
+  }).catch(function () { error('No se puede abrir la foto'); });
+};
+function quitarFoto() { foto = null; var p = document.getElementById('previa'); p.innerHTML = ''; p.classList.add('oculto'); }
+// Lado largo 1600 px en JPEG: las fotos del móvil pesan mucho y no hace falta tanto
+function reducirFoto(file) {
+  return new Promise(function (ok, ko) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = ko; i.src = URL.createObjectURL(file); }).then(function (img) {
+    var e = Math.min(1, 1600 / Math.max(img.width, img.height));
+    var c = document.createElement('canvas'); c.width = Math.round(img.width * e); c.height = Math.round(img.height * e);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.85); });
+  });
+}
+function error(m) { document.getElementById('error').textContent = m || ''; }
+function enviar() {
+  var t = texto.value.trim();
+  if (enviando || (!t && !foto)) return;
+  enviando = true; error('');
+  var btn = document.getElementById('btn-enviar'); btn.disabled = true;
+  var fd = new FormData();
+  fd.append('texto', t);
+  if (foto) fd.append('foto', foto, 'foto.jpg');
+  fetch('/api/chat/' + canal + '/mensajes', { method: 'POST', body: fd }).then(function (r) { return r.json(); }).then(function (d) {
+    enviando = false; btn.disabled = false;
+    if (!d.ok) { error(d.error || 'No se ha podido enviar'); return; }
+    texto.value = ''; texto.style.height = 'auto'; quitarFoto();
+    recibir(d.mensaje);
+    bajarAlFinal();
+  }).catch(function () { enviando = false; btn.disabled = false; error('Sin conexión: no se ha enviado'); });
+}
+
+// Foto a pantalla completa
+document.getElementById('lista').addEventListener('click', function (e) {
+  var img = e.target.closest('[data-foto]');
+  if (!img) return;
+  var v = document.createElement('div'); v.className = 'visor';
+  v.innerHTML = '<img src="' + img.src + '" alt="">';
+  v.onclick = function () { v.remove(); };
+  document.body.appendChild(v);
+});
+
+entrar();
+</script>
+</body>
+</html>

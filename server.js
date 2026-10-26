@@ -196,6 +196,8 @@ const rutasGuardado = require('./lib/rutasGuardado').crearRutasGuardado(supabase
 // ── Usuarios del panel: Sistema → Usuarios (solo Sergio), en Supabase ──
 const { ROLES_SOLO_MOVIL } = require('./lib/usuariosAdmin');
 require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
+// Chat por departamento (Office, Lavandería, Mantenimiento) — lib/chat.js
+require('./lib/chat').registrar(app, { supabase, requiereLogin });
 
 // ── Auditoría de Rutas: quién hizo qué (tabla rutas_historial) ──
 // Fire-and-forget: nunca bloquea ni rompe la respuesta al frontend si falla.
@@ -1434,6 +1436,11 @@ app.get('/preparacion', (req, res) => {
 // Mantenimiento (oct 2026): misma pantalla en la app y dentro del panel — public/mantenimiento.html.
 app.get('/mantenimiento', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'mantenimiento.html'));
+});
+
+// Chat por departamento (oct 2026): misma pantalla en la app, las tablets y el panel — public/chat.html.
+app.get('/chat', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
 });
 
 // App móvil (oct 2026): entrada con PIN y botones según el rol — public/movil.html.

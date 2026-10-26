@@ -937,6 +937,7 @@ const ICONOS_MENU = {
   flask: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3h5"/><path d="M10.5 3v6.2L4.9 18a1.8 1.8 0 0 0 1.5 2.8h11.2a1.8 1.8 0 0 0 1.5-2.8L13.5 9.2V3"/><path d="M7.5 15h9"/></svg>',
   box: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v9l9 5 9-5V8"/><path d="M12 13v9"/></svg>',
   alert: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20.5h20L12 3Z"/><path d="M12 9.5v4.5"/><circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
   wrench: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.9 5.6L3 14.7 6.3 18l5.8-5.8a4.5 4.5 0 0 0 5.6-5.9l-3 3-2.5-2.5 3-3Z"/></svg>',
   truck: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="7.5" cy="18.5" r="1.6"/><circle cx="17.5" cy="18.5" r="1.6"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M3 16v-4h4"/><path d="M21 8v4h-4"/></svg>',
@@ -1033,6 +1034,8 @@ const MENU = [
       { id: 'veh-ranking', label: 'Ranking conductores', onClick: () => cargarRankingConductores() },
   ]},
   { id: 'muelle', icon: 'truck', group: 'operaciones', label: 'Pantalla Muelle', onClick: () => renderProximamente('Pantalla Muelle') },
+  // Chat por departamento (Office, Lavandería, Mantenimiento) — public/chat.html
+  { id: 'chat', icon: 'chat', group: 'operaciones', label: 'Chat', rolesPermitidos: ['Direccion', 'Logistica'], onClick: () => cargarChat() },
   // Usuarios del panel (oct 2026): antes en la hoja USUARIOS de Google. Solo Sergio.
   { id: 'usuarios', icon: 'users', group: 'sistema', label: 'Usuarios', soloUsuario: 'sergio', onClick: () => cargarUsuarios() },
   { id: 'sync-status', icon: 'refresh', group: 'sistema', label: 'Estado Sincronización', especial: true, onClick: () => {
@@ -1094,8 +1097,8 @@ function construirMenu() {
 }
 function menuVisibleUsuario() {
   return usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle'].includes(item.id))
-    : MENU.filter(item => !item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase());
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle', 'chat'].includes(item.id))
+    : MENU.filter(item => (!item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase()) && (!item.rolesPermitidos || item.rolesPermitidos.includes(usuarioActual.rol)));
 }
 
 // ================================================================
@@ -5456,6 +5459,12 @@ function renderTablaFianzas(listaOriginal) {
 // Oct 2026: el panel muestra la misma pantalla que la app (public/mantenimiento.html):
 // por día y por material, chill out y las dos casillas (Mantenimiento y
 // Responsables). La versión anterior (cargarMantenimientoAntiguo) queda sin uso.
+function cargarChat() {
+  document.getElementById('content-title').textContent = 'Chat';
+  marcarMenuActivo('menu-item-chat');
+  document.getElementById('content-body').innerHTML = `<iframe src="/chat?embebido=1" title="Chat"
+    style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
+}
 function cargarMantenimiento() {
   document.getElementById('content-title').textContent = 'Mantenimiento';
   marcarMenuActivo('menu-item-mantenimiento');
