@@ -168,15 +168,17 @@ function cargarLista() {
   return getJson('/api/incidencias').then(function (d) { LISTA = d.incidencias; pintarLista(); })
     .catch(function (e) { document.getElementById('cuerpo').innerHTML = '<div class="vacio">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
 }
+// Varios responsables (26 oct 2026): i.responsables es la lista de usuarios.
+function esMia(i) { return (i.responsables || []).indexOf(OPC.yo) !== -1; }
 function enVista(i) {
   if (vista === 'abiertas') return i.estado !== 'resuelta';
-  if (vista === 'mias') return i.estado !== 'resuelta' && i.responsable === OPC.yo;
+  if (vista === 'mias') return i.estado !== 'resuelta' && esMia(i);
   if (vista === 'resueltas') return i.estado === 'resuelta';
   return true;
 }
 function pintarTabs() {
   var abiertas = LISTA.filter(function (i) { return i.estado !== 'resuelta'; });
-  var mias = abiertas.filter(function (i) { return i.responsable === OPC.yo; }).length;
+  var mias = abiertas.filter(esMia).length;
   var t = function (id, txt, n) { return '<button data-vista="' + id + '"' + (vista === id ? ' class="on"' : '') + '>' + txt + (n ? '<span class="badge">' + n + '</span>' : '') + '</button>'; };
   document.getElementById('tabs').innerHTML = t('abiertas', 'Abiertas', abiertas.length) + t('mias', 'Asignadas a mí', mias) + t('resueltas', 'Resueltas', 0);
 }
@@ -206,7 +208,7 @@ function pintarLista() {
     return '<div class="tarjeta click' + (i.prioridad === 'urgente' && i.estado !== 'resuelta' ? ' urg' : '') + '" data-id="' + i.id + '">' +
       '<div class="t-top"><div class="t-txt">' + esc(i.texto) + '</div>' + etqEstado(i.estado) + '</div>' +
       (sub.length ? '<div class="t-sub">' + sub.join(' · ') + '</div>' : '') +
-      '<div class="t-sub">' + esc(i.creado_por_nombre || i.creado_por) + ' · ' + fecha(i.creado_en) + ' · ' + (i.responsable_nombre ? 'Responsable: <b>' + esc(i.responsable_nombre) + '</b>' : '<i>Sin responsable</i>') + '</div>' +
+      '<div class="t-sub">' + esc(i.creado_por_nombre || i.creado_por) + ' · ' + fecha(i.creado_en) + ' · ' + (i.responsable_nombre ? ((i.responsables || []).length > 1 ? 'Responsables' : 'Responsable') + ': <b>' + esc(i.responsable_nombre) + '</b>' : '<i>Sin responsable</i>') + '</div>' +
       '<div class="etqs"><span class="etq tipo">' + esc(OPC.tipos[i.tipo] || i.tipo) + '</span>' + (i.prioridad === 'urgente' ? '<span class="etq urgente">Urgente</span>' : '') + (i.fotos ? '<span class="etq tipo">📷 ' + i.fotos + '</span>' : '') + '</div></div>';
   }).join('');
   document.getElementById('cuerpo').innerHTML = h;
@@ -220,8 +222,22 @@ document.getElementById('cuerpo').addEventListener('click', function (e) {
 });
 
 // ── Nueva incidencia ──
-function opcionesResponsable(sel) {
-  return '<option value="">Sin asignar (lo decide Dirección)</option>' + OPC.usuarios.map(function (u) { return '<option value="' + esc(u.usuario) + '"' + (u.usuario === sel ? ' selected' : '') + '>' + esc(u.nombre) + (u.usuario === OPC.yo ? ' (yo)' : '') + '</option>'; }).join('');
+// Responsables: botones que se marcan y desmarcan (se pueden elegir varios).
+function chipsResponsables(id, sel) {
+  return '<div class="chips" id="' + id + '">' + OPC.usuarios.map(function (u) {
+    return '<button type="button" aria-pressed="' + (sel.indexOf(u.usuario) !== -1) + '" data-resp="' + esc(u.usuario) + '"' + (sel.indexOf(u.usuario) !== -1 ? ' class="on"' : '') + '>' + esc(u.nombre) + (u.usuario === OPC.yo ? ' (yo)' : '') + '</button>';
+  }).join('') + '</div>';
+}
+function activarChipsResponsables(id, alCambiar) {
+  document.getElementById(id).onclick = function (e) {
+    var b = e.target.closest('[data-resp]'); if (!b) return;
+    var on = !b.classList.contains('on');
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    if (alCambiar) alCambiar(leerResponsables(id));
+  };
+}
+function leerResponsables(id) {
+  return [].map.call(document.querySelectorAll('#' + id + ' [data-resp].on'), function (b) { return b.getAttribute('data-resp'); });
 }
 function abrirNueva(pre) {
   pantalla = 'nueva';
@@ -236,7 +252,7 @@ function abrirNueva(pre) {
     '<div class="campo"><label>Prioridad</label><div class="chips" id="n-prio"><button type="button" data-prio="normal" class="on">Normal</button><button type="button" data-prio="urgente" class="urg">Urgente</button></div></div>' +
     '<div class="campo"><label for="n-proy">Proyecto (opcional)</label><input type="text" id="n-proy" inputmode="numeric" placeholder="Nº de proyecto, p. ej. 2456" value="' + esc(pre.proyecto || '') + '"><div class="ayuda" id="n-proy-ayuda"></div></div>' +
     '<div class="campo"><label for="n-veh">Vehículo (opcional)</label><select id="n-veh">' + vehs + '</select></div>' +
-    '<div class="campo"><label for="n-resp">Responsable</label><select id="n-resp">' + opcionesResponsable('') + '</select></div>' +
+    '<div class="campo"><label>Responsables</label>' + chipsResponsables('n-resp', []) + '<div class="ayuda">Puedes elegir varios. Si no eliges ninguno, lo decide Dirección.</div></div>' +
     '<div class="campo"><label>Fotos (hasta ' + MAX_FOTOS + ')</label><div class="fotos" id="n-fotos"></div></div>' +
     '<div class="error" id="n-error"></div>' +
     '<button class="btn peli ancho" id="n-guardar">Registrar incidencia</button>' +
@@ -254,6 +270,7 @@ function abrirNueva(pre) {
     nueva.prioridad = b.getAttribute('data-prio');
     [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); });
   };
+  activarChipsResponsables('n-resp');
   var proy = document.getElementById('n-proy');
   proy.onchange = comprobarProyecto;
   proy.onblur = comprobarProyecto;
@@ -289,7 +306,7 @@ function guardarNueva() {
     fd.append('texto', texto); fd.append('tipo', nueva.tipo); fd.append('prioridad', nueva.prioridad); fd.append('origen', nueva.origen);
     if (proy) fd.append('proyecto_numero', proy);
     fd.append('vehiculo_id', document.getElementById('n-veh').value);
-    fd.append('responsable', document.getElementById('n-resp').value);
+    fd.append('responsables', JSON.stringify(leerResponsables('n-resp')));
     fotosNueva.forEach(function (f, n) { fd.append('fotos', f.blob, 'foto' + n + '.jpg'); });
     return postForm('/api/incidencias', fd);
   }).then(function (d) {
@@ -359,7 +376,7 @@ function pintarFicha(d) {
     '<dt>Creada</dt><dd>' + esc(i.creado_por_nombre || i.creado_por) + ' · ' + fecha(i.creado_en) + '</dd>' +
     (i.proyecto ? '<dt>Proyecto</dt><dd>' + txtProyecto(i.proyecto) + '</dd>' : '') +
     (i.vehiculo ? '<dt>Vehículo</dt><dd>' + esc(i.vehiculo.nombre) + '</dd>' : '') +
-    '<dt>Responsable</dt><dd>' + (p.responsable ? '<select id="f-resp" style="width:100%;padding:7px 8px;font-size:15px;border:0.5px solid #d8d4c8;border-radius:8px;background:#fff;">' + opcionesResponsable(i.responsable || '') + '</select>' : esc(i.responsable_nombre || 'Sin asignar')) + '</dd>' +
+    '<dt>Responsables</dt><dd>' + (p.responsable ? chipsResponsables('f-resp', i.responsables || []) + '<button class="btn pri oculto" id="f-resp-ok" style="margin-top:8px;">Guardar responsables</button>' : esc(i.responsable_nombre || 'Sin asignar')) + '</dd>' +
     '</dl>' +
     (i.estado === 'resuelta' ? '<div class="solucion"><b>Resuelta</b> por ' + esc(i.resuelta_por_nombre || '') + ' · ' + fecha(i.resuelta_en) + '<br>' + esc(i.solucion || '') + '</div>' : '');
   if (p.estado) {
@@ -369,7 +386,7 @@ function pintarFicha(d) {
     else h += '<button class="btn sec" data-estado="abierta">Reabrir</button>';
     h += '</div><div id="caja-solucion" class="oculto" style="margin-top:10px;"><textarea id="f-solucion" placeholder="¿Cómo se ha resuelto?" style="width:100%;min-height:70px;padding:10px 12px;font-size:16px;border:0.5px solid #d8d4c8;border-radius:10px;"></textarea><div class="acciones" style="margin-top:8px;"><button class="btn sec" id="f-sol-cancelar">Cancelar</button><button class="btn pri" id="f-sol-ok">Cerrar incidencia</button></div></div>';
   } else if (i.estado !== 'resuelta') {
-    h += '<div class="t-sub" style="margin-top:10px;">El estado lo cambian el responsable o Dirección.</div>';
+    h += '<div class="t-sub" style="margin-top:10px;">El estado lo cambian los responsables o Dirección.</div>';
   }
   h += '</div>';
   h += '<div class="sec-tit">Seguimiento</div><div class="hist">' + d.seguimiento.map(function (s) {
@@ -382,12 +399,16 @@ function pintarFicha(d) {
   }
   document.getElementById('cuerpo').innerHTML = h;
   if (p.comentar) { pintarFotos('c-fotos', fotosComentario); document.getElementById('c-enviar').onclick = comentar; }
-  var sel = document.getElementById('f-resp');
-  if (sel) sel.onchange = function () {
-    sel.disabled = true;
-    postJson('/api/incidencias/' + i.id + '/responsable', { responsable: sel.value }).then(function () { toast('Responsable cambiado'); abrirFicha(i.id); })
-      .catch(function (e) { sel.disabled = false; toast(e.message); });
-  };
+  var okResp = document.getElementById('f-resp-ok');
+  if (okResp) {
+    var antes = (i.responsables || []).slice().sort().join('|');
+    activarChipsResponsables('f-resp', function (lista) { okResp.classList.toggle('oculto', lista.slice().sort().join('|') === antes); });
+    okResp.onclick = function () {
+      okResp.disabled = true;
+      postJson('/api/incidencias/' + i.id + '/responsable', { responsables: leerResponsables('f-resp') }).then(function () { toast('Responsables guardados'); abrirFicha(i.id); })
+        .catch(function (e) { okResp.disabled = false; toast(e.message); });
+    };
+  }
   [].forEach.call(document.querySelectorAll('[data-estado]'), function (b) {
     if (b.closest('#tabs')) return;
     b.onclick = function () {

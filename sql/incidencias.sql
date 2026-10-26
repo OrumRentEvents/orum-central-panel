@@ -27,6 +27,11 @@ create table if not exists incidencias (
 );
 create index if not exists incidencias_estado on incidencias (estado, creado_en desc);
 create index if not exists incidencias_responsable on incidencias (responsable);
+-- Varios responsables (26 oct 2026): cualquiera de ellos la ve y cambia el
+-- estado. "responsable" queda como el primero de la lista (compatibilidad).
+alter table incidencias add column if not exists responsables text[] not null default '{}';
+update incidencias set responsables = array[responsable] where responsable is not null and responsables = '{}';
+create index if not exists incidencias_responsables on incidencias using gin (responsables);
 create index if not exists incidencias_creado_por on incidencias (creado_por);
 create index if not exists incidencias_vehiculo on incidencias (vehiculo_id);
 alter table incidencias enable row level security;

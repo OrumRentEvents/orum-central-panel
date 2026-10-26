@@ -47,3 +47,25 @@ test('cambioEstado: resolver pide solución; reabrir la borra', () => {
   assert.equal(re.resuelta_en, null);
   assert.equal(i.cambioEstado(inc, 'en_curso').cambios.solucion, undefined);
 });
+
+test('varios responsables: todos la ven y cambian el estado', () => {
+  const multi = { creado_por: 'ana', responsables: ['leo', 'maria'], estado: 'abierta' };
+  const maria = { usuario: 'maria', rol: 'Contabilidad' };
+  assert.ok(i.puedeVer(multi, leo) && i.puedeVer(multi, maria));
+  assert.ok(i.puedeCambiarEstado(multi, leo) && i.puedeCambiarEstado(multi, maria));
+  assert.ok(!i.puedeCambiarEstado(multi, ana));
+  assert.ok(!i.puedeVer(multi, { usuario: 'pepe', rol: 'Logistica' }));
+  // Las antiguas, con un solo "responsable" y sin lista, siguen funcionando
+  assert.deepEqual(i.responsablesDe({ responsable: 'leo' }), ['leo']);
+  assert.deepEqual(i.responsablesDe({ responsable: null }), []);
+  assert.deepEqual(i.responsablesDe({ responsable: 'leo', responsables: [] }), []);
+});
+
+test('listaResponsables: JSON, array o el campo antiguo, sin vacíos ni repetidos', () => {
+  assert.deepEqual(i.listaResponsables({ responsables: '["leo","maria","leo",""]' }), ['leo', 'maria']);
+  assert.deepEqual(i.listaResponsables({ responsables: ['leo'] }), ['leo']);
+  assert.deepEqual(i.listaResponsables({ responsables: [] }), []);
+  assert.deepEqual(i.listaResponsables({ responsable: 'leo' }), ['leo']);
+  assert.deepEqual(i.listaResponsables({ responsable: '' }), []);
+  assert.deepEqual(i.listaResponsables({}), []);
+});
