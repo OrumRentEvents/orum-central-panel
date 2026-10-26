@@ -375,6 +375,7 @@ function mostrarApp() {
   if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
   if (['Direccion', 'Logistica', 'Contabilidad'].includes(usuarioActual.rol)) { actualizarContadorRecuperacion(); setInterval(actualizarContadorRecuperacion, 5 * 60 * 1000); }
   if (usuarioActual.rol !== 'Comercial') cargarVehiculosFacturas();
+  iniciarGloboChat();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
   else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
   else cargarResumenGeneral();
@@ -5556,10 +5557,89 @@ async function actualizarContadorRecuperacion() {
   } catch (e) { /* sin contador si falla */ }
 }
 function cargarChat() {
+  cerrarChatFlotante(); // a pantalla completa no hace falta el globo abierto
   document.getElementById('content-title').textContent = 'Chat';
   marcarMenuActivo('menu-item-chat');
   document.getElementById('content-body').innerHTML = `<iframe src="/chat?embebido=1" title="Chat"
     style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
+}
+
+// Globo del chat (oct 2026): abajo a la derecha en cualquier pantalla del
+// panel, con los mensajes sin leer. Abre el chat en una ventanita que sigue
+// abierta al cambiar de apartado (pedido del usuario). Solo para quien tiene
+// algún chat (Dirección y Logística, lib/chat.js).
+let chatFlotanteListo = false;
+async function iniciarGloboChat() {
+  let canales;
+  try { canales = (await fetch('/api/chat/canales').then(r => r.json())).canales || []; } catch (e) { return; }
+  if (!canales.length || document.getElementById('chat-globo')) return;
+  const st = document.createElement('style');
+  st.textContent = `
+    #chat-globo { position:fixed; right:22px; bottom:22px; z-index:900; width:54px; height:54px; border-radius:50%; border:none; background:#1D9E75; color:#fff; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center; }
+    #chat-globo:hover { background:#178a65; }
+    #chat-globo svg { width:24px; height:24px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+    #chat-globo .chat-globo-badge { position:absolute; top:-3px; right:-3px; background:#D93025; color:#fff; font-size:11px; font-weight:700; min-width:20px; height:20px; border-radius:10px; padding:0 5px; display:flex; align-items:center; justify-content:center; border:2px solid #fff; }
+    #chat-flotante { position:fixed; right:22px; bottom:88px; z-index:901; width:380px; max-width:calc(100vw - 32px); height:min(600px, calc(100vh - 120px)); background:#f7f6f2; border-radius:12px; box-shadow:0 10px 34px rgba(0,0,0,.28); overflow:hidden; display:none; flex-direction:column; }
+    #chat-flotante.abierto { display:flex; }
+    #chat-flotante .chat-flotante-cab { display:flex; justify-content:flex-end; gap:4px; background:#1a1a18; padding:6px 8px 0; }
+    #chat-flotante .chat-flotante-cab button { background:transparent; border:none; color:rgba(255,255,255,.75); font-size:12px; cursor:pointer; padding:4px 8px; border-radius:4px; }
+    #chat-flotante .chat-flotante-cab button:hover { color:#fff; background:rgba(255,255,255,.1); }
+    #chat-flotante iframe { flex:1; width:100%; border:none; }`;
+  document.head.appendChild(st);
+  const globo = document.createElement('button');
+  globo.id = 'chat-globo';
+  globo.title = 'Chat';
+  globo.onclick = () => document.getElementById('chat-flotante').classList.contains('abierto') ? cerrarChatFlotante() : abrirChatFlotante();
+  document.body.appendChild(globo);
+  const ventana = document.createElement('div');
+  ventana.id = 'chat-flotante';
+  ventana.innerHTML = '<div class="chat-flotante-cab"><button data-chat="grande" title="Abrir el chat en la pantalla principal">Abrir en grande ↗</button><button data-chat="cerrar" title="Cerrar">✕</button></div>';
+  ventana.querySelector('[data-chat="grande"]').onclick = () => { cargarChat(); };
+  ventana.querySelector('[data-chat="cerrar"]').onclick = cerrarChatFlotante;
+  document.body.appendChild(ventana);
+  pintarGloboChat(canales);
+  setInterval(actualizarGloboChat, 30000);
+  // Mensajes nuevos al momento (mismo canal en directo que usa la pantalla del chat)
+  if (window.EventSource) {
+    const fuente = new EventSource('/api/chat/eventos');
+    fuente.onmessage = e => {
+      let d; try { d = JSON.parse(e.data); } catch (err) { return; }
+      if (d.tipo !== 'mensaje' || d.mensaje.usuario === usuarioActual.usuario) return;
+      // Con la ventanita abierta el chat lo marca como leído: se espera un poco
+      setTimeout(actualizarGloboChat, document.getElementById('chat-flotante').classList.contains('abierto') ? 2000 : 0);
+    };
+  }
+}
+function pintarGloboChat(canales) {
+  const globo = document.getElementById('chat-globo');
+  if (!globo) return;
+  const n = canales.reduce((s, c) => s + (c.sin_leer || 0), 0);
+  globo.innerHTML = ICONOS_MENU.chat.replace(/ width="100%" height="100%"/, '') + (n ? `<span class="chat-globo-badge">${n > 99 ? '99+' : n}</span>` : '');
+  globo.title = n ? `Chat · ${n} sin leer` : 'Chat';
+}
+async function actualizarGloboChat() {
+  if (!document.getElementById('chat-globo') || document.hidden) return;
+  try { pintarGloboChat((await fetch('/api/chat/canales').then(r => r.json())).canales || []); } catch (e) {}
+}
+function abrirChatFlotante() {
+  const ventana = document.getElementById('chat-flotante');
+  if (!ventana) return;
+  // El iframe se crea la primera vez y se conserva: la conversación sigue al cambiar de apartado
+  if (!chatFlotanteListo) {
+    const f = document.createElement('iframe');
+    f.src = '/chat?embebido=1';
+    f.title = 'Chat';
+    ventana.appendChild(f);
+    chatFlotanteListo = true;
+  }
+  ventana.classList.add('abierto');
+  setTimeout(actualizarGloboChat, 2000);
+}
+function cerrarChatFlotante() {
+  const ventana = document.getElementById('chat-flotante');
+  if (!ventana || !ventana.classList.contains('abierto')) return;
+  ventana.classList.remove('abierto');
+  actualizarGloboChat();
 }
 function cargarMantenimiento() {
   document.getElementById('content-title').textContent = 'Mantenimiento';

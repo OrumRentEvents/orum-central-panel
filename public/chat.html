@@ -51,6 +51,18 @@ button { font-family: inherit; }
 .btn-enviar { background: #1D9E75; color: #fff; }
 .btn-enviar:disabled { opacity: .45; }
 .error { font-size: 12.5px; color: #A32D2D; text-align: center; margin-top: 6px; }
+.cab button.avisos { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cab button.avisos.on { background: rgba(29,158,117,.25); border-color: #1D9E75; color: #fff; }
+.cab button.avisos svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.panel-avisos { background: #2a2a27; color: #fff; border-radius: 10px; padding: 12px 14px; margin-top: 10px; font-size: 13.5px; line-height: 1.4; }
+.panel-avisos p { color: rgba(255,255,255,.75); margin-bottom: 10px; }
+.panel-avisos label { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+.panel-avisos input { width: 18px; height: 18px; accent-color: #1D9E75; }
+.panel-avisos .botones { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.panel-avisos .botones button { border: none; border-radius: 6px; padding: 8px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.panel-avisos .b-si { background: #1D9E75; color: #fff; }
+.panel-avisos .b-no { background: transparent; color: rgba(255,255,255,.8); border: 0.5px solid rgba(255,255,255,.3) !important; }
+.panel-avisos .err { color: #F5A3A3; margin-top: 8px; }
 .visor { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 50; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
 .visor img { max-width: 100%; max-height: 100%; }
 @media (min-width: 700px) { .lista, .escribir { padding-left: max(12px, calc(50% - 380px)); padding-right: max(12px, calc(50% - 380px)); } .msg { max-width: 70%; } }
@@ -61,7 +73,9 @@ button { font-family: inherit; }
   <div class="cab-top">
     <button class="volver oculto" id="btn-volver">&lsaquo; Volver</button>
     <h1 id="titulo">Chat</h1>
+    <button class="avisos oculto" id="btn-avisos"></button>
   </div>
+  <div class="panel-avisos oculto" id="panel-avisos"></div>
   <div class="canales oculto" id="canales"></div>
 </div>
 <div class="lista" id="lista"><div class="cargando">Cargando…</div></div>
@@ -115,7 +129,7 @@ function arrancar(u) {
     b.classList.remove('oculto');
     b.onclick = function () { location.href = volver && volver.charAt(0) === '/' ? volver : '/movil'; };
   }
-  cargarCanales(true);
+  cargarCanales(true).then(prepararAvisos);
   conectarEventos();
 }
 function cargarCanales(primeraVez) {
@@ -278,6 +292,116 @@ function enviar() {
     recibir(d.mensaje);
     bajarAlFinal();
   }).catch(function () { enviando = false; btn.disabled = false; error('Sin conexión: no se ha enviado'); });
+}
+
+// ── Avisos push (lib/chatPush.js + public/movil-sw.js) ──
+// Cada persona los activa en su dispositivo y elige de qué canales. En iPhone
+// solo funcionan con la app instalada en la pantalla de inicio.
+var AVISOS = { clave: null, sub: null, canales: null, reg: null };
+var ICONO_CAMPANA = '<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
+var PUSH_SOPORTADO = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+var ES_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+var INSTALADA = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+
+function prepararAvisos() {
+  if (!CANALES.length) return;
+  // iPhone/iPad fuera de la app instalada: no hay push, se explica cómo tenerlo
+  if (!PUSH_SOPORTADO) { if (ES_IOS && !INSTALADA) pintarBotonAvisos(); return; }
+  // Mismo service worker que registra la app (/movil)
+  navigator.serviceWorker.register('/movil-sw.js', { scope: '/movil' }).then(function (reg) {
+    AVISOS.reg = reg;
+    return reg.pushManager.getSubscription();
+  }).then(function (sub) {
+    AVISOS.sub = sub;
+    return fetch('/api/chat/push/estado' + (sub ? '?endpoint=' + encodeURIComponent(sub.endpoint) : '')).then(function (r) { return r.json(); });
+  }).then(function (d) {
+    if (!d.ok || !d.disponible) return;
+    AVISOS.clave = d.clave;
+    AVISOS.canales = AVISOS.sub && Notification.permission === 'granted' ? d.canales : null;
+    pintarBotonAvisos();
+  }).catch(function () {});
+}
+function avisosActivos() { return !!(AVISOS.canales && AVISOS.canales.length); }
+function pintarBotonAvisos() {
+  var b = document.getElementById('btn-avisos');
+  b.classList.remove('oculto');
+  b.classList.toggle('on', avisosActivos());
+  b.innerHTML = ICONO_CAMPANA + (avisosActivos() ? 'Avisos' : 'Activar avisos');
+  b.title = avisosActivos() ? 'Avisos activados en este dispositivo' : 'Recibir un aviso cuando llegue un mensaje';
+}
+document.getElementById('btn-avisos').onclick = function () {
+  var p = document.getElementById('panel-avisos');
+  if (!p.classList.contains('oculto')) { p.classList.add('oculto'); return; }
+  pintarPanelAvisos();
+  p.classList.remove('oculto');
+};
+function pintarPanelAvisos(err) {
+  var p = document.getElementById('panel-avisos'), h;
+  if (!PUSH_SOPORTADO) {
+    h = '<p>Para recibir avisos en el iPhone o el iPad, instala la app: abre ORUM en Safari, pulsa <b>Compartir</b> → <b>Añadir a pantalla de inicio</b> y entra desde ese icono.</p>' +
+      '<div class="botones"><button class="b-no" data-av="cerrar">Entendido</button></div>';
+  } else if (Notification.permission === 'denied') {
+    h = '<p>Este dispositivo tiene bloqueados los avisos de ORUM. Para recibirlos, permítelos en los ajustes del navegador (o del sistema, si es la app instalada) y vuelve aquí.</p>' +
+      '<div class="botones"><button class="b-no" data-av="cerrar">Cerrar</button></div>';
+  } else {
+    var marcados = avisosActivos() ? AVISOS.canales : CANALES.map(function (c) { return c.id; });
+    h = '<p>' + (avisosActivos() ? 'Este dispositivo recibe un aviso cuando llega un mensaje, aunque la app esté cerrada.' : 'Recibe un aviso en este dispositivo cuando llegue un mensaje, aunque la app esté cerrada.') + '</p>' +
+      (CANALES.length > 1 ? CANALES.map(function (c) {
+        return '<label><input type="checkbox" data-av-canal="' + c.id + '"' + (marcados.indexOf(c.id) !== -1 ? ' checked' : '') + '> ' + esc(c.nombre) + '</label>';
+      }).join('') : '') +
+      '<div class="botones"><button class="b-si" data-av="guardar">' + (avisosActivos() ? 'Guardar' : 'Activar avisos') + '</button>' +
+      (avisosActivos() ? '<button class="b-no" data-av="quitar">Desactivar</button>' : '<button class="b-no" data-av="cerrar">Ahora no</button>') + '</div>';
+  }
+  p.innerHTML = h + (err ? '<div class="err">' + esc(err) + '</div>' : '');
+}
+document.getElementById('panel-avisos').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-av]');
+  if (!b) return;
+  var accion = b.getAttribute('data-av');
+  if (accion === 'cerrar') return document.getElementById('panel-avisos').classList.add('oculto');
+  b.disabled = true;
+  (accion === 'guardar' ? activarAvisos() : desactivarAvisos()).then(function () {
+    pintarBotonAvisos();
+    document.getElementById('panel-avisos').classList.add('oculto');
+  }).catch(function (err) { pintarPanelAvisos(err.message || 'No se han podido cambiar los avisos'); });
+});
+function claveBytes(b64) {
+  var s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  var a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+  return a;
+}
+// pushManager.subscribe necesita el service worker ya activo
+function swActivo(reg) {
+  if (reg.active) return Promise.resolve(reg);
+  var sw = reg.installing || reg.waiting;
+  return new Promise(function (ok) { sw.addEventListener('statechange', function () { if (sw.state === 'activated') ok(reg); }); });
+}
+function activarAvisos() {
+  var canales = CANALES.length > 1
+    ? [].slice.call(document.querySelectorAll('[data-av-canal]:checked')).map(function (i) { return i.getAttribute('data-av-canal'); })
+    : CANALES.map(function (c) { return c.id; });
+  if (!canales.length) return desactivarAvisos();
+  return Notification.requestPermission().then(function (permiso) {
+    if (permiso !== 'granted') throw new Error(permiso === 'denied' ? 'Has bloqueado los avisos. Permítelos en los ajustes del navegador.' : 'No se ha dado permiso para los avisos');
+    return swActivo(AVISOS.reg);
+  }).then(function (reg) {
+    return AVISOS.sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: claveBytes(AVISOS.clave) });
+  }).then(function (sub) {
+    AVISOS.sub = sub;
+    return fetch('/api/chat/push/suscribir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suscripcion: sub.toJSON(), canales: canales }) }).then(function (r) { return r.json(); });
+  }).then(function (d) {
+    if (!d.ok) throw new Error(d.error || 'No se han podido activar');
+    AVISOS.canales = d.canales;
+  });
+}
+function desactivarAvisos() {
+  var sub = AVISOS.sub;
+  if (!sub) { AVISOS.canales = null; return Promise.resolve(); }
+  return fetch('/api/chat/push/quitar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.ok) throw new Error(d.error || 'No se han podido desactivar');
+    AVISOS.canales = null; AVISOS.sub = null;
+    return sub.unsubscribe().catch(function () {});
+  });
 }
 
 // Foto a pantalla completa
