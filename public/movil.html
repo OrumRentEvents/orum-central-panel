@@ -129,6 +129,18 @@ button { font-family: inherit; }
 .boton .pronto-et { font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: #8a6d1e; background: #f3ead9; border-radius: 8px; padding: 2px 7px; align-self: flex-start; }
 .enlace-panel { display: block; text-align: center; margin-top: 22px; font-size: 13px; color: #6b6a64; }
 
+/* Repostaje */
+.veh-lista { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.veh-btn { background: #fff; border: 0.5px solid #e2e2de; border-radius: 14px; padding: 16px 12px; text-align: left; cursor: pointer; font-family: inherit; color: #1a1a18; display: flex; flex-direction: column; gap: 4px; min-height: 92px; }
+.veh-btn:active { background: #f4fcf9; border-color: #1D9E75; }
+.veh-btn b { font-size: 15px; line-height: 1.2; }
+.veh-btn span { font-size: 12px; color: #6b6a64; }
+.veh-btn .mat { font-size: 13px; font-weight: 600; letter-spacing: .5px; color: #8a6d1e; }
+.veh-elegido { background: #1a1a18; color: #fff; border-radius: 14px; padding: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.veh-elegido b { font-size: 16px; display: block; } .veh-elegido span { font-size: 12px; color: rgba(255,255,255,.7); }
+.veh-elegido button { background: rgba(255,255,255,.15); border: none; color: #fff; border-radius: 8px; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+.campo input.grande { font-size: 22px; font-weight: 600; padding: 12px; }
+
 /* Subir factura */
 .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 .accion { background: #1a1a18; color: #fff; border: none; border-radius: 12px; padding: 18px 10px; font-size: 15px; font-weight: 500; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -373,7 +385,7 @@ var BOTONES = [
   { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
   // Próximamente (oct 2026): se ven ya en el inicio y se van construyendo
   { id: 'incidencias', titulo: 'Incidencias', sub: 'Registrar y seguir lo que va pasando', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], pronto: true },
-  { id: 'repostaje', titulo: 'Repostaje', sub: 'Registrar un repostaje de un vehículo', roles: ['Direccion', 'Logistica'], pronto: true },
+  { id: 'repostaje', titulo: 'Repostaje', sub: 'Km, litros y quién reposta', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaRepostaje(); } },
   { id: 'vehiculos', titulo: 'Vehículos', sub: 'Flota, revisión antes de salir y vencimientos', roles: ['Direccion', 'Logistica'], pronto: true },
   { id: 'caja', titulo: 'Caja', sub: 'Registrar cobros en efectivo o TPV', roles: ['Direccion', 'Contabilidad', 'Comercial'], pronto: true }
 ];
@@ -657,6 +669,77 @@ function pintarSaldos(q) {
       '<div class="reg-sub">Horas este mes: <b>' + (t.horas_mes ? num(t.horas_mes) + ' h' : '—') + '</b> · año: <b>' + (t.horas_anio ? num(t.horas_anio) + ' h' : '—') + '</b></div>' +
       (pend ? '<div class="reg-pie"><span class="est pendiente">Pendiente de aprobar: ' + pend + '</span></div>' : '') + '</div>';
   }).join('') || '<div class="nota">Nadie coincide con la búsqueda.</div>';
+}
+
+// ── Repostaje ──
+// Se elige el vehículo (los activos de Vehículos) y se apuntan los km del
+// cuentakilómetros, quién reposta (choferes de Rutas) y los litros.
+// POST /api/vehiculos/repostajes; el km cuenta como lectura en Vehículos.
+var RP = { ctx: null, veh: null };
+function pantallaRepostaje(aviso) {
+  abrirPantalla('Repostaje');
+  document.getElementById('cuerpo').innerHTML = '<div class="cargando">Cargando…</div>';
+  fetch('/api/vehiculos/repostajes/contexto').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    RP.ctx = d; RP.veh = null;
+    pintarVehiculosRepostaje(aviso);
+  }).catch(function (e) { document.getElementById('cuerpo').innerHTML = '<div class="cargando">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+function numES(n) { return Number(n).toLocaleString('es-ES', { maximumFractionDigits: 2 }); }
+function pintarVehiculosRepostaje(aviso) {
+  var C = RP.ctx;
+  document.getElementById('cuerpo').innerHTML =
+    (aviso ? '<div class="estado-form ok" style="margin-bottom:12px;">' + aviso + '</div>' : '') +
+    '<div class="seccion-tit" style="margin-top:0;">¿Qué vehículo has repostado?</div>' +
+    '<div class="veh-lista">' + C.vehiculos.map(function (v, i) {
+      return '<button class="veh-btn" onclick="elegirVehiculoRepostaje(' + i + ')"><span class="mat">' + esc(v.matricula || '') + '</span><b>' + esc(v.nombre) + '</b>' + (v.nombre_rutas ? '<span>' + esc(v.nombre_rutas) + '</span>' : '') + '</button>';
+    }).join('') + '</div>' +
+    '<div class="seccion-tit">Últimos repostajes</div>' +
+    ((C.ultimos || []).map(function (r) {
+      return '<div class="reg"><div class="reg-top"><b>' + esc(r.vehiculo) + '</b><span>' + numES(r.litros) + ' L</span></div>' +
+        '<div class="reg-sub">' + fechaCorta(r.fecha) + ' · ' + numES(r.km) + ' km · ' + esc(r.persona) + '</div></div>';
+    }).join('') || '<div class="nota">Todavía no hay repostajes.</div>');
+}
+// Quien usa la app, si está en la lista de choferes (mismo nombre y apellido)
+function choferDelUsuario(choferes) {
+  var limpio = function (x) { return String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/).filter(Boolean); };
+  var yo = limpio(USUARIO && USUARIO.nombre);
+  if (!yo.length) return '';
+  return choferes.filter(function (c) { var t = limpio(c); return t.length && t.every(function (w) { return yo.indexOf(w) !== -1; }); })[0] || '';
+}
+function elegirVehiculoRepostaje(i) {
+  var v = RP.veh = RP.ctx.vehiculos[i];
+  var yo = choferDelUsuario(RP.ctx.choferes || []);
+  window.scrollTo(0, 0);
+  document.getElementById('cuerpo').innerHTML =
+    '<div class="veh-elegido"><div><b>' + esc(v.nombre) + '</b><span>' + esc(v.matricula || '') + (v.nombre_rutas ? ' · ' + esc(v.nombre_rutas) : '') + '</span></div><button onclick="pintarVehiculosRepostaje()">Cambiar</button></div>' +
+    '<div class="form">' +
+      '<div class="campo"><label>Km actuales del cuentakilómetros</label><input class="grande" type="text" inputmode="numeric" id="rp-km" placeholder="' + (v.km_actuales ? 'Unos ' + numES(Math.round(v.km_actuales)) : 'p. ej. 125430') + '" autocomplete="off"></div>' +
+      '<div class="campo"><label>Litros repostados</label><input class="grande" type="text" inputmode="decimal" id="rp-litros" placeholder="p. ej. 65,4" autocomplete="off"></div>' +
+      '<div class="campo"><label>Quién ha repostado</label><select id="rp-persona"><option value="">Elige…</option>' +
+        (RP.ctx.choferes || []).map(function (c) { return '<option' + (c === yo ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div>' +
+      '<button class="enviar" id="rp-enviar" onclick="guardarRepostaje()">Guardar repostaje</button>' +
+      '<div class="estado-form" id="rp-estado"></div>' +
+    '</div>';
+  document.getElementById('rp-km').focus();
+}
+function guardarRepostaje(confirmar) {
+  var est = document.getElementById('rp-estado'), btn = document.getElementById('rp-enviar');
+  var cuerpo = { vehiculo_id: RP.veh.id, km: document.getElementById('rp-km').value.trim(), litros: document.getElementById('rp-litros').value.trim(), persona: document.getElementById('rp-persona').value, confirmar: !!confirmar };
+  if (!cuerpo.km) { est.className = 'estado-form mal'; est.textContent = 'Indica los km'; return; }
+  if (!cuerpo.litros) { est.className = 'estado-form mal'; est.textContent = 'Indica los litros'; return; }
+  if (!cuerpo.persona) { est.className = 'estado-form mal'; est.textContent = 'Elige quién ha repostado'; return; }
+  btn.disabled = true; est.className = 'estado-form'; est.textContent = 'Guardando…';
+  postJson('/api/vehiculos/repostajes', cuerpo).then(function (d) {
+    btn.disabled = false;
+    if (d.confirmar) {
+      est.textContent = '';
+      if (confirm('Para este vehículo se esperaban unos ' + numES(d.km_esperados) + ' km y has puesto ' + cuerpo.km + '.\n\n¿Están bien los km?')) guardarRepostaje(true);
+      return;
+    }
+    if (!d.ok) { est.className = 'estado-form mal'; est.textContent = d.error || 'No se ha podido guardar'; return; }
+    pantallaRepostaje('✓ Repostaje guardado: ' + esc(d.repostaje.vehiculo) + ' · ' + numES(d.repostaje.litros) + ' L');
+  }).catch(function () { btn.disabled = false; est.className = 'estado-form mal'; est.textContent = 'Sin conexión'; });
 }
 
 // ── Servicios Isabella ──

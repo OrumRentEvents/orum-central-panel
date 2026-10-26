@@ -837,3 +837,61 @@ async function guardarAjustesRanking() {
     await cargarRankingConductores(vehRankMes);
   } catch (err) { vehError('vr-error', err.message); }
 }
+
+// ── Repostajes (oct 2026) ──
+// Se apuntan desde la app (botón Repostaje): vehículo, km, litros y quién
+// reposta. Aquí se ven por mes y se pueden borrar si se apuntó mal.
+let vehRepMes = null, vehRepDatos = null;
+async function cargarRepostajesVehiculos(mes) {
+  document.getElementById('content-title').textContent = 'Vehículos · Repostajes';
+  marcarMenuActivo('menu-item-veh-repostajes');
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando repostajes...</p>';
+  try {
+    vehRepDatos = await vehApi('/api/vehiculos/repostajes' + ((mes || vehRepMes) ? '?mes=' + (mes || vehRepMes) : ''));
+    vehRepMes = vehRepDatos.mes;
+    pintarRepostajes();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error: ' + vehEsc(err.message) + '</p>';
+  }
+}
+function pintarRepostajes() {
+  const lista = vehRepDatos.repostajes;
+  const litros = lista.reduce((s, r) => s + Number(r.litros || 0), 0);
+  const porVeh = {};
+  lista.forEach(r => { const k = r.matricula || r.vehiculo_id; (porVeh[k] = porVeh[k] || { nombre: r.vehiculo, matricula: r.matricula, n: 0, litros: 0 }); porVeh[k].n++; porVeh[k].litros += Number(r.litros || 0); });
+  const resumen = Object.values(porVeh).sort((a, b) => b.litros - a.litros);
+  document.getElementById('content-body').innerHTML = `
+    <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-bottom:12px;">
+      <div class="veh-form" style="grid-template-columns:auto;"><div><label>Mes</label><input type="month" value="${vehRepMes}" onchange="cargarRepostajesVehiculos(this.value)"></div></div>
+      <div style="flex:1; min-width:200px; display:flex; padding-bottom:2px;">${vehBuscadorHtml('Buscar vehículo, matrícula o persona...')}</div>
+    </div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;">
+      ${kpiCard('Repostajes', lista.length)}
+      ${kpiCard('Litros', vehNum(Math.round(litros * 10) / 10))}
+      ${resumen.slice(0, 3).map(v => kpiCard(vehEsc(v.matricula || v.nombre), vehNum(Math.round(v.litros * 10) / 10) + ' L · ' + v.n)).join('')}
+    </div>
+    <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Se apuntan desde la app (Repostaje). Los km de cada repostaje cuentan como lectura del cuentakilómetros del vehículo.</p>
+    <div class="veh-seccion veh-tabla-wrap">
+      ${lista.length ? `<table>
+        <thead><tr><th>Fecha</th><th>Vehículo</th><th style="text-align:right;">Km</th><th style="text-align:right;">Litros</th><th>Ha repostado</th><th>Apuntado por</th><th></th></tr></thead>
+        <tbody>${lista.map(r => `<tr class="veh-filtrable">
+          <td>${vehFecha(r.fecha)} <span style="font-size:11px; color:var(--text-muted);">${r.creado_en ? new Date(r.creado_en).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}</span></td>
+          <td><b>${vehEsc(r.matricula)}</b> <span style="color:var(--text-muted);">${vehEsc(r.vehiculo)}</span></td>
+          <td style="text-align:right;">${vehNum(r.km)}</td>
+          <td style="text-align:right;">${vehNum(r.litros)}</td>
+          <td>${vehEsc(r.persona)}</td>
+          <td style="font-size:12px; color:var(--text-muted);">${vehEsc(r.registrado_por || '')}</td>
+          <td><button class="veh-btn mini peligro" onclick="borrarRepostaje(${r.id})">Borrar</button></td>
+        </tr>`).join('')}</tbody>
+      </table>` : '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">No hay repostajes este mes.</p>'}
+    </div>`;
+  vehFiltrar();
+}
+async function borrarRepostaje(id) {
+  if (!confirm('¿Borrar este repostaje?')) return;
+  try {
+    await vehApi('/api/vehiculos/repostajes/' + id, { method: 'DELETE' });
+    cargarRepostajesVehiculos(vehRepMes);
+  } catch (err) { alert('No se ha podido borrar: ' + err.message); }
+}
