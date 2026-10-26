@@ -2,7 +2,8 @@
 // de las tablets (Preparación y Mantenimiento) y el inicio de la app móvil.
 // ponerBotonChat(elemento) lo mete dentro de ese elemento si el usuario
 // tiene algún chat; al pulsarlo abre /chat y "Volver" regresa aquí.
-// Dentro del panel (?embebido=1) no se pone: el panel tiene su propio Chat.
+// Dentro del panel (?embebido=1) no se pone, salvo en Preparación, donde
+// abre el Chat del propio panel (cargarChat).
 (function () {
   var CSS = '.chat-btn{position:relative;display:inline-flex;align-items:center;gap:6px;background:#1D9E75;border:none;color:#fff;font-size:13px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap}' +
     '.chat-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}' +
@@ -17,8 +18,12 @@
   };
 
   window.ponerBotonChat = function (contenedor, opciones) {
-    if (!contenedor || new URLSearchParams(location.search).get('embebido') === '1') return;
     var o = opciones || {};
+    // Embebida en el panel solo con { enPanel: true } (Preparación): abre el Chat del panel
+    var embebido = new URLSearchParams(location.search).get('embebido') === '1';
+    var chatPanel = null;
+    try { chatPanel = embebido && o.enPanel && window.parent !== window && window.parent.cargarChat; } catch (e) {}
+    if (!contenedor || (embebido && !chatPanel)) return;
     if (!document.getElementById('chat-btn-css')) { var st = document.createElement('style'); st.id = 'chat-btn-css'; st.textContent = CSS; document.head.appendChild(st); }
     var boton = null;
     function actualizar() {
@@ -28,7 +33,8 @@
         if (!boton) {
           boton = document.createElement('button');
           boton.className = 'chat-btn';
-          boton.onclick = function () { location.href = '/chat?volver=' + encodeURIComponent(location.pathname + location.search); };
+          boton.onclick = chatPanel ? function () { window.parent.cargarChat(); }
+            : function () { location.href = '/chat?volver=' + encodeURIComponent(location.pathname + location.search); };
           if (o.antesDe && o.antesDe.parentNode === contenedor) contenedor.insertBefore(boton, o.antesDe); else contenedor.appendChild(boton);
         }
         boton.innerHTML = ICONO + 'Chat' + (n ? '<span class="chat-badge">' + n + '</span>' : '');

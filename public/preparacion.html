@@ -806,7 +806,7 @@ function entrarConSesion(u) {
   document.getElementById('btn-inicio').style.display = tablet || EMBEBIDO ? 'none' : '';
   document.getElementById('btn-salir').style.display = tablet && !EMBEBIDO ? '' : 'none';
   // Botón Chat (public/chat-boton.js): solo si el usuario tiene algún chat
-  if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.app-header-top'), { antesDe: document.getElementById('btn-salir') });
+  if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.app-header-top'), { antesDe: document.getElementById('btn-salir'), enPanel: true });
   construirTabs();
   cargarDatos(tabActiva);
 }
