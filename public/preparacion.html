@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>ORUM Preparacion</title>
-<link rel="manifest" href="/movil.webmanifest">
+<link rel="manifest" href="/movil.webmanifest?v=2">
 <meta name="theme-color" content="#1a1a18">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon-rutas.png?v=2">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <style>
@@ -121,6 +121,21 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .zona-chip.parcial { background: #FAEEDA; color: #854F0B; }
 .zona-chip.ok { background: #E1F5EE; color: #0F6E56; font-weight: 600; }
 span.chk { margin-right: 10px; }
+/* Notas por proyecto */
+.notas-chip { font-size: 11px; color: #854F0B; background: #FAEEDA; border-radius: 10px; padding: 1px 8px; }
+.notas-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.nota { background: #fdf8ee; border: 0.5px solid #f0d9a8; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.nota-cab { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #6b6a64; margin-bottom: 3px; }
+.nota-cab b { color: #1a1a18; font-weight: 600; }
+.nota-cab .zona { background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; padding: 0 6px; }
+.nota-cab .acc { margin-left: auto; display: flex; gap: 2px; }
+.nota-cab .acc button { background: none; border: none; color: #8a6d1e; font-size: 12px; cursor: pointer; padding: 2px 6px; }
+.nota-texto { white-space: pre-wrap; word-break: break-word; }
+.nota-nueva { display: flex; gap: 8px; align-items: flex-end; }
+.nota-nueva textarea { flex: 1; min-height: 44px; max-height: 140px; padding: 9px 10px; font-size: 14px; font-family: inherit; border: 0.5px solid #d8d4c8; border-radius: 8px; resize: vertical; }
+.nota-nueva textarea:focus { outline: none; border-color: #1a1a18; }
+.nota-nueva button { background: #1a1a18; color: #fff; border: none; border-radius: 8px; padding: 11px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.nota-nueva button:disabled { opacity: .5; }
 /* Por día */
 .dia-barra { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .dia-barra button { background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
@@ -400,7 +415,7 @@ function fechaOrden(p) { return (p.fecha_entrega || '').split('/').reverse().joi
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function tarjetaProyecto(p) {
   var num = String(p.numero || '');
-  var pid = JSON.stringify(p).replace(/"/g, '&quot;');
+  var pid = JSON.stringify(p).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   var h = '<div class="proyecto-card' + (p._listo ? ' listo' : '') + '" data-p="' + pid + '">';
   h += '<div class="card-top"><div style="flex:1">';
   h += '<div class="card-numero-wrap"><span class="card-numero">#' + num + '</span>';
@@ -410,6 +425,7 @@ function tarjetaProyecto(p) {
   h += '<div class="card-meta">';
   if (p.fecha_entrega) h += '<span>Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
   if (p.localizacion) h += '<span>Loc: ' + esc(p.localizacion) + '</span>';
+  if (p.notas && p.notas.length) h += '<span class="notas-chip" title="Notas">💬 ' + p.notas.length + '</span>';
   if (zonaActual() && p.zona_total) h += '<span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
   h += '</div>' + zonasTexto(p) + '</div>';
   return h;
@@ -486,7 +502,7 @@ function recargarSilencioso() {
     guardarDatos(tab, data);
     // No se repinta con el detalle de un proyecto abierto ni mientras se escribe en el buscador
     if (!proyectoModal && document.activeElement !== document.getElementById('buscador') && document.activeElement !== document.getElementById('dia-input')) renderizar(data);
-    else if (proyectoModal) {
+    else if (proyectoModal && !document.activeElement.matches('#nota-txt, #nota-edit-txt') && notaEditando === null) {
       var todos = [];
       (data.orden_periodos || []).forEach(function(per) { var pp = data.por_proyecto[per]; if (pp) todos = todos.concat(pp.confirmado, pp.preparado); });
       var nuevo = todos.filter(function(p) { return String(p.id) === String(proyectoModal.id); })[0];
@@ -503,6 +519,58 @@ function guardarDatos(tab, data) {
     if (!equipmentCache[pid]) equipmentCache[pid] = [];
     equipmentCache[pid].push(e);
   });
+}
+
+// ── Notas por proyecto (las ven todas las zonas) ──
+var ZONA_NOTA = { almacen: 'Almacén', lavanderia: 'Lavandería', office: 'Office' };
+var notaEditando = null;
+function htmlNotas(p) {
+  var notas = p.notas || [];
+  var h = '<div class="modal-seccion">Notas' + (notas.length ? ' (' + notas.length + ')' : '') + '</div><div class="notas-lista">';
+  notas.forEach(function(n) {
+    var mia = perfilActivo && perfilActivo.sesion && n.usuario === perfilActivo.usuario;
+    var puedeBorrar = mia || (perfilActivo && ['Direccion', 'Logistica'].indexOf(perfilActivo.rol) !== -1);
+    var cuando = new Date(n.creado_en).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    h += '<div class="nota"><div class="nota-cab"><b>' + esc(n.autor) + '</b><span class="zona">' + (ZONA_NOTA[n.zona] || n.zona) + '</span><span>' + cuando + (n.editado_en ? ' · editada' : '') + '</span>' +
+      '<span class="acc">' + (mia ? '<button data-nota-editar="' + n.id + '">Editar</button>' : '') + (puedeBorrar ? '<button data-nota-borrar="' + n.id + '">Borrar</button>' : '') + '</span></div>';
+    h += notaEditando === n.id
+      ? '<div class="nota-nueva"><textarea id="nota-edit-txt" maxlength="1000">' + esc(n.texto) + '</textarea><button data-nota-guardar="' + n.id + '">Guardar</button></div>'
+      : '<div class="nota-texto">' + esc(n.texto) + '</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+  if (perfilActivo && perfilActivo.sesion) h += '<div class="nota-nueva"><textarea id="nota-txt" maxlength="1000" placeholder="Escribe un aviso para los demás…"></textarea><button data-nota-nueva="' + p.id + '">Añadir</button></div>';
+  return h;
+}
+function peticionNota(metodo, url, cuerpo) {
+  return fetch(url, { method: metodo, headers: { 'Content-Type': 'application/json' }, body: cuerpo ? JSON.stringify(cuerpo) : undefined })
+    .then(function(r) { return r.json().catch(function() { return {}; }).then(function(d) { if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status); return d; }); });
+}
+function accionNota(el) {
+  if (!proyectoModal) return;
+  var p = proyectoModal;
+  var listo = function(msg) { notaEditando = null; mostrarToast(msg); abrirModal(p); recargarSilencioso(); };
+  var fallo = function(e) { el.disabled = false; mostrarToast(e.message); };
+  if (el.hasAttribute('data-nota-nueva')) {
+    var txt = document.getElementById('nota-txt').value.trim();
+    if (!txt) return;
+    el.disabled = true;
+    peticionNota('POST', '/api/preparacion/notas', { proyecto_id: p.id, texto: txt, zona: tabActiva })
+      .then(function(d) { p.notas = (p.notas || []).concat(d.nota); listo('Nota guardada'); }).catch(fallo);
+  } else if (el.hasAttribute('data-nota-editar')) {
+    notaEditando = Number(el.getAttribute('data-nota-editar')); abrirModal(p);
+  } else if (el.hasAttribute('data-nota-guardar')) {
+    var id = Number(el.getAttribute('data-nota-guardar')), nuevo = document.getElementById('nota-edit-txt').value.trim();
+    if (!nuevo) return;
+    el.disabled = true;
+    peticionNota('PUT', '/api/preparacion/notas/' + id, { texto: nuevo })
+      .then(function() { p.notas.forEach(function(n) { if (n.id === id) { n.texto = nuevo; n.editado_en = new Date().toISOString(); } }); listo('Nota guardada'); }).catch(fallo);
+  } else if (el.hasAttribute('data-nota-borrar')) {
+    var idb = Number(el.getAttribute('data-nota-borrar'));
+    if (!confirm('¿Borrar esta nota?')) return;
+    peticionNota('DELETE', '/api/preparacion/notas/' + idb)
+      .then(function() { p.notas = p.notas.filter(function(n) { return n.id !== idb; }); listo('Nota borrada'); }).catch(fallo);
+  }
 }
 
 // ── Por día: el material de un día concreto, agrupado por familia ──
@@ -630,6 +698,7 @@ function abrirModal(p) {
   html += p.zona_preparada ? '<span class="badge-estado badge-listo">Preparado</span>' : estadoBadge(p.estado);
   if (zonaActual() && p.zona_total) html += ' <span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '" style="margin-left:6px;">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
   if (puedeMarcar()) html += '<div style="font-size:12px;color:#6b6a64;margin-top:8px;">Marca cada artículo cuando esté preparado. Con todo marcado, el proyecto pasa a Preparado.</div>';
+  html += htmlNotas(p);
   var items = equipmentCache[String(p.id)] || [];
   html += '<div class="modal-seccion">Material</div>';
   if (items.length) {
@@ -659,6 +728,7 @@ function abrirModal(p) {
 
 function cerrarModal() {
   proyectoModal = null;
+  notaEditando = null;
   if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
   document.getElementById('modal-overlay').classList.remove('open');
   document.body.style.overflow = '';
@@ -677,6 +747,8 @@ document.addEventListener('click', function(e) {
   var famHeader = e.target.closest('.familia-header');
   var modalOverlay = e.target.closest('#modal-overlay');
   var modalBox = e.target.closest('#modal-box');
+  var botonNota = e.target.closest('[data-nota-nueva],[data-nota-editar],[data-nota-guardar],[data-nota-borrar]');
+  if (botonNota) { e.stopPropagation(); accionNota(botonNota); return; }
   var chk = e.target.closest('[data-chk]');
   if (chk) { e.stopPropagation(); marcarArticulo(chk); return; }
   var flecha = e.target.closest('[data-dia]');
@@ -693,7 +765,7 @@ document.addEventListener('click', function(e) {
   }
   if (card) {
     var pData = card.getAttribute('data-p');
-    if (pData) { try { abrirModal(JSON.parse(pData.replace(/&quot;/g, '"'))); } catch(err) {} }
+    if (pData) { try { abrirModal(JSON.parse(pData)); } catch(err) {} }
     return;
   }
   if (famHeader) {
@@ -726,7 +798,7 @@ var PARAMS = new URLSearchParams(location.search);
 var EMBEBIDO = PARAMS.get('embebido') === '1';
 function entrarConSesion(u) {
   var tabs = TABS_POR_ROL[u.rol] || ['almacen', 'lavanderia', 'office'];
-  perfilActivo = { sesion: true, rol: u.rol, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparacion', tabs: tabs };
+  perfilActivo = { sesion: true, rol: u.rol, usuario: u.usuario, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparacion', tabs: tabs };
   tabActiva = tabs.indexOf(PARAMS.get('vista')) !== -1 ? PARAMS.get('vista') : tabs[0];
   document.getElementById('app').style.display = 'block';
   document.getElementById('app-titulo').textContent = perfilActivo.nombre;

@@ -1,6 +1,6 @@
 {
-  "name": "ORUM",
-  "short_name": "ORUM",
+  "name": "ORUM Central",
+  "short_name": "ORUM Central",
   "description": "App móvil de ORUM Central",
   "id": "/movil",
   "start_url": "/movil",
@@ -10,8 +10,23 @@
   "theme_color": "#1a1a18",
   "lang": "es",
   "icons": [
-    { "src": "/icons/rutas-192.png?v=2", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/rutas-512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/rutas-maskable-512.png?v=2", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icons/orum-192.png?v=1",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/orum-512.png?v=1",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/orum-maskable-512.png?v=1",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

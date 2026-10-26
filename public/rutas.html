@@ -329,7 +329,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </head>
 <body>
 
-<div id="pin-screen">
+<div id="pin-screen" style="display:none;">
   <div class="pin-box">
     <div class="pin-logo">ORUM</div>
     <div class="pin-sub">Rutas — Logistica</div>
@@ -528,6 +528,29 @@ function dots(err){for(var i=0;i<4;i++){var d=document.getElementById('d'+i);d.c
 function pinCheck(){
   var cfg=PINES_CONFIG[pin];
   if(!cfg){document.getElementById('pin-err').textContent='PIN incorrecto';dots(true);setTimeout(function(){pin='';dots(false);document.getElementById('pin-err').textContent='';},800);return;}
+  entrarRutas(cfg);
+}
+// Desde la app movil (/movil) o el panel se entra con la sesion de la persona,
+// sin el PIN de Rutas: Direccion y Logistica como logistica, Comercial como
+// comercial. Sin sesion (o con otro rol) se pide el PIN de siempre.
+var ROL_RUTAS_POR_ROL={Direccion:'logistica',Logistica:'logistica',Comercial:'comercial'};
+function entrarConSesionORUM(){
+  var mostrarPin=function(){document.getElementById('pin-screen').style.display='';};
+  var conUsuario=function(u){
+    var rol=u&&ROL_RUTAS_POR_ROL[u.rol];
+    if(!rol)return mostrarPin();
+    // El historial de Rutas se da por el nombre "Sergio" (como con su PIN)
+    entrarRutas({rol:rol,nombre:String(u.usuario).toLowerCase()==='sergio'?'Sergio':(u.nombre||u.usuario)});
+  };
+  fetch('/api/sesion').then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}).then(function(d){
+    if(d&&d.usuario)return conUsuario(d.usuario);
+    var llave='';try{llave=localStorage.getItem('orum_movil_dispositivo')||'';}catch(e){}
+    if(!llave)return mostrarPin();
+    fetch('/api/movil/dispositivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dispositivo:llave})})
+      .then(function(r){return r.json();}).then(function(r){if(r.ok)conUsuario(r.usuario);else mostrarPin();}).catch(mostrarPin);
+  });
+}
+function entrarRutas(cfg){
   ROL=cfg.rol;
   NOMBRE_USUARIO=cfg.nombre||'';
   var elUsuario=document.getElementById('hdr-usuario');
@@ -2242,6 +2265,7 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 // ── INIT ──
 document.addEventListener('DOMContentLoaded',function(){
   initKP();
+  entrarConSesionORUM();
   document.getElementById('btn-rec').addEventListener('click',load);
   document.getElementById('fab').addEventListener('click',function(){if(ROL==='logistica'||ROL==='comercial')abrirModal();});
   document.getElementById('mcls').addEventListener('click',cerrarModal);

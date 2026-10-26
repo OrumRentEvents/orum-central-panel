@@ -983,6 +983,14 @@ async function construirRespuestaPreparacion(vista) {
     return z;
   };
 
+  // Notas de Preparación por proyecto (sql/preparacion_notas.sql): las ven todas las zonas
+  const notasPorProyecto = {};
+  {
+    const { data, error } = await supabase.from('preparacion_notas').select('id,proyecto_id,zona,texto,usuario,autor,creado_en,editado_en').order('creado_en');
+    if (error) throw error;
+    (data || []).forEach(n => { (notasPorProyecto[String(n.proyecto_id)] = notasPorProyecto[String(n.proyecto_id)] || []).push(n); });
+  }
+
   const idsProyectosConEquipo = new Set(equipmentFiltrado.map(e => String(e.proyecto_id)));
   const proyectosVista = vista === 'almacen'
     ? proyectosConfirmados
@@ -998,7 +1006,7 @@ async function construirRespuestaPreparacion(vista) {
     const prog = progresoArea[String(p.id)];
     const zonaLista = !!(prog && prog.total && prog.marcados === prog.total);
     const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado)) || zonaLista;
-    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: zonaLista, zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0, zonas: area ? undefined : zonasDe(String(p.id)) };
+    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: zonaLista, zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0, zonas: area ? undefined : zonasDe(String(p.id)), notas: notasPorProyecto[String(p.id)] || [] };
     if (estaListo) porProyecto[periodo].preparado.push(item);
     else porProyecto[periodo].confirmado.push(item);
   });
@@ -1321,6 +1329,51 @@ app.post('/api/preparacion/check', requiereLogin, async (req, res) => {
     console.error('Error en /api/preparacion/check:', err);
     res.status(500).json({ error: 'No se ha podido guardar: ' + err.message });
   }
+});
+
+// Notas de Preparación: cualquiera que entre en Preparación (no comerciales)
+// escribe; cada uno corrige o borra las suyas; Dirección y Logística borran
+// cualquiera. La zona es la de la tablet o la pestaña desde la que se escribe.
+const ZONAS_NOTA = ['almacen', 'lavanderia', 'office'];
+app.post('/api/preparacion/notas', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const u = req.session.usuario;
+    const b = req.body || {};
+    const texto = String(b.texto || '').trim().slice(0, 1000);
+    const pid = Number(b.proyecto_id);
+    if (!texto || !pid) return res.status(400).json({ error: 'Escribe la nota' });
+    const zona = VISTA_PREPARACION_POR_ROL[u.rol] || (ZONAS_NOTA.includes(b.zona) ? b.zona : 'almacen');
+    const { data, error } = await supabase.from('preparacion_notas').insert({ proyecto_id: pid, zona, texto, usuario: u.usuario, autor: u.nombre || u.usuario, creado_en: new Date().toISOString() }).select('id,proyecto_id,zona,texto,usuario,autor,creado_en,editado_en');
+    if (error) throw error;
+    res.json({ ok: true, nota: data && data[0] });
+  } catch (err) { console.error('Error en POST /api/preparacion/notas:', err); res.status(500).json({ error: 'No se ha podido guardar la nota: ' + err.message }); }
+});
+async function notaPropia(req, res, permitirAdmin) {
+  const u = req.session.usuario;
+  const { data, error } = await supabase.from('preparacion_notas').select('id,usuario').eq('id', Number(req.params.id));
+  if (error) throw error;
+  const n = data && data[0];
+  if (!n) { res.status(404).json({ error: 'La nota ya no existe' }); return null; }
+  if (n.usuario !== u.usuario && !(permitirAdmin && ['Direccion', 'Logistica'].includes(u.rol))) { res.status(403).json({ error: 'Solo puedes cambiar tus notas' }); return null; }
+  return n;
+}
+app.put('/api/preparacion/notas/:id', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    if (!(await notaPropia(req, res, false))) return;
+    const texto = String((req.body || {}).texto || '').trim().slice(0, 1000);
+    if (!texto) return res.status(400).json({ error: 'La nota no puede quedar vacía' });
+    const { error } = await supabase.from('preparacion_notas').update({ texto, editado_en: new Date().toISOString() }).eq('id', Number(req.params.id));
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'No se ha podido guardar: ' + err.message }); }
+});
+app.delete('/api/preparacion/notas/:id', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    if (!(await notaPropia(req, res, true))) return;
+    const { error } = await supabase.from('preparacion_notas').delete().eq('id', Number(req.params.id));
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'No se ha podido borrar: ' + err.message }); }
 });
 
 // ── Tokens de acceso por perfil (sin login) ──

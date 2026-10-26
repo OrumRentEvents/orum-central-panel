@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<title>ORUM</title>
-<link rel="manifest" href="/movil.webmanifest">
+<title>ORUM Central</title>
+<link rel="manifest" href="/movil.webmanifest?v=2">
 <meta name="theme-color" content="#1a1a18">
-<link rel="icon" type="image/png" sizes="192x192" href="/icons/rutas-192.png?v=2">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon-rutas.png?v=2">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/orum-192.png?v=1">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="ORUM">
+<meta name="apple-mobile-web-app-title" content="ORUM Central">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
@@ -22,7 +22,9 @@ button { font-family: inherit; }
 /* PIN (igual que Rutas y Preparación) */
 #pin-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; }
 .pin-box { background: #fff; border: 0.5px solid #e2e2de; border-radius: 16px; padding: 2rem 1.5rem; width: 100%; max-width: 320px; text-align: center; }
-.pin-logo { font-size: 13px; font-weight: 600; letter-spacing: 2px; margin-bottom: 6px; }
+.pin-logo { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pin-logo img { width: 40px; height: auto; }
+.pin-logo span { font-size: 13px; font-weight: 600; letter-spacing: 2px; }
 .pin-sub { font-size: 12px; color: #9a988f; margin-bottom: 1.5rem; }
 .pin-dots { display: flex; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
 .pin-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #ccc; background: #fff; transition: all .1s; }
@@ -36,6 +38,19 @@ button { font-family: inherit; }
 .pin-k.vacia { background: transparent; border-color: transparent; cursor: default; }
 .pin-recordar { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 1.25rem; font-size: 13px; color: #6b6a64; }
 .pin-recordar input { width: 18px; height: 18px; accent-color: #1a1a18; }
+.btn-bio { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: #1a1a18; color: #fff; border: none; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 1.25rem; }
+.btn-bio svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.bio-o { font-size: 11px; color: #9a988f; margin: -0.5rem 0 1rem; }
+.aviso-bio { background: #fff; border: 0.5px solid #e0cba6; border-radius: 14px; padding: 14px; margin-bottom: 14px; display: flex; gap: 12px; align-items: center; }
+.aviso-bio svg { width: 30px; height: 30px; stroke: #8a6d1e; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.aviso-bio .txt { flex: 1; font-size: 13px; line-height: 1.35; }
+.aviso-bio .txt b { display: block; font-size: 14px; margin-bottom: 2px; }
+.aviso-bio .acc { display: flex; flex-direction: column; gap: 6px; }
+.aviso-bio .acc button { border-radius: 8px; padding: 7px 10px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.aviso-bio .si { background: #1a1a18; color: #fff; border: none; }
+.aviso-bio .no { background: none; border: none; color: #9a988f; font-weight: 400 !important; }
+.estado-bio { text-align: center; margin-top: 18px; font-size: 12px; color: #9a988f; }
+.estado-bio button { background: none; border: none; color: #8a6d1e; font-size: 12px; text-decoration: underline; cursor: pointer; padding: 0 2px; }
 .pin-pie { margin-top: 1rem; font-size: 12px; color: #9a988f; }
 .pin-pie a { color: #6b6a64; }
 
@@ -108,13 +123,15 @@ button { font-family: inherit; }
 
 <div id="pin-screen" class="oculto">
   <div class="pin-box">
-    <div class="pin-logo">ORUM</div>
+    <div class="pin-logo"><img src="/icons/orum-o.png?v=1" alt=""><span>ORUM CENTRAL</span></div>
     <div class="pin-sub">Introduce tu PIN</div>
     <div class="pin-dots"><div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div><div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div></div>
+    <button class="btn-bio oculto" id="btn-bio" onclick="entrarConBio()"></button>
+    <div class="bio-o oculto" id="bio-o">o teclea tu PIN</div>
     <div class="pin-err" id="pin-err"></div>
     <div class="pin-kp" id="pin-kp"></div>
     <label class="pin-recordar"><input type="checkbox" id="pin-recordar" checked> Recordar en este dispositivo</label>
-    <div class="pin-pie">¿Sin PIN? Pídeselo a Sergio · <a href="/">Entrar con contraseña</a></div>
+    <div class="pin-pie"><a href="/">Entrar con contraseña</a></div>
   </div>
 </div>
 
@@ -151,6 +168,7 @@ function mostrar(id) { ['arranque', 'pin-screen', 'app'].forEach(function (x) { 
 
 // ── Arranque: sesión abierta → dispositivo recordado → PIN ──
 function arrancar() {
+  if (leerBio() && !desbloqueada()) return pedirPin(true);
   fetch('/api/sesion').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) {
     if (d && d.usuario) return entrar(d.usuario);
     var llave = leerLlave();
@@ -165,7 +183,14 @@ function arrancar() {
 
 // ── PIN ──
 var pin = '';
-function pedirPin() { pin = ''; puntos(false); mostrar('pin-screen'); }
+function pedirPin(probarBio) {
+  pin = ''; puntos(false); mostrar('pin-screen');
+  var bio = !!leerBio() && hayBio;
+  document.getElementById('btn-bio').classList.toggle('oculto', !bio);
+  document.getElementById('bio-o').classList.toggle('oculto', !bio);
+  document.getElementById('btn-bio').innerHTML = ICONO_BIO + 'Entrar con ' + nombreBio();
+  if (bio && probarBio) entrarConBio(true);
+}
 (function teclado() {
   var kp = document.getElementById('pin-kp');
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].forEach(function (k) {
@@ -192,14 +217,97 @@ function comprobarPin() {
       setTimeout(function () { pin = ''; puntos(false); }, 900);
       return;
     }
-    guardarLlave(r.dispositivo || '');
+    guardarLlave(leerBio() ? '' : (r.dispositivo || ''));
+    marcarDesbloqueada();
     entrar(r.usuario);
   }).catch(function () { document.getElementById('pin-err').textContent = 'Sin conexión'; pin = ''; puntos(true); });
 }
 
 function salir() {
-  if (!confirm('¿Salir? Tendrás que volver a teclear tu PIN en este dispositivo.')) return;
-  postJson('/api/movil/salir', { dispositivo: leerLlave() }).catch(function () {}).then(function () { guardarLlave(''); USUARIO = null; pedirPin(); });
+  if (!confirm(leerBio() ? '¿Salir? Para volver a entrar usarás ' + nombreBio() + ' o tu PIN.' : '¿Salir? Tendrás que volver a teclear tu PIN en este dispositivo.')) return;
+  postJson('/api/movil/salir', { dispositivo: leerLlave() }).catch(function () {}).then(function () {
+    guardarLlave(''); USUARIO = null;
+    try { sessionStorage.removeItem(CLAVE_DESBLOQUEO); } catch (e) {}
+    pedirPin();
+  });
+}
+
+// ── Face ID / huella (WebAuthn) ──
+// El móvil guarda una llave que solo se usa tras reconocer la cara o la
+// huella; el servidor guarda la parte pública (sql/movil_biometria.sql).
+// Activado: se pide cada vez que se abre la app, en vez de entrar solo.
+var CLAVE_BIO = 'orum_bio_id', CLAVE_BIO_NO = 'orum_bio_no', CLAVE_DESBLOQUEO = 'orum_desbloqueada';
+var ICONO_BIO = '<svg viewBox="0 0 24 24"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2"/><path d="M9 9v1.5M15 9v1.5M12 9v4.5h-1M9.5 16.5a3.5 3.5 0 0 0 5 0"/></svg>';
+var hayBio = false;
+function leerBio() { try { return localStorage.getItem(CLAVE_BIO) || ''; } catch (e) { return ''; } }
+function desbloqueada() { try { return sessionStorage.getItem(CLAVE_DESBLOQUEO) === '1'; } catch (e) { return false; } }
+function marcarDesbloqueada() { try { sessionStorage.setItem(CLAVE_DESBLOQUEO, '1'); } catch (e) {} }
+function nombreBio() { return /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? 'Face ID' : 'huella'; }
+function aB64u(buf) { var b = new Uint8Array(buf), t = ''; for (var i = 0; i < b.length; i++) t += String.fromCharCode(b[i]); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function deB64u(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var t = atob(s), b = new Uint8Array(t.length); for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i); return b; }
+function errorBio(e) { return e && e.name === 'NotAllowedError' ? 'Cancelado' : (e && e.message) || 'No se ha podido'; }
+async function activarBio() {
+  try {
+    var o = await postJson('/api/biometria/registro/opciones');
+    if (!o.ok) throw new Error(o.error);
+    var cred = await navigator.credentials.create({ publicKey: {
+      challenge: deB64u(o.reto), rp: { name: 'ORUM Central', id: o.rpId },
+      user: { id: deB64u(o.usuarioId), name: o.usuario, displayName: o.nombre },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+      attestation: 'none', timeout: 60000
+    } });
+    var r = cred.response;
+    if (!r.getPublicKey) throw new Error('Este móvil es demasiado antiguo para ' + nombreBio());
+    var g = await postJson('/api/biometria/registro', {
+      id: cred.id, clientDataJSON: aB64u(r.clientDataJSON), authenticatorData: aB64u(r.getAuthenticatorData()),
+      publicKey: aB64u(r.getPublicKey()), alg: r.getPublicKeyAlgorithm()
+    });
+    if (!g.ok) throw new Error(g.error);
+    try { localStorage.setItem(CLAVE_BIO, cred.id); } catch (e) {}
+    // Con Face ID / huella ya no se entra solo con la llave del dispositivo
+    var llave = leerLlave();
+    if (llave) { postJson('/api/movil/olvidar-dispositivo', { dispositivo: llave }).catch(function () {}); guardarLlave(''); }
+    marcarDesbloqueada();
+    alert(nombreBio() + ' activado. Desde ahora te lo pedirá al abrir la app.');
+  } catch (e) { alert('No se ha activado ' + nombreBio() + ': ' + errorBio(e)); }
+  irInicio();
+}
+async function entrarConBio(automatico) {
+  var err = document.getElementById('pin-err');
+  try {
+    var o = await postJson('/api/biometria/entrar/opciones');
+    var a = await navigator.credentials.get({ publicKey: {
+      challenge: deB64u(o.reto), rpId: o.rpId, userVerification: 'required', timeout: 60000,
+      allowCredentials: [{ type: 'public-key', id: deB64u(leerBio()) }]
+    } });
+    var r = await postJson('/api/biometria/entrar', {
+      id: a.id, clientDataJSON: aB64u(a.response.clientDataJSON), authenticatorData: aB64u(a.response.authenticatorData), signature: aB64u(a.response.signature)
+    });
+    if (!r.ok) {
+      if (r._status === 401 && /no activado/.test(r.error || '')) { try { localStorage.removeItem(CLAVE_BIO); } catch (e) {} pedirPin(); }
+      err.textContent = r.error || 'No se ha podido entrar';
+      return;
+    }
+    marcarDesbloqueada();
+    entrar(r.usuario);
+  } catch (e) { if (!automatico) err.textContent = errorBio(e) === 'Cancelado' ? '' : errorBio(e); }
+}
+async function desactivarBio() {
+  if (!confirm('¿Desactivar ' + nombreBio() + ' en este móvil? Volverás a entrar con tu PIN.')) return;
+  await postJson('/api/biometria/quitar', { id: leerBio() }).catch(function () {});
+  try { localStorage.removeItem(CLAVE_BIO); } catch (e) {}
+  irInicio();
+}
+function noBio() { try { localStorage.setItem(CLAVE_BIO_NO, '1'); } catch (e) {} irInicio(); }
+function bioRechazada() { try { return localStorage.getItem(CLAVE_BIO_NO) === '1'; } catch (e) { return false; } }
+if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+  PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function (v) {
+    hayBio = !!v;
+    if (!hayBio) return;
+    if (!document.getElementById('pin-screen').classList.contains('oculto')) pedirPin();
+    else if (USUARIO && document.getElementById('btn-volver').classList.contains('oculto')) irInicio();
+  }).catch(function () {});
 }
 
 // ── Inicio ──
@@ -238,7 +346,7 @@ function entrar(u) {
 function irInicio() {
   document.getElementById('btn-volver').classList.add('oculto');
   document.getElementById('btn-salir').classList.remove('oculto');
-  document.getElementById('cab-titulo').textContent = 'ORUM';
+  document.getElementById('cab-titulo').textContent = fechaHoy();
   var mios = misBotones();
   var html = '<div class="saludo-fila"><div class="saludo">Hola, ' + esc((USUARIO.nombre || USUARIO.usuario).split(' ')[0]) + '</div>' +
     (botonesDisponibles().length > 1 ? '<button class="btn-editar" onclick="editarBotones()">Editar</button>' : '') + '</div><div class="botones">';
@@ -250,7 +358,9 @@ function irInicio() {
   if (!mios.length) html = botonesDisponibles().length
     ? '<div class="saludo-fila"><div class="saludo">Hola</div><button class="btn-editar" onclick="editarBotones()">Editar</button></div><div class="cargando">Has quitado todos los botones. Pulsa Editar para elegir cuáles ver.</div>'
     : '<div class="cargando">Tu usuario todavía no tiene nada en la app móvil.</div>';
+  if (hayBio && !leerBio() && !bioRechazada()) html = '<div class="aviso-bio">' + ICONO_BIO + '<div class="txt"><b>Entra con ' + nombreBio() + '</b>Más rápido y seguro que el PIN.</div><div class="acc"><button class="si" onclick="activarBio()">Activar</button><button class="no" onclick="noBio()">Ahora no</button></div></div>' + html;
   if (['Direccion', 'Contabilidad'].indexOf(USUARIO.rol) !== -1) html += '<a class="enlace-panel" href="/">Abrir el panel completo</a>';
+  if (hayBio && (leerBio() || bioRechazada())) html += '<div class="estado-bio">' + (leerBio() ? nombreBio() + ' activado · <button onclick="desactivarBio()">Desactivar</button>' : '<button onclick="activarBio()">Activar ' + nombreBio() + '</button>') + '</div>';
   document.getElementById('cuerpo').innerHTML = html;
   document.querySelectorAll('[data-b]').forEach(function (el) {
     el.onclick = function () { BOTONES.filter(function (b) { return b.id === el.getAttribute('data-b'); })[0].abrir(); };
@@ -286,6 +396,13 @@ function enviarBotones(lista) {
 }
 function guardarBotones() { enviarBotones(edicion.filter(function (x) { return x.ver; }).map(function (x) { return x.id; })); }
 function restaurarBotones() { enviarBotones(null); }
+
+// "Lunes 26/10/2026"
+function fechaHoy() {
+  var d = new Date();
+  var dia = d.toLocaleDateString('es-ES', { weekday: 'long' });
+  return dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+}
 
 function abrirPantalla(titulo) {
   document.getElementById('cab-titulo').textContent = titulo;
