@@ -2697,13 +2697,14 @@ async function pintarPersonalConfig() {
       <td style="text-align:right;">${p.mesesTrabajados}</td>
       <td><select class="select-depto-persona" data-inicial="${dep}" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;"><option value="">Sin clasificar</option>${opciones}</select></td>
       <td style="text-align:center;"><input type="checkbox" class="check-fijo-discontinuo" ${p.fijoDiscontinuo ? 'checked' : ''}></td>
+      <td style="text-align:center;"><input type="checkbox" class="check-baja-manual" ${p.bajaManual ? 'checked' : ''} title="Fuera de la lista de Registrar extras hasta que tenga una nómina de un mes posterior"></td>
     </tr>`;
   };
   const tablaPersonas = (lista, inactivo, vacio) => `
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto; margin-bottom:1.5rem;">
       <table>
-        <thead><tr><th>Trabajador</th><th>Inicio</th>${inactivo ? '<th>Último mes</th><th>Estado</th>' : ''}<th style="text-align:right;">Meses nómina</th><th>Departamento</th><th style="text-align:center;">Fijo discontinuo</th></tr></thead>
-        <tbody class="tbody-personas-config">${lista.map(p => filaPersona(p, inactivo)).join('') || `<tr><td colspan="7" style="padding:1.2rem 4px; color:#9a988f;">${vacio}</td></tr>`}</tbody>
+        <thead><tr><th>Trabajador</th><th>Inicio</th>${inactivo ? '<th>Último mes</th><th>Estado</th>' : ''}<th style="text-align:right;">Meses nómina</th><th>Departamento</th><th style="text-align:center;">Fijo discontinuo</th><th style="text-align:center;" title="Ya no está en la empresa: sale de la lista de Registrar extras. Vuelve solo al subir una nómina suya de un mes posterior.">Baja</th></tr></thead>
+        <tbody class="tbody-personas-config">${lista.map(p => filaPersona(p, inactivo)).join('') || `<tr><td colspan="8" style="padding:1.2rem 4px; color:#9a988f;">${vacio}</td></tr>`}</tbody>
       </table>
     </div>`;
 
@@ -2729,10 +2730,10 @@ async function pintarPersonalConfig() {
     </div>`;
   cont.innerHTML = `
     ${cabeceraSeccion('Personal en activo (' + activos.length + ')', 'estado-guardar-depto-personal', 'guardarConfigPersonal()')}
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Con nómina en el último mes subido (${textoYM(reg.ultimoMesNomina)}). El departamento se aplica a la persona entera (también a su histórico fusionado) y es el que usa Cierre Mensual. Pulsa un nombre para ver su ficha.</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Con nómina en el último mes subido (${textoYM(reg.ultimoMesNomina)}). El departamento se aplica a la persona entera (también a su histórico fusionado) y es el que usa Cierre Mensual. Marca <strong>Baja</strong> a quien ya no está en la empresa aunque tenga nómina este mes: pasa a baja y sale de la lista de Registrar extras; vuelve solo en cuanto se suba una nómina suya de un mes posterior. Pulsa un nombre para ver su ficha.</p>
     ${tablaPersonas(activos, false, 'Sube una nómina primero.')}
     ${cabeceraSeccion('Personal en baja / inactivo (' + inactivos.length + ')', null, null)}
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Tuvieron nómina pero no en ${textoYM(reg.ultimoMesNomina)}. Marca <strong>Fijo discontinuo</strong> a quien volverá en la próxima campaña: sale como tal (no como baja) en el Histórico e Informe, y en cuanto se suba una nómina suya vuelve a "activo" solo. Se guarda con el mismo botón de arriba.</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Tuvieron nómina pero no en ${textoYM(reg.ultimoMesNomina)}, o están marcados como <strong>Baja</strong> (desmárcala para que vuelvan antes de su próxima nómina). Marca <strong>Fijo discontinuo</strong> a quien volverá en la próxima campaña: sale como tal (no como baja) en el Histórico e Informe, y en cuanto se suba una nómina suya vuelve a "activo" solo. Se guarda con el mismo botón de arriba.</p>
     ${tablaPersonas(inactivos, true, 'Nadie de baja.')}
     ${legacy.length ? `
       ${cabeceraSeccion('Fusionar formato antiguo con la ficha actual', 'estado-guardar-fusion', 'guardarFusionEmpleados()')}
@@ -2911,12 +2912,17 @@ async function guardarConfigPersonal() {
     const sel = tr.querySelector('.select-depto-persona');
     const cambiado = sel.value !== (sel.dataset.inicial || '');
     const fijo = tr.querySelector('.check-fijo-discontinuo').checked;
+    // Baja: si ya estaba de baja se conserva su mes; si se marca ahora, el mes actual
+    const per = (personalGlobal.configPersonas.porPersona || {})[tr.dataset.persona] || {};
+    const hoy = new Date();
+    const bajaDesde = tr.querySelector('.check-baja-manual').checked ? (per.bajaManual ? per.bajaDesde : hoy.getFullYear() * 100 + hoy.getMonth() + 1) : null;
     (filasPorPersona[tr.dataset.persona] || []).forEach(d => {
       asignaciones.push({
         empresa_nif: d.empresa_nif, empresa_nombre: d.empresa_nombre, formato_origen: d.formato_origen || 'nominas_gestoria',
         num_empleado: d.num_empleado, nombre: d.nombre,
         departamento: cambiado ? (sel.value || null) : (d.departamento || null),
-        fijo_discontinuo: fijo
+        fijo_discontinuo: fijo,
+        baja_desde: bajaDesde
       });
     });
   });
@@ -2925,7 +2931,7 @@ async function guardarConfigPersonal() {
   const enviadas = new Set(asignaciones.map(a => a.empresa_nif + '|' + a.formato_origen + '|' + a.num_empleado));
   personalGlobal.departamentos.forEach(d => {
     const k = d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado;
-    if (!enviadas.has(k)) asignaciones.push({ empresa_nif: d.empresa_nif, empresa_nombre: d.empresa_nombre, formato_origen: d.formato_origen || 'nominas_gestoria', num_empleado: d.num_empleado, nombre: d.nombre, departamento: d.departamento || null, fijo_discontinuo: !!d.fijo_discontinuo });
+    if (!enviadas.has(k)) asignaciones.push({ empresa_nif: d.empresa_nif, empresa_nombre: d.empresa_nombre, formato_origen: d.formato_origen || 'nominas_gestoria', num_empleado: d.num_empleado, nombre: d.nombre, departamento: d.departamento || null, fijo_discontinuo: !!d.fijo_discontinuo, baja_desde: d.baja_desde || null });
   });
   const estado = document.getElementById('estado-guardar-depto-personal');
   estado.textContent = 'Guardando...'; estado.style.color = '#6b6a64';
@@ -3119,6 +3125,9 @@ function contextoInformePersonal() {
   };
   const fijoDiscontinuoPorPersona = {};
   personalGlobal.departamentos.forEach(d => { if (d.fijo_discontinuo) fijoDiscontinuoPorPersona[personaDeClave(d.empresa_nif, d.formato_origen || 'nominas_gestoria', d.num_empleado)] = true; });
+  // Baja manual: mes AAAAMM en que se marcó (el más reciente de sus filas)
+  const bajaDesdePorPersona = {};
+  personalGlobal.departamentos.forEach(d => { if (d.baja_desde) { const k = personaDeClave(d.empresa_nif, d.formato_origen || 'nominas_gestoria', d.num_empleado); bajaDesdePorPersona[k] = Math.max(bajaDesdePorPersona[k] || 0, d.baja_desde); } });
   const empresas = new Set(personalGlobal.detalle.map(d => d.empresa_nif));
   Object.values(personalGlobal.otrosAnios).forEach(o => o.detalle.forEach(d => empresas.add(d.empresa_nif)));
   const deptos = new Set([...Object.values(mapaDepto), ...Object.values(mapaDeptoExtras)]);
@@ -3126,7 +3135,7 @@ function contextoInformePersonal() {
     const ia = DEPARTAMENTOS_ORUM.indexOf(a), ib = DEPARTAMENTOS_ORUM.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
   });
-  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, aliasDeClave, nombreActualPorClave, nombrePorClaveCompleta, personaDeClave, nombreDeClave, fijoDiscontinuoPorPersona, variasEmpresas: empresas.size > 1, listaDeptos };
+  return { mapaDepto, mapaDeptoExtras, mapaAliasEmpleado, mapaAliasExtras, aliasDeClave, nombreActualPorClave, nombrePorClaveCompleta, personaDeClave, nombreDeClave, fijoDiscontinuoPorPersona, bajaDesdePorPersona, variasEmpresas: empresas.size > 1, listaDeptos };
 }
 // Fila del informe + departamento + identificador de PERSONA (para contar
 // plantilla sin duplicar: un trabajador con nómina y extras vinculados, o
@@ -4216,7 +4225,10 @@ function construirRegistroPersonal(ctx) {
     p.primer = nom.length ? nom[0] : (conCoste[0] || null);
     p.ultimo = nom.length ? nom[nom.length - 1] : (conCoste[conCoste.length - 1] || null);
     p.fijoDiscontinuo = !!ctx.fijoDiscontinuoPorPersona[p.persona];
-    p.estado = p.conNomina ? (p.ultimo === ultimoMesNomina ? 'activo' : (p.fijoDiscontinuo ? 'discontinuo' : 'baja')) : 'eventual';
+    // Baja manual (Configuración): vale hasta que tenga una nómina de un mes posterior
+    p.bajaDesde = ctx.bajaDesdePorPersona[p.persona] || null;
+    p.bajaManual = !!(p.bajaDesde && p.conNomina && p.ultimo <= p.bajaDesde);
+    p.estado = p.conNomina ? (p.bajaManual ? 'baja' : p.ultimo === ultimoMesNomina ? 'activo' : (p.fijoDiscontinuo ? 'discontinuo' : 'baja')) : 'eventual';
     p.yaEstabaAlInicio = p.conNomina && p.primer === primerMesNomina;
     p.mesesTrabajados = nom.length;
     if (!p.depto) p.depto = ctx.mapaDeptoExtras[p.nombreExtra] || 'Extras sin clasificar';

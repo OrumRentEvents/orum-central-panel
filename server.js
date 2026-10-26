@@ -3196,6 +3196,9 @@ app.post('/api/empleados-departamento', requiereLogin, soloPersonal, async (req,
       // Fijo discontinuo (28 sep 2026): inactivo que volverá — en el
       // histórico sale como "fijo discontinuo" en vez de baja.
       fijo_discontinuo: !!a.fijo_discontinuo,
+      // Baja manual (oct 2026, sql/empleados_baja_manual.sql): mes AAAAMM en
+      // que se marcó. Vale hasta que tenga una nómina de un mes posterior.
+      baja_desde: parseInt(a.baja_desde) || null,
       updated_at: new Date().toISOString()
     }));
     const { error } = await supabase.from('empleados_departamento').upsert(filas, { onConflict: 'empresa_nif,formato_origen,num_empleado' });
@@ -3544,12 +3547,13 @@ function calcularRegistroExtra(tarifas, { fecha, tipo, horas, importe }) {
 // también lo ve el rol Logística.
 async function trabajadoresParaExtras() {
   const [depto, alias, ultimo] = await Promise.all([
-    selectTodoPersonal('empleados_departamento', 'empresa_nif, formato_origen, num_empleado, nombre, departamento, fijo_discontinuo', ['empresa_nombre', 'nombre', 'id']),
+    selectTodoPersonal('empleados_departamento', 'empresa_nif, formato_origen, num_empleado, nombre, departamento, fijo_discontinuo, baja_desde', ['empresa_nombre', 'nombre', 'id']),
     selectTodoPersonal('empleados_alias', '*', ['empresa_nif', 'formato_origen', 'num_empleado']),
     consultaSupabaseConReintento(() => supabase.from('nominas_detalle').select('anio, mes').order('anio', { ascending: false }).order('mes', { ascending: false }).limit(1), 'ultimo mes nomina')
   ]);
   const ult = ultimo[0];
   const presentes = new Set();
+  const ultYM = ult ? ult.anio * 100 + ult.mes : 0;
   if (ult) {
     const ultFilas = await consultaSupabaseConReintento(() => supabase.from('nominas_detalle').select('empresa_nif, formato_origen, num_empleado').eq('anio', ult.anio).eq('mes', ult.mes), 'nominas ultimo mes');
     ultFilas.forEach(f => presentes.add(f.empresa_nif + '|' + (f.formato_origen || 'nominas_gestoria') + '|' + f.num_empleado));
@@ -3558,7 +3562,9 @@ async function trabajadoresParaExtras() {
   return depto.filter(d => !fusionados.has(d.empresa_nif + '|' + (d.formato_origen || 'nominas_gestoria') + '|' + d.num_empleado)).map(d => {
     const f = d.formato_origen || 'nominas_gestoria';
     const activo = presentes.has(d.empresa_nif + '|' + f + '|' + d.num_empleado);
-    return { empresa_nif: d.empresa_nif, formato_origen: f, num_empleado: d.num_empleado, nombre: d.nombre, departamento: d.departamento, estado: activo ? 'activo' : (d.fijo_discontinuo ? 'discontinuo' : 'baja') };
+    // Baja manual: cuenta mientras no tenga nómina de un mes posterior a la baja
+    const bajaManual = d.baja_desde && !(activo && ultYM > d.baja_desde);
+    return { empresa_nif: d.empresa_nif, formato_origen: f, num_empleado: d.num_empleado, nombre: d.nombre, departamento: d.departamento, estado: bajaManual ? 'baja' : activo ? 'activo' : (d.fijo_discontinuo ? 'discontinuo' : 'baja') };
   }).sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 // Extras que cuentan como coste para un año: los de la hoja de Google SOLO
