@@ -381,8 +381,14 @@ function activarAvisos() {
     ? [].slice.call(document.querySelectorAll('[data-av-canal]:checked')).map(function (i) { return i.getAttribute('data-av-canal'); })
     : CANALES.map(function (c) { return c.id; });
   if (!canales.length) return desactivarAvisos();
-  return Notification.requestPermission().then(function (permiso) {
-    if (permiso !== 'granted') throw new Error(permiso === 'denied' ? 'Has bloqueado los avisos. Permítelos en los ajustes del navegador.' : 'No se ha dado permiso para los avisos');
+  // Dentro del panel (iframe) el permiso se pide desde la ventana principal:
+  // algunos navegadores no enseñan la pregunta si la hace un iframe
+  var N = Notification;
+  try { if (window.parent !== window && window.parent.Notification) N = window.parent.Notification; } catch (e) {}
+  return N.requestPermission().then(function (permiso) {
+    if (permiso !== 'granted') throw new Error(permiso === 'denied'
+      ? 'Has bloqueado los avisos. Permítelos en los ajustes del navegador y vuelve a pulsar Activar avisos.'
+      : 'El navegador no ha dado permiso. Si no te ha salido la pregunta, pulsa el icono de la izquierda de la barra de direcciones (candado o ajustes) → Notificaciones → Permitir, y vuelve a pulsar Activar avisos.');
     return swActivo(AVISOS.reg);
   }).then(function (reg) {
     return AVISOS.sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: claveBytes(AVISOS.clave) });
