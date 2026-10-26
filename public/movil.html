@@ -55,6 +55,27 @@ button { font-family: inherit; }
 .boton .ico svg { width: 22px; height: 22px; stroke: #8a6d1e; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .boton .tit { font-size: 15px; font-weight: 600; }
 .boton .sub { font-size: 12px; color: #6b6a64; line-height: 1.35; }
+.saludo-fila { display: flex; align-items: center; justify-content: space-between; }
+.btn-editar { background: none; border: none; color: #8a6d1e; font-size: 13px; font-weight: 500; padding: 6px 2px; cursor: pointer; }
+.edit-lista { display: flex; flex-direction: column; gap: 8px; }
+.edit-fila { background: #fff; border: 0.5px solid #e2e2de; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; }
+.edit-fila.fuera { opacity: .55; }
+.edit-fila .ico { width: 34px; height: 34px; border-radius: 9px; background: #f3ead9; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.edit-fila .ico svg { width: 19px; height: 19px; stroke: #8a6d1e; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.edit-fila .tit { flex: 1; font-size: 15px; font-weight: 500; }
+.edit-fila .mover { display: flex; flex-direction: column; gap: 2px; }
+.edit-fila .mover button { width: 34px; height: 26px; border: 0.5px solid #e2e2de; background: #f7f6f2; border-radius: 6px; font-size: 13px; color: #6b6a64; cursor: pointer; }
+.edit-fila .mover button:disabled { opacity: .3; }
+.interruptor { position: relative; width: 46px; height: 28px; flex-shrink: 0; }
+.interruptor input { opacity: 0; width: 0; height: 0; }
+.interruptor span { position: absolute; inset: 0; background: #d8d4c8; border-radius: 14px; transition: background .15s; cursor: pointer; }
+.interruptor span::after { content: ''; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; background: #fff; border-radius: 50%; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.interruptor input:checked + span { background: #1D9E75; }
+.interruptor input:checked + span::after { transform: translateX(18px); }
+.edit-acciones { display: flex; gap: 10px; margin-top: 16px; }
+.edit-acciones button { flex: 1; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.edit-acciones .sec { background: #fff; border: 0.5px solid #e2e2de; color: #1a1a18; }
+.edit-acciones .pri { background: #1a1a18; border: none; color: #fff; }
 .enlace-panel { display: block; text-align: center; margin-top: 22px; font-size: 13px; color: #6b6a64; }
 
 /* Subir factura */
@@ -195,24 +216,40 @@ var BOTONES = [
   { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' }
 ];
 
+// Botones del inicio elegidos por cada usuario (usuarios.accesos.movil, en
+// orden). Sin elegir nada: los de su rol, como siempre.
+var MIS_BOTONES = null;
+function botonesDisponibles() { return BOTONES.filter(function (b) { return b.roles.indexOf(USUARIO.rol) !== -1; }); }
+function misBotones() {
+  var disp = botonesDisponibles();
+  if (!MIS_BOTONES) return disp;
+  return MIS_BOTONES.map(function (id) { return disp.filter(function (b) { return b.id === id; })[0]; }).filter(Boolean);
+}
 function entrar(u) {
   USUARIO = u;
   if (ROLES_TABLET.indexOf(u.rol) !== -1) { location.replace('/preparacion'); return; }
   mostrar('app');
   irInicio();
+  fetch('/api/mis-accesos').then(function (r) { return r.json(); }).then(function (d) {
+    MIS_BOTONES = (d.accesos && d.accesos.movil) || null;
+    if (document.getElementById('btn-volver').classList.contains('oculto')) irInicio();
+  }).catch(function () {});
 }
 function irInicio() {
   document.getElementById('btn-volver').classList.add('oculto');
   document.getElementById('btn-salir').classList.remove('oculto');
   document.getElementById('cab-titulo').textContent = 'ORUM';
-  var mios = BOTONES.filter(function (b) { return b.roles.indexOf(USUARIO.rol) !== -1; });
-  var html = '<div class="saludo">Hola, ' + esc((USUARIO.nombre || USUARIO.usuario).split(' ')[0]) + '</div><div class="botones">';
+  var mios = misBotones();
+  var html = '<div class="saludo-fila"><div class="saludo">Hola, ' + esc((USUARIO.nombre || USUARIO.usuario).split(' ')[0]) + '</div>' +
+    (botonesDisponibles().length > 1 ? '<button class="btn-editar" onclick="editarBotones()">Editar</button>' : '') + '</div><div class="botones">';
   mios.forEach(function (b) {
     var interior = '<span class="ico">' + ICONOS[b.id] + '</span><span class="tit">' + b.titulo + '</span><span class="sub">' + b.sub + '</span>';
     html += b.href ? '<a class="boton" href="' + b.href + '">' + interior + '</a>' : '<button class="boton" data-b="' + b.id + '">' + interior + '</button>';
   });
   html += '</div>';
-  if (!mios.length) html = '<div class="cargando">Tu usuario todavía no tiene nada en la app móvil.</div>';
+  if (!mios.length) html = botonesDisponibles().length
+    ? '<div class="saludo-fila"><div class="saludo">Hola</div><button class="btn-editar" onclick="editarBotones()">Editar</button></div><div class="cargando">Has quitado todos los botones. Pulsa Editar para elegir cuáles ver.</div>'
+    : '<div class="cargando">Tu usuario todavía no tiene nada en la app móvil.</div>';
   if (['Direccion', 'Contabilidad'].indexOf(USUARIO.rol) !== -1) html += '<a class="enlace-panel" href="/">Abrir el panel completo</a>';
   document.getElementById('cuerpo').innerHTML = html;
   document.querySelectorAll('[data-b]').forEach(function (el) {
@@ -220,6 +257,36 @@ function irInicio() {
   });
   window.scrollTo(0, 0);
 }
+// ── Editar los botones del inicio: cuáles se ven y en qué orden ──
+var edicion = [];
+function editarBotones() {
+  var vistos = misBotones().map(function (b) { return b.id; });
+  edicion = vistos.map(function (id) { return { id: id, ver: true }; })
+    .concat(botonesDisponibles().filter(function (b) { return vistos.indexOf(b.id) === -1; }).map(function (b) { return { id: b.id, ver: false }; }));
+  abrirPantalla('Mis botones');
+  pintarEdicion();
+}
+function pintarEdicion() {
+  var html = '<div class="saludo">Elige qué botones ver en el inicio y su orden.</div><div class="edit-lista">';
+  edicion.forEach(function (x, i) {
+    var b = BOTONES.filter(function (y) { return y.id === x.id; })[0];
+    html += '<div class="edit-fila' + (x.ver ? '' : ' fuera') + '">' +
+      '<div class="mover"><button onclick="moverBoton(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="Subir">▲</button><button onclick="moverBoton(' + i + ',1)"' + (i === edicion.length - 1 ? ' disabled' : '') + ' aria-label="Bajar">▼</button></div>' +
+      '<span class="ico">' + ICONOS[b.id] + '</span><span class="tit">' + b.titulo + '</span>' +
+      '<label class="interruptor"><input type="checkbox"' + (x.ver ? ' checked' : '') + ' onchange="edicion[' + i + '].ver=this.checked; pintarEdicion();" aria-label="Ver ' + b.titulo + '"><span></span></label></div>';
+  });
+  html += '</div><div class="edit-acciones"><button class="sec" onclick="restaurarBotones()">Restaurar</button><button class="pri" onclick="guardarBotones()">Guardar</button></div>';
+  document.getElementById('cuerpo').innerHTML = html;
+}
+function moverBoton(i, d) { var j = i + d; if (j < 0 || j >= edicion.length) return; var t = edicion[i]; edicion[i] = edicion[j]; edicion[j] = t; pintarEdicion(); }
+function enviarBotones(lista) {
+  return fetch('/api/mis-accesos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ movil: lista }) })
+    .then(function (r) { if (!r.ok) throw new Error('Error ' + r.status); MIS_BOTONES = lista; irInicio(); })
+    .catch(function () { alert('No se han podido guardar tus botones. Inténtalo de nuevo.'); });
+}
+function guardarBotones() { enviarBotones(edicion.filter(function (x) { return x.ver; }).map(function (x) { return x.id; })); }
+function restaurarBotones() { enviarBotones(null); }
+
 function abrirPantalla(titulo) {
   document.getElementById('cab-titulo').textContent = titulo;
   document.getElementById('btn-volver').classList.remove('oculto');

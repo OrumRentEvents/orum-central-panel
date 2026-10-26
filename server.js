@@ -937,31 +937,51 @@ async function construirRespuestaPreparacion(vista) {
 
   // Checks por artículo de Lavandería/Office (sql/preparacion_checks.sql). Un
   // check vale mientras la cantidad en Rentman sea la que había al marcarlo.
+  // En Almacén se ven los de las dos zonas (cada línea según su familia).
   const area = (vista === 'lavanderia' || vista === 'office') ? vista : null;
-  const claveArt = (pid, art) => String(pid) + '|' + (art || '');
+  const areaDe = familia => area || (familiaPerteneceA(familia, FAMILIAS_LAVANDERIA) ? 'lavanderia' : familiaPerteneceA(familia, FAMILIAS_OFFICE) ? 'office' : null);
+  const claveArt = (zona, pid, art) => zona + '|' + String(pid) + '|' + (art || '');
   const cantidadesArt = {};
-  equipmentFiltrado.forEach(e => { const k = claveArt(e.proyecto_id, e.articulo); cantidadesArt[k] = (cantidadesArt[k] || 0) + (parseFloat(e.cantidad) || 0); });
-  const checks = {};
-  if (area) {
-    const { data, error } = await supabase.from('preparacion_checks').select('proyecto_id,articulo,cantidad,usuario,marcado_en').eq('area', area);
-    if (error) throw error;
-    (data || []).forEach(c => { checks[claveArt(c.proyecto_id, c.articulo)] = c; });
-  }
-  const estadoCheck = (pid, art) => {
-    if (!area) return null;
-    const k = claveArt(pid, art), c = checks[k];
-    if (!c) return { marcado: false };
-    const ahora = Math.round((cantidadesArt[k] || 0) * 100) / 100, antes = Math.round(Number(c.cantidad) * 100) / 100;
-    if (ahora !== antes) return { marcado: false, cambio: { antes, ahora } };
-    return { marcado: true, usuario: c.usuario, marcado_en: c.marcado_en };
-  };
-  const progresoArea = {}; // pid -> { marcados, total }
-  if (area) Object.keys(cantidadesArt).forEach(k => {
-    const i = k.indexOf('|'), pid = k.slice(0, i), art = k.slice(i + 1);
-    if (!progresoArea[pid]) progresoArea[pid] = { marcados: 0, total: 0 };
-    progresoArea[pid].total++;
-    if (estadoCheck(pid, art).marcado) progresoArea[pid].marcados++;
+  equipmentFiltrado.forEach(e => {
+    const zona = areaDe(e.familia);
+    if (!zona) return;
+    const k = claveArt(zona, e.proyecto_id, e.articulo);
+    cantidadesArt[k] = (cantidadesArt[k] || 0) + (parseFloat(e.cantidad) || 0);
   });
+  const checks = {};
+  {
+    let q = supabase.from('preparacion_checks').select('area,proyecto_id,articulo,cantidad,usuario,marcado_en');
+    if (area) q = q.eq('area', area);
+    const { data, error } = await q;
+    if (error) throw error;
+    (data || []).forEach(c => { checks[claveArt(c.area, c.proyecto_id, c.articulo)] = c; });
+  }
+  const estadoCheck = (pid, art, familia) => {
+    const zona = areaDe(familia);
+    if (!zona) return null;
+    const k = claveArt(zona, pid, art), c = checks[k];
+    if (!c) return { zona, marcado: false };
+    const ahora = Math.round((cantidadesArt[k] || 0) * 100) / 100, antes = Math.round(Number(c.cantidad) * 100) / 100;
+    if (ahora !== antes) return { zona, marcado: false, cambio: { antes, ahora } };
+    return { zona, marcado: true, usuario: c.usuario, marcado_en: c.marcado_en };
+  };
+  const progreso = {}; // 'zona|pid' -> { marcados, total }
+  Object.keys(cantidadesArt).forEach(k => {
+    const [zona, pid] = k.split('|');
+    const art = k.slice(zona.length + pid.length + 2);
+    const pk = zona + '|' + pid;
+    if (!progreso[pk]) progreso[pk] = { marcados: 0, total: 0 };
+    progreso[pk].total++;
+    const c = checks[k];
+    if (c && Math.round(Number(c.cantidad) * 100) === Math.round(cantidadesArt[k] * 100)) progreso[pk].marcados++;
+  });
+  const progresoArea = {}; // pid -> { marcados, total } de la zona de esta vista
+  if (area) Object.keys(progreso).forEach(pk => { const [zona, pid] = pk.split('|'); if (zona === area) progresoArea[pid] = progreso[pk]; });
+  const zonasDe = pid => {
+    const z = {};
+    ['lavanderia', 'office'].forEach(zona => { const pr = progreso[zona + '|' + pid]; if (pr) z[zona] = pr; });
+    return z;
+  };
 
   const idsProyectosConEquipo = new Set(equipmentFiltrado.map(e => String(e.proyecto_id)));
   const proyectosVista = vista === 'almacen'
@@ -978,7 +998,7 @@ async function construirRespuestaPreparacion(vista) {
     const prog = progresoArea[String(p.id)];
     const zonaLista = !!(prog && prog.total && prog.marcados === prog.total);
     const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado)) || zonaLista;
-    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: zonaLista, zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0 };
+    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: zonaLista, zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0, zonas: area ? undefined : zonasDe(String(p.id)) };
     if (estaListo) porProyecto[periodo].preparado.push(item);
     else porProyecto[periodo].confirmado.push(item);
   });
@@ -996,7 +1016,7 @@ async function construirRespuestaPreparacion(vista) {
     if (!porMaterial[familia][articulo]) porMaterial[familia][articulo] = { total: 0, detalle: [] };
     const cantidad = parseFloat(e.cantidad) || 0;
     porMaterial[familia][articulo].total += cantidad;
-    porMaterial[familia][articulo].detalle.push({ proyecto_id: proyecto.id, proyecto_numero: proyecto.numero, cliente: proyecto.cliente, fecha_entrega: proyecto.entrega_fecha, periodo, cantidad, check: estadoCheck(proyecto.id, e.articulo) });
+    porMaterial[familia][articulo].detalle.push({ proyecto_id: proyecto.id, proyecto_numero: proyecto.numero, cliente: proyecto.cliente, fecha_entrega: proyecto.entrega_fecha, periodo, cantidad, check: estadoCheck(proyecto.id, e.articulo, e.familia) });
   });
 
   const porMaterialArray = Object.keys(porMaterial).sort().map(familia => ({
@@ -1024,7 +1044,7 @@ async function construirRespuestaPreparacion(vista) {
 
   const equipmentDetalle = equipmentFiltrado.map(e => ({
     proyecto_id: e.proyecto_id, familia: e.familia || 'Sin familia',
-    articulo: e.articulo || '', cantidad: parseFloat(e.cantidad) || 0, check: estadoCheck(e.proyecto_id, e.articulo)
+    articulo: e.articulo || '', cantidad: parseFloat(e.cantidad) || 0, check: estadoCheck(e.proyecto_id, e.articulo, e.familia)
   }));
 
   // Vista "Por día": todo el material de cada día, de 3 días atrás a 30 por
@@ -1040,7 +1060,7 @@ async function construirRespuestaPreparacion(vista) {
     lineasDia.push({
       dia: f.getFullYear() + '-' + String(f.getMonth() + 1).padStart(2, '0') + '-' + String(f.getDate()).padStart(2, '0'),
       proyecto_id: p.id, numero: p.numero, cliente: p.cliente, hora: p.entrega_hora || '',
-      familia: e.familia || 'Sin familia', articulo: e.articulo || '', cantidad: parseFloat(e.cantidad) || 0, check: estadoCheck(p.id, e.articulo)
+      familia: e.familia || 'Sin familia', articulo: e.articulo || '', cantidad: parseFloat(e.cantidad) || 0, check: estadoCheck(p.id, e.articulo, e.familia)
     });
   });
 

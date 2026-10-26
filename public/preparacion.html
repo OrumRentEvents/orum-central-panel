@@ -116,6 +116,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .quien { font-size: 10px; color: #9a988f; display: block; }
 .aviso-cambio { font-size: 11px; color: #854F0B; background: #FAEEDA; border-radius: 4px; padding: 1px 6px; display: inline-block; margin-top: 2px; }
 .articulo-proy-item .chk { width: 26px; height: 26px; margin-right: 8px; }
+.zona-chips { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.zona-chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #f0efe9; color: #6b6a64; }
+.zona-chip.parcial { background: #FAEEDA; color: #854F0B; }
+.zona-chip.ok { background: #E1F5EE; color: #0F6E56; font-weight: 600; }
+span.chk { margin-right: 10px; }
 /* Por día */
 .dia-barra { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .dia-barra button { background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; width: 40px; height: 40px; font-size: 18px; cursor: pointer; }
@@ -406,8 +411,21 @@ function tarjetaProyecto(p) {
   if (p.fecha_entrega) h += '<span>Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>';
   if (p.localizacion) h += '<span>Loc: ' + esc(p.localizacion) + '</span>';
   if (zonaActual() && p.zona_total) h += '<span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
-  h += '</div></div>';
+  h += '</div>' + zonasTexto(p) + '</div>';
   return h;
+}
+
+// En Almacén: cómo van Lavandería y Office con ese proyecto
+function zonasTexto(p) {
+  if (zonaActual() || !p.zonas) return '';
+  var partes = [];
+  ['lavanderia', 'office'].forEach(function(z) {
+    var pr = p.zonas[z];
+    if (!pr || !pr.total) return;
+    var ok = pr.marcados === pr.total;
+    partes.push('<span class="zona-chip' + (ok ? ' ok' : pr.marcados ? ' parcial' : '') + '">' + TAB_NOMBRES[z] + ' ' + (ok ? '✓ ' : '') + pr.marcados + '/' + pr.total + '</span>');
+  });
+  return partes.length ? '<div class="zona-chips">' + partes.join('') + '</div>' : '';
 }
 
 // ── Checks por artículo (Lavandería y Office) ──
@@ -418,7 +436,8 @@ function puedeMarcar() {
   return propia ? propia[0] === tabActiva : ['Direccion', 'Logistica'].indexOf(perfilActivo.rol) !== -1;
 }
 function botonCheck(pid, articulo, check) {
-  if (!zonaActual() || !check) return '';
+  if (!check) return '';
+  if (!zonaActual()) return '<span class="chk solo-ver' + (check.marcado ? ' on' : '') + '" title="' + (check.marcado ? 'Preparado en ' : 'Pendiente en ') + TAB_NOMBRES[check.zona] + '">' + ICONO_CHECK + '</span>';
   var on = check.marcado;
   var attrs = puedeMarcar() ? ' data-chk="1" data-pid="' + esc(pid) + '" data-art="' + esc(articulo) + '" data-on="' + (on ? 1 : 0) + '"' : '';
   return '<button class="chk' + (on ? ' on' : '') + (puedeMarcar() ? '' : ' solo-ver') + '"' + attrs + ' aria-label="' + (on ? 'Preparado' : 'Marcar como preparado') + '">' + ICONO_CHECK + '</button>';

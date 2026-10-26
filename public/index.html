@@ -125,6 +125,31 @@
   }
   .nav-item:hover { background: var(--gray-100); color: var(--text-primary); }
   .nav-item.active { background: var(--accent-light); border-left-color: var(--accent); color: var(--accent-dark); font-weight: 600; }
+  /* Accesos directos (oct 2026): estrella en el menú y "Mis accesos" en el inicio */
+  .estrella-acceso { margin-left: auto; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--gray-400); opacity: 0; flex-shrink: 0; cursor: pointer; transition: opacity .15s; }
+  .estrella-acceso svg { width: 14px; height: 14px; }
+  .nav-item:hover .estrella-acceso, .nav-subitem:hover .estrella-acceso { opacity: 1; }
+  .estrella-acceso:hover { background: var(--gray-200); color: var(--accent-dark); }
+  .estrella-acceso.on { opacity: 1; color: #b8956a; }
+  .estrella-acceso.on svg path { fill: currentColor; }
+  #mis-accesos { margin-bottom: 1.5rem; }
+  .mis-accesos-cab { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  .mis-accesos-cab h2 { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin: 0; }
+  .mis-accesos-cab span { font-size: 11px; color: var(--text-muted); }
+  .mis-accesos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+  .acceso-tarjeta { position: relative; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-height: 92px; transition: border-color .15s, box-shadow .15s; }
+  .acceso-tarjeta:hover { border-color: #d9c39c; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+  .acceso-tarjeta.arrastrando { opacity: .4; }
+  .acceso-tarjeta.destino { border-color: var(--accent); border-style: dashed; }
+  .acceso-tarjeta .ico { width: 34px; height: 34px; border-radius: 8px; background: #f3ead9; color: #8a6d1e; display: flex; align-items: center; justify-content: center; }
+  .acceso-tarjeta .ico span { width: 18px; height: 18px; display: inline-flex; }
+  .acceso-tarjeta .tit { font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.25; }
+  .acceso-tarjeta .sec { font-size: 11px; color: var(--text-muted); }
+  .acceso-tarjeta .quitar { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border: none; background: transparent; color: var(--gray-400); border-radius: 4px; font-size: 15px; line-height: 1; cursor: pointer; opacity: 0; }
+  .acceso-tarjeta:hover .quitar { opacity: 1; }
+  .acceso-tarjeta .quitar:hover { background: var(--gray-100); color: var(--red); }
+  .mis-accesos-vacio { background: #fff; border: 1px dashed var(--border); border-radius: 8px; padding: 14px 16px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 10px; }
+  .mis-accesos-vacio .ej { display: inline-flex; width: 16px; height: 16px; color: #b8956a; }
   .logout-button {
     margin: 1.75rem 1.5rem 0; padding: 9px 12px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
     border: 1px solid var(--border); border-radius: 2px; background: #fff; color: var(--gray-500); cursor: pointer;
@@ -240,6 +265,7 @@
           <span id="last-update-text">Cargando...</span>
         </div>
       </div>
+      <div id="mis-accesos" style="display:none;"></div>
       <div id="content-body">
         <p class="loading-text">Cargando datos...</p>
       </div>
@@ -345,6 +371,7 @@ function mostrarApp() {
   document.getElementById('sidebar-user-avatar').textContent = inicialesNombre(usuarioActual.nombre).toUpperCase();
   document.getElementById('sidebar-role-badge').textContent = ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol;
   construirMenu();
+  cargarMisAccesos();
   if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
   if (usuarioActual.rol !== 'Comercial') cargarVehiculosFacturas();
   if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
@@ -1033,9 +1060,7 @@ function construirMenu() {
   // placeholders "próximamente", pero deben ser visibles para Logística
   // desde ya). Nada más del menú en ninguno de los dos casos.
   const rolRestringido = usuarioActual.rol === 'Comercial' || usuarioActual.rol === 'Logistica';
-  const menuVisible = usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle'].includes(item.id))
-    : MENU.filter(item => !item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase());
+  const menuVisible = menuVisibleUsuario();
 
   if (rolRestringido) {
     // Con un único apartado visible, una sección temática no aporta nada:
@@ -1066,6 +1091,126 @@ function construirMenu() {
   if (usuarioActual.rol === 'Comercial') abrirGrupoMenu('comercial');
   else if (usuarioActual.rol === 'Logistica') abrirGrupoMenu('log');
 }
+function menuVisibleUsuario() {
+  return usuarioActual.rol === 'Comercial' ? MENU.filter(item => item.id === 'comercial')
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'incidencias', 'mantenimiento', 'vehiculos', 'muelle'].includes(item.id))
+    : MENU.filter(item => !item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase());
+}
+
+// ================================================================
+// ACCESOS DIRECTOS (oct 2026): cada usuario marca con la estrella del menú
+// lo que más usa y le aparece en "Mis accesos", arriba de su pantalla de
+// inicio. Se guardan en Supabase (usuarios.accesos.escritorio, en orden) para
+// que le sigan en cualquier ordenador. Solo se puede añadir lo que su rol ve.
+// ================================================================
+let misAccesos = [];
+const INICIOS_CON_ACCESOS = ['menu-item-resumen', 'menu-item-log-resumen', 'menu-item-com-resumen'];
+// id → { id, label, seccion, icon, abrir } de todo lo que este usuario puede abrir desde el menú
+function accesosDisponibles() {
+  const mapa = {};
+  menuVisibleUsuario().forEach(item => {
+    if (item.submenu && !item.especial) {
+      item.submenu.filter(sub => !sub.rolesPermitidos || sub.rolesPermitidos.includes(usuarioActual.rol)).forEach(sub => {
+        mapa[sub.id] = { id: sub.id, label: sub.label, seccion: item.label, icon: item.icon, abrir: () => { abrirGrupoMenu(item.id); marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); } };
+      });
+    } else {
+      mapa[item.id] = { id: item.id, label: item.label, seccion: '', icon: item.icon, abrir: () => { if (!item.especial) marcarMenuActivo('menu-item-' + item.id); item.onClick(); } };
+    }
+  });
+  return mapa;
+}
+function htmlEstrella(id) {
+  const on = misAccesos.includes(id);
+  return `<span class="estrella-acceso${on ? ' on' : ''}" data-estrella="${id}" title="${on ? 'Quitar de Mis accesos' : 'Añadir a Mis accesos'}">${ICONOS_MENU.star}</span>`;
+}
+async function cargarMisAccesos() {
+  try {
+    const d = await fetch('/api/mis-accesos').then(r => r.json());
+    misAccesos = (d.accesos && d.accesos.escritorio) || [];
+  } catch (e) { misAccesos = []; }
+  pintarEstrellas();
+  pintarMisAccesos();
+}
+async function guardarMisAccesos() {
+  pintarEstrellas();
+  pintarMisAccesos();
+  try {
+    const r = await fetch('/api/mis-accesos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ escritorio: misAccesos }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Error ' + r.status);
+  } catch (e) { alert('No se han podido guardar tus accesos: ' + e.message); }
+}
+function alternarAcceso(id) {
+  misAccesos = misAccesos.includes(id) ? misAccesos.filter(x => x !== id) : misAccesos.concat(id);
+  guardarMisAccesos();
+}
+function pintarEstrellas() {
+  document.querySelectorAll('[data-estrella]').forEach(el => {
+    const on = misAccesos.includes(el.dataset.estrella);
+    el.classList.toggle('on', on);
+    el.title = on ? 'Quitar de Mis accesos' : 'Añadir a Mis accesos';
+  });
+}
+function pintarMisAccesos() {
+  const cont = document.getElementById('mis-accesos');
+  if (!cont || !usuarioActual) return;
+  const disp = accesosDisponibles();
+  const lista = misAccesos.filter(id => disp[id]);
+  if (!lista.length) {
+    cont.innerHTML = `<div class="mis-accesos-vacio"><span class="ej">${ICONOS_MENU.star}</span>Pasa el ratón por cualquier apartado del menú y pulsa la estrella para tenerlo aquí, en <b>Mis accesos</b>.</div>`;
+    return;
+  }
+  cont.innerHTML = `
+    <div class="mis-accesos-cab"><h2>Mis accesos</h2><span>Arrastra para ordenarlos</span></div>
+    <div class="mis-accesos-grid">${lista.map(id => {
+      const a = disp[id];
+      return `<div class="acceso-tarjeta" draggable="true" data-acceso="${id}">
+        <button class="quitar" data-quitar="${id}" title="Quitar de Mis accesos">×</button>
+        <span class="ico">${iconoInline(a.icon || 'star', 18)}</span>
+        <span><span class="tit">${escU(a.label)}</span>${a.seccion ? `<br><span class="sec">${escU(a.seccion)}</span>` : ''}</span>
+      </div>`;
+    }).join('')}</div>`;
+}
+// Clics y arrastre (delegados: el bloque se repinta a menudo)
+document.addEventListener('click', e => {
+  const est = e.target.closest('[data-estrella]');
+  if (est) { e.stopPropagation(); e.preventDefault(); alternarAcceso(est.dataset.estrella); return; }
+  const quitar = e.target.closest('[data-quitar]');
+  if (quitar) { e.stopPropagation(); alternarAcceso(quitar.dataset.quitar); return; }
+  const tarjeta = e.target.closest('[data-acceso]');
+  if (tarjeta) { const a = accesosDisponibles()[tarjeta.dataset.acceso]; if (a) a.abrir(); }
+}, true);
+let accesoArrastrado = null;
+document.addEventListener('dragstart', e => {
+  const t = e.target.closest && e.target.closest('[data-acceso]');
+  if (!t) return;
+  accesoArrastrado = t.dataset.acceso;
+  t.classList.add('arrastrando');
+  e.dataTransfer.effectAllowed = 'move';
+});
+document.addEventListener('dragover', e => {
+  const t = accesoArrastrado && e.target.closest && e.target.closest('[data-acceso]');
+  if (!t) return;
+  e.preventDefault();
+  document.querySelectorAll('.acceso-tarjeta.destino').forEach(x => x.classList.remove('destino'));
+  if (t.dataset.acceso !== accesoArrastrado) t.classList.add('destino');
+});
+document.addEventListener('drop', e => {
+  const t = accesoArrastrado && e.target.closest && e.target.closest('[data-acceso]');
+  if (!t) return;
+  e.preventDefault();
+  const destino = t.dataset.acceso;
+  if (destino !== accesoArrastrado) {
+    const sin = misAccesos.filter(x => x !== accesoArrastrado);
+    sin.splice(sin.indexOf(destino) + (misAccesos.indexOf(accesoArrastrado) < misAccesos.indexOf(destino) ? 1 : 0), 0, accesoArrastrado);
+    misAccesos = sin;
+    guardarMisAccesos();
+  }
+});
+document.addEventListener('dragend', () => {
+  accesoArrastrado = null;
+  document.querySelectorAll('.acceso-tarjeta.arrastrando, .acceso-tarjeta.destino').forEach(x => x.classList.remove('arrastrando', 'destino'));
+});
+
 function renderItemMenu(nav, item) {
   const itemEl = document.createElement('div');
   itemEl.className = 'nav-item';
@@ -1077,7 +1222,7 @@ function renderItemMenu(nav, item) {
     itemEl.style.justifyContent = 'space-between';
     itemEl.innerHTML = '<span style="display:flex; align-items:center; gap:10px;">' + iconoMenuHtml(item.icon) + '<span>' + item.label + '</span></span><span class="nav-chevron" style="font-size:10px; color:var(--gray-400); transition:transform .15s;">▸</span>';
   } else {
-    itemEl.innerHTML = iconoMenuHtml(item.icon) + '<span>' + item.label + '</span>';
+    itemEl.innerHTML = iconoMenuHtml(item.icon) + '<span>' + item.label + '</span>' + htmlEstrella(item.id);
   }
   if (item.especial) {
     itemEl.onclick = item.onClick;
@@ -1098,8 +1243,8 @@ function renderItemMenu(nav, item) {
       subEl.className = 'nav-subitem';
       subEl.id = 'menu-item-' + sub.id;
       subEl.dataset.label = sub.label.toLowerCase();
-      subEl.style.cssText = 'display:flex; align-items:center; padding:7px 0 7px 1.5rem; font-size:13px; cursor:pointer; color:var(--text-secondary);';
-      subEl.textContent = sub.label;
+      subEl.style.cssText = 'display:flex; align-items:center; padding:7px 0.75rem 7px 1.5rem; font-size:13px; cursor:pointer; color:var(--text-secondary);';
+      subEl.innerHTML = '<span>' + sub.label + '</span>' + htmlEstrella(sub.id);
       subEl.onclick = () => { marcarMenuActivo('menu-item-' + sub.id); sub.onClick(); };
       submenuEl.appendChild(subEl);
     });
@@ -1156,6 +1301,8 @@ function filtrarMenuLateral(query) {
   });
 }
 function marcarMenuActivo(idActivo) {
+  const bloqueAccesos = document.getElementById('mis-accesos');
+  if (bloqueAccesos) bloqueAccesos.style.display = INICIOS_CON_ACCESOS.includes(idActivo) ? '' : 'none';
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-subitem').forEach(el => {
     el.style.background = 'transparent';
