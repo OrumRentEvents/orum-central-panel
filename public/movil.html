@@ -91,6 +91,40 @@ button { font-family: inherit; }
 .edit-acciones button { flex: 1; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; }
 .edit-acciones .sec { background: #fff; border: 0.5px solid #e2e2de; color: #1a1a18; }
 .edit-acciones .pri { background: #1a1a18; border: none; color: #fff; }
+/* Formularios (Extras, Servicios Isabella) */
+.form { background: #fff; border: 0.5px solid #e2e2de; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.form .campo select, .form .campo textarea { width: 100%; padding: 11px 12px; font-size: 16px; border: 0.5px solid #d8d4c8; border-radius: 10px; background: #fff; color: #1a1a18; font-family: inherit; }
+.form .campo textarea { min-height: 60px; resize: vertical; }
+.fila2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.segmentos { display: flex; gap: 6px; flex-wrap: wrap; }
+.segmentos button { flex: 1 1 auto; padding: 10px 8px; border-radius: 10px; border: 0.5px solid #d8d4c8; background: #fff; font-size: 13px; cursor: pointer; }
+.segmentos button.on { background: #1a1a18; color: #fff; border-color: #1a1a18; }
+.trab-cab { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
+.trab-cab span { font-weight: 400; color: #6b6a64; }
+.trab-lista { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.trab { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 0.5px solid #e2e2de; font-size: 14px; cursor: pointer; }
+.trab.on { border-color: #1D9E75; background: #f4fcf9; }
+.trab input { width: 20px; height: 20px; accent-color: #1D9E75; }
+.trab small { display: block; font-size: 11px; color: #9a988f; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips span { font-size: 12px; background: #FAEEDA; color: #854F0B; padding: 4px 10px; border-radius: 12px; }
+.chips b { cursor: pointer; margin-left: 4px; }
+.fila-add { display: flex; gap: 8px; }
+.fila-add input { flex: 1; min-width: 0; }
+.fila-add button { border: 0.5px solid #d8d4c8; background: #f7f6f2; border-radius: 10px; padding: 0 14px; font-size: 14px; cursor: pointer; }
+.resumen-form { font-size: 14px; text-align: center; color: #1a1a18; }
+.resumen-form.aviso { color: #9a988f; }
+.estado-form { font-size: 13px; text-align: center; min-height: 18px; }
+.estado-form.ok { color: #0F6E56; } .estado-form.mal { color: #A32D2D; }
+.seccion-tit { font-size: 12px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: #6b6a64; margin: 22px 0 8px; }
+.reg { background: #fff; border: 0.5px solid #e2e2de; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
+.reg-top { display: flex; justify-content: space-between; gap: 8px; }
+.reg-top b { font-size: 14px; }
+.reg-sub { font-size: 12px; color: #6b6a64; margin-top: 3px; }
+.reg-pie { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+.est { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #f0efe9; color: #6b6a64; }
+.est.pendiente { background: #FAEEDA; color: #854F0B; } .est.aprobado { background: #E6F1FB; color: #185FA5; } .est.pagado { background: #E1F5EE; color: #0F6E56; } .est.rechazado { background: #FCEBEB; color: #A32D2D; }
+.reg-pie button { background: none; border: none; color: #8a6d1e; font-size: 13px; cursor: pointer; padding: 4px; }
 .enlace-panel { display: block; text-align: center; margin-top: 22px; font-size: 13px; color: #6b6a64; }
 
 /* Subir factura */
@@ -315,13 +349,17 @@ var ICONOS = {
   preparacion: '<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
   factura: '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
   rutas: '<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
-  archivo: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'
+  archivo: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+  extras: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  isabella: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>'
 };
 // Qué ve cada rol. Preparación: almacén ve las tres zonas.
 var BOTONES = [
   { id: 'preparacion', titulo: 'Preparación', sub: 'Material por proyecto: almacén, lavandería y office', roles: ['Direccion', 'Logistica'], href: '/preparacion' },
   { id: 'factura', titulo: 'Subir factura', sub: 'Foto o PDF de una factura de proveedor', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaFactura(); } },
-  { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' }
+  { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' },
+  { id: 'extras', titulo: 'Registrar extras', sub: 'Horas de más, domingos, festivos, nocturnos', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaExtras(); } },
+  { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } }
 ];
 
 // Botones del inicio elegidos por cada usuario (usuarios.accesos.movil, en
@@ -409,6 +447,248 @@ function abrirPantalla(titulo) {
   document.getElementById('btn-volver').classList.remove('oculto');
   document.getElementById('btn-salir').classList.add('oculto');
   window.scrollTo(0, 0);
+}
+
+// ── Registrar extras ──
+// Mismo formulario que en el panel (Personal → Registrar extras), mismas
+// rutas del servidor (/api/extras-form/*) y las mismas reglas de tarifas.
+var EX = { ctx: null, sel: {}, eventuales: [], filtro: '' };
+function hoyISO() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function tarifaVigente(tarifas, tipo, fecha) {
+  return tarifas.filter(function (t) { return t.tipo === tipo && t.vigente_desde <= fecha; })
+    .sort(function (a, b) { return a.vigente_desde === b.vigente_desde ? b.id - a.id : (a.vigente_desde < b.vigente_desde ? 1 : -1); })[0] || null;
+}
+function tiposDisponibles(tarifas, fecha) {
+  var tipos = []; tarifas.forEach(function (t) { if (tipos.indexOf(t.tipo) === -1) tipos.push(t.tipo); });
+  return tipos.map(function (t) { return tarifaVigente(tarifas, t, fecha); }).filter(function (t) { return t && t.activo; }).sort(function (a, b) { return a.orden - b.orden; });
+}
+function textoTarifa(t) {
+  if (!t) return '';
+  if (t.modo === 'por_hora') return euros(t.importe) + '/h';
+  if (t.modo === 'fijo') return euros(t.importe) + (t.genera_descanso ? ' + 1 día de descanso' : '');
+  if (t.modo === 'descanso') return 'resta 1 día del saldo';
+  return 'importe libre';
+}
+function claveTrab(t) { return t.empresa_nif + '|' + t.formato_origen + '|' + t.num_empleado; }
+function pantallaExtras() {
+  abrirPantalla('Registrar extras');
+  document.getElementById('cuerpo').innerHTML = '<div class="cargando">Cargando…</div>';
+  fetch('/api/extras-form/contexto').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    EX.ctx = d; EX.sel = {}; EX.eventuales = []; EX.filtro = '';
+    pintarExtras(hoyISO());
+  }).catch(function (e) { document.getElementById('cuerpo').innerHTML = '<div class="cargando">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+function pintarExtras(fecha, tipoSel) {
+  var C = EX.ctx, tipos = tiposDisponibles(C.tarifas, fecha);
+  tipoSel = tipoSel || (tipos[0] || {}).tipo;
+  var proyectos = (C.proyectos || []).map(function (p) { return '<option value="' + esc(p.numero) + '">' + esc(p.numero + ' · ' + (p.nombre || '') + (p.cliente ? ' (' + p.cliente + ')' : '')) + '</option>'; }).join('');
+  document.getElementById('cuerpo').innerHTML =
+    '<div class="form">' +
+      '<div class="fila2"><div class="campo"><label>Fecha</label><input type="date" id="ex-fecha" value="' + fecha + '" max="' + hoyISO() + '"></div>' +
+      '<div class="campo"><label>Tipo de extra</label><select id="ex-tipo">' + tipos.map(function (t) { return '<option value="' + esc(t.tipo) + '"' + (t.tipo === tipoSel ? ' selected' : '') + '>' + esc(t.tipo) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div class="nota" id="ex-tarifa"></div>' +
+      '<div class="campo" id="ex-b-horas"><label>Horas (en negativo para descontar)</label><input type="number" step="0.25" inputmode="decimal" id="ex-horas" placeholder="p. ej. 2,5"></div>' +
+      '<div class="campo" id="ex-b-importe"><label>Importe (€)</label><input type="number" step="0.01" inputmode="decimal" id="ex-importe" placeholder="p. ej. 100"></div>' +
+      '<div class="campo"><label>Nº de proyecto (opcional)</label><input id="ex-proyecto" list="ex-proyectos" placeholder="Busca por nº o nombre" autocomplete="off"><datalist id="ex-proyectos">' + proyectos + '</datalist></div>' +
+      '<div class="campo"><label>Notas (opcional)</label><input id="ex-notas" placeholder="Qué se hizo, montaje, motivo…"></div>' +
+      '<div class="trab-cab">Trabajadores <span id="ex-num"></span></div>' +
+      '<div class="campo"><input id="ex-buscar" placeholder="Buscar trabajador…" value="' + esc(EX.filtro) + '" autocomplete="off"></div>' +
+      '<div class="trab-lista" id="ex-lista"></div>' +
+      '<div class="fila-add campo"><input id="ex-eventual" list="ex-eventuales" placeholder="Eventual sin nómina (APELLIDOS, NOMBRE)" autocomplete="off"><datalist id="ex-eventuales">' + (C.eventuales || []).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist><button onclick="anadirEventual()">Añadir</button></div>' +
+      '<div class="chips" id="ex-chips"></div>' +
+      '<div class="resumen-form" id="ex-resumen"></div>' +
+      '<button class="enviar" id="ex-enviar" onclick="guardarExtras()">Registrar</button>' +
+      '<div class="estado-form" id="ex-estado"></div>' +
+    '</div>' +
+    '<div class="seccion-tit">Mis registros</div><div id="ex-mios">' + htmlMisExtras() + '</div>';
+  document.getElementById('ex-fecha').onchange = function () { pintarExtras(this.value || hoyISO(), document.getElementById('ex-tipo').value); };
+  document.getElementById('ex-tipo').onchange = actualizarTarifaExtras;
+  document.getElementById('ex-horas').oninput = actualizarResumenExtras;
+  document.getElementById('ex-importe').oninput = actualizarResumenExtras;
+  document.getElementById('ex-buscar').oninput = function () { EX.filtro = this.value; pintarTrabajadores(); };
+  pintarTrabajadores(); pintarEventuales(); actualizarTarifaExtras();
+}
+function pintarTrabajadores() {
+  var q = EX.filtro.trim().toLowerCase(), orden = { activo: 0, discontinuo: 1, baja: 2 };
+  var lista = EX.ctx.trabajadores.filter(function (t) { return t.estado !== 'baja' || EX.sel[claveTrab(t)]; })
+    .filter(function (t) { return !q || t.nombre.toLowerCase().indexOf(q) !== -1; })
+    .sort(function (a, b) { return (orden[a.estado] - orden[b.estado]) || a.nombre.localeCompare(b.nombre); });
+  document.getElementById('ex-lista').innerHTML = lista.map(function (t) {
+    var k = claveTrab(t), on = !!EX.sel[k];
+    return '<label class="trab' + (on ? ' on' : '') + '"><input type="checkbox"' + (on ? ' checked' : '') + ' data-trab="' + esc(k) + '"><span>' + esc(t.nombre) + '<small>' + esc(t.departamento || 'Sin departamento') + (t.estado === 'discontinuo' ? ' · fijo discontinuo' : '') + '</small></span></label>';
+  }).join('') || '<div class="nota">Nadie coincide con la búsqueda.</div>';
+  document.querySelectorAll('[data-trab]').forEach(function (el) {
+    el.onchange = function () { var k = el.getAttribute('data-trab'); if (el.checked) EX.sel[k] = true; else delete EX.sel[k]; el.closest('.trab').classList.toggle('on', el.checked); actualizarResumenExtras(); };
+  });
+  actualizarResumenExtras();
+}
+function anadirEventual() {
+  var inp = document.getElementById('ex-eventual'), n = inp.value.trim().toUpperCase();
+  if (n && EX.eventuales.indexOf(n) === -1) EX.eventuales.push(n);
+  inp.value = ''; pintarEventuales();
+}
+function pintarEventuales() {
+  document.getElementById('ex-chips').innerHTML = EX.eventuales.map(function (n, i) { return '<span>' + esc(n) + '<b onclick="EX.eventuales.splice(' + i + ',1); pintarEventuales();">✕</b></span>'; }).join('');
+  actualizarResumenExtras();
+}
+function tarifaActualExtras() { return tarifaVigente(EX.ctx.tarifas, document.getElementById('ex-tipo').value, document.getElementById('ex-fecha').value); }
+function actualizarTarifaExtras() {
+  var t = tarifaActualExtras();
+  document.getElementById('ex-tarifa').textContent = t ? 'Tarifa: ' + textoTarifa(t) : 'No hay tarifa para ese tipo en esa fecha';
+  document.getElementById('ex-b-horas').classList.toggle('oculto', !(t && t.modo === 'por_hora'));
+  document.getElementById('ex-b-importe').classList.toggle('oculto', !(t && t.modo === 'libre'));
+  actualizarResumenExtras();
+}
+function importeExtras() {
+  var t = tarifaActualExtras(), tipo = document.getElementById('ex-tipo').value;
+  if (!t) return { t: null, importe: 0 };
+  var horas = parseFloat(document.getElementById('ex-horas').value) || 0, imp = parseFloat(document.getElementById('ex-importe').value) || 0;
+  if (t.modo === 'por_hora') return { t: t, importe: Math.round(horas * parseFloat(t.importe) * 100) / 100 };
+  if (t.modo === 'fijo') return { t: t, importe: parseFloat(t.importe) };
+  if (t.modo === 'descanso') return { t: t, importe: 0 };
+  return { t: t, importe: /descuento/i.test(tipo) ? -Math.abs(imp) : imp };
+}
+function actualizarResumenExtras() {
+  var res = document.getElementById('ex-resumen');
+  if (!res) return;
+  var n = Object.keys(EX.sel).length + EX.eventuales.length;
+  document.getElementById('ex-num').textContent = n ? n + ' elegido' + (n > 1 ? 's' : '') : '';
+  var c = importeExtras();
+  res.classList.toggle('aviso', !n || !c.t);
+  if (!c.t) { res.textContent = 'No hay tarifa para ese tipo en esa fecha'; return; }
+  var extra = c.t.genera_descanso ? ' · +1 día de descanso' + (n > 1 ? ' a cada uno' : '') : (c.t.modo === 'descanso' ? ' · resta 1 día del saldo' : '');
+  res.innerHTML = n ? '<b>' + n + '</b> × ' + euros(c.importe) + ' = <b>' + euros(n * c.importe) + '</b>' + extra : 'Elige al menos un trabajador';
+}
+function guardarExtras() {
+  var est = document.getElementById('ex-estado'), btn = document.getElementById('ex-enviar');
+  var trabajadores = Object.keys(EX.sel).map(function (k) { var p = k.split('|'); return { empresa_nif: p[0], formato_origen: p[1], num_empleado: p[2] }; })
+    .concat(EX.eventuales.map(function (n) { return { nombre_libre: n }; }));
+  if (!trabajadores.length) { est.className = 'estado-form mal'; est.textContent = 'Elige al menos un trabajador'; return; }
+  var cuerpo = { fecha: document.getElementById('ex-fecha').value, tipo: document.getElementById('ex-tipo').value, horas: document.getElementById('ex-horas').value, importe: document.getElementById('ex-importe').value,
+    proyecto: document.getElementById('ex-proyecto').value, notas: document.getElementById('ex-notas').value, trabajadores: trabajadores };
+  btn.disabled = true; est.className = 'estado-form'; est.textContent = 'Guardando…';
+  postJson('/api/extras-form/registros', cuerpo).then(function (d) {
+    btn.disabled = false;
+    if (!d.ok) { est.className = 'estado-form mal'; est.textContent = d.error || 'No se ha podido guardar'; return; }
+    var n = (d.registros || []).length;
+    EX.ctx.registros = (d.registros || []).concat(EX.ctx.registros || []);
+    EX.sel = {}; EX.eventuales = [];
+    pintarExtras(cuerpo.fecha, cuerpo.tipo);
+    var e2 = document.getElementById('ex-estado'); e2.className = 'estado-form ok'; e2.textContent = '✓ ' + n + ' registro' + (n > 1 ? 's' : '') + ' enviado' + (n > 1 ? 's' : '') + ' a aprobar';
+  }).catch(function () { btn.disabled = false; est.className = 'estado-form mal'; est.textContent = 'Sin conexión'; });
+}
+function fechaCorta(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : iso; }
+function htmlMisExtras() {
+  var regs = (EX.ctx.registros || []).slice(0, 25);
+  if (!regs.length) return '<div class="nota">Todavía no has registrado nada.</div>';
+  return regs.map(function (r) {
+    return '<div class="reg"><div class="reg-top"><b>' + esc(r.nombre_trabajador) + '</b><span>' + euros(r.importe) + '</span></div>' +
+      '<div class="reg-sub">' + fechaCorta(r.fecha) + ' · ' + esc(r.tipo) + (r.horas ? ' · ' + r.horas + ' h' : '') + (r.proyecto ? ' · nº ' + esc(r.proyecto) : '') + '</div>' +
+      '<div class="reg-pie"><span class="est ' + esc(r.estado) + '">' + esc(r.estado) + '</span>' + (r.estado === 'pendiente' ? '<button onclick="borrarExtra(' + r.id + ')">Borrar</button>' : '') + '</div></div>';
+  }).join('');
+}
+function borrarExtra(id) {
+  if (!confirm('¿Borrar este registro?')) return;
+  fetch('/api/extras-form/registros/' + id, { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) { alert(d.error); return; }
+    EX.ctx.registros = EX.ctx.registros.filter(function (r) { return r.id !== id; });
+    document.getElementById('ex-mios').innerHTML = htmlMisExtras();
+  }).catch(function () { alert('Sin conexión'); });
+}
+
+// ── Servicios Isabella ──
+// Mismo registro que Logística → Servicios Isabella del panel
+// (/api/isabella/*). El importe a facturar se calcula en el servidor.
+var IS = { tipo: 'vehiculo', vehiculos: [], lista: [] };
+var ISABELLA_EMPRESAS = ['VMS Horeca', 'Isabella Mobiliario', 'Isabella al Carbón', 'Isabella Mobil Home'];
+function pantallaIsabella(copia) {
+  abrirPantalla('Servicios Isabella');
+  var c = copia || {};
+  IS.tipo = c.tipo || 'vehiculo';
+  document.getElementById('cuerpo').innerHTML =
+    '<div class="form">' +
+      '<div class="fila2"><div class="campo"><label>Fecha</label><input type="date" id="is-fecha" value="' + (copia ? '' : hoyISO()) + '"></div>' +
+      '<div class="campo"><label>Empresa</label><select id="is-empresa">' + ISABELLA_EMPRESAS.concat('Otra').map(function (e) { return '<option' + (e === c.empresa ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></div></div>' +
+      '<div class="campo"><label>Tipo de servicio</label><div class="segmentos" id="is-tipos">' +
+        [['vehiculo', 'Transporte'], ['personal', 'Solo personal'], ['combustible', 'Combustible']].map(function (x) { return '<button data-tipo="' + x[0] + '"' + (x[0] === IS.tipo ? ' class="on"' : '') + '>' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="campo"><label>Nº pedido / referencia</label><input id="is-pedido" value="' + esc(c.pedido || '') + '" placeholder="SO2401349"></div>' +
+      '<div class="campo" id="is-b-veh"><label>Vehículo</label><input id="is-vehnombre" list="is-vehiculos" value="' + esc(c.vehNombre || '') + '" placeholder="Elige o escribe" autocomplete="off"><datalist id="is-vehiculos"></datalist></div>' +
+      '<div class="campo" id="is-b-vehtipo"><label>Tipo de vehículo</label><select id="is-vehtipo"><option value="1">Camión Azul</option><option value="2">Camión 3.500 Kg</option><option value="3">Furgoneta</option></select></div>' +
+      '<div class="fila2"><div class="campo" id="is-b-km"><label>Kilómetros</label><input type="number" inputmode="decimal" id="is-km" value="' + (c.km || 0) + '" min="0"></div>' +
+      '<div class="campo" id="is-b-litros"><label>Litros repostados</label><input type="number" inputmode="decimal" id="is-litros" value="' + (c.litros || 0) + '" min="0" step="0.1"></div>' +
+      '<div class="campo" id="is-b-personas"><label>Nº de personas</label><input type="number" inputmode="numeric" id="is-personas" value="' + (c.personas || 1) + '" min="1"></div>' +
+      '<div class="campo" id="is-b-horas"><label>Horas por persona</label><input type="number" inputmode="decimal" id="is-horas" value="' + (c.horas || 0) + '" min="0" step="0.5"></div></div>' +
+      '<div class="campo"><label>Personal / conductor</label><input id="is-personal" value="' + esc(c.personal || '') + '" placeholder="Juan, Leo…"></div>' +
+      '<div class="campo"><label>¿En qué ha consistido? / Notas</label><textarea id="is-desc" placeholder="Montaje mobil home cliente X, día 1 de 2…">' + esc(c.desc || '') + '</textarea></div>' +
+      '<div class="resumen-form" id="is-importe"></div>' +
+      '<button class="enviar" id="is-enviar" onclick="guardarIsabella()">Añadir al registro</button>' +
+      '<div class="estado-form" id="is-estado">' + (copia ? 'Datos copiados: elige la fecha y pulsa Añadir' : '') + '</div>' +
+    '</div>' +
+    '<div class="seccion-tit">Este mes</div><div id="is-lista"><div class="nota">Cargando…</div></div>';
+  if (c.vehTipo) document.getElementById('is-vehtipo').value = c.vehTipo; else document.getElementById('is-vehtipo').value = '2';
+  document.querySelectorAll('#is-tipos [data-tipo]').forEach(function (b) { b.onclick = function () { IS.tipo = b.getAttribute('data-tipo'); document.querySelectorAll('#is-tipos button').forEach(function (x) { x.classList.toggle('on', x === b); }); camposIsabella(); }; });
+  ['is-vehtipo', 'is-km', 'is-litros', 'is-personas', 'is-horas'].forEach(function (id) { document.getElementById(id).oninput = calcularIsabella; document.getElementById(id).onchange = calcularIsabella; });
+  camposIsabella();
+  if (!IS.vehiculos.length) fetch('/api/vehiculos/lista').then(function (r) { return r.json(); }).then(function (d) { IS.vehiculos = (d.vehiculos || []).map(function (v) { return v.label; }); pintarVehiculosIsabella(); }).catch(function () {});
+  else pintarVehiculosIsabella();
+  cargarListaIsabella();
+  if (copia) document.getElementById('is-fecha').focus();
+}
+function pintarVehiculosIsabella() { var dl = document.getElementById('is-vehiculos'); if (dl) dl.innerHTML = IS.vehiculos.map(function (v) { return '<option value="' + esc(v) + '">'; }).join(''); }
+function camposIsabella() {
+  var veh = IS.tipo === 'vehiculo', comb = IS.tipo === 'combustible';
+  document.getElementById('is-b-veh').classList.toggle('oculto', !(veh || comb));
+  document.getElementById('is-b-vehtipo').classList.toggle('oculto', !veh);
+  document.getElementById('is-b-km').classList.toggle('oculto', !veh);
+  document.getElementById('is-b-litros').classList.toggle('oculto', !comb);
+  document.getElementById('is-b-personas').classList.toggle('oculto', comb);
+  document.getElementById('is-b-horas').classList.toggle('oculto', comb);
+  calcularIsabella();
+}
+function datosIsabella() {
+  var veh = IS.tipo === 'vehiculo', comb = IS.tipo === 'combustible';
+  return {
+    fecha: document.getElementById('is-fecha').value, tipo: IS.tipo, empresa: document.getElementById('is-empresa').value, pedido: document.getElementById('is-pedido').value.trim(),
+    vehNombre: (veh || comb) ? document.getElementById('is-vehnombre').value.trim() : '', vehTipo: veh ? parseInt(document.getElementById('is-vehtipo').value) : 0,
+    personal: document.getElementById('is-personal').value.trim(), personas: comb ? 1 : (parseInt(document.getElementById('is-personas').value) || 1),
+    km: veh ? (parseFloat(document.getElementById('is-km').value) || 0) : 0, litros: comb ? (parseFloat(document.getElementById('is-litros').value) || 0) : 0,
+    horas: comb ? 0 : (parseFloat(document.getElementById('is-horas').value) || 0), desc: document.getElementById('is-desc').value.trim()
+  };
+}
+var calcIsabellaT = null;
+function calcularIsabella() {
+  clearTimeout(calcIsabellaT);
+  calcIsabellaT = setTimeout(function () {
+    var d = datosIsabella(), el = document.getElementById('is-importe');
+    if (!el) return;
+    postJson('/api/isabella/calcular', d).then(function (r) { if (r.ok) el.innerHTML = 'Importe a facturar: <b>' + euros(r.importe) + '</b>'; }).catch(function () {});
+  }, 300);
+}
+function guardarIsabella() {
+  var d = datosIsabella(), est = document.getElementById('is-estado'), btn = document.getElementById('is-enviar');
+  if (!d.fecha) { est.className = 'estado-form mal'; est.textContent = 'Indica la fecha del servicio'; return; }
+  btn.disabled = true; est.className = 'estado-form'; est.textContent = 'Guardando…';
+  postJson('/api/isabella/servicios', d).then(function (r) {
+    btn.disabled = false;
+    if (!r.ok) { est.className = 'estado-form mal'; est.textContent = r.error || 'No se ha podido guardar'; return; }
+    pantallaIsabella();
+    var e2 = document.getElementById('is-estado'); e2.className = 'estado-form ok'; e2.textContent = '✓ Servicio guardado (' + euros(r.servicio && r.servicio.importe) + ')';
+  }).catch(function () { btn.disabled = false; est.className = 'estado-form mal'; est.textContent = 'Sin conexión'; });
+}
+function cargarListaIsabella() {
+  fetch('/api/isabella/servicios?mes=' + hoyISO().slice(0, 7)).then(function (r) { return r.json(); }).then(function (d) {
+    IS.lista = d.data || [];
+    var cont = document.getElementById('is-lista');
+    if (!cont) return;
+    cont.innerHTML = IS.lista.slice(0, 30).map(function (s, i) {
+      var veh = s.vehNombre || (Number(s.vehTipo) === 1 ? 'Camión Azul' : Number(s.vehTipo) === 2 ? 'Camión 3.500 Kg' : Number(s.vehTipo) === 3 ? 'Furgoneta' : '');
+      return '<div class="reg"><div class="reg-top"><b>' + esc(s.empresa) + '</b><span>' + euros(s.importe) + '</span></div>' +
+        '<div class="reg-sub">' + fechaCorta(s.fecha) + (s.pedido ? ' · ' + esc(s.pedido) : '') + (veh ? ' · ' + esc(veh) : '') + (s.personal ? ' · ' + esc(s.personal) : '') + '</div>' +
+        (s.desc ? '<div class="reg-sub">' + esc(s.desc) + '</div>' : '') +
+        '<div class="reg-pie"><span class="est">' + esc(s.creadoPor || '') + '</span><button onclick="pantallaIsabella(IS.lista[' + i + '])">Duplicar</button></div></div>';
+    }).join('') || '<div class="nota">Todavía no hay servicios este mes.</div>';
+  }).catch(function () {});
 }
 
 // ── Subir factura ──
