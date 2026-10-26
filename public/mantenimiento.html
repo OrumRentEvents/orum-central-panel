@@ -18,8 +18,9 @@ button { font-family: inherit; }
 .cab h1 { font-size: 15px; font-weight: 500; flex: 1; }
 .cab button { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
 .act { font-size: 11px; color: rgba(255,255,255,.5); margin-bottom: 8px; }
-.tabs { display: flex; gap: 4px; }
-.tabs button { border: none; background: transparent; color: rgba(255,255,255,.6); font-size: 13px; padding: 6px 14px; border-radius: 6px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { border: none; background: transparent; color: rgba(255,255,255,.6); font-size: 13px; padding: 6px 11px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; }
 .tabs button.on { background: rgba(255,255,255,.15); color: #fff; font-weight: 500; }
 .cuerpo { padding: 12px 16px 24px; max-width: 1000px; margin: 0 auto; }
 .cargando { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
@@ -74,7 +75,7 @@ button { font-family: inherit; }
     <button id="btn-recargar">Recargar</button>
   </div>
   <div class="act" id="act">Cargando…</div>
-  <div class="tabs"><button data-vista="dia" class="on">Por día</button><button data-vista="material">Por material</button></div>
+  <div class="tabs"><button data-vista="dia" class="on">Por día</button><button data-vista="7">Próximos 7 días</button><button data-vista="14">Próximos 14 días</button><button data-vista="material">Por material</button></div>
 </div>
 <div class="cuerpo" id="cuerpo"><div class="cargando">Cargando…</div></div>
 <div id="toast"></div>
@@ -178,7 +179,7 @@ function contadores(lista) {
 function pintar() {
   if (!DATOS) return;
   var html = '<input class="buscar" id="buscar" placeholder="Buscar material, cliente o nº de proyecto…" value="' + esc(filtro) + '" autocomplete="off">';
-  html += vista === 'dia' ? vistaDia() : vistaMaterial();
+  html += vista === 'dia' ? vistaDia() : vista === 'material' ? vistaMaterial() : vistaRango(+vista);
   document.getElementById('cuerpo').innerHTML = html;
   var b = document.getElementById('buscar');
   b.oninput = function () { filtro = b.value.trim().toLowerCase(); var pos = b.selectionStart; pintar(); var b2 = document.getElementById('buscar'); b2.focus(); b2.setSelectionRange(pos, pos); };
@@ -200,6 +201,21 @@ function vistaDia() {
   Object.keys(porTipo).sort().forEach(function (t) {
     var lista = porTipo[t].sort(function (a, b) { return (a.entrega_hora || '').localeCompare(b.entrega_hora || '') || a.articulo.localeCompare(b.articulo); });
     h += '<div class="grupo"><div class="grupo-cab"><b>' + esc(t) + '</b>' + contadores(lista) + '</div>' + lista.map(function (s) { return filaSalida(s, true); }).join('') + '</div>';
+  });
+  return h;
+}
+// Próximos 7 / 14 días: todo lo que sale de hoy en adelante, día a día.
+function vistaRango(n) {
+  var hoy = isoDia(new Date()), hasta = sumarDias(hoy, n - 1);
+  var lista = todasLasSalidas().filter(function (s) { return s.dia >= hoy && s.dia <= hasta && coincide(s); });
+  if (!lista.length) return '<div class="cargando">' + (filtro ? 'Nada coincide con la búsqueda' : 'No sale material de mantenimiento en los próximos ' + n + ' días') + '</div>';
+  var h = '<div class="resumen">' + contadores(lista) + '</div>';
+  var porDia = {};
+  lista.forEach(function (s) { (porDia[s.dia] = porDia[s.dia] || []).push(s); });
+  Object.keys(porDia).sort().forEach(function (d) {
+    var p = d.split('-'), nombre = new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    var del = porDia[d].sort(function (a, b) { return a.tipo.localeCompare(b.tipo) || (a.entrega_hora || '').localeCompare(b.entrega_hora || '') || a.articulo.localeCompare(b.articulo); });
+    h += '<div class="grupo"><div class="grupo-cab"><b>' + (d === hoy ? 'Hoy · ' : '') + nombre.charAt(0).toUpperCase() + nombre.slice(1) + '</b>' + contadores(del) + '</div>' + del.map(function (s) { return filaSalida(s, true); }).join('') + '</div>';
   });
   return h;
 }

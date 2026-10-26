@@ -3752,22 +3752,74 @@ app.get('/api/extras-form/gestion', requiereLogin, soloPersonal, async (req, res
       selectTodoPersonal('extras_tarifas', '*', ['orden', 'id']),
       leerInicioFormularioExtras()
     ]);
-    const claveDe = (x) => x.empresa_nif ? x.empresa_nif + '|' + x.formato_origen + '|' + x.num_empleado : 'libre|' + (x.nombre_libre || '');
-    const saldos = {};
-    const s = (k, nombre) => (saldos[k] = saldos[k] || { clave: k, nombre, inicial: 0, generados: 0, disfrutados: 0 });
-    saldosIniciales.forEach(x => { s(claveDe(x), x.nombre_libre || null).inicial += parseFloat(x.dias) || 0; });
-    todosDescanso.filter(r => ESTADOS_EXTRAS_QUE_CUENTAN.includes(r.estado) && parseInt(r.anio) * 100 + parseInt(r.mes) <= anio * 100 + mes).forEach(r => {
-      const x = s(claveDe(r), r.nombre_libre || r.nombre_trabajador);
-      if (r.genera_descanso) x.generados++;
-      if (/^descanso/i.test(r.tipo)) x.disfrutados++;
-    });
-    trabajadores.forEach(t => { const k = claveDe(t); if (saldos[k]) saldos[k].nombre = t.nombre; });
+    const saldos = calcularSaldosDescanso(saldosIniciales, todosDescanso.filter(r => parseInt(r.anio) * 100 + parseInt(r.mes) <= anio * 100 + mes), trabajadores);
     const pendientesPorMes = {};
     pendientes.forEach(p => { const k = p.anio + '-' + String(p.mes).padStart(2, '0'); pendientesPorMes[k] = (pendientesPorMes[k] || 0) + 1; });
     res.json({ ok: true, anio, mes, registros: delMes, saldos: Object.values(saldos), pendientes_por_mes: pendientesPorMes, trabajadores, tarifas, inicio: inicio.texto });
   } catch (err) {
     console.error('Error en /api/extras-form/gestion:', err);
     res.status(500).json({ error: 'Error al cargar la gestión de extras: ' + err.message });
+  }
+});
+// Saldo de días de descanso por trabajador (saldo inicial + generados −
+// disfrutados, contando solo lo aprobado/pagado). Lo comparten la gestión y
+// la consulta de saldos de los responsables.
+function claveTrabajadorExtra(x) { return x.empresa_nif ? x.empresa_nif + '|' + x.formato_origen + '|' + x.num_empleado : 'libre|' + (x.nombre_libre || ''); }
+function calcularSaldosDescanso(saldosIniciales, registros, trabajadores) {
+  const saldos = {};
+  const s = (k, nombre) => (saldos[k] = saldos[k] || { clave: k, nombre, inicial: 0, generados: 0, disfrutados: 0 });
+  saldosIniciales.forEach(x => { s(claveTrabajadorExtra(x), x.nombre_libre || null).inicial += parseFloat(x.dias) || 0; });
+  registros.filter(r => ESTADOS_EXTRAS_QUE_CUENTAN.includes(r.estado)).forEach(r => {
+    const x = s(claveTrabajadorExtra(r), r.nombre_libre || r.nombre_trabajador);
+    if (r.genera_descanso) x.generados++;
+    if (/^descanso/i.test(r.tipo)) x.disfrutados++;
+  });
+  trabajadores.forEach(t => { const k = claveTrabajadorExtra(t); if (saldos[k]) saldos[k].nombre = t.nombre; });
+  return saldos;
+}
+// Saldo del personal para los responsables (también Logística, oct 2026):
+// días de descanso y horas extra de cada trabajador. Solo días y horas —
+// nada de importes, que Logística no ve.
+app.get('/api/extras-form/saldos', requiereLogin, puedeRegistrarExtras, async (req, res) => {
+  try {
+    const [registros, saldosIniciales, trabajadores] = await Promise.all([
+      selectTodoPersonal('extras_registros', 'empresa_nif, formato_origen, num_empleado, nombre_libre, nombre_trabajador, tipo, horas, genera_descanso, estado, anio, mes', ['id']),
+      selectTodoPersonal('extras_saldo_inicial', '*', ['id']),
+      trabajadoresParaExtras()
+    ]);
+    const hoy = new Date(), anio = hoy.getFullYear(), mes = hoy.getMonth() + 1;
+    const saldos = calcularSaldosDescanso(saldosIniciales, registros, trabajadores);
+    const filas = {};
+    const fila = (k, nombre) => (filas[k] = filas[k] || { clave: k, nombre, departamento: null, estado: null, dias: 0, dias_pendientes: 0, horas_mes: 0, horas_anio: 0, horas_pendientes: 0 });
+    Object.values(saldos).forEach(x => { fila(x.clave, x.nombre).dias = x.inicial + x.generados - x.disfrutados; });
+    registros.filter(r => r.estado !== 'rechazado').forEach(r => {
+      const pendiente = r.estado === 'pendiente';
+      const esDescanso = /^descanso/i.test(r.tipo), h = parseFloat(r.horas) || 0;
+      if (!pendiente && !h) return;
+      const f = fila(claveTrabajadorExtra(r), r.nombre_libre || r.nombre_trabajador);
+      if (pendiente) {
+        if (r.genera_descanso) f.dias_pendientes++;
+        if (esDescanso) f.dias_pendientes--;
+        f.horas_pendientes += h;
+      }
+      if (parseInt(r.anio) === anio) {
+        f.horas_anio += h;
+        if (parseInt(r.mes) === mes) f.horas_mes += h;
+      }
+    });
+    trabajadores.forEach(t => {
+      const k = claveTrabajadorExtra(t);
+      if (t.estado === 'baja' && !filas[k]) return;
+      if (t.departamento === 'Dirección' && !filas[k]) return;
+      Object.assign(fila(k, t.nombre), { nombre: t.nombre, departamento: t.departamento, estado: t.estado });
+    });
+    const redondea = (n) => Math.round(n * 100) / 100;
+    const lista = Object.values(filas).map(f => ({ ...f, dias: redondea(f.dias), horas_mes: redondea(f.horas_mes), horas_anio: redondea(f.horas_anio), horas_pendientes: redondea(f.horas_pendientes) }))
+      .sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || '')));
+    res.json({ ok: true, anio, mes, trabajadores: lista });
+  } catch (err) {
+    console.error('Error en /api/extras-form/saldos:', err);
+    res.status(500).json({ error: 'Error al cargar los saldos: ' + err.message });
   }
 });
 // Cambiar estado: aprobar / rechazar / volver a pendiente / pagar / deshacer pago.

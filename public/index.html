@@ -1021,6 +1021,8 @@ const MENU = [
       // Formulario de extras de ORUM Central (28 sep 2026): los responsables
       // registran horas de más, domingos, festivos y nocturnos; Dirección aprueba.
       { id: 'log-extras', label: 'Registrar extras', onClick: () => cargarRegistrarExtras() },
+      // Saldo de días de descanso y horas extra de cada trabajador (solo lectura).
+      { id: 'log-saldos', label: 'Saldo del personal', onClick: () => cargarSaldosPersonal() },
   ]},
   { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', onClick: () => renderProximamente('Incidencias') },
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
@@ -4660,8 +4662,52 @@ function textoTarifa(t) {
 }
 function valorTrabajadorExtra(t) { return t.empresa_nif + '|' + t.formato_origen + '|' + t.num_empleado; }
 
+// ── Saldo del personal ──
+// Días de descanso (aprobados) y horas extra de cada trabajador, para los
+// responsables de Logística. Lo pendiente de aprobar va aparte.
+let saldosPersonal = { datos: null, filtro: '' };
+async function cargarSaldosPersonal() {
+  document.getElementById('content-title').textContent = 'Saldo del personal';
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    const resp = await fetchConLimitePersonal('/api/extras-form/saldos', 30000);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    saldosPersonal.datos = data;
+    pintarSaldosPersonal();
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error: ' + err.message + '</p><button onclick="cargarSaldosPersonal()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">Reintentar</button>';
+  }
+}
+function pintarSaldosPersonal() {
+  const D = saldosPersonal.datos, q = saldosPersonal.filtro.trim().toLowerCase();
+  const filas = D.trabajadores.filter(t => !q || String(t.nombre || '').toLowerCase().includes(q));
+  const num = (n) => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 2 });
+  const conSigno = (n) => (n > 0 ? '+' : '') + num(n);
+  const body = document.getElementById('content-body');
+  body.innerHTML = `
+    <div style="max-width:980px;">
+      <p style="font-size:13px; color:#6b6a64; margin:0 0 1rem;">Días de descanso: saldo inicial + días generados (domingos, festivos, nocturnos…) − descansos disfrutados, contando lo ya aprobado. Horas: horas extra registradas (las negativas descuentan). Lo que aún está pendiente de aprobar se muestra aparte.</p>
+      <input type="text" id="sp-buscar" value="${saldosPersonal.filtro.replace(/"/g, '&quot;')}" placeholder="Buscar trabajador..." oninput="saldosPersonal.filtro = this.value; pintarSaldosPersonal(); const b = document.getElementById('sp-buscar'); b.focus(); b.setSelectionRange(b.value.length, b.value.length);" style="font-size:14px; padding:8px 10px; border-radius:8px; border:1px solid #d9d7cf; width:100%; max-width:320px; box-sizing:border-box; margin-bottom:12px;">
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:10px; overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead><tr style="text-align:left; color:#6b6a64; font-size:12px;"><th style="padding:10px 12px;">Trabajador</th><th style="padding:10px 12px; text-align:right;">Saldo descanso</th><th style="padding:10px 12px; text-align:right;">Horas ${MESES_ES_FACTURAS[D.mes].toLowerCase()}</th><th style="padding:10px 12px; text-align:right;">Horas ${D.anio}</th><th style="padding:10px 12px;">Pendiente de aprobar</th></tr></thead>
+          <tbody>${filas.map(t => {
+            const pend = [t.dias_pendientes ? conSigno(t.dias_pendientes) + ' día' + (Math.abs(t.dias_pendientes) === 1 ? '' : 's') : '', t.horas_pendientes ? conSigno(t.horas_pendientes) + ' h' : ''].filter(Boolean).join(' · ');
+            return `<tr style="border-top:0.5px solid #efeee9;"><td style="padding:9px 12px;">${t.nombre || t.clave}<div style="font-size:11.5px; color:#9a988f;">${t.departamento || (t.clave.startsWith('libre|') ? 'Eventual' : '')}${t.estado === 'discontinuo' ? ' · fijo discontinuo' : t.estado === 'baja' ? ' · baja' : ''}</div></td>
+              <td style="padding:9px 12px; text-align:right; font-weight:600; color:${t.dias < 0 ? '#A32D2D' : '#1a1a18'};">${num(t.dias)} día${Math.abs(t.dias) === 1 ? '' : 's'}</td>
+              <td style="padding:9px 12px; text-align:right;">${t.horas_mes ? num(t.horas_mes) + ' h' : '—'}</td>
+              <td style="padding:9px 12px; text-align:right;">${t.horas_anio ? num(t.horas_anio) + ' h' : '—'}</td>
+              <td style="padding:9px 12px; color:#854F0B;">${pend || '<span style="color:#9a988f;">—</span>'}</td></tr>`;
+          }).join('') || '<tr><td colspan="5" style="padding:1rem 12px; color:#9a988f;">Nadie coincide con la búsqueda.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 // ── Registrar extras ──
-let registroExtras = { ctx: null, seleccion: new Set(), eventuales: [], editando: null, verBajas: false, filtro: '' };
+let registroExtras ={ ctx: null, seleccion: new Set(), eventuales: [], editando: null, verBajas: false, filtro: '' };
 async function cargarRegistrarExtras() {
   document.getElementById('content-title').textContent = 'Registrar extras';
   const body = document.getElementById('content-body');
@@ -7057,13 +7103,18 @@ function cerrarSubirFacturas() {
   if (m) m.style.display = 'none';
   if (subidaFacturasLista.some(x => x.estado === 'ok')) cargarFacturasProveedores();
 }
-function anadirArchivosFactura(files) {
-  [...files].forEach(file => {
+// Las fotos pasan antes por el recorte (recorte-documento.js, igual que en la
+// app móvil): se ajustan las esquinas a la hoja o se usa la foto entera.
+async function anadirArchivosFactura(files) {
+  for (let file of [...files]) {
     if (!/^(application\/pdf|image\/(jpeg|png|webp))$/.test(file.type) && !/\.pdf$/i.test(file.name)) {
       subidaFacturasLista.push({ file, estado: 'error', mensaje: 'Formato no admitido (solo PDF, JPG, PNG o WebP)' });
-    } else subidaFacturasLista.push({ file, estado: 'pendiente', mensaje: '' });
-  });
-  pintarListaSubidaFacturas();
+    } else {
+      if (/^image\//.test(file.type)) file = await recortarDocumento(file);
+      subidaFacturasLista.push({ file, estado: 'pendiente', mensaje: '' });
+    }
+    pintarListaSubidaFacturas();
+  }
 }
 function pintarListaSubidaFacturas() {
   const cont = document.getElementById('subir-fact-lista');
@@ -9157,6 +9208,7 @@ function filaLead(l) {
 comprobarSesion();
 </script>
 <script src="vehiculos.js"></script>
+<script src="recorte-documento.js"></script>
 </body>
 </html>
 

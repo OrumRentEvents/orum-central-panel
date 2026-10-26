@@ -180,6 +180,7 @@ button { font-family: inherit; }
   <div class="cuerpo" id="cuerpo"></div>
 </div>
 
+<script src="/recorte-documento.js"></script>
 <input type="file" id="in-camara" accept="image/*" capture="environment" class="oculto">
 <input type="file" id="in-archivo" accept="application/pdf,image/jpeg,image/png,image/webp" multiple class="oculto">
 
@@ -355,6 +356,7 @@ var ICONOS = {
   rutas: '<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
   archivo: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
   extras: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  saldos: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 11h5"/><path d="M19.5 8.5v5"/></svg>',
   incidencias: '<svg viewBox="0 0 24 24"><path d="M12 3 2 20.5h20L12 3Z"/><path d="M12 9.5v4.5"/><path d="M12 17.2h.01"/></svg>',
   repostaje: '<svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><path d="M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 8h4"/></svg>',
   vehiculos: '<svg viewBox="0 0 24 24"><path d="M5 17h14v-5l-2-5H7l-2 5v5Z"/><path d="M5 12h14"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg>',
@@ -369,6 +371,7 @@ var BOTONES = [
   { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' },
   { id: 'mantenimiento', titulo: 'Mantenimiento', sub: 'Material de especial cuidado y chill out, próximos 15 días', roles: ['Direccion', 'Logistica'], href: '/mantenimiento' },
   { id: 'extras', titulo: 'Registrar extras', sub: 'Horas de más, domingos, festivos, nocturnos', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaExtras(); } },
+  { id: 'saldos', titulo: 'Saldo del personal', sub: 'Días de descanso y horas extra de cada trabajador', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaSaldos(); } },
   { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
   // Próximamente (oct 2026): se ven ya en el inicio y se van construyendo
   { id: 'incidencias', titulo: 'Incidencias', sub: 'Registrar y seguir lo que va pasando', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], pronto: true },
@@ -623,6 +626,38 @@ function borrarExtra(id) {
   }).catch(function () { alert('Sin conexión'); });
 }
 
+// ── Saldo del personal ──
+// Igual que en el panel (Logística → Saldo del personal): días de descanso
+// aprobados y horas extra; lo pendiente de aprobar, aparte.
+var SALDOS = null;
+function pantallaSaldos() {
+  abrirPantalla('Saldo del personal');
+  document.getElementById('cuerpo').innerHTML = '<div class="cargando">Cargando…</div>';
+  fetch('/api/extras-form/saldos').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    SALDOS = d;
+    document.getElementById('cuerpo').innerHTML =
+      '<div class="campo"><input id="sl-buscar" placeholder="Buscar trabajador…" autocomplete="off"></div>' +
+      '<div class="nota" style="margin:0 0 10px;">Descanso: saldo inicial + días generados − disfrutados (lo aprobado). Horas: horas extra registradas este mes y este año.</div>' +
+      '<div id="sl-lista"></div>';
+    document.getElementById('sl-buscar').oninput = function () { pintarSaldos(this.value); };
+    pintarSaldos('');
+  }).catch(function (e) { document.getElementById('cuerpo').innerHTML = '<div class="cargando">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+function pintarSaldos(q) {
+  q = String(q || '').trim().toLowerCase();
+  var num = function (n) { return Number(n).toLocaleString('es-ES', { maximumFractionDigits: 2 }); };
+  var signo = function (n) { return (n > 0 ? '+' : '') + num(n); };
+  var lista = SALDOS.trabajadores.filter(function (t) { return !q || String(t.nombre || '').toLowerCase().indexOf(q) !== -1; });
+  document.getElementById('sl-lista').innerHTML = lista.map(function (t) {
+    var pend = [t.dias_pendientes ? signo(t.dias_pendientes) + ' día' + (Math.abs(t.dias_pendientes) === 1 ? '' : 's') : '', t.horas_pendientes ? signo(t.horas_pendientes) + ' h' : ''].filter(Boolean).join(' · ');
+    return '<div class="reg"><div class="reg-top"><b>' + esc(t.nombre || t.clave) + '</b><span style="font-weight:600;' + (t.dias < 0 ? 'color:#A32D2D;' : '') + '">' + num(t.dias) + ' día' + (Math.abs(t.dias) === 1 ? '' : 's') + '</span></div>' +
+      '<div class="reg-sub">' + esc(t.departamento || (String(t.clave).indexOf('libre|') === 0 ? 'Eventual' : '')) + (t.estado === 'discontinuo' ? ' · fijo discontinuo' : '') + '</div>' +
+      '<div class="reg-sub">Horas este mes: <b>' + (t.horas_mes ? num(t.horas_mes) + ' h' : '—') + '</b> · año: <b>' + (t.horas_anio ? num(t.horas_anio) + ' h' : '—') + '</b></div>' +
+      (pend ? '<div class="reg-pie"><span class="est pendiente">Pendiente de aprobar: ' + pend + '</span></div>' : '') + '</div>';
+  }).join('') || '<div class="nota">Nadie coincide con la búsqueda.</div>';
+}
+
 // ── Servicios Isabella ──
 // Mismo registro que Logística → Servicios Isabella del panel
 // (/api/isabella/*). El importe a facturar se calcula en el servidor.
@@ -733,7 +768,7 @@ function pantallaFactura() {
     '</div>' +
     '<div class="campo"><label for="f-proveedor">Proveedor (opcional)</label>' +
       '<input id="f-proveedor" list="f-proveedores" placeholder="Se detecta solo por el NIF" autocomplete="off"><datalist id="f-proveedores"></datalist></div>' +
-    '<div class="nota">Si la factura tiene varias hojas, haz una foto de cada una o, mejor, súbela en PDF.</div>' +
+    '<div class="nota">Después de la foto podrás ajustar las esquinas para quedarte solo con la hoja. Si la factura tiene varias hojas, haz una foto de cada una o, mejor, súbela en PDF.</div>' +
     '<div class="lista" id="f-lista"></div>' +
     '<button class="enviar oculto" id="f-enviar" onclick="enviarFacturas()">Subir y leer</button>';
   fetch('/api/facturas-proveedores/proveedores').then(function (r) { return r.json(); }).then(function (d) {
@@ -741,12 +776,15 @@ function pantallaFactura() {
     if (dl && d.proveedores) dl.innerHTML = d.proveedores.map(function (p) { return '<option value="' + esc(p) + '">'; }).join('');
   }).catch(function () {});
 }
-function anadirArchivos(files) {
-  [].slice.call(files || []).forEach(function (file) {
+// Las fotos pasan antes por el recorte (public/recorte-documento.js): se
+// queda solo la hoja de la factura. De una en una si se eligen varias.
+async function anadirArchivos(files) {
+  for (var file of [].slice.call(files || [])) {
     var valido = /^(application\/pdf|image\/)/.test(file.type) || /\.pdf$/i.test(file.name);
+    if (valido && /^image\//.test(file.type)) file = await recortarDocumento(file);
     subidas.push({ file: file, estado: valido ? 'pendiente' : 'error', mensaje: valido ? 'Lista para subir' : 'Formato no admitido (solo PDF o foto)', vista: /^image\//.test(file.type) ? URL.createObjectURL(file) : null });
-  });
-  pintarSubidas();
+    pintarSubidas();
+  }
 }
 document.getElementById('in-camara').onchange = function () { anadirArchivos(this.files); this.value = ''; };
 document.getElementById('in-archivo').onchange = function () { anadirArchivos(this.files); this.value = ''; };
