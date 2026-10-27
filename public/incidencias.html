@@ -353,6 +353,7 @@ document.getElementById('visor').onclick = function () { this.classList.add('ocu
 // ── Ficha y seguimiento ──
 function abrirFicha(id) {
   pantalla = 'ficha'; fichaId = id; fotosComentario = [];
+  if (window.registrarVista) registrarVista('ficha', 'incidencia', 'incidencia ' + id);
   document.getElementById('titulo').textContent = 'Incidencia #' + id;
   document.getElementById('btn-nueva').classList.add('oculto');
   document.getElementById('tabs').innerHTML = '<button class="on" data-vista="' + vista + '">&lsaquo; Todas las incidencias</button>';
@@ -456,5 +457,6 @@ function comentar() {
 setInterval(function () { if (OPC && pantalla === 'lista' && !document.hidden && !(document.activeElement && document.activeElement.matches('input, select, textarea'))) cargarLista(); }, 120000);
 entrar();
 </script>
+<script src="/actividad-registro.js" data-pantalla="Incidencias"></script>
 </body>
 </html>

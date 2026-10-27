@@ -369,15 +369,19 @@ function mostrarApp() {
   document.getElementById('app-screen').style.display = 'block';
   document.getElementById('sidebar-user-name').textContent = usuarioActual.nombre;
   document.getElementById('sidebar-user-avatar').textContent = inicialesNombre(usuarioActual.nombre).toUpperCase();
-  document.getElementById('sidebar-role-badge').textContent = ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol;
+  document.getElementById('sidebar-role-badge').textContent = (ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol) + (usuarioActual.solo_lectura ? ' · Solo consulta' : '');
   construirMenu();
   cargarMisAccesos();
+  if (window.avisoActividad) avisoActividad();
   if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
   if (['Direccion', 'Logistica', 'Contabilidad'].includes(usuarioActual.rol)) { actualizarContadorRecuperacion(); setInterval(actualizarContadorRecuperacion, 5 * 60 * 1000); }
   if (ROLES_INCIDENCIAS.includes(usuarioActual.rol)) { actualizarContadorIncidencias(); setInterval(actualizarContadorIncidencias, 5 * 60 * 1000); }
   if (usuarioActual.rol !== 'Comercial') cargarVehiculosFacturas();
   iniciarGloboChat();
-  if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
+  // Desde el push de una alerta de accesos (/?actividad=alertas) se abre Actividad en vez del inicio
+  const pestanaActividad = new URLSearchParams(location.search).get('actividad');
+  if (pestanaActividad && String(usuarioActual.usuario).toLowerCase() === 'sergio') { cargarActividad(pestanaActividad); history.replaceState(null, '', '/'); }
+  else if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
   else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
   else cargarResumenGeneral();
 }
@@ -1051,6 +1055,8 @@ const MENU = [
       { id: 'per-config', label: 'Personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('config') },
       // Usuarios del panel (oct 2026): antes en la hoja USUARIOS de Google. Solo Sergio.
       { id: 'usuarios', label: 'Usuarios', soloUsuario: 'sergio', onClick: () => cargarUsuarios() },
+      // Control de accesos e histórico de actividad (oct 2026) — public/actividad.html
+      { id: 'actividad', label: 'Actividad y accesos', soloUsuario: 'sergio', onClick: () => cargarActividad() },
       { id: 'sync-status', label: 'Estado Sincronización ↗', especial: true, onClick: () => window.open('/sync-status', '_blank') },
   ]},
 ];
@@ -1111,6 +1117,11 @@ function construirMenu() {
   else if (usuarioActual.rol === 'Logistica') abrirGrupoMenu('log');
 }
 function menuVisibleUsuario() {
+  // Solo consulta (p. ej. José Márquez): lo mismo que su rol, sin Configuración
+  if (usuarioActual.solo_lectura) return menuSegunRol().filter(item => item.id !== 'config');
+  return menuSegunRol();
+}
+function menuSegunRol() {
   return usuarioActual.rol === 'Comercial' ? MENU.filter(item => ['comercial', 'incidencias'].includes(item.id))
     : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'mantenimiento', 'vehiculos', 'incidencias', 'chat', 'recuperacion'].includes(item.id))
     : MENU.filter(itemVisibleUsuario);
@@ -1330,6 +1341,7 @@ function marcarMenuActivo(idActivo) {
     el.style.color = 'var(--text-secondary)';
     el.style.fontWeight = 'normal';
   });
+  registrarPantallaMenu(idActivo);
   const el = document.getElementById(idActivo);
   if (!el) return;
   if (el.classList.contains('nav-subitem')) {
@@ -1340,6 +1352,18 @@ function marcarMenuActivo(idActivo) {
   } else {
     el.classList.add('active');
   }
+}
+// Histórico de actividad (public/actividad-registro.js): cada pantalla del menú
+// que se abre, con el nombre que se ve en el menú ("Financiero · Resumen")
+function registrarPantallaMenu(idActivo) {
+  if (!window.registrarVista) return;
+  const id = String(idActivo || '').replace(/^menu-item-/, '');
+  for (const item of MENU) {
+    if (item.id === id) return registrarVista('pantalla', item.label);
+    const sub = (item.submenu || []).find(x => x.id === id);
+    if (sub) return registrarVista('pantalla', item.label + ' · ' + sub.label);
+  }
+  registrarVista('pantalla', id);
 }
 let financieroDataGlobal = null;
 let pestanaFinancieroActiva = 'proyectos';
@@ -4126,6 +4150,7 @@ function seccionExtrasDetalle(ctx) {
 
 // ── Ficha por trabajador ──
 async function abrirFichaTrabajador(persona) {
+  if (window.registrarVista) registrarVista('ficha', 'ficha de trabajador', 'trabajador ' + (persona && (persona.nombre || persona)));
   let modal = document.getElementById('modal-ficha-trabajador');
   if (!modal) {
     modal = document.createElement('div');
@@ -5578,6 +5603,24 @@ function cargarIncidencias(opciones) {
   document.getElementById('content-body').innerHTML = `<iframe src="/incidencias?${params}" title="Incidencias"
     style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
 }
+// Control de accesos e histórico de actividad (solo Sergio) — public/actividad.html, lib/actividad.js
+function cargarActividad(pestana) {
+  document.getElementById('content-title').textContent = 'Sistema · Actividad y accesos';
+  marcarMenuActivo('menu-item-actividad');
+  document.getElementById('content-body').innerHTML = `<iframe src="/actividad?embebido=1${pestana ? '&pestana=' + encodeURIComponent(pestana) : ''}" title="Actividad y accesos"
+    style="width:100%; height:calc(100vh - 150px); min-height:520px; border:1px solid var(--border); border-radius:8px; background:#f7f6f2;"></iframe>`;
+}
+// Qué ve cada rol en el menú del panel (para la pestaña Permisos de Actividad)
+function matrizPermisos(roles) {
+  const guardado = usuarioActual;
+  try {
+    return roles.map(rol => {
+      usuarioActual = { usuario: '', rol };
+      const visibles = menuSegunRol().map(item => item.label + (item.submenu ? ': ' + item.submenu.filter(itemVisibleUsuario).map(x => x.label.replace(' ↗', '')).join(', ') : ''));
+      return { rol, apartados: visibles };
+    });
+  } finally { usuarioActual = guardado; }
+}
 // Contador en el menú: incidencias sin resolver que tiene asignadas este usuario
 async function actualizarContadorIncidencias() {
   try {
@@ -6155,6 +6198,7 @@ function renderTarjetasProyectosPrep(lista, tipoColor) {
   `).join('');
 }
 function abrirDetalleProyectoPrep(proyectoId, numero) {
+  if (window.registrarVista) registrarVista('ficha', 'proyecto en Preparación', 'proyecto ' + (numero || proyectoId));
   const data = preparacionDataGlobal[preparacionVistaActiva];
   const lineas = [];
   data.por_material.forEach(familiaObj => {
@@ -6883,6 +6927,7 @@ function renderResumenExtractoCliente() {
 }
 
 function verDetalleExtractoCliente() {
+  if (window.registrarVista) registrarVista('ficha', 'extracto de cliente');
   extractoClienteVista = 'detalle';
   ordenDetalleExtracto = { campo: 'fecha', asc: true };
   renderDetalleExtractoCliente();
@@ -7741,6 +7786,7 @@ function renderTablaFacturasProveedores(lista) {
 // Oct 2026: los archivos están en Supabase; el servidor da un enlace temporal
 // (y para las antiguas que aún no se hayan copiado, redirige a Drive como antes).
 function verArchivoFactura(fileId) {
+  if (window.registrarVista) registrarVista('ficha', 'archivo de factura de proveedor', 'factura proveedor ' + fileId);
   window.open('/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo', '_blank');
 }
 // 🗑️ (26 oct 2026, solo Dirección): borra la factura entera (todas sus
@@ -7902,6 +7948,7 @@ const NOMBRES_CAMPO_HISTORIAL = {
   formaPago: 'Forma de pago', contabilizada: 'Contabilizada', digitalizada: 'Digitalizada', matricula: 'Matrícula'
 };
 async function abrirHistorialFactura(fileId) {
+  if (window.registrarVista) registrarVista('ficha', 'historial de factura de proveedor', 'factura proveedor ' + fileId);
   const modal = document.getElementById('modal-historial-factura');
   const body = document.getElementById('modal-historial-factura-body');
   body.innerHTML = '<p class="loading-text">Cargando historial...</p>';
@@ -8982,6 +9029,7 @@ async function isabellaGuardarTarifas() {
 // MODAL 📦 MATERIAL + SERVICIOS ADICIONALES (Proyectos / Presupuestos)
 // ================================================================
 function abrirModalMaterialProyecto(proyectoId, numero) {
+  if (window.registrarVista) registrarVista('ficha', 'material del proyecto', 'proyecto ' + (numero || proyectoId));
   document.getElementById('modal-material-titulo').textContent = 'Material' + (numero ? ' — Proyecto #' + numero : '');
   const body = document.getElementById('modal-material-body');
   body.innerHTML = '<p class="loading-text">Cargando...</p>';
@@ -9525,6 +9573,7 @@ function filaLead(l) {
 comprobarSesion();
 </script>
 <script src="vehiculos.js"></script>
+<script src="/actividad-registro.js"></script>
 <script src="recorte-documento.js"></script>
 </body>
 </html>

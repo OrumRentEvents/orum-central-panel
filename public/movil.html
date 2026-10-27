@@ -202,6 +202,7 @@ button { font-family: inherit; }
 
 <script src="/recorte-documento.js"></script>
 <script src="/chat-boton.js"></script>
+<script src="/actividad-registro.js"></script>
 <input type="file" id="in-camara" accept="image/*" capture="environment" class="oculto">
 <input type="file" id="in-archivo" accept="application/pdf,image/jpeg,image/png,image/webp" multiple class="oculto">
 
@@ -415,7 +416,9 @@ function pantallaProximamente(b) {
 // guarda qué botones existían al guardar: los que se añadan después a la app
 // salen solos al final; solo se ocultan los que la persona apagó.
 var MIS_BOTONES = null, CONOCIDOS = null;
-function botonesDisponibles() { return BOTONES.filter(function (b) { return b.roles.indexOf(USUARIO.rol) !== -1; }); }
+// Solo consulta: fuera los botones que solo sirven para registrar algo
+var BOTONES_DE_REGISTRO = ['factura', 'extras', 'isabella', 'repostaje', 'caja'];
+function botonesDisponibles() { return BOTONES.filter(function (b) { return b.roles.indexOf(USUARIO.rol) !== -1 && !(USUARIO.solo_lectura && BOTONES_DE_REGISTRO.indexOf(b.id) !== -1); }); }
 function misBotones() {
   var disp = botonesDisponibles();
   if (!MIS_BOTONES) return disp;
@@ -428,6 +431,7 @@ function entrar(u) {
   if (ROLES_TABLET.indexOf(u.rol) !== -1) { location.replace(PANTALLA_ROL[u.rol]); return; }
   mostrar('app');
   irInicio();
+  if (window.registrarVista) { registrarVista('pantalla', 'App · Inicio'); avisoActividad(); }
   fetch('/api/mis-accesos').then(function (r) { return r.json(); }).then(function (d) {
     MIS_BOTONES = (d.accesos && d.accesos.movil) || null;
     CONOCIDOS = (d.accesos && d.accesos.movil_conocidos) || null;
@@ -514,6 +518,7 @@ function fechaHoy() {
 
 function abrirPantalla(titulo) {
   document.getElementById('cab-titulo').textContent = titulo;
+  if (window.registrarVista) registrarVista('pantalla', 'App · ' + titulo);
   document.getElementById('btn-volver').classList.remove('oculto');
   document.getElementById('btn-salir').classList.add('oculto');
   window.scrollTo(0, 0);

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORUM Actividad</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; font-size: 13px; }
+button, input, select { font-family: inherit; font-size: 13px; }
+.oculto { display: none !important; }
+.tabs { display: flex; gap: 4px; padding: 10px 14px 0; border-bottom: 1px solid #e2e2de; background: #fff; position: sticky; top: 0; z-index: 5; overflow-x: auto; }
+.tabs button { border: none; background: none; padding: 9px 12px; color: #6b6a64; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+.tabs button.on { color: #1a1a18; font-weight: 600; border-bottom-color: #b8956a; }
+.badge { background: #D93025; color: #fff; font-size: 10px; font-weight: 700; border-radius: 9px; padding: 1px 6px; margin-left: 4px; }
+.cuerpo { padding: 14px; }
+.filtros { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.filtros input, .filtros select { padding: 6px 8px; border: 1px solid #e2e2de; border-radius: 6px; background: #fff; }
+.filtros label { color: #6b6a64; font-size: 12px; }
+.btn { padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e2de; background: #fff; cursor: pointer; }
+.btn.oro { background: #b8860b; border-color: #b8860b; color: #fff; }
+.btn.rojo { color: #b91c1c; border-color: #fecaca; }
+.btn.verde { color: #3B6D11; border-color: #c9dfb5; }
+.tabla { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e2de; border-radius: 8px; overflow: hidden; }
+.tabla th { text-align: left; background: #f7f7f5; padding: 8px; font-weight: 600; font-size: 12px; color: #6b6a64; white-space: nowrap; }
+.tabla td { padding: 7px 8px; border-top: 1px solid #efeee9; vertical-align: top; }
+.tabla tr.clic { cursor: pointer; }
+.tabla tr.clic:hover td { background: #faf8f2; }
+.etq { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+.t-entrada { background: #EAF3DE; color: #3B6D11; } .t-entrada_fallida { background: #FCEBEB; color: #A32D2D; } .t-salida { background: #f0efe9; color: #6b6a64; }
+.t-pantalla { background: #eef3fb; color: #2f5a9e; } .t-ficha { background: #f3ead9; color: #8a6d1e; } .t-cambio { background: #fff1e6; color: #b45309; } .t-descarga { background: #f3e8fb; color: #7a3fa0; }
+.gris { color: #9a988f; }
+.err { color: #A32D2D; }
+.vacio { text-align: center; color: #9a988f; padding: 2rem; }
+.tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.tarjeta { background: #fff; border: 1px solid #e2e2de; border-radius: 10px; padding: 12px; }
+.tarjeta.alerta-nueva { border-left: 4px solid #A32D2D; }
+.nota { color: #6b6a64; font-size: 12px; margin-bottom: 12px; line-height: 1.45; }
+h3 { font-size: 14px; margin: 18px 0 8px; }
+.interr { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="tabs" id="tabs">
+  <button data-p="resumen" class="on">Resumen</button>
+  <button data-p="linea">Línea de tiempo</button>
+  <button data-p="proyecto">Por proyecto</button>
+  <button data-p="alertas">Alertas <span id="n-alertas"></span></button>
+  <button data-p="accesos">Accesos</button>
+  <button data-p="permisos">Permisos</button>
+</div>
+<div class="cuerpo" id="cuerpo"><div class="vacio">Cargando…</div></div>
+
+<script>
+// Control de accesos e histórico de actividad (lib/actividad.js). Solo Sergio.
+var PARAMS = new URLSearchParams(location.search);
+var pestana = PARAMS.get('pestana') || 'resumen';
+var USUARIOS = [];
+var TIPOS = { entrada: 'Entrada', entrada_fallida: 'Entrada fallida', salida: 'Salida', pantalla: 'Pantalla', ficha: 'Ficha', cambio: 'Cambio', descarga: 'Descarga' };
+var ROLES = ['Direccion', 'Contabilidad', 'Logistica', 'Comercial', 'Lavanderia', 'Office', 'Mantenimiento'];
+var filtro = { usuario: PARAMS.get('usuario') || '', tipo: '', desde: '', hasta: '' };
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function fh(ts) { return ts ? new Date(ts).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''; }
+function fhs(ts) { return ts ? new Date(ts).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''; }
+function horas(min) { return min >= 60 ? Math.floor(min / 60) + ' h ' + (min % 60) + ' min' : (min || 0) + ' min'; }
+function getJ(url) { return fetch(url).then(function (r) { return r.json().then(function (d) { if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status); return d; }); }); }
+function postJ(url, b) { return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) }).then(function (r) { return r.json().then(function (d) { if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status); return d; }); }); }
+function nombreDe(u) { var x = USUARIOS.filter(function (y) { return y.usuario === u; })[0]; return x ? x.nombre : (u || '—'); }
+function cuerpo(h) { document.getElementById('cuerpo').innerHTML = h; }
+function fallo(e) { cuerpo('<div class="vacio err">' + esc(e.message) + '</div>'); }
+
+function ir(p) {
+  pestana = p;
+  [].forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.classList.toggle('on', b.getAttribute('data-p') === p); });
+  cuerpo('<div class="vacio">Cargando…</div>');
+  ({ resumen: verResumen, linea: verLinea, proyecto: verProyecto, alertas: verAlertas, accesos: verAccesos, permisos: verPermisos })[p]();
+}
+document.getElementById('tabs').onclick = function (e) { var b = e.target.closest('[data-p]'); if (b) ir(b.getAttribute('data-p')); };
+
+// ── Resumen por usuario ──
+var diasResumen = 30;
+function verResumen() {
+  getJ('/api/actividad/resumen?dias=' + diasResumen).then(function (d) {
+    USUARIOS = d.usuarios;
+    var filas = d.usuarios.filter(function (u) { return u.usuario; }).sort(function (a, b) { return String((b.ultima_entrada || {}).creado_en || '').localeCompare(String((a.ultima_entrada || {}).creado_en || '')); });
+    cuerpo('<div class="filtros"><label>Periodo</label><select id="dias">' + [7, 30, 90, 365].map(function (n) { return '<option value="' + n + '"' + (n === diasResumen ? ' selected' : '') + '>Últimos ' + n + ' días</option>'; }).join('') + '</select>' +
+      '<span class="gris">Pulsa una persona para ver su línea de tiempo.</span></div>' +
+      '<table class="tabla"><thead><tr><th>Persona</th><th>Rol</th><th>Último acceso</th><th>Días activo</th><th>Tiempo de uso</th><th>Entradas</th><th>Pantallas</th><th>Fichas</th><th>Cambios</th><th>Descargas</th><th>Errores</th><th>Lo que más usa</th></tr></thead><tbody>' +
+      filas.map(function (u) {
+        var ue = u.ultima_entrada;
+        return '<tr class="clic" data-usuario="' + esc(u.usuario) + '"><td><b>' + esc(u.nombre || u.usuario) + '</b>' + (u.activo ? '' : ' <span class="etq t-entrada_fallida">Desactivado</span>') + '<div class="gris">' + esc(u.usuario) + '</div></td><td>' + esc(u.rol) + '</td>' +
+          '<td>' + (ue ? fh(ue.creado_en) + '<div class="gris">' + esc(ue.dispositivo || '') + ' · ' + esc(ue.app || '') + '</div>' : '<span class="gris">Nunca (desde que se registra)</span>') + '</td>' +
+          '<td>' + u.dias_activo + '</td><td>' + horas(u.minutos) + '</td><td>' + u.entradas + '</td><td>' + u.pantallas + '</td><td>' + u.fichas + '</td><td>' + u.cambios + '</td><td>' + u.descargas + '</td><td>' + (u.errores ? '<span class="err">' + u.errores + '</span>' : 0) + '</td>' +
+          '<td>' + esc(u.mas_usadas.join(', ')) + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<p class="nota" style="margin-top:10px;">El tiempo de uso es aproximado: suma el tiempo entre acciones seguidas (como mucho 10 min entre una y otra). Los datos empiezan el día que se activó el registro; el detalle se guarda 12 meses y el resumen diario se queda.</p>');
+    document.getElementById('dias').onchange = function () { diasResumen = +this.value; verResumen(); };
+    [].forEach.call(document.querySelectorAll('[data-usuario]'), function (tr) { tr.onclick = function () { filtro = { usuario: tr.getAttribute('data-usuario'), tipo: '', desde: '', hasta: '' }; ir('linea'); }; });
+  }).catch(fallo);
+}
+
+// ── Línea de tiempo ──
+function cargarUsuarios() { return USUARIOS.length ? Promise.resolve() : getJ('/api/actividad/resumen?dias=7').then(function (d) { USUARIOS = d.usuarios; }); }
+function tablaActividad(filas, conUsuario) {
+  if (!filas.length) return '<div class="vacio">No hay actividad con estos filtros.</div>';
+  return '<table class="tabla"><thead><tr><th>Cuándo</th>' + (conUsuario ? '<th>Quién</th>' : '') + '<th>Tipo</th><th>Qué</th><th>Sobre</th><th>Desde</th></tr></thead><tbody>' +
+    filas.map(function (f) {
+      return '<tr><td style="white-space:nowrap">' + fhs(f.creado_en) + '</td>' + (conUsuario ? '<td>' + esc(f.nombre || f.usuario || '—') + '</td>' : '') +
+        '<td><span class="etq t-' + f.tipo + '">' + TIPOS[f.tipo] + '</span></td><td>' + esc(f.accion) + (f.estado >= 400 ? ' <span class="err">(' + f.estado + ')</span>' : '') + '</td>' +
+        '<td>' + esc(f.objeto || '') + '</td><td class="gris">' + esc([f.app, f.dispositivo, f.ip].filter(Boolean).join(' · ')) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+var ultimaLinea = [];
+function verLinea(mas) {
+  cargarUsuarios().then(function () {
+    var qs = new URLSearchParams();
+    Object.keys(filtro).forEach(function (k) { if (filtro[k]) qs.set(k, filtro[k]); });
+    if (mas && ultimaLinea.length) qs.set('antes', ultimaLinea[ultimaLinea.length - 1].id);
+    return getJ('/api/actividad?' + qs);
+  }).then(function (d) {
+    ultimaLinea = mas ? ultimaLinea.concat(d.filas) : d.filas;
+    cuerpo('<div class="filtros">' +
+      '<select id="f-usuario"><option value="">Todas las personas</option>' + USUARIOS.filter(function (u) { return u.usuario; }).map(function (u) { return '<option value="' + esc(u.usuario) + '"' + (u.usuario === filtro.usuario ? ' selected' : '') + '>' + esc(u.nombre || u.usuario) + '</option>'; }).join('') + '</select>' +
+      '<select id="f-tipo"><option value="">Todo</option>' + Object.keys(TIPOS).map(function (t) { return '<option value="' + t + '"' + (t === filtro.tipo ? ' selected' : '') + '>' + TIPOS[t] + '</option>'; }).join('') + '<option value="cambio,descarga"' + (filtro.tipo === 'cambio,descarga' ? ' selected' : '') + '>Cambios y descargas</option></select>' +
+      '<label>Desde</label><input type="date" id="f-desde" value="' + filtro.desde + '"><label>Hasta</label><input type="date" id="f-hasta" value="' + filtro.hasta + '">' +
+      '<button class="btn" id="f-hoy">Hoy</button><button class="btn" id="f-limpiar">Quitar filtros</button></div>' +
+      tablaActividad(ultimaLinea, !filtro.usuario) +
+      (d.filas.length >= 300 ? '<div style="text-align:center;margin-top:10px;"><button class="btn" id="f-mas">Ver más antiguos</button></div>' : ''));
+    var cambiar = function () { filtro = { usuario: document.getElementById('f-usuario').value, tipo: document.getElementById('f-tipo').value, desde: document.getElementById('f-desde').value, hasta: document.getElementById('f-hasta').value }; verLinea(); };
+    ['f-usuario', 'f-tipo', 'f-desde', 'f-hasta'].forEach(function (id) { document.getElementById(id).onchange = cambiar; });
+    document.getElementById('f-hoy').onclick = function () { var h = new Date(); var iso = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0') + '-' + String(h.getDate()).padStart(2, '0'); document.getElementById('f-desde').value = iso; document.getElementById('f-hasta').value = iso; cambiar(); };
+    document.getElementById('f-limpiar').onclick = function () { filtro = { usuario: '', tipo: '', desde: '', hasta: '' }; verLinea(); };
+    var m = document.getElementById('f-mas'); if (m) m.onclick = function () { verLinea(true); };
+  }).catch(fallo);
+}
+
+// ── Por proyecto (o factura, incidencia…) ──
+var buscado = '';
+function verProyecto() {
+  var dibujar = function (html) {
+    cuerpo('<div class="filtros"><input id="b-objeto" placeholder="Nº de proyecto, factura, incidencia…" value="' + esc(buscado) + '" style="width:280px;"><button class="btn oro" id="b-ir">Buscar</button>' +
+      '<span class="gris">Quién ha abierto o tocado ese proyecto (o factura, incidencia, usuario…).</span></div>' + html);
+    var ir2 = function () { buscado = document.getElementById('b-objeto').value.trim(); verProyecto(); };
+    document.getElementById('b-ir').onclick = ir2;
+    document.getElementById('b-objeto').onkeydown = function (e) { if (e.key === 'Enter') ir2(); };
+  };
+  if (!buscado) return dibujar('');
+  getJ('/api/actividad?objeto=' + encodeURIComponent(buscado) + '&limite=1000').then(function (d) { dibujar(tablaActividad(d.filas, true)); }).catch(fallo);
+}
+
+// ── Alertas ──
+var NOMBRE_ALERTA = { fuera_horario: 'Fuera de horario', dispositivo_nuevo: 'Dispositivo nuevo', intentos_fallidos: 'Intentos fallidos', muchas_descargas: 'Muchas descargas' };
+function contarAlertas() {
+  getJ('/api/actividad/alertas').then(function (d) { document.getElementById('n-alertas').innerHTML = d.sin_revisar ? '<span class="badge">' + d.sin_revisar + '</span>' : ''; }).catch(function () {});
+}
+function verAlertas() {
+  getJ('/api/actividad/alertas').then(function (d) {
+    document.getElementById('n-alertas').innerHTML = d.sin_revisar ? '<span class="badge">' + d.sin_revisar + '</span>' : '';
+    cuerpo('<p class="nota">Salta una alerta (y un aviso al móvil de Dirección si tiene los avisos activados en /avisos) cuando alguien entra entre las 22:00 y las 7:00, entra desde un dispositivo que no había usado en 90 días, hay 3 o más intentos de entrada fallidos en 15 minutos, o alguien abre o descarga 15 archivos o más en 10 minutos.</p>' +
+      (d.alertas.length ? '<div class="tarjetas">' + d.alertas.map(function (a) {
+        return '<div class="tarjeta' + (a.revisada_en ? '' : ' alerta-nueva') + '"><div style="display:flex;justify-content:space-between;gap:8px;"><b>' + esc(NOMBRE_ALERTA[a.tipo] || a.tipo) + '</b><span class="gris">' + fh(a.creado_en) + '</span></div>' +
+          '<div style="margin:8px 0;line-height:1.4;">' + esc(a.texto) + '</div>' +
+          (a.revisada_en ? '<div class="gris">Revisada ' + fh(a.revisada_en) + '</div>' : '<button class="btn" data-revisar="' + a.id + '">Marcar revisada</button>') +
+          (a.usuario ? ' <button class="btn" data-ver="' + esc(a.usuario) + '">Ver su actividad</button>' : '') + '</div>';
+      }).join('') + '</div>' : '<div class="vacio">Sin alertas. 👌</div>'));
+    document.getElementById('cuerpo').onclick = function (e) {
+      var r = e.target.closest('[data-revisar]'), v = e.target.closest('[data-ver]');
+      if (r) postJ('/api/actividad/alertas/' + r.getAttribute('data-revisar') + '/revisada').then(verAlertas).catch(function (er) { alert(er.message); });
+      if (v) { filtro = { usuario: v.getAttribute('data-ver'), tipo: '', desde: '', hasta: '' }; document.getElementById('cuerpo').onclick = null; ir('linea'); }
+    };
+  }).catch(fallo);
+}
+
+// ── Accesos: usuarios, sesiones abiertas y dispositivos ──
+function verAccesos() {
+  document.getElementById('cuerpo').onclick = null;
+  getJ('/api/accesos').then(function (d) {
+    var porUsuario = {};
+    d.dispositivos.forEach(function (x) { (porUsuario[x.usuario] = porUsuario[x.usuario] || []).push(x); });
+    cuerpo('<h3 style="margin-top:0">Usuarios</h3><p class="nota"><b>Desactivado</b>: no puede entrar de ninguna forma y se le cierran las sesiones (su historial se conserva). <b>Solo consulta</b>: ve lo mismo que su rol, sin Configuración, y no puede cambiar nada.</p>' +
+      '<table class="tabla"><thead><tr><th>Persona</th><th>Rol</th><th>PIN</th><th>Dispositivos recordados</th><th>Activo</th><th>Solo consulta</th></tr></thead><tbody>' +
+      d.usuarios.filter(function (u) { return u.usuario; }).map(function (u) {
+        var es = u.usuario === 'sergio';
+        return '<tr><td><b>' + esc(u.nombre) + '</b><div class="gris">' + esc(u.usuario) + '</div></td><td>' + esc(u.rol) + '</td><td>' + (u.tiene_pin ? 'Sí' : '<span class="gris">No</span>') + '</td>' +
+          '<td>' + ((porUsuario[u.usuario] || []).map(function (x) { return '<div>' + esc(x.dispositivo) + ' <span class="gris">· ' + fh(x.ultimo_uso) + '</span> <button class="btn rojo" style="padding:2px 8px;font-size:11px" data-olvidar="' + esc(x.id) + '" data-tipo="' + x.tipo + '">Olvidar</button></div>'; }).join('') || '<span class="gris">—</span>') + '</td>' +
+          '<td>' + (es ? '<span class="gris">Siempre</span>' : '<label class="interr"><input type="checkbox" data-activo="' + esc(u.usuario) + '"' + (u.activo ? ' checked' : '') + '> ' + (u.activo ? 'Activo' : '<span class="err">Desactivado</span>') + '</label>') + '</td>' +
+          '<td>' + (es ? '' : '<label class="interr"><input type="checkbox" data-solo="' + esc(u.usuario) + '"' + (u.solo_lectura ? ' checked' : '') + '> ' + (u.solo_lectura ? 'Sí' : '<span class="gris">No</span>') + '</label>') + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<h3>Sesiones abiertas ahora</h3><p class="nota">Se pierden al publicar una versión nueva (todo el mundo vuelve a entrar con su PIN o dispositivo recordado).</p>' +
+      (d.sesiones.length ? '<table class="tabla"><thead><tr><th>Persona</th><th>Desde</th><th>Dispositivo</th><th>Última actividad</th><th></th></tr></thead><tbody>' +
+        d.sesiones.map(function (s) {
+          return '<tr><td><b>' + esc(s.nombre || s.usuario) + '</b> <span class="gris">' + esc(s.rol) + '</span></td><td>' + esc(s.app || '—') + '</td><td>' + esc([s.dispositivo, s.ip].filter(Boolean).join(' · ') || '—') + '</td><td>' + (s.ultimo ? fh(s.ultimo) : '—') + '</td>' +
+            '<td>' + (s.yo ? '<span class="gris">Esta sesión</span>' : '<button class="btn rojo" data-cerrar="' + esc(s.sid) + '">Cerrar sesión</button>') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<div class="vacio">No hay sesiones abiertas.</div>'));
+    var c = document.getElementById('cuerpo');
+    c.onchange = function (e) {
+      var a = e.target.getAttribute('data-activo'), s = e.target.getAttribute('data-solo');
+      if (a) {
+        if (!e.target.checked && !confirm('¿Desactivar a ' + a + '? No podrá entrar y se le cerrarán las sesiones abiertas.')) { e.target.checked = true; return; }
+        postJ('/api/accesos/usuario/' + encodeURIComponent(a) + '/activo', { activo: e.target.checked }).then(verAccesos).catch(function (er) { alert(er.message); verAccesos(); });
+      }
+      if (s) postJ('/api/accesos/usuario/' + encodeURIComponent(s) + '/solo-lectura', { solo_lectura: e.target.checked }).then(verAccesos).catch(function (er) { alert(er.message); verAccesos(); });
+    };
+    c.onclick = function (e) {
+      var o = e.target.closest('[data-olvidar]'), x = e.target.closest('[data-cerrar]');
+      if (o && confirm('¿Olvidar este dispositivo? Tendrá que volver a entrar con su PIN.')) postJ('/api/accesos/olvidar-dispositivo', { id: o.getAttribute('data-olvidar'), tipo: o.getAttribute('data-tipo') }).then(verAccesos).catch(function (er) { alert(er.message); });
+      if (x && confirm('¿Cerrar esta sesión? Tendrá que volver a entrar.')) postJ('/api/accesos/cerrar-sesion', { sid: x.getAttribute('data-cerrar') }).then(verAccesos).catch(function (er) { alert(er.message); });
+    };
+  }).catch(fallo);
+}
+
+// ── Permisos: qué ve cada rol en el menú del panel ──
+function verPermisos() {
+  document.getElementById('cuerpo').onclick = null; document.getElementById('cuerpo').onchange = null;
+  var matriz = null;
+  try { matriz = window.parent !== window && window.parent.matrizPermisos ? window.parent.matrizPermisos(ROLES.slice(0, 4)) : null; } catch (e) {}
+  cuerpo('<p class="nota">Lo que ve cada rol en el menú del panel. El servidor además bloquea por su cuenta lo que cada rol no puede abrir. Los usuarios de <b>solo consulta</b> ven lo de su rol sin Configuración y no pueden cambiar nada.</p>' +
+    (matriz ? '<table class="tabla"><thead><tr><th>Rol</th><th>Apartados del panel</th></tr></thead><tbody>' + matriz.map(function (m) { return '<tr><td><b>' + esc(m.rol) + '</b></td><td>' + m.apartados.map(esc).join('<br>') + '</td></tr>'; }).join('') + '</tbody></table>' : '<div class="vacio">Abre esta pestaña desde el panel para ver la tabla.</div>') +
+    '<h3>Roles de tablet (solo app móvil)</h3><table class="tabla"><tbody>' +
+    '<tr><td><b>Lavandería</b></td><td>Preparación (su zona), chat de Lavandería, avisos de su departamento</td></tr>' +
+    '<tr><td><b>Office</b></td><td>Preparación (su zona), chat de Office, avisos de su departamento</td></tr>' +
+    '<tr><td><b>Mantenimiento</b></td><td>Mantenimiento, chat de Mantenimiento, avisos de su departamento</td></tr></tbody></table>');
+}
+
+contarAlertas();
+ir(pestana);
+</script>
+</body>
+</html>

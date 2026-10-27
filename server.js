@@ -95,6 +95,11 @@ app.use(session({
   }
 }));
 
+// Control de accesos e histórico de actividad (lib/actividad.js): va justo
+// después de la sesión para ver todas las peticiones /api. También bloquea a
+// los usuarios desactivados y los cambios de los de solo consulta.
+require('./lib/actividad').registrar(app, { supabase, requiereLogin });
+
 // Caché en memoria de las respuestas de ORUM CENTRAL (Apps Script). Apps
 // Script tarda varios segundos en leer hojas grandes (PROYECTOS ya tiene
 // 1750+ filas) — con esto, cualquier petición repetida en los siguientes
@@ -230,12 +235,14 @@ app.post('/api/login', async (req, res) => {
     const passwordValida = bcrypt.compareSync(password, usuarioEncontrado.password_hash);
     if (!passwordValida) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
     if (ROLES_SOLO_MOVIL.includes(usuarioEncontrado.rol)) return res.status(403).json({ error: 'Este usuario solo entra desde la app móvil (/movil) con su PIN' });
+    if (usuarioEncontrado.activo === false) return res.status(403).json({ error: 'Tu usuario está desactivado' });
 
     req.session.usuario = {
       usuario: usuarioEncontrado.usuario,
       nombre: usuarioEncontrado.nombre,
       rol: usuarioEncontrado.rol,
-      comercial_filtro: usuarioEncontrado.comercial_filtro || null
+      comercial_filtro: usuarioEncontrado.comercial_filtro || null,
+      solo_lectura: usuarioEncontrado.solo_lectura === true
     };
 
     res.json({ ok: true, usuario: req.session.usuario });
@@ -4823,6 +4830,9 @@ function areasDeLinea(familia, articulo) {
   return areas;
 }
 const avisosProyecto = require('./lib/avisosProyecto').registrar(app, { supabase, requiereLogin, areasDeLinea, chat: chatModulo });
+app.get('/actividad', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'actividad.html'));
+});
 app.get('/avisos', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'avisos.html'));
 });

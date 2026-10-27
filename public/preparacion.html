@@ -691,6 +691,7 @@ function renderLogistica(data) {
 
 function abrirModal(p) {
   proyectoModal = p;
+  if (window.registrarVista) registrarVista('ficha', 'proyecto en Preparación', 'proyecto ' + p.numero);
   document.getElementById('modal-numero').textContent = '#' + p.numero;
   document.getElementById('modal-titulo').textContent = p.cliente || '-';
   var body = document.getElementById('modal-body');
@@ -838,5 +839,6 @@ fetch('/api/sesion').then(function(r) { return r.ok ? r.json() : null; }).catch(
 <script src="/chat-boton.js"></script>
 <script src="/incidencia-boton.js"></script>
 <script src="/avisos-banda.js"></script>
+<script src="/actividad-registro.js" data-pantalla="Preparación"></script>
 </body>
 </html>
