@@ -34,6 +34,7 @@ button { font-family: inherit; }
 .msg.mio .quien { display: none; }
 .msg .txt { white-space: pre-wrap; }
 .msg .hora { font-size: 10.5px; color: #9a988f; text-align: right; margin-top: 2px; }
+.msg .borrar { background: none; border: none; color: #b91c1c; font-size: 10.5px; padding: 0 8px 0 0; cursor: pointer; text-decoration: underline; }
 .msg img { display: block; max-width: 100%; max-height: 320px; border-radius: 10px; margin: 2px 0 4px; cursor: zoom-in; background: #f0efe9; min-width: 120px; min-height: 80px; object-fit: cover; }
 .msg.seguido { margin-top: -1px; }
 .msg.seguido .quien { display: none; }
@@ -189,7 +190,14 @@ function htmlMensaje(m, anterior) {
     '<div class="quien">' + esc(m.nombre) + '</div>' +
     (m.foto ? '<img src="/api/chat/foto/' + m.id + '" alt="Foto" loading="lazy" data-foto="' + m.id + '">' : '') +
     (m.texto ? '<div class="txt">' + esc(m.texto) + '</div>' : '') +
-    '<div class="hora">' + hora(m.creado_en) + '</div></div>';
+    '<div class="hora">' + (puedeBorrar() ? '<button class="borrar" data-borrar="' + m.id + '" title="Eliminar este mensaje">Eliminar</button>' : '') + hora(m.creado_en) + '</div></div>';
+}
+// Solo Sergio puede borrar mensajes (lib/chat.js)
+function puedeBorrar() { return !!USUARIO && String(USUARIO.usuario || '').toLowerCase() === 'sergio'; }
+function quitarMensaje(id) {
+  var antes = MENSAJES.length;
+  MENSAJES = MENSAJES.filter(function (x) { return x.id !== id; });
+  if (MENSAJES.length !== antes) pintarMensajes(false);
 }
 function pintarMensajes(alFinal) {
   var lista = document.getElementById('lista');
@@ -233,7 +241,7 @@ var fuente = null;
 function conectarEventos() {
   if (!window.EventSource) return;
   fuente = new EventSource('/api/chat/eventos');
-  fuente.onmessage = function (e) { try { var d = JSON.parse(e.data); if (d.tipo === 'mensaje') recibir(d.mensaje); } catch (err) {} };
+  fuente.onmessage = function (e) { try { var d = JSON.parse(e.data); if (d.tipo === 'mensaje') recibir(d.mensaje); else if (d.tipo === 'borrado' && d.canal === canal) quitarMensaje(d.id); } catch (err) {} };
 }
 // Al volver a la pantalla (móvil bloqueado, otra app…) se recupera lo que llegó mientras tanto
 document.addEventListener('visibilitychange', function () {
@@ -412,6 +420,15 @@ function desactivarAvisos() {
 
 // Foto a pantalla completa
 document.getElementById('lista').addEventListener('click', function (e) {
+  var borrar = e.target.closest('[data-borrar]');
+  if (borrar) {
+    if (!confirm('¿Eliminar este mensaje? Desaparece para todos y no se puede recuperar.')) return;
+    var id = +borrar.getAttribute('data-borrar');
+    fetch('/api/chat/mensajes/' + id, { method: 'DELETE' }).then(function (r) { return r.json(); })
+      .then(function (d) { if (d.ok) quitarMensaje(id); else alert(d.error || 'No se ha podido eliminar'); })
+      .catch(function () { alert('Error de conexión'); });
+    return;
+  }
   var img = e.target.closest('[data-foto]');
   if (!img) return;
   var v = document.createElement('div'); v.className = 'visor';
