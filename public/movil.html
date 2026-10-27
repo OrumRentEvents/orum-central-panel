@@ -384,6 +384,7 @@ var ICONOS = {
   mantenimiento: '<svg viewBox="0 0 24 24"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.9 5.6L3 14.7 6.3 18l5.8-5.8a4.5 4.5 0 0 0 5.6-5.9l-3 3-2.5-2.5 3-3Z"/></svg>',
   recuperacion: '<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M9 14l2 2 4-4"/></svg>',
   chat: '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  avisos: '<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>',
   isabella: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>'
 };
 // Qué ve cada rol. Preparación: almacén ve las tres zonas.
@@ -393,6 +394,7 @@ var BOTONES = [
   { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' },
   { id: 'mantenimiento', titulo: 'Mantenimiento', sub: 'Material de especial cuidado y chill out, próximos 15 días', roles: ['Direccion', 'Logistica'], href: '/mantenimiento' },
   { id: 'recuperacion', titulo: 'Material recuperado', sub: 'Confirmar lo que vuelve y quitar cargos', roles: ['Direccion', 'Logistica', 'Contabilidad'], href: '/recuperacion' },
+  { id: 'avisos', titulo: 'Avisos', sub: 'Proyectos que cambian o se confirman para hoy o mañana', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/avisos' },
   { id: 'chat', titulo: 'Chat', sub: 'Office, Lavandería y Mantenimiento', roles: ['Direccion', 'Logistica'], href: '/chat' },
   { id: 'extras', titulo: 'Registrar extras', sub: 'Horas de más, domingos, festivos, nocturnos y saldo del personal', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaExtras(); } },
   { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
@@ -459,6 +461,11 @@ function irInicio() {
   if (recup) fetch('/api/recuperacion/resumen').then(function (r) { return r.json(); }).then(function (d) {
     var n = (USUARIO.rol === 'Contabilidad' ? 0 : d.por_confirmar || 0) + (USUARIO.rol === 'Logistica' ? 0 : d.por_quitar || 0);
     if (n) recup.querySelector('.tit').insertAdjacentHTML('beforeend', ' <span class="chat-badge">' + n + '</span>');
+  }).catch(function () {});
+  // Avisos de proyectos sin ver en el botón Avisos
+  var avisos = document.querySelector('.boton[href="/avisos"]');
+  if (avisos) fetch('/api/avisos').then(function (r) { return r.json(); }).then(function (d) {
+    if (d.sin_ver) avisos.querySelector('.tit').insertAdjacentHTML('beforeend', ' <span class="chat-badge">' + d.sin_ver + '</span>');
   }).catch(function () {});
   // Mensajes sin leer en el botón Chat
   var chat = document.querySelector('.boton[href="/chat"]');

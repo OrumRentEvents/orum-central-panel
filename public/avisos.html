@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ORUM Avisos</title>
+<link rel="manifest" href="/movil.webmanifest?v=2">
+<meta name="theme-color" content="#1a1a18">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
+button { font-family: inherit; }
+.oculto { display: none !important; }
+.cab { background: #1a1a18; color: #fff; padding: calc(12px + env(safe-area-inset-top)) 16px 10px; position: sticky; top: 0; z-index: 10; }
+.cab-top { display: flex; align-items: center; gap: 10px; }
+.cab h1 { font-size: 16px; font-weight: 600; flex: 1; }
+.cab button { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 12.5px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.cab button.on { background: #3B6D11; border-color: #3B6D11; color: #fff; }
+.tabs { display: flex; gap: 4px; margin-top: 8px; }
+.tabs button { border: none; background: transparent; color: rgba(255,255,255,.65); font-size: 13.5px; padding: 7px 12px; border-radius: 6px; cursor: pointer; }
+.tabs button.on { background: rgba(255,255,255,.15); color: #fff; font-weight: 600; }
+.cuerpo { padding: 0 0 32px; }
+.cargando, .vacio { text-align: center; padding: 3rem 1rem; color: #9a988f; font-size: 14px; }
+.nota { max-width: 680px; margin: 12px auto 0; padding: 0 16px; font-size: 12px; color: #6b6a64; line-height: 1.4; }
+.err { color: #A32D2D; }
+</style>
+</head>
+<body>
+<div class="cab">
+  <div class="cab-top">
+    <button id="btn-volver" class="oculto">&lsaquo; Inicio</button>
+    <h1>Avisos de proyectos</h1>
+    <button id="btn-push" class="oculto">Activar avisos</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-vista="pendientes" class="on">Sin ver</button>
+    <button data-vista="todos">Últimos 3 días</button>
+  </div>
+</div>
+<div class="nota" id="nota"></div>
+<div class="cuerpo"><div id="lista" class="av-banda"><div class="cargando">Cargando…</div></div></div>
+
+<script src="/avisos-banda.js"></script>
+<script>
+// Avisos de cambios en proyectos (lib/avisosProyecto.js): lo que ha cambiado
+// en Rentman, a quién se ha avisado y quién lo ha visto. Los comerciales ven
+// los de sus proyectos; Logística y Dirección, todos.
+var PARAMS = new URLSearchParams(location.search);
+var USUARIO = null, vista = 'pendientes';
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+function entrar() {
+  fetch('/api/sesion').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) {
+    if (d && d.usuario) return arrancar(d.usuario);
+    var llave = ''; try { llave = localStorage.getItem('orum_movil_dispositivo') || ''; } catch (e) {}
+    if (!llave) return location.replace('/movil');
+    fetch('/api/movil/dispositivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) })
+      .then(function (r) { return r.json(); }).then(function (r) { if (r.ok) arrancar(r.usuario); else location.replace('/movil'); })
+      .catch(function () { location.replace('/movil'); });
+  });
+}
+function arrancar(u) {
+  USUARIO = u;
+  var b = document.getElementById('btn-volver');
+  b.classList.remove('oculto');
+  b.onclick = function () { location.href = '/movil'; };
+  // El comercial ve siempre todo lo de sus proyectos (visto y sin ver)
+  if (u.rol === 'Comercial') {
+    document.getElementById('tabs').classList.add('oculto');
+    document.getElementById('nota').textContent = 'Cambios en tus proyectos de los últimos 3 días y qué departamento se ha enterado.';
+  }
+  cargar();
+  try { new EventSource('/api/avisos/eventos').onmessage = cargar; } catch (e) {}
+  prepararPush();
+}
+function cargar() {
+  fetch('/api/avisos?todos=' + (vista === 'todos' ? 1 : 0) + '&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+    var cont = document.getElementById('lista');
+    if (!d.ok) { cont.innerHTML = '<div class="vacio err">' + esc(d.error || 'Error') + '</div>'; return; }
+    if (!d.proyectos.length) { cont.innerHTML = '<div class="vacio">' + (vista === 'todos' ? 'No hay avisos en los últimos 3 días.' : 'No hay avisos sin ver. 👌') + '</div>'; cont.onclick = null; return; }
+    pintarAvisos(cont, d, cargar);
+  }).catch(function () { document.getElementById('lista').innerHTML = '<div class="vacio err">Error de conexión</div>'; });
+}
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-vista]');
+  if (!b) return;
+  vista = b.getAttribute('data-vista');
+  [].forEach.call(this.children, function (x) { x.classList.toggle('on', x === b); });
+  cargar();
+});
+
+// ── Push de avisos en este dispositivo (mismo service worker que el chat) ──
+var PUSH = { reg: null, sub: null, clave: null, activo: false };
+var PUSH_SOPORTADO = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+function prepararPush() {
+  if (!PUSH_SOPORTADO) return;
+  navigator.serviceWorker.register('/movil-sw.js', { scope: '/movil' }).then(function (reg) {
+    PUSH.reg = reg;
+    return reg.pushManager.getSubscription();
+  }).then(function (sub) {
+    PUSH.sub = sub;
+    return fetch('/api/avisos/push/estado' + (sub ? '?endpoint=' + encodeURIComponent(sub.endpoint) : '')).then(function (r) { return r.json(); });
+  }).then(function (d) {
+    if (!d.ok || !d.disponible) return;
+    PUSH.clave = d.clave;
+    PUSH.activo = d.activo && Notification.permission === 'granted';
+    pintarBotonPush();
+  }).catch(function () {});
+}
+function pintarBotonPush() {
+  var b = document.getElementById('btn-push');
+  b.classList.remove('oculto');
+  b.classList.toggle('on', PUSH.activo);
+  b.textContent = PUSH.activo ? '🔔 Avisos activados' : 'Activar avisos';
+}
+function claveBytes(b64) {
+  var s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  var a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+  return a;
+}
+function swActivo(reg) {
+  if (reg.active) return Promise.resolve(reg);
+  var sw = reg.installing || reg.waiting;
+  return new Promise(function (ok) { sw.addEventListener('statechange', function () { if (sw.state === 'activated') ok(reg); }); });
+}
+document.getElementById('btn-push').onclick = function () {
+  var b = this;
+  if (PUSH.activo) {
+    if (!confirm('¿Dejar de recibir avisos de proyectos en este dispositivo?')) return;
+    b.disabled = true;
+    fetch('/api/avisos/push/quitar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: PUSH.sub.endpoint }) })
+      .then(function (r) { return r.json(); }).then(function () { PUSH.activo = false; pintarBotonPush(); })
+      .finally(function () { b.disabled = false; });
+    return;
+  }
+  b.disabled = true;
+  Notification.requestPermission().then(function (permiso) {
+    if (permiso !== 'granted') throw new Error('El dispositivo no ha dado permiso para los avisos. Permítelos en los ajustes y vuelve a pulsar.');
+    return swActivo(PUSH.reg);
+  }).then(function (reg) {
+    return PUSH.sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: claveBytes(PUSH.clave) });
+  }).then(function (sub) {
+    PUSH.sub = sub;
+    return fetch('/api/avisos/push/suscribir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ suscripcion: sub.toJSON() }) }).then(function (r) { return r.json(); });
+  }).then(function (d) {
+    if (!d.ok) throw new Error(d.error || 'No se han podido activar');
+    PUSH.activo = true; pintarBotonPush();
+  }).catch(function (e) { alert(e.message); }).finally(function () { b.disabled = false; });
+};
+
+entrar();
+</script>
+</body>
+</html>

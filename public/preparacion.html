@@ -811,6 +811,8 @@ function entrarConSesion(u) {
   if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.app-header-top'), { antesDe: document.getElementById('btn-salir'), enPanel: true });
   // Botón "⚠ Incidencia" en la ficha de cada proyecto (no para las tablets)
   if (window.prepararIncidencias) prepararIncidencias();
+  // Avisos de cambios en proyectos con el botón «Visto» (public/avisos-banda.js)
+  if (window.ponerBandaAvisos) ponerBandaAvisos(document.getElementById('buscador-wrap'));
   construirTabs();
   cargarDatos(tabActiva);
 }
@@ -835,5 +837,6 @@ fetch('/api/sesion').then(function(r) { return r.ok ? r.json() : null; }).catch(
 </script>
 <script src="/chat-boton.js"></script>
 <script src="/incidencia-boton.js"></script>
+<script src="/avisos-banda.js"></script>
 </body>
 </html>

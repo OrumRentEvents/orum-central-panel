@@ -83,6 +83,7 @@ button { font-family: inherit; }
 
 <script src="/chat-boton.js"></script>
 <script src="/incidencia-boton.js"></script>
+<script src="/avisos-banda.js"></script>
 <script>
 // Mantenimiento (oct 2026): material de especial cuidado (y todo el chill
 // out) que sale en los próximos 15 días, por día o por material. Dos
@@ -121,6 +122,8 @@ function arrancar(u) {
   if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.cab-top'), { antesDe: document.getElementById('btn-salir') });
   // Botón "⚠" en cada salida para registrar una incidencia de ese proyecto
   if (window.prepararIncidencias) prepararIncidencias(function (ok) { if (ok) pintar(); });
+  // Avisos de cambios en proyectos con el botón «Visto» (public/avisos-banda.js)
+  if (window.ponerBandaAvisos) ponerBandaAvisos(document.getElementById('cuerpo'));
   cargar();
 }
 function cargar(silencioso) {

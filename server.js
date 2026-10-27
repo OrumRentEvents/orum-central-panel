@@ -197,7 +197,7 @@ const rutasGuardado = require('./lib/rutasGuardado').crearRutasGuardado(supabase
 const { ROLES_SOLO_MOVIL } = require('./lib/usuariosAdmin');
 require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
 // Chat por departamento (Office, Lavandería, Mantenimiento) — lib/chat.js
-require('./lib/chat').registrar(app, { supabase, requiereLogin });
+const chatModulo = require('./lib/chat').registrar(app, { supabase, requiereLogin });
 // Incidencias: crear, asignar y seguir hasta cerrarla — lib/incidencias.js
 require('./lib/incidencias').registrar(app, { supabase, requiereLogin });
 // Financiero → Informe semanal (No Confirmados / Resto en PDF guardado) — lib/informeSemanalProyectos.js
@@ -4812,8 +4812,24 @@ require('./lib/rutasConductor').registrar(app, { requiereLogin, bloquearComercia
 // Sincronización directa Rentman → Supabase (ver lib/rentmanSync.js). Tras cada
 // proyecto sincronizado se vacía la caché de datos y se avisa a las pantallas de Rutas.
 const rentmanSync = require('./lib/rentmanSync');
+// Avisos de cambios en proyectos a cada departamento (ver lib/avisosProyecto.js).
+// Departamentos de un artículo: Lavandería u Office por familia, Mantenimiento
+// si es material de especial cuidado (sin sus accesorios), y siempre Logística.
+function areasDeLinea(familia, articulo) {
+  const areas = ['logistica'];
+  if (familiaPerteneceA(familia, FAMILIAS_LAVANDERIA)) areas.push('lavanderia');
+  else if (familiaPerteneceA(familia, FAMILIAS_OFFICE)) areas.push('office');
+  if (categoriaEspecialCuidado(articulo, familia) && !esAccesorio(articulo)) areas.push('mantenimiento');
+  return areas;
+}
+const avisosProyecto = require('./lib/avisosProyecto').registrar(app, { supabase, requiereLogin, areasDeLinea, chat: chatModulo });
+app.get('/avisos', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'avisos.html'));
+});
+
 rentmanSync.registrar(app, requiereLogin, {
-  alSincronizar: () => { CACHE_ORUM_CENTRAL.clear(); emitirRutas('paradas', {}, ''); }
+  antesDeEscribir: d => avisosProyecto.antesDeEscribir(d),
+  alSincronizar: d => { CACHE_ORUM_CENTRAL.clear(); emitirRutas('paradas', {}, ''); avisosProyecto.trasEscribir(d); }
 });
 
 // Recuperación de material perdido: lo que Logística marca como recuperado en
