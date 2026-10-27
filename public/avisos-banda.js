@@ -22,6 +22,7 @@
     '.av-chip.no{background:#FCEBEB;color:#A32D2D;}' +
     '.av-visto{margin-left:auto;background:#1a1a18;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;}' +
     '.av-visto:disabled{opacity:.5;}' +
+    '.av-todos{display:block;text-align:right;font-size:12.5px;color:#8a6d1e;text-decoration:none;margin:-2px 2px 10px;}' +
     '.av-urg{display:inline-block;background:#A32D2D;color:#fff;font-size:10px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:4px;margin-right:6px;vertical-align:1px;}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
@@ -54,7 +55,7 @@
         (a.visto_en ? '✓ visto ' + horaDe(a.visto_en) + (a.visto_nombre && a.visto_nombre !== areas[a.area] ? ' (' + esc(a.visto_nombre) + ')' : '') : 'sin ver') + '</span>';
     });
     mios.forEach(function (a) {
-      if (a.visto_en) h += '<span class="av-chip ok">' + esc(areas[a.area]) + ': ✓ visto ' + horaDe(a.visto_en) + '</span>';
+      if (a.visto_en) h += '<span class="av-chip ok">' + esc(areas[a.area]) + ': ✓ visto ' + horaDe(a.visto_en) + (a.visto_nombre && a.visto_nombre !== areas[a.area] ? ' (' + esc(a.visto_nombre) + ')' : '') + '</span>';
       else h += '<button class="av-visto" data-av-visto="' + a.id + '">Visto' + (mios.length > 1 ? ' · ' + esc(areas[a.area]) : '') + '</button>';
     });
     return h + '</div></div>';
@@ -82,7 +83,11 @@
     delante.parentNode.insertBefore(cont, delante);
     function cargar() {
       fetch('/api/avisos?t=' + Date.now()).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-        if (d && d.ok) pintarAvisos(cont, d, cargar);
+        if (!d || !d.ok) return;
+        pintarAvisos(cont, d, cargar);
+        // Al pulsar «Visto» la tarjeta desaparece: quién lo vio se consulta en /avisos
+        var embebido = /[?&]embebido=1/.test(location.search);
+        cont.insertAdjacentHTML('beforeend', '<a class="av-todos" href="/avisos?vista=todos' + (embebido ? '&embebido=1' : '&volver=' + encodeURIComponent(location.pathname)) + '">Ver los avisos de los últimos 3 días y quién los ha visto →</a>');
       }).catch(function () {});
     }
     cargar();

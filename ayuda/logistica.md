@@ -165,10 +165,23 @@ Cuando alguien disfruta un día de descanso, apúntalo como «Descanso disfrutad
 Logística ve y edita la ficha de cada vehículo. El responsable de vehículos es Jesús Aguilera.
 
 - **Flota:** cada vehículo con su matrícula, kilómetros y próximo vencimiento. La línea de color indica su estado: rojo vencido, naranja próximo, verde al día. «+ Nuevo vehículo» da de alta uno.
-- **Vencimientos:** ITV, seguros y revisiones por fecha o por kilómetros, con la cita si ya está pedida. Llega un email cuando un vencimiento pasa a próximo (30 días o 1.000 km antes) o a vencido, y los lunes a las 8:00 un resumen de todo lo pendiente.
+- **Vencimientos:** ITV, seguros y revisiones por fecha o por kilómetros, con la cita si ya está pedida. Llega un email cuando un vencimiento pasa a próximo (30 días o 1.000 km antes) o a vencido, y los lunes a las 8:00 un resumen de todo lo pendiente. También sirven para tareas sueltas (por ejemplo, tipo «Otro»: «Taller: cambiar embrague», con su cita).
 - **Uso:** kilómetros por vehículo y conductor, sacados del localizador GPS. El Excel del localizador se sube con «Importar localizador». «A revisar» y «Sin conductor» señalan días en los que la ruta no dice quién conducía: por eso hay que marcar bien quién conduce en Rutas.
 - **Repostajes:** cada repostaje se apunta en la app → Repostaje: vehículo, kilómetros, litros y quién reposta. Los kilómetros del repostaje cuentan también como lectura del vehículo.
 - **Incidencias del vehículo:** desde la ficha (⚠) se abre una incidencia ligada a ese vehículo.
+
+### Completar una tarea (ITV, revisión, taller…)
+
+Cuando el vehículo vuelve de la ITV, la revisión o el taller:
+
+1. Abre la ficha del vehículo y, en Vencimientos, pulsa **«✓ Completar»** en la tarea.
+2. Rellena la visita: fecha, tipo, taller o lugar, kilómetros, importe sin IVA y qué se ha hecho.
+3. Elige el resultado:
+    - **Completado, todo bien.** Si la tarea se repite (ITV cada año, revisión cada X km), su fecha o sus km límite se renuevan solos desde esta visita. Si no se repite (una reparación suelta), la tarea se cierra.
+    - **Esta visita está hecha, pero hay que volver** (ITV desfavorable, falta una pieza, otra visita al taller…). Escribe por qué y, si ya está pedida, la fecha y el lugar de la nueva cita. La visita queda apuntada como terminada y la tarea sigue abierta con la nueva cita y el motivo («⚠ Hay que volver: ITV desfavorable: luces»).
+4. Pulsa «Guardar». La visita aparece en Mantenimientos con su resultado («✓ Completado, todo bien» o «⚠ Hay que volver») y su importe cuenta en el gasto del vehículo.
+
+Cuando se hace la segunda visita, se vuelve a pulsar «✓ Completar» en la misma tarea. Si te equivocas, borra la visita en Mantenimientos: la tarea vuelve a quedar como estaba, con su cita de antes.
 
 ## Si algo no cuadra
 

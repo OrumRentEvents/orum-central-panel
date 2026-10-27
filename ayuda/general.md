@@ -51,6 +51,7 @@ Cuando en Rentman se confirma un proyecto para hoy o mañana, o cambia algo de u
 - Si el comercial guarda varias veces seguidas, llega un solo aviso con todo junto (unos 3 minutos después del último cambio).
 - **Cómo llega:** a los departamentos, como mensaje «🔔 Aviso Rentman» en su chat y como tarjeta arriba en Preparación (o Mantenimiento). A Logística y Dirección, por aviso al móvil y en las mismas tarjetas. La pantalla **Avisos** de la app móvil reúne todos.
 - **Botón «Visto»:** cada departamento lo pulsa en su tarjeta cuando se ha enterado. En ese momento, el comercial del proyecto recibe un aviso de que ese departamento lo ha visto. Las tarjetas muestran qué departamentos lo han visto y cuáles no.
+- **Ver quién lo ha visto:** una vez vista, la tarjeta desaparece de Preparación. Para consultarla, pulsa el enlace «Ver los avisos de los últimos 3 días y quién los ha visto» que hay debajo de las tarjetas (o app → Avisos → «Últimos 3 días»): cada aviso dice qué departamento lo vio, a qué hora y quién.
 - Para recibir los avisos de proyectos en el móvil (Logística, Dirección y comerciales): app → **Avisos** → «Activar avisos».
 
 ## Incidencias

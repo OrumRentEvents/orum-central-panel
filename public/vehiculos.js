@@ -86,10 +86,12 @@ function vehTextoPlazo(x) {
 }
 
 // "📅 Cita: 28/10/2026 · ITV Marbella" (en rojo si la fecha ya pasó y sigue sin renovarse)
+// Con cita_nota (al completar con «hay que volver»): el motivo de la nueva visita
 function vehCitaHtml(x) {
-  if (!x.cita_pedida || !x.cita_fecha) return '';
+  const nota = x.cita_nota ? ' — ' + vehEsc(x.cita_nota) : '';
+  if (!x.cita_pedida || !x.cita_fecha) return x.cita_nota ? `<div style="font-size:11.5px; margin-top:3px; color:#b45309;">⚠ Hay que volver${nota} (sin cita pedida)</div>` : '';
   const pasada = x.estado_cita === 'pasada';
-  return `<div style="font-size:11.5px; margin-top:3px; color:${pasada ? 'var(--red)' : 'var(--green)'};">📅 Cita: ${vehFecha(x.cita_fecha)}${x.cita_lugar ? ' · ' + vehEsc(x.cita_lugar) : ''}${pasada ? ' (cita pasada, revisar)' : ''}</div>`;
+  return `<div style="font-size:11.5px; margin-top:3px; color:${pasada ? 'var(--red)' : 'var(--green)'};">📅 Cita: ${vehFecha(x.cita_fecha)}${x.cita_lugar ? ' · ' + vehEsc(x.cita_lugar) : ''}${nota}${pasada ? ' (cita pasada, revisar)' : ''}</div>`;
 }
 
 function vehError(id, msg) {
@@ -329,7 +331,8 @@ function vehSeccionVencimientos(editandoId) {
       <td>${vehFecha(x.fecha_limite)}</td><td>${x.km_limite !== null ? vehNum(x.km_limite) : '—'}</td>
       <td>${vehTextoPlazo(x)}${vehCitaHtml(x)}</td>
       <td><span class="veh-dot" style="background:${VEH_COLOR[x.estado]}"></span>${VEH_ESTADO_TXT[x.estado]}</td>
-      <td style="white-space:nowrap;"><button class="veh-btn mini" onclick="editarVencimiento(${x.id})">Editar</button>
+      <td style="white-space:nowrap;"><button class="veh-btn mini prim" onclick="completarVencimiento(${x.id})" title="Apuntar que la ITV, la revisión o la visita al taller está hecha">✓ Completar</button>
+        <button class="veh-btn mini" onclick="editarVencimiento(${x.id})">Editar</button>
         <button class="veh-btn mini peligro" onclick="borrarVencimiento(${x.id})">Borrar</button></td>
     </tr>`).join('');
   return `<h3><span>Vencimientos</span><button class="veh-btn" onclick="nuevoVencimiento()">+ Añadir vencimiento</button></h3>
@@ -383,6 +386,58 @@ async function guardarVencimiento(id) {
   } catch (err) { vehError('vv-' + k + '-error', err.message); }
 }
 
+// ── Completar una tarea (ITV, revisión, taller…) con su resultado ──
+const VEH_MANT_DE_VENC = { itv: 'itv', revision: 'revision', tacografo: 'revision' };
+function completarVencimiento(id) {
+  const x = vehFichaActual.vencimientos.find(v => v.id === id);
+  if (!x) return;
+  const hoy = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+  const repite = x.periodicidad_meses || x.periodicidad_km;
+  const c = (campo, etiqueta, tipo, valor, extra) => `<div><label>${etiqueta}</label><input id="vc-${campo}" type="${tipo}" value="${vehEsc(valor == null ? '' : valor)}" ${extra || ''}></div>`;
+  const cont = document.getElementById('veh-venc-nuevo');
+  cont.innerHTML = `<div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin:8px 0; background:#fafaf7;">
+    <div style="font-weight:600; margin-bottom:8px;">✓ Completar: ${VEH_VENC[x.tipo] || x.tipo}${x.descripcion ? ' · ' + vehEsc(x.descripcion) : ''}</div>
+    <div class="veh-form" style="margin:6px 0;">
+      ${c('fecha', 'Fecha en que se hizo', 'date', hoy)}
+      <div><label>Tipo</label><select id="vc-tipo">${vehOpts(VEH_MANT, VEH_MANT_DE_VENC[x.tipo] || 'mantenimiento')}</select></div>
+      ${c('taller', 'Taller / lugar', 'text', x.cita_lugar)}
+      ${c('km', 'Km del vehículo', 'number', '')}
+      ${c('importe', 'Importe sin IVA (€)', 'number', '', 'step="0.01"')}
+      ${c('descripcion', 'Qué se ha hecho', 'text', '', 'placeholder="ITV pasada, cambio de aceite…"')}
+    </div>
+    <div style="display:flex; flex-direction:column; gap:6px; margin:10px 0; font-size:13px;">
+      <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;"><input type="radio" name="vc-resultado" value="ok" checked style="width:auto; margin-top:2px;" onchange="vehResultadoCompletar()">
+        <span><b>Completado, todo bien.</b> ${repite ? 'El vencimiento se renueva solo con su periodicidad.' : 'La tarea se cierra.'}</span></label>
+      <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;"><input type="radio" name="vc-resultado" value="repetir" style="width:auto; margin-top:2px;" onchange="vehResultadoCompletar()">
+        <span><b>Esta visita está hecha, pero hay que volver</b> (ITV desfavorable, otra visita al taller…). La visita queda apuntada y la tarea sigue abierta con la nueva cita.</span></label>
+    </div>
+    <div id="vc-repetir" class="veh-form" style="display:none; margin:6px 0;">
+      ${c('motivo', 'Por qué hay que volver', 'text', '', 'placeholder="ITV desfavorable: luces; falta una pieza…"')}
+      ${c('nueva_cita_fecha', 'Nueva cita (si ya está pedida)', 'date', '')}
+      ${c('nueva_cita_lugar', 'Lugar de la nueva cita', 'text', x.cita_lugar)}
+    </div>
+    <div class="veh-error" id="vc-error"></div>
+    <div style="display:flex; gap:8px; margin-top:8px;"><button class="veh-btn prim" onclick="guardarCompletar(${x.id})">Guardar</button>
+      <button class="veh-btn" onclick="document.getElementById('veh-venc-nuevo').innerHTML=''">Cancelar</button></div>
+  </div>`;
+  cont.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function vehResultadoCompletar() {
+  const r = document.querySelector('input[name="vc-resultado"]:checked').value;
+  document.getElementById('vc-repetir').style.display = r === 'repetir' ? 'grid' : 'none';
+}
+async function guardarCompletar(id) {
+  const val = c => document.getElementById('vc-' + c).value.trim();
+  const datos = { resultado: document.querySelector('input[name="vc-resultado"]:checked').value };
+  ['fecha', 'tipo', 'taller', 'km', 'importe', 'descripcion', 'motivo', 'nueva_cita_fecha', 'nueva_cita_lugar'].forEach(c => { datos[c] = val(c); });
+  const vid = vehFichaActual.vehiculo.id;
+  try {
+    await vehApi('/api/vehiculos/' + vid + '/vencimientos/' + id + '/completar', { method: 'POST', body: datos });
+    await abrirFichaVehiculo(vid);
+    actualizarContadorVehiculos();
+  } catch (err) { vehError('vc-error', err.message); }
+}
+
 async function borrarVencimiento(id) {
   if (!confirm('¿Borrar este vencimiento?')) return;
   const vid = vehFichaActual.vehiculo.id;
@@ -410,7 +465,9 @@ function vehSeccionMantenimientos() {
   const filas = lista.map(m => vehEditandoMant === m.id ? `<tr><td colspan="8">${vehFormMantenimiento(m)}</td></tr>` : `<tr>
       <td>${vehFecha(m.fecha)}</td><td>${VEH_MANT[m.tipo] || m.tipo}</td><td>${vehEsc(m.descripcion || '')}</td><td>${vehEsc(m.taller || '')}</td>
       <td>${m.km !== null ? vehNum(m.km) : '—'}</td><td style="text-align:right;">${vehEuros(m.importe)}</td>
-      <td>${m.vencimiento_id && vencPorId[m.vencimiento_id] ? 'Renovó ' + (VEH_VENC[vencPorId[m.vencimiento_id].tipo] || '') : ''}</td>
+      <td>${m.resultado === 'ok' ? '<span style="color:var(--green);">✓ Completado, todo bien</span>'
+        : m.resultado === 'repetir' ? '<span style="color:#b45309;">⚠ Hay que volver' + (m.resultado_nota ? ': ' + vehEsc(m.resultado_nota) : '') + '</span>'
+        : m.vencimiento_id && vencPorId[m.vencimiento_id] ? 'Renovó ' + (VEH_VENC[vencPorId[m.vencimiento_id].tipo] || '') : ''}</td>
       <td style="white-space:nowrap;"><button class="veh-btn mini" onclick="editarMantenimiento(${m.id})">Editar</button>
         <button class="veh-btn mini peligro" onclick="borrarMantenimiento(${m.id})">Borrar</button></td></tr>`).join('');
   return `<h3><span>Mantenimientos · ${anio}: ${vehEuros(totalAnio)}</span><button class="veh-btn" onclick="nuevoMantenimiento()">+ Registrar mantenimiento</button></h3>
@@ -463,7 +520,8 @@ async function guardarMantenimiento(id) {
 
 async function borrarMantenimiento(id) {
   const m = vehFichaActual.mantenimientos.find(x => x.id === id);
-  if (!confirm('¿Borrar este mantenimiento?' + (m && m.renovacion ? ' El vencimiento que renovó vuelve a su límite anterior.' : ''))) return;
+  const aviso = !m || !m.renovacion ? '' : m.resultado ? ' La tarea vuelve a quedar abierta con su cita de antes.' : ' El vencimiento que renovó vuelve a su límite anterior.';
+  if (!confirm('¿Borrar este mantenimiento?' + aviso)) return;
   const vid = vehFichaActual.vehiculo.id;
   try {
     await vehApi('/api/vehiculos/' + vid + '/mantenimientos/' + id, { method: 'DELETE' });
