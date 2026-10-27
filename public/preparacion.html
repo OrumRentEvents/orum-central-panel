@@ -153,11 +153,18 @@ span.chk { margin-right: 10px; }
 .prep-bloque .falta { color: #854F0B; background: #FAEEDA; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
 .prep-bloque .nombres { color: #0F6E56; }
 .btn-sec { background: #fff; border: 0.5px solid #d8d4c8; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.cont-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
-.cont-item { display: flex; align-items: center; gap: 8px; background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; padding: 6px 8px; }
-.cont-item span { flex: 1; min-width: 0; }
-.cont-item button { width: 34px; height: 34px; border-radius: 8px; border: 0.5px solid #d8d4c8; background: #f0f0ec; font-size: 18px; cursor: pointer; flex-shrink: 0; }
-.cont-item b { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
+.cont-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.cont-form select, .cont-form input { font-size: 15px; font-family: inherit; padding: 9px 10px; border: 0.5px solid #d8d4c8; border-radius: 8px; background: #fff; color: #1a1a18; }
+.cont-form select { flex: 1 1 180px; min-width: 0; }
+.cont-form input { width: 110px; font-variant-numeric: tabular-nums; }
+.btn-ok { background: #1a1a18; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.cont-lineas { display: flex; flex-direction: column; background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; }
+.cont-linea { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 0.5px solid #f0f0ec; font-size: 13px; }
+.cont-linea:last-child { border-bottom: none; }
+.cont-linea b { min-width: 40px; color: #0F6E56; font-variant-numeric: tabular-nums; }
+.cont-linea .cont-quien { margin-left: auto; font-size: 11px; color: #9a988f; text-align: right; }
+.cont-linea button { border: none; background: #f0f0ec; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; color: #993C1D; flex-shrink: 0; }
+.cont-total { font-weight: 700; }
 .card-quien { font-size: 11px; color: #0F6E56; margin-top: 4px; }
 /* Material de la ficha: por zona y familia */
 .mat-zona { font-size: 13px; font-weight: 700; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1.5px solid #1a1a18; }
@@ -562,11 +569,13 @@ var proyectoModal = null;
 // La tablet entra con un usuario compartido. Cada proyecto guarda (en el servidor,
 // sql/preparacion_zona.sql) quién lo está preparando en esa zona: se elige una vez
 // y se queda, aunque se cierre la ficha o se abra en otra tablet, hasta que alguien
-// pulse «No soy yo». Lo que se marque en ese proyecto va a su nombre.
+// pulse «Cambiar». Pueden ser varias personas a la vez; lo que se marque en ese
+// proyecto va a nombre de todas («Juan Morales, Jorge Cuesta»).
 function personaProyecto(p, zona) { return (p && datosZona(p, zona).preparando) || ''; }
+function personasProyecto(p, zona) { return personaProyecto(p, zona).split(', ').filter(Boolean); }
 function elegirPersona(p, zona, despues) {
-  abrirQuien(p, zona, { uno: true, despues: function(n) {
-    guardarZona(p.id, zona, { preparando: n }).then(function() {
+  abrirQuien(p, zona, { equipo: true, despues: function(nombres) {
+    guardarZona(p.id, zona, { preparando: nombres }).then(function() {
       if (proyectoModal) abrirModal(proyectoModal); else if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
       if (despues) despues();
     }).catch(function(err) { mostrarToast(err.message); });
@@ -613,7 +622,7 @@ function recargarSilencioso() {
     guardarDatos(tab, data);
     // No se repinta con el detalle de un proyecto abierto ni mientras se escribe en el buscador
     if (!proyectoModal && document.activeElement !== document.getElementById('buscador') && document.activeElement !== document.getElementById('dia-input')) renderizar(data);
-    else if (proyectoModal && !document.activeElement.matches('#nota-txt, #nota-edit-txt') && notaEditando === null && !contPendiente) {
+    else if (proyectoModal && !document.activeElement.matches('#nota-txt, #nota-edit-txt, #cont-cant, #cont-tipo') && notaEditando === null) {
       var todos = [];
       (data.orden_periodos || []).forEach(function(per) { var pp = data.por_proyecto[per]; if (pp) todos = todos.concat(pp.confirmado, pp.preparado); });
       var nuevo = todos.filter(function(p) { return String(p.id) === String(proyectoModal.id); })[0];
@@ -843,16 +852,21 @@ function htmlPrepZona(p) {
     if (nombres.length) h += '<div class="fila">Preparado por <span class="nombres">' + esc(nombres.join(', ')) + '</span>' + (editable ? ' <button class="btn-sec" data-quien="' + z + '">Cambiar</button>' : '') + '</div>';
     else if (completa) h += '<div class="fila"><span class="falta">Falta indicar quién lo ha preparado</span>' + (editable ? ' <button class="btn-sec" data-quien="' + z + '">Indicar</button>' : '') + '</div>';
     if (z === 'office' && CONTENEDORES.length) {
-      var cont = dz.contenedores || {};
+      var cont = dz.contenedores || {}, lineas = dz.contenedores_lineas || [];
       if (editable) {
-        h += '<div class="fila" style="font-weight:600;">Contenedores</div><div class="cont-lista">';
-        CONTENEDORES.forEach(function(c) {
-          h += '<div class="cont-item"><span>' + esc(c.nombre) + '</span><button data-cont="' + c.id + '" data-delta="-1" aria-label="Quitar ' + esc(c.nombre) + '">−</button><b id="cont-' + c.id + '">' + (cont[c.id] || 0) + '</b><button data-cont="' + c.id + '" data-delta="1" aria-label="Añadir ' + esc(c.nombre) + '">+</button></div>';
-        });
-        h += '</div>';
-      } else if (textoContenedores(cont)) {
-        h += '<div class="fila">Contenedores: ' + esc(textoContenedores(cont)) + '</div>';
+        // Se apunta poco a poco (3 racks, luego 5, luego 15) y se van sumando debajo
+        h += '<div class="fila" style="font-weight:600;">Contenedores</div>';
+        h += '<div class="cont-form"><select id="cont-tipo" aria-label="Contenedor">' + CONTENEDORES.map(function(c) { return '<option value="' + c.id + '"' + (c.id === contTipoElegido ? ' selected' : '') + '>' + esc(c.nombre) + '</option>'; }).join('') + '</select>' +
+          '<input type="number" id="cont-cant" inputmode="numeric" min="1" max="999" placeholder="Cantidad" aria-label="Cantidad">' +
+          '<button class="btn-ok" data-cont-anadir="1">Añadir</button></div>';
+        if (lineas.length) {
+          h += '<div class="cont-lineas">' + lineas.map(function(l, i) {
+            var hora = l.en ? new Date(l.en).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+            return '<div class="cont-linea"><b>+' + l.cantidad + '</b><span>' + esc(nombreContenedor(l.tipo)) + '</span><span class="cont-quien">' + esc([l.persona, hora].filter(Boolean).join(' · ')) + '</span><button data-cont-quitar="' + i + '" aria-label="Quitar esta anotación">✕</button></div>';
+          }).join('') + '</div>';
+        }
       }
+      if (textoContenedores(cont)) h += '<div class="fila cont-total">Total: ' + esc(textoContenedores(cont)) + '</div>';
     }
     h += '</div>';
   });
@@ -873,47 +887,49 @@ function guardarZona(pid, zona, cambios) {
     });
 }
 
-// Contenedores de Office: + / − y se guarda al poco de dejar de tocar
-var contTimer = null, contPendiente = null;
-function cambiarContenedor(btn) {
+// Contenedores de Office: cada «Añadir» es una anotación que se suma al total
+var contTipoElegido = null;
+function nombreContenedor(id) { var c = CONTENEDORES.filter(function(x) { return x.id === id; })[0]; return c ? c.nombre : id; }
+function anadirContenedor() {
   var p = proyectoModal;
   if (!p) return;
-  var id = btn.getAttribute('data-cont'), delta = +btn.getAttribute('data-delta');
-  var dz = datosZona(p, 'office');
-  var cont = Object.assign({}, dz.contenedores || {});
-  cont[id] = Math.max(0, Math.min(999, (cont[id] || 0) + delta));
-  p.prep_zona = p.prep_zona || {};
-  p.prep_zona.office = Object.assign({}, dz, { contenedores: cont });
-  var b = document.getElementById('cont-' + id);
-  if (b) b.textContent = cont[id];
-  contPendiente = { pid: p.id, cont: cont };
-  clearTimeout(contTimer);
-  contTimer = setTimeout(function() {
-    var x = contPendiente; contPendiente = null;
-    guardarZona(x.pid, 'office', { contenedores: x.cont }).then(function() { mostrarToast('Contenedores guardados'); }).catch(function(err) { mostrarToast(err.message); });
-  }, 700);
+  var tipo = document.getElementById('cont-tipo').value, inp = document.getElementById('cont-cant');
+  var cantidad = parseInt(inp.value, 10);
+  if (!(cantidad >= 1 && cantidad <= 999)) { mostrarToast('Escribe una cantidad entre 1 y 999'); inp.focus(); return; }
+  contTipoElegido = tipo;
+  guardarZona(p.id, 'office', { anadir_contenedor: { tipo: tipo, cantidad: cantidad } })
+    .then(function() { mostrarToast('Añadidos ' + cantidad + ' ' + nombreContenedor(tipo)); abrirModal(proyectoModal); })
+    .catch(function(err) { mostrarToast(err.message); });
+}
+function quitarContenedor(i) {
+  var p = proyectoModal, l = p && (datosZona(p, 'office').contenedores_lineas || [])[i];
+  if (!l || !confirm('¿Quitar la anotación de ' + l.cantidad + ' ' + nombreContenedor(l.tipo) + '?')) return;
+  guardarZona(p.id, 'office', { quitar_contenedor: i })
+    .then(function() { mostrarToast('Anotación quitada'); abrirModal(proyectoModal); })
+    .catch(function(err) { mostrarToast(err.message); });
 }
 
 // Ventana "¿Quién ha preparado?"
-// opciones.uno: elegir solo un nombre ("¿Quién eres?") y llamar a opciones.despues(nombre)
+// opciones.equipo: elegir quién está preparando el proyecto (una o varias personas)
+// y llamar a opciones.despues(nombres)
 var quienCtx = null;
 function abrirQuien(p, zona, opciones) {
   opciones = opciones || {};
   var elegidos;
-  if (opciones.uno) elegidos = personaProyecto(p, zona) ? [personaProyecto(p, zona)] : [];
+  if (opciones.equipo) elegidos = personasProyecto(p, zona);
   else {
     elegidos = preparadoresDe(p, zona).slice();
     // Si aún no se ha dicho, se proponen los que han ido marcando los artículos
     if (!elegidos.length) (equipmentCache[String(p.id)] || []).forEach(function(e) {
-      if (e.check && e.check.zona === zona && e.check.marcado && e.check.persona && elegidos.indexOf(e.check.persona) === -1) elegidos.push(e.check.persona);
+      if (e.check && e.check.zona === zona && e.check.marcado && e.check.persona) e.check.persona.split(', ').forEach(function(n) { if (n && elegidos.indexOf(n) === -1) elegidos.push(n); });
     });
   }
   var lista = (PERSONAL[zona] || []).slice();
   elegidos.forEach(function(n) { if (lista.indexOf(n) === -1) lista.push(n); });
-  quienCtx = { pid: p ? p.id : null, zona: zona, lista: lista, elegidos: elegidos, uno: !!opciones.uno, despues: opciones.despues };
-  document.getElementById('quien-titulo').textContent = opciones.uno ? '¿Quién prepara #' + p.numero + ' en ' + TAB_NOMBRES[zona] + '?' : '¿Quién ha preparado #' + p.numero + ' en ' + TAB_NOMBRES[zona] + '?';
-  document.getElementById('quien-sub').textContent = opciones.uno ? 'Toca tu nombre. Se queda guardado en este proyecto hasta que alguien pulse «No soy yo».' : 'Toca los nombres de quienes lo han preparado.';
-  document.getElementById('quien-guardar').textContent = opciones.uno ? 'Soy yo' : 'Guardar';
+  quienCtx = { pid: p ? p.id : null, zona: zona, lista: lista, elegidos: elegidos, equipo: !!opciones.equipo, despues: opciones.despues };
+  document.getElementById('quien-titulo').textContent = opciones.equipo ? '¿Quién prepara #' + p.numero + ' en ' + TAB_NOMBRES[zona] + '?' : '¿Quién ha preparado #' + p.numero + ' en ' + TAB_NOMBRES[zona] + '?';
+  document.getElementById('quien-sub').textContent = opciones.equipo ? 'Toca tu nombre, o los de todos si lo preparáis entre varios. Se queda guardado en este proyecto hasta que alguien pulse «Cambiar».' : 'Toca los nombres de quienes lo han preparado.';
+  document.getElementById('quien-guardar').textContent = 'Guardar';
   document.getElementById('quien-otro-txt').value = '';
   pintarQuien();
   document.getElementById('quien-overlay').classList.add('open');
@@ -930,8 +946,7 @@ document.getElementById('quien-chips').addEventListener('click', function(e) {
   var b = e.target.closest('[data-quien-i]');
   if (!b || !quienCtx) return;
   var n = quienCtx.lista[+b.getAttribute('data-quien-i')], i = quienCtx.elegidos.indexOf(n);
-  if (quienCtx.uno) quienCtx.elegidos = [n];
-  else if (i === -1) quienCtx.elegidos.push(n); else quienCtx.elegidos.splice(i, 1);
+  if (i === -1) quienCtx.elegidos.push(n); else quienCtx.elegidos.splice(i, 1);
   pintarQuien();
 });
 document.getElementById('quien-otro-btn').addEventListener('click', function() {
@@ -939,8 +954,7 @@ document.getElementById('quien-otro-btn').addEventListener('click', function() {
   if (!n || !quienCtx) return;
   if (n.split(' ').length < 2) { mostrarToast('Escribe nombre y apellido'); return; }
   if (quienCtx.lista.indexOf(n) === -1) quienCtx.lista.push(n);
-  if (quienCtx.uno) quienCtx.elegidos = [n];
-  else if (quienCtx.elegidos.indexOf(n) === -1) quienCtx.elegidos.push(n);
+  if (quienCtx.elegidos.indexOf(n) === -1) quienCtx.elegidos.push(n);
   inp.value = '';
   pintarQuien();
 });
@@ -948,7 +962,7 @@ document.getElementById('quien-cancelar').addEventListener('click', cerrarQuien)
 document.getElementById('quien-guardar').addEventListener('click', function() {
   var c = quienCtx, btn = this;
   if (!c || !c.elegidos.length) return;
-  if (c.uno) { cerrarQuien(); if (c.despues) c.despues(c.elegidos[0]); return; }
+  if (c.equipo) { cerrarQuien(); if (c.despues) c.despues(c.elegidos.slice()); return; }
   btn.disabled = true;
   guardarZona(c.pid, c.zona, { preparadores: c.elegidos }).then(function() {
     btn.disabled = false;
@@ -1046,8 +1060,9 @@ function abrirModal(p) {
   if (zonaActual() && p.zona_total) html += ' <span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '" style="margin-left:6px;">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
   if (puedeMarcar()) {
     html += '<div style="font-size:12px;color:#6b6a64;margin-top:8px;">Marca cada artículo cuando esté preparado. Con todo marcado, el proyecto pasa a Preparado.</div>';
-    var yo = personaProyecto(p, tabActiva);
-    html += yo ? '<div class="persona-bar">Preparando este proyecto: <b>' + esc(yo) + '</b><button class="btn-sec" data-persona="1">No soy yo</button></div>'
+    var yo = personasProyecto(p, tabActiva);
+    var yoTxt = yo.length > 1 ? yo.slice(0, -1).join(', ') + ' y ' + yo[yo.length - 1] : yo.join('');
+    html += yo.length ? '<div class="persona-bar">Preparando este proyecto: <b>' + esc(yoTxt) + '</b><button class="btn-sec" data-persona="1">Cambiar</button></div>'
       : '<div class="persona-bar falta"><b>¿Quién prepara este proyecto?</b><button class="btn-sec" data-persona="1">Elegir</button></div>';
   }
   html += htmlPrepZona(p);
@@ -1085,8 +1100,9 @@ document.addEventListener('click', function(e) {
   if (botonNota) { e.stopPropagation(); accionNota(botonNota); return; }
   var chk = e.target.closest('[data-chk]');
   if (chk) { e.stopPropagation(); marcarArticulo(chk); return; }
-  var cont = e.target.closest('[data-cont]');
-  if (cont) { e.stopPropagation(); cambiarContenedor(cont); return; }
+  if (e.target.closest('[data-cont-anadir]')) { e.stopPropagation(); anadirContenedor(); return; }
+  var contQuitar = e.target.closest('[data-cont-quitar]');
+  if (contQuitar) { e.stopPropagation(); quitarContenedor(+contQuitar.getAttribute('data-cont-quitar')); return; }
   if (e.target.closest('[data-persona]') && proyectoModal) { e.stopPropagation(); elegirPersona(proyectoModal, tabActiva); return; }
   var quien = e.target.closest('[data-quien]');
   if (quien && proyectoModal) { e.stopPropagation(); abrirQuien(proyectoModal, quien.getAttribute('data-quien')); return; }
@@ -1119,7 +1135,10 @@ document.addEventListener('click', function(e) {
 });
 
 document.getElementById('modal-close-btn').addEventListener('click', cerrarModal);
+// Intro en la cantidad de contenedores = Añadir
+document.addEventListener('keydown', function(e) { if (e.key === 'Enter' && e.target.id === 'cont-cant') { e.preventDefault(); anadirContenedor(); } });
 document.addEventListener('change', function(e) {
+  if (e.target.id === 'cont-tipo') contTipoElegido = e.target.value;
   if (e.target.id === 'dia-input' && e.target.value) { diaElegido = e.target.value; renderizar(datosCache[tabActiva]); }
 });
 // Se actualiza solo cada minuto (lo que marquen otros, cambios de Rentman) si la pantalla está a la vista

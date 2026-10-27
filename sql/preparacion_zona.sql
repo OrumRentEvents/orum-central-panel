@@ -21,6 +21,10 @@ alter table preparacion_checks add column if not exists preparado_por text;
 -- proyecto y se queda guardada (cualquier tablet la ve) hasta que alguien
 -- pulse «No soy yo». Lo que se marque en ese proyecto va a su nombre.
 alter table preparacion_zona add column if not exists preparando text;
+-- Contenedores de Office apuntados poco a poco (3 racks, luego 5, luego 15…):
+-- cada anotación es { tipo, cantidad, persona, en }. «contenedores» guarda el
+-- total por tipo, que se recalcula a partir de estas líneas.
+alter table preparacion_zona add column if not exists contenedores_lineas jsonb not null default '[]'::jsonb;
 
 -- App del conductor: el conductor da la parada por completada (entregado /
 -- recogido). Va en la misma fila que Preparado / Cargado / Incidencia.

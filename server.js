@@ -876,13 +876,13 @@ const tablaNoExiste = error => error && (error.code === '42P01' || error.code ==
 
 // Quién ha preparado y contenedores de cada zona, por proyecto: { pid: { office: {...}, lavanderia: {...} } }
 async function leerPreparacionZona() {
-  const { data, error } = await supabase.from('preparacion_zona').select('area,proyecto_id,preparadores,contenedores,preparando,usuario,actualizado_en');
+  const { data, error } = await supabase.from('preparacion_zona').select('area,proyecto_id,preparadores,contenedores,contenedores_lineas,preparando,usuario,actualizado_en');
   if (tablaNoExiste(error)) return {};
   if (error) throw error;
   const porProyecto = {};
   (data || []).forEach(z => {
     (porProyecto[String(z.proyecto_id)] = porProyecto[String(z.proyecto_id)] || {})[z.area] =
-      { preparadores: z.preparadores || [], contenedores: z.contenedores || {}, preparando: z.preparando || '', usuario: z.usuario, actualizado_en: z.actualizado_en };
+      { preparadores: z.preparadores || [], contenedores: z.contenedores || {}, contenedores_lineas: z.contenedores_lineas || [], preparando: z.preparando || '', usuario: z.usuario, actualizado_en: z.actualizado_en };
   });
   return porProyecto;
 }
@@ -1437,7 +1437,8 @@ app.post('/api/preparacion/check', requiereLogin, async (req, res) => {
     const u = req.session.usuario;
     const { proyecto_id, area, articulo, marcado } = req.body || {};
     // Nombre de la persona que prepara (las tablets comparten usuario)
-    const persona = String((req.body || {}).persona || '').trim().slice(0, 80) || null;
+    // (puede ser más de una: «Juan Morales, Jorge Cuesta»)
+    const persona = String((req.body || {}).persona || '').trim().slice(0, 300) || null;
     if (!['lavanderia', 'office'].includes(area)) return res.status(400).json({ error: 'Zona no válida' });
     const zonaPropia = VISTA_PREPARACION_POR_ROL[u.rol];
     if (!(zonaPropia === area || (!zonaPropia && ['Direccion', 'Logistica'].includes(u.rol)))) return res.status(403).json({ error: 'No puedes marcar artículos de esta zona' });
@@ -1512,28 +1513,46 @@ app.post('/api/preparacion/zona', requiereLogin, async (req, res) => {
     if (!(zonaPropia === area || (!zonaPropia && ['Direccion', 'Logistica'].includes(u.rol)))) return res.status(403).json({ error: 'No puedes cambiar esta zona' });
     const pid = Number(b.proyecto_id);
     if (!pid) return res.status(400).json({ error: 'Faltan datos' });
-    const { data: previa, error: e1 } = await supabase.from('preparacion_zona').select('preparadores,contenedores,preparando').eq('area', area).eq('proyecto_id', pid);
+    const { data: previa, error: e1 } = await supabase.from('preparacion_zona').select('preparadores,contenedores,contenedores_lineas,preparando').eq('area', area).eq('proyecto_id', pid);
     if (tablaNoExiste(e1)) return res.status(500).json({ error: 'Falta crear la tabla preparacion_zona en Supabase (sql/preparacion_zona.sql)' });
     if (e1) throw e1;
     const fila = Object.assign({ preparadores: [], contenedores: {} }, (previa && previa[0]) || {}, { area, proyecto_id: pid, usuario: u.nombre || u.usuario, actualizado_en: new Date().toISOString() });
-    // Quién está preparando este proyecto ahora (se cambia con «No soy yo»)
-    if (typeof b.preparando === 'string') fila.preparando = b.preparando.trim().slice(0, 80) || null;
+    // Quién está preparando este proyecto ahora (una o varias personas; se cambia con «Cambiar»).
+    // Varias se guardan juntas separadas por coma, en la misma columna de texto.
+    if (Array.isArray(b.preparando) || typeof b.preparando === 'string') {
+      const nombres = [].concat(b.preparando).map(n => String(n || '').trim().slice(0, 80)).filter(Boolean);
+      fila.preparando = [...new Set(nombres)].slice(0, 6).join(', ') || null;
+    }
     if (Array.isArray(b.preparadores)) {
       fila.preparadores = [...new Set(b.preparadores.map(n => String(n || '').trim().slice(0, 80)).filter(Boolean))].slice(0, 20);
     }
-    if (b.contenedores && typeof b.contenedores === 'object' && area === 'office') {
-      const c = Object.assign({}, fila.contenedores);
-      CONTENEDORES_OFFICE.forEach(t => {
-        if (b.contenedores[t.id] === undefined) return;
-        const n = Math.max(0, Math.min(999, parseInt(b.contenedores[t.id], 10) || 0));
-        if (n) c[t.id] = n; else delete c[t.id];
-      });
-      fila.contenedores = c;
+    // Contenedores de Office, apuntados poco a poco: anadir_contenedor { tipo, cantidad }
+    // suma una anotación; quitar_contenedor (posición) quita una equivocada. El total por
+    // tipo (contenedores) se recalcula siempre a partir de las anotaciones.
+    if (area === 'office' && (b.anadir_contenedor || b.quitar_contenedor !== undefined)) {
+      let lineas = Array.isArray(fila.contenedores_lineas) ? fila.contenedores_lineas.slice() : [];
+      // Totales de antes de las anotaciones (versión con + y −): pasan a ser una anotación
+      if (!lineas.length) Object.keys(fila.contenedores || {}).forEach(tipo => { if (fila.contenedores[tipo]) lineas.push({ tipo, cantidad: fila.contenedores[tipo], persona: 'Anterior', en: fila.actualizado_en }); });
+      if (b.anadir_contenedor) {
+        const tipo = String(b.anadir_contenedor.tipo || '');
+        const cantidad = parseInt(b.anadir_contenedor.cantidad, 10);
+        if (!CONTENEDORES_OFFICE.some(t => t.id === tipo)) return res.status(400).json({ error: 'Elige el contenedor' });
+        if (!(cantidad >= 1 && cantidad <= 999)) return res.status(400).json({ error: 'Escribe una cantidad entre 1 y 999' });
+        lineas.push({ tipo, cantidad, persona: fila.preparando || u.nombre || u.usuario, en: fila.actualizado_en });
+      } else {
+        const i = parseInt(b.quitar_contenedor, 10);
+        if (!(i >= 0 && i < lineas.length)) return res.status(400).json({ error: 'Esa anotación ya no está: recarga' });
+        lineas.splice(i, 1);
+      }
+      const totales = {};
+      lineas.forEach(l => { totales[l.tipo] = (totales[l.tipo] || 0) + (Number(l.cantidad) || 0); });
+      fila.contenedores_lineas = lineas;
+      fila.contenedores = totales;
     }
     const r = await supabase.from('preparacion_zona').upsert(fila, { onConflict: 'area,proyecto_id' });
     if (r.error) throw r.error;
     emitirRutas('preparacion', { proyecto_id: pid });
-    res.json({ ok: true, zona: { preparadores: fila.preparadores, contenedores: fila.contenedores, preparando: fila.preparando || '', usuario: fila.usuario, actualizado_en: fila.actualizado_en } });
+    res.json({ ok: true, zona: { preparadores: fila.preparadores, contenedores: fila.contenedores, contenedores_lineas: fila.contenedores_lineas || [], preparando: fila.preparando || '', usuario: fila.usuario, actualizado_en: fila.actualizado_en } });
   } catch (err) {
     console.error('Error en /api/preparacion/zona:', err);
     res.status(500).json({ error: 'No se ha podido guardar: ' + err.message });
