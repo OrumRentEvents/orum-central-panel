@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>ORUM Preparacion</title>
+<title>ORUM Preparación</title>
 <link rel="manifest" href="/movil.webmanifest?v=2">
 <meta name="theme-color" content="#1a1a18">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
@@ -183,6 +183,16 @@ span.chk { margin-right: 10px; }
 .quien-acc { display: flex; justify-content: flex-end; gap: 8px; }
 .quien-acc .ok { background: #1a1a18; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .quien-acc .ok:disabled { opacity: .5; }
+.quien-overlay-gen { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 250; align-items: center; justify-content: center; padding: 16px; }
+.quien-overlay-gen.open { display: flex; }
+.quien-box-gen { background: #fff; border-radius: 14px; width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.quien-box-gen h3 { margin: 0; font-size: 17px; }
+.quien-box-gen p { margin: 0; font-size: 13px; color: #6b6a64; }
+.pers-zona { border: 0.5px solid #e2e2de; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.pers-zona h4 { margin: 0; font-size: 14px; }
+.pers-lista { display: flex; flex-wrap: wrap; gap: 6px; }
+.pers-chip { display: inline-flex; align-items: center; gap: 6px; background: #f0efe9; border-radius: 16px; padding: 5px 6px 5px 12px; font-size: 13px; }
+.pers-chip button { border: none; background: #fff; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; color: #993C1D; font-size: 12px; }
 .inc-btn { float: right; margin: 0 0 8px 8px; border: 0.5px solid #F0997B; background: #FAECE7; color: #993C1D; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; }
 </style>
 </head>
@@ -215,7 +225,7 @@ span.chk { margin-right: 10px; }
     <div class="tabs" id="tabs-container"></div>
   </div>
   <div class="buscador-wrap" id="buscador-wrap" style="display:none;">
-    <input type="text" id="buscador" placeholder="Buscar cliente o num proyecto...">
+    <input type="text" id="buscador" placeholder="Buscar cliente o nº de proyecto...">
   </div>
   <div id="app-body"><div class="loading">Cargando datos...</div></div>
 </div>
@@ -230,6 +240,16 @@ span.chk { margin-right: 10px; }
       <button class="modal-close" id="modal-close-btn">X</button>
     </div>
     <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Lista de personas de cada zona (Logística y Dirección) -->
+<div id="personas-overlay" class="quien-overlay-gen">
+  <div class="quien-box-gen">
+    <h3>Personas que preparan</h3>
+    <p>Salen en «¿Quién prepara?» de cada tablet. Nombre y apellido, con tilde.</p>
+    <div id="personas-zonas"></div>
+    <div class="quien-acc"><button class="ok" id="personas-cerrar">Cerrar</button></div>
   </div>
 </div>
 
@@ -254,17 +274,19 @@ span.chk { margin-right: 10px; }
 
 <script>
 var PINES = {
-  '1111': { token: 'ORUMx2026Lav', nombre: 'Lavanderia', tabs: ['lavanderia'] },
+  '1111': { token: 'ORUMx2026Lav', nombre: 'Lavandería', tabs: ['lavanderia'] },
   '2222': { token: 'ORUMx2026Off', nombre: 'Office', tabs: ['office'] },
-  '3333': { token: 'ORUMx2026Alm', nombre: 'Almacen', tabs: ['almacen'] }
+  '3333': { token: 'ORUMx2026Alm', nombre: 'Almacén', tabs: ['almacen'] }
 };
-var TAB_NOMBRES = { lavanderia: 'Lavanderia', office: 'Office', almacen: 'Almacen' };
+var TAB_NOMBRES = { lavanderia: 'Lavandería', office: 'Office', almacen: 'Almacén' };
+// Nombre en pantalla de las subpestañas (la clave interna sigue sin tilde)
+var SUBTAB_NOMBRES = { 'Por dia': 'Por día', 'Logistica': 'Logística' };
 var TAB_SUBTABS = {
   lavanderia: ['Por proyecto', 'Por material', 'Por dia'],
   office: ['Por proyecto', 'Por material', 'Por dia'],
   almacen: ['Por proyecto', 'Por material', 'Por dia', 'Servicios', 'Logistica']
 };
-var CON_BUSCADOR = { 'Por proyecto': 'Buscar cliente o num proyecto...', 'Por material': 'Buscar material (p. ej. silla, mantel, copa)...', 'Por dia': 'Buscar material o cliente...' };
+var CON_BUSCADOR = { 'Por proyecto': 'Buscar cliente o nº de proyecto...', 'Por material': 'Buscar material (p. ej. silla, mantel, copa)...', 'Por dia': 'Buscar material o cliente...' };
 var ICONO_CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
 var diaElegido = null; // 'YYYY-MM-DD'
 
@@ -390,7 +412,7 @@ function cargarDatos(tab) {
     renderizar(data);
     document.getElementById('ultima-act').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   }).catch(function() {
-    document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexion</div>';
+    document.getElementById('app-body').innerHTML = '<div class="loading">Error de conexión</div>';
   });
 }
 
@@ -400,7 +422,7 @@ function renderizar(data) {
   var subtabs = TAB_SUBTABS[tabActiva];
   var html = '<div class="subtabs">';
   subtabs.forEach(function(st) {
-    html += '<button class="subtab-btn' + (st === subtabActiva ? ' active' : '') + '" data-st="' + st + '">' + (st === 'Por dia' ? 'Por día' : st) + '</button>';
+    html += '<button class="subtab-btn' + (st === subtabActiva ? ' active' : '') + '" data-st="' + st + '">' + (SUBTAB_NOMBRES[st] || st) + '</button>';
   });
   html += '</div>';
   document.getElementById('buscador-wrap').style.display = CON_BUSCADOR[subtabActiva] ? 'block' : 'none';
@@ -426,12 +448,12 @@ function cambiarSubtab(st) {
 
 function esListo(estado) {
   var e = (estado || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  return ['returned','cargado','marbella','on location','controlado','preparado','en curso','ejecucion realizada','redondeado'].some(function(x) { return e.indexOf(x) !== -1; });
+  return ['returned','cargado','marbella','on location','controlado','preparado','ejecucion realizada','redondeado'].some(function(x) { return e.indexOf(x) !== -1; });
 }
 
 function estadoBadge(estado) {
   var e = (estado || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  if (['returned','cargado','marbella','on location','controlado','preparado','en curso','ejecucion realizada','redondeado'].some(function(x) { return e.indexOf(x) !== -1; }))
+  if (['returned','cargado','marbella','on location','controlado','preparado','ejecucion realizada','redondeado'].some(function(x) { return e.indexOf(x) !== -1; }))
     return '<span class="badge-estado badge-listo">' + estado + '</span>';
   if (['pending','concept','inquiry'].some(function(x) { return e.indexOf(x) !== -1; }))
     return '<span class="badge-estado badge-warning">' + estado + '</span>';
@@ -709,7 +731,7 @@ function renderPorDia(data) {
 
 function renderPorMaterial(data) {
   var familias = data.por_material || [];
-  if (!familias.length) return '<div class="loading">Sin articulos en este periodo</div>';
+  if (!familias.length) return '<div class="loading">Sin artículos en este periodo</div>';
   var html = '';
   familias.forEach(function(f, fi) {
     // Con texto en el buscador: solo los artículos que coinciden (o toda la familia si coincide su nombre), desplegados
@@ -745,7 +767,7 @@ function renderPorMaterial(data) {
 function renderServicios(data) {
   if (!data.servicios) return '<div class="loading">Sin datos de servicios</div>';
   var grupos = data.servicios.por_tipo || [];
-  if (!grupos.length) return '<div class="loading">Sin servicios en los proximos 14 dias</div>';
+  if (!grupos.length) return '<div class="loading">Sin servicios en los próximos 14 días</div>';
   var html = '';
   grupos.forEach(function(g) {
     html += '<div class="servicio-grupo"><div class="servicio-grupo-header">' + g.tipo + '</div>';
@@ -758,18 +780,19 @@ function renderServicios(data) {
 }
 
 function renderLogistica(data) {
-  if (!data.logistica) return '<div class="loading">Sin datos de logistica</div>';
+  if (!data.logistica) return '<div class="loading">Sin datos de logística</div>';
   var html = '';
   ['lavanderia', 'office'].forEach(function(sec) {
     var items = data.logistica[sec] || [];
-    html += '<div class="logistica-seccion"><div class="logistica-titulo">' + (sec === 'lavanderia' ? 'Lavanderia' : 'Office') + ' - ' + items.length + ' proyectos</div>';
+    html += '<div class="logistica-seccion"><div class="logistica-titulo">' + TAB_NOMBRES[sec] + ' - ' + items.length + ' proyectos</div>';
     if (!items.length) {
-      html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los proximos 14 dias</div>';
+      html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los próximos 14 días</div>';
     } else {
       items.forEach(function(p) {
         // Al tocarla se abre la ficha con todo el material, lo preparado y quién lo ha preparado
         var pid = JSON.stringify(p).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-        var listo = p.zona_preparada || esListo(p.estado);
+        // Con material de Lavandería/Office manda lo marcado en las tablets; si no, el estado de Rentman
+        var listo = p.zonas && Object.keys(p.zonas).length ? p.zona_preparada : esListo(p.estado);
         html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '" data-p="' + pid + '">';
         html += '<div class="card-top"><div style="flex:1"><div class="card-numero-wrap"><span class="card-numero">#' + p.numero + '</span><button class="copy-btn" data-num="' + String(p.numero) + '">copiar</button></div><div class="card-cliente">' + esc(p.cliente || '-') + '</div></div>' + (p.zona_preparada ? '<span class="badge-estado badge-listo">Preparado</span>' : estadoBadge(p.estado)) + '</div>';
         if (p.fecha_entrega) html += '<div class="card-meta"><span>' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>' + (p.notas && p.notas.length ? '<span class="notas-chip" title="Notas">💬 ' + p.notas.length + '</span>' : '') + '</div>';
@@ -971,6 +994,45 @@ function htmlMaterial(p, items) {
   return h;
 }
 
+// ── Lista de personas por zona (botón «Personas», Logística y Dirección) ──
+function abrirPersonas() { pintarPersonas(); document.getElementById('personas-overlay').classList.add('open'); }
+function pintarPersonas() {
+  document.getElementById('personas-zonas').innerHTML = ['office', 'lavanderia'].map(function(z) {
+    var lista = PERSONAL[z] || [];
+    return '<div class="pers-zona"><h4>' + TAB_NOMBRES[z] + '</h4><div class="pers-lista">' +
+      (lista.map(function(n) { return '<span class="pers-chip">' + esc(n) + '<button data-pers-quitar="' + z + '" data-nombre="' + esc(n) + '" aria-label="Quitar ' + esc(n) + '">✕</button></span>'; }).join('') || '<span style="font-size:13px;color:#9a988f;">Nadie todavía</span>') +
+      '</div><div class="quien-otro"><input type="text" id="pers-nuevo-' + z + '" placeholder="Nombre y apellido"><button class="btn-sec" data-pers-anadir="' + z + '">Añadir</button></div></div>';
+  }).join('');
+}
+function cambiarPersonas(metodo, area, nombre) {
+  return fetch('/api/preparacion/personas', { method: metodo, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ area: area, nombre: nombre }) })
+    .then(function(r) { return r.json().then(function(d) { d._ok = r.ok; return d; }); })
+    .then(function(d) {
+      if (!d._ok || d.error) { mostrarToast(d.error || 'No se ha podido guardar'); return; }
+      PERSONAL = d.personal;
+      Object.keys(datosCache).forEach(function(t) { datosCache[t].personal = d.personal; });
+      pintarPersonas();
+    })
+    .catch(function() { mostrarToast('Sin conexión'); });
+}
+document.getElementById('personas-zonas').addEventListener('click', function(e) {
+  var quitar = e.target.closest('[data-pers-quitar]');
+  if (quitar) {
+    var n = quitar.getAttribute('data-nombre');
+    if (confirm('¿Quitar a ' + n + ' de la lista?')) cambiarPersonas('DELETE', quitar.getAttribute('data-pers-quitar'), n);
+    return;
+  }
+  var anadir = e.target.closest('[data-pers-anadir]');
+  if (anadir) {
+    var z = anadir.getAttribute('data-pers-anadir'), inp = document.getElementById('pers-nuevo-' + z);
+    var nombre = inp.value.trim().replace(/\s+/g, ' ');
+    if (!nombre) return;
+    if (nombre.split(' ').length < 2 && !confirm('Mejor con nombre y apellido. ¿Añadir «' + nombre + '» igualmente?')) return;
+    cambiarPersonas('POST', z, nombre);
+  }
+});
+document.getElementById('personas-cerrar').addEventListener('click', function() { document.getElementById('personas-overlay').classList.remove('open'); });
+
 function abrirModal(p) {
   proyectoModal = p;
   if (window.registrarVista) registrarVista('ficha', 'proyecto en Preparación', 'proyecto ' + p.numero);
@@ -992,7 +1054,7 @@ function abrirModal(p) {
   html += htmlNotas(p);
   var items = equipmentCache[String(p.id)] || [];
   html += '<div class="modal-seccion">Material</div>';
-  html += items.length ? htmlMaterial(p, items) : '<div style="font-size:13px;color:#9a988f;padding:8px 0;">Sin articulos cargados</div>';
+  html += items.length ? htmlMaterial(p, items) : '<div style="font-size:13px;color:#9a988f;padding:8px 0;">Sin artículos cargados</div>';
   body.innerHTML = html;
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -1037,7 +1099,7 @@ document.addEventListener('click', function(e) {
     e.stopPropagation();
     var num = copyBtn.getAttribute('data-num');
     if (navigator.clipboard) navigator.clipboard.writeText(num).catch(function(){});
-    mostrarToast('Num ' + num + ' copiado');
+    mostrarToast('Nº ' + num + ' copiado');
     return;
   }
   if (card) {
@@ -1075,7 +1137,7 @@ var PARAMS = new URLSearchParams(location.search);
 var EMBEBIDO = PARAMS.get('embebido') === '1';
 function entrarConSesion(u) {
   var tabs = TABS_POR_ROL[u.rol] || ['almacen', 'lavanderia', 'office'];
-  perfilActivo = { sesion: true, rol: u.rol, usuario: u.usuario, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparacion', tabs: tabs };
+  perfilActivo = { sesion: true, rol: u.rol, usuario: u.usuario, nombre: tabs.length === 1 ? TAB_NOMBRES[tabs[0]] : 'Preparación', tabs: tabs };
   tabActiva = tabs.indexOf(PARAMS.get('vista')) !== -1 ? PARAMS.get('vista') : tabs[0];
   document.getElementById('app').style.display = 'block';
   document.getElementById('app-titulo').textContent = perfilActivo.nombre;
@@ -1090,6 +1152,13 @@ function entrarConSesion(u) {
     ayuda.className = 'btn-recargar'; ayuda.textContent = '?'; ayuda.title = 'Ayuda'; ayuda.style.marginRight = '8px';
     ayuda.onclick = function () { location.href = '/ayuda?pantalla=' + encodeURIComponent('Preparación ' + (TAB_NOMBRES[tabActiva] || '')) + '&volver=' + encodeURIComponent('/preparacion'); };
     document.querySelector('.app-header-top').insertBefore(ayuda, document.getElementById('btn-recargar'));
+  }
+  // Botón «Personas»: la lista de «¿Quién prepara?» la cambian Logística y Dirección
+  if (['Direccion', 'Logistica'].indexOf(u.rol) !== -1 && !document.getElementById('btn-personas')) {
+    var bp = document.createElement('button');
+    bp.className = 'btn-recargar'; bp.id = 'btn-personas'; bp.textContent = 'Personas'; bp.style.marginRight = '8px';
+    bp.onclick = abrirPersonas;
+    document.querySelector('.app-header-top').insertBefore(bp, document.getElementById('btn-recargar'));
   }
   // Botón "⚠ Incidencia" en la ficha de cada proyecto (no para las tablets)
   if (window.prepararIncidencias) prepararIncidencias();

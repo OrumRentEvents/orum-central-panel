@@ -71,10 +71,12 @@ Dentro de cada pestaña:
 - Cada tablet marca solo su zona; Logística y Dirección pueden marcar las dos.
 - En Almacén, cada proyecto muestra el avance de las zonas, por ejemplo «Lavandería ✓ 1/1 · Office 0/15», y quién lo ha preparado.
 - **Almacén → Logística** (pantalla del responsable): al tocar un proyecto se abre su ficha con todo el material, si cada artículo está preparado o no, quién preparó cada zona y los contenedores de Office.
+- **Botón «Personas»** (Logística y Dirección): la lista de nombres que sale en «¿Quién prepara?» de cada tablet. Se añaden y quitan personas de Office y Lavandería; siempre nombre y apellido, con tilde.
 
 ### Cuándo un proyecto cuenta como listo
 
-En Almacén, un proyecto pasa a la columna **Preparado** cuando Lavandería y Office (las zonas que lleve) tienen todo marcado. También cuenta como listo si en Rentman está **En curso**, **Ejecución realizada** o **Redondeado**. Los proyectos antiguos con estado Preparado, Controlado, Cargado, Marbella, On location o Returned también cuentan como listos.
+- **Lleva material de Lavandería u Office:** pasa a **Preparado** solo cuando esas zonas tienen todo marcado en sus tablets. El estado de Rentman no cuenta: Rentman pone «En curso» ya la víspera, antes de que se prepare nada.
+- **No lleva material de esas zonas:** cuenta el estado de Rentman. Está listo con **Ejecución realizada** o **Redondeado** (y, en proyectos antiguos, Preparado, Controlado, Cargado, Marbella, On location o Returned).
 
 ### Estados en Rentman, quién los pone
 
@@ -121,8 +123,8 @@ La app de Rutas es donde se decide qué vehículo hace cada entrega y recogida, 
 ### Durante el día
 
 - **Estado del material en cada parada:** marca Preparado, Cargado o Incidencia. Una incidencia pide describir qué ha pasado.
-- **Office y Lavandería:** en las entregas con material de esas áreas, la casilla se pone **verde sola** cuando esa zona lo tiene todo preparado en su tablet. Desde Rutas no se puede cambiar. Si la parada no lleva material de esa zona, la casilla sale clarita.
-- **Cargado:** debajo del estado de cada parada hay una casilla **«Cargado»**. Al marcarla, el estado de la parada pasa a «Cargado». Rentman no lo pasa a ORUM, así que después hay que ponerlo también en Rentman.
+- **Office y Lavandería** (solo en las entregas): **✕ en rosa pálido** = no lleva material de esa zona; **✓ gris** = lleva material y se está preparando; **✓ verde** = esa zona lo tiene todo preparado en su tablet. Desde Rutas no se puede cambiar.
+- **Cargado** (solo en las entregas): debajo del estado de cada entrega hay una casilla **«Cargado»**. Al marcarla, el estado de la parada pasa a «Cargado». Rentman no lo pasa a ORUM, así que después hay que ponerlo también en Rentman.
 - **Entregado / Recogido:** cuando el conductor marca la parada como hecha en la app del vehículo, el estado de la parada pasa a «Entregado» o «Recogido» (al pasar el ratón se ve la hora y quién la marcó).
 - **Conductores:** en la lista de choferes, cada uno con **nombre y apellido**: con ese nombre firman en la app del vehículo. Si un conductor avisa desde su móvil (por ejemplo, de que el conductor asignado está mal), llega como **incidencia** a los usuarios de Logística.
 - **Avisos de la parada:** «Traspa» = necesita transpalé. «Sin teléfono» = el proyecto no tiene teléfono de la persona de contacto en Rentman: hay que pedírselo al comercial.

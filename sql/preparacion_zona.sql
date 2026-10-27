@@ -28,3 +28,25 @@ alter table rutas_estados_parada
   add column if not exists completado boolean not null default false,
   add column if not exists completado_en timestamptz,
   add column if not exists completado_por text;
+
+-- Personas que preparan en cada zona (lista de «¿Quién prepara?»). Antes salía
+-- de la plantilla de nóminas y aparecía gente que no prepara. La editan
+-- Logística y Dirección desde Preparación (botón «Personas»). Nombre y
+-- apellido, siempre con tilde.
+create table if not exists preparacion_personas (
+  area      text not null check (area in ('lavanderia', 'office')),
+  nombre    text not null,
+  usuario   text,
+  creado_en timestamptz not null default now(),
+  primary key (area, nombre)
+);
+alter table preparacion_personas enable row level security;
+insert into preparacion_personas (area, nombre, usuario) values
+  ('office', 'Antonio Jiménez', 'inicial'),
+  ('office', 'Juan Morales', 'inicial'),
+  ('office', 'Jorge Cuesta', 'inicial'),
+  ('office', 'Carlos Maldonado', 'inicial'),
+  ('office', 'Jesús Calero', 'inicial'),
+  ('lavanderia', 'Marcia', 'inicial'),
+  ('lavanderia', 'Conchi', 'inicial')
+on conflict do nothing;

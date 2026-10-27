@@ -131,8 +131,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .td-area{text-align:center;}
 .td-area input[type=checkbox]{width:16px;height:16px;cursor:pointer;vertical-align:middle;accent-color:#1D9E75;}
 .td-area input[type=checkbox]:disabled{cursor:default;opacity:.35;}
-/* Office / Lavanderia con material: se ve fuerte (verde si esta preparado), sin poder tocarla */
-.td-area input.area-auto:disabled{opacity:1;}
+/* Office / Lavanderia: X pastel sin material, check gris preparando, check verde preparado */
+.area-ico{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;font-size:12px;font-weight:700;vertical-align:middle;cursor:default;}
+.area-ico.no{background:#FBEAEA;color:#E3A9A9;}
+.area-ico.pend{background:#f0f0ec;color:#c9c7bd;border:1px solid #e2e2de;}
+.area-ico.ok{background:#1D9E75;color:#fff;}
 .be-hecho{background:#0A6640;color:#fff;}
 .be-carg{background:#FFF3E0;color:#8B4513;}
 .carg-rapido{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b6a64;margin-top:4px;cursor:pointer;white-space:nowrap;}
@@ -339,7 +342,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div id="pin-screen" style="display:none;">
   <div class="pin-box">
     <div class="pin-logo">ORUM</div>
-    <div class="pin-sub">Rutas — Logistica</div>
+    <div class="pin-sub">Rutas — Logística</div>
     <div class="pin-dots"><div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div><div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div></div>
     <div class="pin-err" id="pin-err"></div>
     <div class="pin-kp" id="kp"></div>
@@ -348,11 +351,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="app" style="display:none;">
   <div class="hdr">
-    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-backup" style="display:none;" title="Descarga un archivo (se abre en Excel) con la ruta de hoy + los 6 dias siguientes, por si falla la web">Descargar backup</button><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
+    <div class="hdr-top"><h1>ORUM Rutas<span id="hdr-usuario" style="font-weight:400;color:rgba(255,255,255,.55);"></span></h1><div style="display:flex;gap:6px;"><button class="btn-s" id="btn-backup" style="display:none;" title="Descarga un archivo (se abre en Excel) con la ruta de hoy + los 6 días siguientes, por si falla la web">Descargar backup</button><button class="btn-s" id="btn-historial" style="display:none;">Historial</button><button class="btn-s" id="btn-rec">Recargar</button></div></div>
     <div class="hdr-nav">
       <button class="btn-s on" id="btn-hoy">Hoy</button>
       <button class="btn-s" id="btn-sem">Esta semana</button>
-      <button class="btn-s" id="btn-semprox">Semana proxima</button>
+      <button class="btn-s" id="btn-semprox">Semana próxima</button>
       <select id="msel"><option value="">Mes...</option></select>
       <input type="date" id="fpicker">
     </div>
@@ -366,14 +369,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <div id="modal">
   <div class="modal-box">
-    <div class="modal-hdr"><h2 id="modal-title">Anadir parada manual</h2><button class="modal-cls" id="mcls">X</button></div>
+    <div class="modal-hdr"><h2 id="modal-title">Añadir parada manual</h2><button class="modal-cls" id="mcls">X</button></div>
     <div class="modal-form">
       <div><label>Tipo</label><select id="m-tipo"><option value="ENTREGA">Entrega</option><option value="RECOGIDA">Recogida</option><option value="COMPRA">Compra</option><option value="TALLER">Taller</option><option value="OTRO">Otro</option></select></div>
       <div><label>Nº Proyecto (opcional)</label><input type="text" id="m-numero" placeholder="Ej: 1721"></div>
-      <div><label>Descripcion</label><input type="text" id="m-desc" placeholder="Ej: Recoger manteles sucios Marbella"></div>
-      <div><label>Direccion</label><input type="text" id="m-dir" placeholder="Calle, ciudad..."></div>
+      <div><label>Descripción</label><input type="text" id="m-desc" placeholder="Ej: Recoger manteles sucios Marbella"></div>
+      <div><label>Dirección</label><input type="text" id="m-dir" placeholder="Calle, ciudad..."></div>
       <div class="form-row"><div><label>Fecha</label><input type="date" id="m-fecha"></div></div>
-      <div><label>Vehiculos</label><div id="m-vehs-checks" class="vehs-checks"></div></div>
+      <div><label>Vehículos</label><div id="m-vehs-checks" class="vehs-checks"></div></div>
       <div><label>Notas</label><textarea id="m-notas" placeholder="Notas..."></textarea></div>
       <button class="btn-gm" id="btn-gm">Guardar parada</button>
     </div>
@@ -447,11 +450,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div id="modal-cambiar-veh" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center;">
   <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:420px;padding:0 0 2rem;max-height:70vh;overflow-y:auto;">
     <div style="padding:14px 16px;border-bottom:.5px solid #e2e2de;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;">
-      <h2 style="font-size:15px;font-weight:500;">Cambiar vehiculo de todas las paradas</h2>
+      <h2 style="font-size:15px;font-weight:500;">Cambiar vehículo de todas las paradas</h2>
       <button onclick="cerrarModalCambiarVeh()" style="background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;">✕</button>
     </div>
     <div style="padding:14px 16px;">
-      <p style="font-size:12px;color:#6b6a64;margin-bottom:10px;">Elige el vehiculo destino para todas las paradas de este grupo:</p>
+      <p style="font-size:12px;color:#6b6a64;margin-bottom:10px;">Elige el vehículo destino para todas las paradas de este grupo:</p>
       <div id="cv-vehs" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
   </div>
@@ -465,7 +468,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <button onclick="cerrarModalHistorial()" style="background:#f0f0ec;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;">✕</button>
     </div>
     <div class="hist-toolbar">
-      <input type="text" id="hist-buscar" placeholder="Buscar por usuario, vehiculo, nota, conductor...">
+      <input type="text" id="hist-buscar" placeholder="Buscar por usuario, vehículo, nota, conductor...">
       <div class="hist-filtros">
         <select id="hist-filtro-accion"><option value="">Todas las acciones</option></select>
         <select id="hist-filtro-usuario"><option value="">Todos los usuarios</option></select>
@@ -509,7 +512,7 @@ var estadosParada={}; // clave: p.clave (o "manual_<id>") → {preparado,cargado
 // Paradas que necesitan transpale. Clave sin fecha: "<proyecto_id>_ENTREGA" / "<proyecto_id>_RECOGIDA",
 // o la de la parada manual. Ver claveTranspale().
 var transpales={}; // clave → {transpale,auto}
-var TBL_HEAD='<table class="tbl"><colgroup><col style="width:3%"><col style="width:7%"><col style="width:6%"><col style="width:9%"><col style="width:17%"><col style="width:15%"><col style="width:7%"><col style="width:5%"><col style="width:4%"><col style="width:4%"><col style="width:5%"><col style="width:14%"><col style="width:4%"></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicacion</th><th>Estado</th><th></th><th title="Asignado a Office" style="text-align:center;padding:5px 2px;">Office</th><th title="Asignado a Lavanderia" style="text-align:center;padding:5px 2px;">Lav.</th><th title="Necesita traspa" style="text-align:center;padding:5px 2px;">Traspa</th><th>Notas</th><th></th></tr></thead><tbody>';
+var TBL_HEAD='<table class="tbl"><colgroup><col style="width:3%"><col style="width:7%"><col style="width:6%"><col style="width:9%"><col style="width:17%"><col style="width:15%"><col style="width:7%"><col style="width:5%"><col style="width:4%"><col style="width:4%"><col style="width:5%"><col style="width:14%"><col style="width:4%"></colgroup><thead><tr><th></th><th>Tipo</th><th>Fecha</th><th>Nº</th><th>Cliente</th><th>Ubicación</th><th>Estado</th><th></th><th title="Office: ✕ sin material, ✓ gris preparando, ✓ verde preparado" style="text-align:center;padding:5px 2px;">Office</th><th title="Lavandería: ✕ sin material, ✓ gris preparando, ✓ verde preparado" style="text-align:center;padding:5px 2px;">Lav.</th><th title="Necesita traspa" style="text-align:center;padding:5px 2px;">Traspa</th><th>Notas</th><th></th></tr></thead><tbody>';
 
 // ── PIN ──
 function initKP(){
@@ -718,7 +721,7 @@ function load(silencioso){
     if(elUpd)elUpd.textContent='Actualizado '+hh+':'+mm;
   }).catch(function(){
     if(silencioso){recargaPendiente=true;return;}
-    document.getElementById('body').innerHTML='<div class="load">Error de conexion</div>';
+    document.getElementById('body').innerHTML='<div class="load">Error de conexión</div>';
   });
 }
 
@@ -1099,7 +1102,7 @@ function render(){
 function renderGrupo(g){
   var SIN='__sin__';
   var esSin=g.veh===SIN;
-  var titulo=esSin?'Sin vehiculo asignado':(g.veh+(g.vuelta>1?' — '+g.vuelta+'ª vuelta':''));
+  var titulo=esSin?'Sin vehículo asignado':(g.veh+(g.vuelta>1?' — '+g.vuelta+'ª vuelta':''));
 
   // Obtener conductores asignados a este vehículo+vuelta para las fechas de las paradas
   var fechaPrincipal=fechaPrincipalGrupo(g);
@@ -1131,7 +1134,7 @@ function renderGrupo(g){
   html+='<div class="grupo-hdr-right">';
   if(ROL==='logistica'&&!esSin){
     html+='<button class="btn-wa btn-asignar-cond" onclick="abrirModalConductores(\''+g.gkey+'\',\''+fechaPrincipal+'\')" title="Asignar conductores">&#128100; Conductores</button>';
-    if(g.items.length>1) html+='<button class="btn-wa" onclick="abrirModalCambiarVeh(\''+g.gkey+'\')" title="Cambiar vehiculo de todas las paradas de este grupo">&#128260; Cambiar veh.</button>';
+    if(g.items.length>1) html+='<button class="btn-wa" onclick="abrirModalCambiarVeh(\''+g.gkey+'\')" title="Cambiar vehículo de todas las paradas de este grupo">&#128260; Cambiar veh.</button>';
   }
   if(!esSin)html+='<button class="btn-wa" onclick="enviarWhatsApp(\''+g.gkey+'\')" title="Enviar ruta por WhatsApp">&#128228; WhatsApp</button>';
   html+='</div></div>';
@@ -1171,7 +1174,7 @@ function renderFila(idx,gkey){
   var tipo=(p.tipo||'OTRO').toLowerCase();
   var bc=p.es_manual?'b-manual':('b-'+tipo);
   var bt=p.tipo||'OTRO';
-  var esOk=['returned','cargado','marbella','on location','controlado','preparado','en curso','ejecucion realizada','redondeado'].some(function(x){return(p.estado||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().indexOf(x)!==-1;});
+  var esOk=['returned','cargado','marbella','on location','controlado','preparado','ejecucion realizada','redondeado'].some(function(x){return(p.estado||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().indexOf(x)!==-1;});
   var estH=p.estado?('<span class="be '+(esOk?'be-ok':'be-cf')+'">'+p.estado+'</span>'):'';
   var mapsH=p.google_maps_url?('<a href="'+p.google_maps_url+'" target="_blank" class="a-maps">Maps</a>'):'';
   // CAMBIO 6: solo fecha, sin hora
@@ -1227,16 +1230,15 @@ function renderFila(idx,gkey){
   // Iniciales del comercial que ha hecho el proyecto
   var iniCom=epInfo?inicialesComercial(epInfo.comercial):'';
   var comH=iniCom?('<span class="com-ini" title="Comercial: '+String(epInfo.comercial).replace(/"/g,'&quot;')+'">'+iniCom+'</span>'):'';
-  // Casillas Office / Lavanderia: solo en ENTREGAS. Se ponen verdes solas cuando esa
-  // zona tiene todo marcado en Preparacion; desde Rutas no se tocan. Sin material
-  // de esa zona salen claritas, como siempre.
+  // Office / Lavanderia, solo en ENTREGAS (desde Rutas no se tocan; lo marca cada zona en Preparacion):
+  // X pastel = no lleva material de esa zona; check gris = se esta preparando; check verde = preparado.
   var areaChk=function(campo){
     if(tipo!=='entrega')return'';
-    var nombre=campo==='office'?'Office':'Lavanderia';
+    var nombre=campo==='office'?'Office':'Lavandería';
     var tieneMaterial=!!(epInfo&&epInfo['tiene_'+campo]);
-    var listo=tieneMaterial&&!!epInfo['prep_'+campo];
-    var tit=!tieneMaterial?'Sin material de '+nombre:(listo?nombre+': todo preparado':nombre+': pendiente de preparar');
-    return '<input type="checkbox" disabled'+(listo?' checked':'')+(tieneMaterial?' class="area-auto"':'')+' title="'+tit+'">';
+    if(!tieneMaterial)return '<span class="area-ico no" title="Sin material de '+nombre+'">&#10005;</span>';
+    var listo=!!epInfo['prep_'+campo];
+    return '<span class="area-ico '+(listo?'ok':'pend')+'" title="'+nombre+(listo?': preparado':': preparando')+'">&#10003;</span>';
   };
   // Telefono de la persona de contacto del proyecto. Si no tiene, no se muestra ninguno (asi se ve que falta)
   var telH='';
@@ -1245,11 +1247,12 @@ function renderFila(idx,gkey){
     telH='<a class="tel-cli" href="tel:'+String(epInfo.telefono).replace(/[^0-9+]/g,'')+'" title="Llamar a '+telTxt.replace(/"/g,'&quot;')+'">&#128222; '+telTxt.replace(/</g,'&lt;')+'</a>';
   } else if(epInfo&&p.fecha&&p.fecha>=hoy()){
     // Aviso para reclamarlo al comercial. Solo en paradas de hoy en adelante: en las pasadas ya no sirve de nada
-    telH='<span class="tel-falta" title="El proyecto no tiene telefono en la persona de contacto de Rentman">Sin teléfono</span>';
+    telH='<span class="tel-falta" title="El proyecto no tiene teléfono en la persona de contacto de Rentman">Sin teléfono</span>';
   }
   html+='<td class="td-cli"><div class="cli-wrap">'+comH+'<div class="cli-datos"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+(p.subproyectos?'<span class="sub-tag" title="Este proyecto tiene varias fechas: esta parada es la de estos subproyectos">'+String(p.subproyectos).replace(/</g,'&lt;')+'</span>':'')+telH+'</div></div></td>';
   html+='<td class="td-loc"><div class="loc-nom">'+(p.localizacion||'—')+mapsH+'</div>'+etiquetaZona(p)+'</td>';
-  var cargH=ROL==='logistica'&&!estParada.completado?'<label class="carg-rapido" onclick="event.stopPropagation()"><input type="checkbox"'+(estParada.cargado?' checked':'')+' onchange="toggleCargado(this,'+idx+')"> Cargado</label>':'';
+  // Solo en las entregas: en las recogidas no hace falta
+  var cargH=ROL==='logistica'&&tipo==='entrega'&&!estParada.completado?'<label class="carg-rapido" onclick="event.stopPropagation()"><input type="checkbox"'+(estParada.cargado?' checked':'')+' onchange="toggleCargado(this,'+idx+')"> Cargado</label>':'';
   html+='<td class="td-est">'+estH+cargH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
   html+='<td class="td-area td-off">'+areaChk('office')+'</td>';
@@ -1263,7 +1266,7 @@ function renderFila(idx,gkey){
   html+='<tr class="fila-det" id="det-'+key+'"><td colspan="13">';
   html+='<div class="det-grid">';
   if(ROL==='logistica'){
-    html+='<div class="det-campo" style="grid-column:1/-1"><label>Vehiculos asignados</label><div class="vehs-checks" id="vch-'+key+'">';
+    html+='<div class="det-campo" style="grid-column:1/-1"><label>Vehículos asignados</label><div class="vehs-checks" id="vch-'+key+'">';
     VEHS.forEach(function(v){
       var chk=vehsActuales.indexOf(v)!==-1?' checked':'';
       var sel=vehsActuales.indexOf(v)!==-1?' seleccionado':'';
@@ -1278,7 +1281,7 @@ function renderFila(idx,gkey){
     html+='<label class="det-check-lbl"><input type="checkbox" id="chk-carg-'+key+'"'+(estParada.cargado?' checked':'')+'> Cargado</label>';
     html+='<label class="det-check-lbl"><input type="checkbox" id="chk-inc-'+key+'" onchange="toggleIncidenciaCampo(this,\''+key+'\')"'+(estParada.incidencia?' checked':'')+'> Incidencia</label>';
     html+='</div></div>';
-    html+='<div class="det-campo" style="grid-column:1/-1;display:'+(estParada.incidencia?'block':'none')+';" id="inc-campo-'+key+'"><label>Descripcion de la incidencia</label><textarea id="chk-inctxt-'+key+'" placeholder="Que ha ocurrido...">'+(estParada.incidencia_texto||'')+'</textarea></div>';
+    html+='<div class="det-campo" style="grid-column:1/-1;display:'+(estParada.incidencia?'block':'none')+';" id="inc-campo-'+key+'"><label>Descripción de la incidencia</label><textarea id="chk-inctxt-'+key+'" placeholder="¿Qué ha ocurrido?">'+(estParada.incidencia_texto||'')+'</textarea></div>';
   }
   html+='<div class="det-campo"><label>Notas</label><textarea id="dn-'+key+'" placeholder="Notas...">'+String(p.notas||'')+'</textarea></div>';
   html+='</div><div class="det-acts">';
@@ -1323,13 +1326,13 @@ function toggleIncidenciaCampo(chk,key){
 
 function formatFechaCorta(iso){
   if(!iso)return'';
-  var dias=['dom','lun','mar','mie','jue','vie','sab'];
+  var dias=['dom','lun','mar','mié','jue','vie','sáb'];
   var d=new Date(iso+'T12:00:00');
   return dias[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
 }
 function formatDiaLargo(iso){
   if(!iso)return'';
-  var dias=['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+  var dias=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   var meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   var d=new Date(iso+'T12:00:00');
   return dias[d.getDay()]+' '+d.getDate()+' de '+meses[d.getMonth()];
@@ -1685,7 +1688,7 @@ function abrirModal(p){
   var esEdicion=!!(p&&p.es_manual);
   manualEditId=esEdicion?p.id_manual:null;
   var titulo=document.getElementById('modal-title');
-  if(titulo)titulo.textContent=esEdicion?'Editar parada manual':'Anadir parada manual';
+  if(titulo)titulo.textContent=esEdicion?'Editar parada manual':'Añadir parada manual';
   var btnGm=document.getElementById('btn-gm');
   if(btnGm)btnGm.textContent=esEdicion?'Guardar cambios':'Guardar parada';
   if(esEdicion){
@@ -1721,7 +1724,7 @@ function cerrarModal(){
   document.body.style.overflow='';
   manualEditId=null;
   var titulo=document.getElementById('modal-title');
-  if(titulo)titulo.textContent='Anadir parada manual';
+  if(titulo)titulo.textContent='Añadir parada manual';
   var btnGm=document.getElementById('btn-gm');
   if(btnGm)btnGm.textContent='Guardar parada';
 }
@@ -1898,7 +1901,7 @@ function abrirModalMaterial(proyectoId, numero, clave){
       });
       body.innerHTML=html;
     })
-    .catch(function(){body.innerHTML='<div class="load">Error de conexion</div>';});
+    .catch(function(){body.innerHTML='<div class="load">Error de conexión</div>';});
 }
 function cerrarModalMaterial(){
   document.getElementById('modal-material').style.display='none';
@@ -1912,9 +1915,9 @@ function euros(n){
 }
 function tituloPago(info){
   var d=info.detalle_pago||{};
-  if(info.estado_pago==='azul')return d.motivo||'Cliente con pago a 30 dias';
+  if(info.estado_pago==='azul')return d.motivo||'Cliente con pago a 30 días';
   if(d.es_pnc){
-    if(info.estado_pago==='rojo')return 'PNC — nada confirmado en Caja todavia';
+    if(info.estado_pago==='rojo')return 'PNC — nada confirmado en Caja todavía';
     if(info.estado_pago==='amarillo')return 'PNC — confirmado en Caja '+euros(d.confirmado_en_caja)+' de '+euros(d.valor_esperado);
     return 'PNC — importe confirmado en Caja ('+euros(d.confirmado_en_caja)+')';
   }
@@ -2117,13 +2120,13 @@ function cerrarModalCambiarVeh(){
 function aplicarCambioVehiculoGrupo(nuevoVeh){
   var grupos=getGrupos();
   var items=(grupos[cvGkeyOrigen]||[]).slice();
-  if(!items.length){toast('Grupo vacio');cerrarModalCambiarVeh();return;}
+  if(!items.length){toast('Grupo vacío');cerrarModalCambiarVeh();return;}
   items.forEach(function(i){paradas[i].vehiculo=[nuevoVeh];});
   render();
   var saves=items.map(function(i){
     return apiPost({action:'set_asignacion',clave:paradas[i].clave,proyecto_id:paradas[i].proyecto_id,tipo:paradas[i].tipo,fecha:paradas[i].fecha,vehiculo:vehsAString(paradas[i].vehiculo),conductor:paradas[i].conductor||{},notas:paradas[i].notas||'',vuelta:paradas[i].vuelta||1,orden:paradas[i].orden||0});
   });
-  Promise.all(saves).then(function(){toast('Vehiculo cambiado en '+items.length+' paradas');}).catch(function(){toast('Error al guardar algunos cambios — recarga para verificar');});
+  Promise.all(saves).then(function(){toast('Vehículo cambiado en '+items.length+' paradas');}).catch(function(){toast('Error al guardar algunos cambios — recarga para verificar');});
   cerrarModalCambiarVeh();
 }
 
@@ -2186,21 +2189,21 @@ var ACCION_LABELS_HIST={
 function accionInfoHistorial(accion,det){
   if(accion==='set_asignacion'&&det){
     var tieneVeh=!!det.vehiculo, tieneNota=!!det.notas;
-    if(tieneVeh&&!tieneNota)return{label:'Selección de vehiculo',color:'#185FA5',bg:'#E6F1FB'};
+    if(tieneVeh&&!tieneNota)return{label:'Selección de vehículo',color:'#185FA5',bg:'#E6F1FB'};
     if(tieneNota&&!tieneVeh)return{label:'Nota añadida',color:'#8B4A00',bg:'#FDEBD0'};
   }
-  return ACCION_LABELS_HIST[accion]||{label:accion?accion.replace(/_/g,' '):'Accion',color:'#6b6a64',bg:'#f0f0ea'};
+  return ACCION_LABELS_HIST[accion]||{label:accion?accion.replace(/_/g,' '):'Acción',color:'#6b6a64',bg:'#f0f0ea'};
 }
 function detalleTextoHistorial(accion,det){
   if(!det||typeof det!=='object')return '';
   var partes=[];
   function add(lbl,val){if(val!==undefined&&val!==null&&val!==''&&val!==false)partes.push('<b>'+lbl+':</b> '+(Array.isArray(val)?val.join(', '):val));}
   if(accion==='set_conductores'){
-    add('Vehiculo',det.vehiculo); add('Vuelta',det.vuelta); add('Fecha',det.fecha); add('Conductores',det.conductores);
+    add('Vehículo',det.vehiculo); add('Vuelta',det.vuelta); add('Fecha',det.fecha); add('Conductores',det.conductores);
   } else if(accion==='set_choferes'){
     add('Choferes',det.choferes);
   } else if(accion==='set_estado_vehiculo'){
-    add('Vehiculo',det.vehiculo); add('Vuelta',det.vuelta); add('Fecha',det.fecha); add('Estado',det.estado||'Sin estado');
+    add('Vehículo',det.vehiculo); add('Vuelta',det.vuelta); add('Fecha',det.fecha); add('Estado',det.estado||'Sin estado');
   } else if(accion==='set_estado_parada'){
     add('Parada',det.clave);
     add('Preparado',det.preparado===true?'Si':(det.preparado===false?'No':undefined));
@@ -2208,8 +2211,8 @@ function detalleTextoHistorial(accion,det){
     add('Incidencia',det.incidencia===true?'Si':(det.incidencia===false?'No':undefined));
     add('Detalle incidencia',det.incidencia_texto);
   } else {
-    add('Tipo',det.tipo); add('Fecha',det.fecha); add('Vehiculo',det.vehiculo); add('Vuelta',det.vuelta);
-    add('Notas',det.notas); add('Descripcion',det.descripcion); add('Direccion',det.direccion);
+    add('Tipo',det.tipo); add('Fecha',det.fecha); add('Vehículo',det.vehiculo); add('Vuelta',det.vuelta);
+    add('Notas',det.notas); add('Descripción',det.descripcion); add('Dirección',det.direccion);
     add('Clave',det.clave); add('Id',det.id); add('Proyecto',det.proyecto_id);
   }
   if(partes.length===0){Object.keys(det).forEach(function(k){add(k,det[k]);});}
@@ -2241,12 +2244,12 @@ function abrirModalHistorial(){
       selUsuario.innerHTML='<option value="">Todos los usuarios</option>'+usuariosVistos.sort().map(function(u){return '<option value="'+u+'">'+u+'</option>';}).join('');
       renderHistorial();
     })
-    .catch(function(){body.innerHTML='<div class="load">Error de conexion</div>';});
+    .catch(function(){body.innerHTML='<div class="load">Error de conexión</div>';});
 }
 function renderHistorial(){
   var body=document.getElementById('modal-historial-body');
   var cont=document.getElementById('hist-count');
-  if(historialRaw.length===0){body.innerHTML='<div class="load">Sin cambios registrados todavia</div>';cont.textContent='';return;}
+  if(historialRaw.length===0){body.innerHTML='<div class="load">Sin cambios registrados todavía</div>';cont.textContent='';return;}
   var texto=(document.getElementById('hist-buscar').value||'').toLowerCase().trim();
   var filtroAccion=document.getElementById('hist-filtro-accion').value;
   var filtroUsuario=document.getElementById('hist-filtro-usuario').value;

@@ -853,7 +853,7 @@ app.post('/api/fianzas/recargar', requiereLogin, bloquearComercial, async (req, 
 // ================================================================
 
 const ESTADOS_EXCLUIR_NOMBRE = ['pending', 'concept', 'inquiry', 'cancelado', 'canceled'].map(normalizarTexto);
-const ESTADOS_LISTO_NOMBRE = ['returned', 'cargado', 'marbella', 'on location', 'controlado', 'preparado', 'en curso', 'ejecucion realizada', 'redondeado'].map(normalizarTexto);
+const ESTADOS_LISTO_NOMBRE = ['returned', 'cargado', 'marbella', 'on location', 'controlado', 'preparado', 'ejecucion realizada', 'redondeado'].map(normalizarTexto);
 
 function normalizarTexto(str) {
   return (str || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -871,7 +871,6 @@ const CONTENEDORES_OFFICE = [
   { id: 'pallet', nombre: 'Pallet' },
   { id: 'carro_platos', nombre: 'Carro porta platos' }
 ];
-const DEPARTAMENTO_ZONA = { lavanderia: 'Lavandería', office: 'Office' };
 // PostgREST: tabla que todavía no existe (falta ejecutar su SQL)
 const tablaNoExiste = error => error && (error.code === '42P01' || error.code === 'PGRST205');
 
@@ -888,37 +887,15 @@ async function leerPreparacionZona() {
   return porProyecto;
 }
 
-// Nombre y apellido (pedido 27 oct 2026): "GARCÍA LÓPEZ, ANA MARÍA" → "Ana María García";
-// con completo = true, los dos apellidos ("Ana María García López"), para cuando dos coinciden.
-const PARTICULAS_NOMBRE = ['de', 'del', 'la', 'las', 'los', 'y'];
-const capitalizar = txt => txt.toLowerCase().split(/\s+/).filter(Boolean)
-  .map((w, i) => i > 0 && PARTICULAS_NOMBRE.includes(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-function nombrePersona(nombre, completo) {
-  const partes = String(nombre || '').split(',').map(s => s.trim()).filter(Boolean);
-  if (partes.length !== 2) return capitalizar(partes.join(' '));
-  let apellidos = partes[0].split(/\s+/);
-  if (!completo) {
-    // Primer apellido, con sus partículas ("de la Torre")
-    const fin = apellidos.findIndex(w => !PARTICULAS_NOMBRE.includes(w.toLowerCase()));
-    apellidos = apellidos.slice(0, fin + 1);
-  }
-  return capitalizar(partes[1] + ' ' + apellidos.join(' '));
-}
-
-// Plantilla activa de Lavandería y Office, para elegir quién ha preparado
+// Personas que preparan en cada zona, para «¿Quién prepara?» (sql/preparacion_zona.sql,
+// tabla preparacion_personas). Lista propia y editable: la plantilla de nóminas
+// traía gente que no prepara. Nombre y apellido, siempre con tilde.
 async function personalPreparacion() {
-  const { data, error } = await supabase.from('empleados_departamento').select('nombre,departamento,baja_desde').in('departamento', Object.values(DEPARTAMENTO_ZONA));
+  const { data, error } = await supabase.from('preparacion_personas').select('area,nombre');
+  if (tablaNoExiste(error)) return { lavanderia: [], office: [] };
   if (error) throw error;
-  const activos = (data || []).filter(e => !e.baja_desde);
-  const corto = {};
-  activos.forEach(e => { const n = nombrePersona(e.nombre); (corto[n] = corto[n] || new Set()).add(e.nombre); });
   const personal = { lavanderia: [], office: [] };
-  activos.forEach(e => {
-    const zona = Object.keys(DEPARTAMENTO_ZONA).find(z => DEPARTAMENTO_ZONA[z] === e.departamento);
-    let n = nombrePersona(e.nombre);
-    if (corto[n].size > 1) n = nombrePersona(e.nombre, true); // dos personas distintas con el mismo nombre y apellido
-    if (zona && n && !personal[zona].includes(n)) personal[zona].push(n);
-  });
+  (data || []).forEach(p => { if (personal[p.area]) personal[p.area].push(p.nombre); });
   Object.values(personal).forEach(l => l.sort((a, b) => a.localeCompare(b, 'es')));
   return personal;
 }
@@ -1117,7 +1094,12 @@ async function construirRespuestaPreparacion(vista) {
     // En Lavandería/Office, "preparado" también cuando su zona tiene todo marcado
     const prog = progresoArea[String(p.id)];
     const zonaLista = !!(prog && prog.total && prog.marcados === prog.total);
-    const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado)) || (area ? zonaLista : zonasListas(String(p.id)));
+    // Preparado = lo marcado en las tablets. Rentman pone «En curso» ya la víspera (con el
+    // periodo de planificación), así que su estado solo cuenta en proyectos sin material
+    // de Lavandería/Office (en Almacén).
+    const tieneZonas = Object.keys(zonasDe(String(p.id))).length > 0;
+    const estaListo = area ? zonaLista
+      : (tieneZonas ? zonasListas(String(p.id)) : ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado)));
     const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: area ? zonaLista : zonasListas(String(p.id)), zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0, zonas: area ? undefined : zonasDe(String(p.id)), prep_zona: prepZona[String(p.id)] || {}, notas: notasPorProyecto[String(p.id)] || [] };
     if (estaListo) porProyecto[periodo].preparado.push(item);
     else porProyecto[periodo].confirmado.push(item);
@@ -1482,6 +1464,39 @@ app.post('/api/preparacion/check', requiereLogin, async (req, res) => {
   } catch (err) {
     console.error('Error en /api/preparacion/check:', err);
     res.status(500).json({ error: 'No se ha podido guardar: ' + err.message });
+  }
+});
+
+// Lista de personas de cada zona («¿Quién prepara?»): la editan Logística y Dirección.
+// POST añade { area, nombre }; DELETE quita { area, nombre }. Devuelve la lista nueva.
+function puedeEditarPersonas(u) { return ['Direccion', 'Logistica'].includes(u.rol); }
+app.post('/api/preparacion/personas', requiereLogin, async (req, res) => {
+  try {
+    if (!puedeEditarPersonas(req.session.usuario)) return res.status(403).json({ error: 'Solo Logística y Dirección cambian la lista' });
+    const { area } = req.body || {};
+    const nombre = String((req.body || {}).nombre || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!['lavanderia', 'office'].includes(area)) return res.status(400).json({ error: 'Zona no válida' });
+    if (!nombre) return res.status(400).json({ error: 'Escribe el nombre' });
+    const u = req.session.usuario;
+    const { error } = await supabase.from('preparacion_personas').upsert({ area, nombre, usuario: u.nombre || u.usuario }, { onConflict: 'area,nombre' });
+    if (error) throw error;
+    res.json({ ok: true, personal: await personalPreparacion() });
+  } catch (err) {
+    console.error('Error en POST /api/preparacion/personas:', err);
+    res.status(500).json({ error: 'No se ha podido guardar: ' + err.message });
+  }
+});
+app.delete('/api/preparacion/personas', requiereLogin, async (req, res) => {
+  try {
+    if (!puedeEditarPersonas(req.session.usuario)) return res.status(403).json({ error: 'Solo Logística y Dirección cambian la lista' });
+    const { area, nombre } = req.body || {};
+    if (!['lavanderia', 'office'].includes(area) || !nombre) return res.status(400).json({ error: 'Faltan datos' });
+    const { error } = await supabase.from('preparacion_personas').delete().eq('area', area).eq('nombre', nombre);
+    if (error) throw error;
+    res.json({ ok: true, personal: await personalPreparacion() });
+  } catch (err) {
+    console.error('Error en DELETE /api/preparacion/personas:', err);
+    res.status(500).json({ error: 'No se ha podido quitar: ' + err.message });
   }
 });
 
