@@ -85,8 +85,8 @@ Dentro de cada pestaña:
 | Preparado (Lavandería / Office) | ORUM, en la tablet | Cada zona, al marcar todo |
 | Controlado | Rentman, estado de almacén | El responsable de controlar la mercancía |
 | Cargado | Primero en Rutas (casilla «Cargado» de la parada) y después en Rentman | El responsable |
-| En localización y Recogido | Rentman, estado de almacén | Los repartidores, como hasta ahora |
-| Entregado / Recogido en la ruta | App del vehículo | El conductor, al terminar la parada |
+| Marbella (el cliente recoge en Marbella) | El transportista marca «Entrega completada» en su app y en Rutas se ve entregado; después, Rentman | El comercial pone Marbella en Rentman cuando reciben la mercancía y la controlan |
+| Entregado / Recogido | App del vehículo (no en Rentman) | El conductor, al terminar la parada |
 | Retornado y pérdidas de material | Rentman | El responsable |
 
 ORUM no puede leer los estados de almacén de Rentman (Controlado, Cargado…): Rentman no los da por su conexión.

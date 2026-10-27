@@ -19,9 +19,7 @@ Por eso es importante avisar a Logística de cualquier cambio: si conduce otra p
 1. **Antes de salir:** lee la ruta que te han mandado por WhatsApp. Comprueba el vehículo, la vuelta y si pone «LLEVAR TRASPA».
 2. **En la carga:** comprueba con almacén que el material de cada parada está cargado. Si falta algo, díselo a Logística antes de salir.
 3. **En ruta:** sigue el orden de las paradas. Usa el enlace del mapa para llegar y el teléfono de contacto si hace falta.
-4. **En cada parada:** entrega o recoge todo el material de la parada y avisa de cualquier problema (ver abajo). Al terminar:
-   - en **Rentman**, pon el estado de almacén como siempre: **En localización** al entregar y **Recogido** al recoger;
-   - en la **app del vehículo**, pulsa **«Entrega completada»** o **«Recogida completada»**. En Rutas la parada pasa a Entregado o Recogido. Si te equivocas, pulsa «Deshacer».
+4. **En cada parada:** entrega o recoge todo el material de la parada y avisa de cualquier problema (ver abajo). Al terminar, pulsa en la **app del vehículo** **«Entrega completada»** o **«Recogida completada»**: en Rutas la parada pasa a Entregado o Recogido. Si te equivocas, pulsa «Deshacer». En Rentman no tienes que marcar nada.
 5. **Al repostar:** guarda el ticket y di a Logística los kilómetros y los litros, que se apuntan en la app (Repostaje).
 6. **Al volver a la nave:** cuenta a Logística cualquier incidencia (material roto o que falta, cliente ausente, recogida incompleta, problema con el vehículo).
 7. **Si haces horas extra, domingo, festivo o nocturno:** díselo a tu responsable para que lo registre.
