@@ -47,6 +47,7 @@ Cuando en Rentman se confirma un proyecto para hoy o mañana, o cambia algo de u
 
 - **Es urgente (rojo)** si la entrega es hoy o mañana, o si el departamento ya había empezado a preparar el proyecto (había marcado algún artículo).
 - Solo avisa de proyectos confirmados, sin recoger, con entrega en los próximos 15 días. Los cambios de precio no avisan.
+- El material de embalaje y transporte que añade el almacén (familia Almacenaje de Rentman: racks, cajas grises, platibox, palets, jaulas, carros) tampoco avisa.
 - Si el comercial guarda varias veces seguidas, llega un solo aviso con todo junto (unos 3 minutos después del último cambio).
 - **Cómo llega:** a los departamentos, como mensaje «🔔 Aviso Rentman» en su chat y como tarjeta arriba en Preparación (o Mantenimiento). A Logística y Dirección, por aviso al móvil y en las mismas tarjetas. La pantalla **Avisos** de la app móvil reúne todos.
 - **Botón «Visto»:** cada departamento lo pulsa en su tarjeta cuando se ha enterado. En ese momento, el comercial del proyecto recibe un aviso de que ese departamento lo ha visto. Las tarjetas muestran qué departamentos lo han visto y cuáles no.
