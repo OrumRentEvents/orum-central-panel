@@ -52,6 +52,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .mat-fam{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#6b6a64;margin:8px 0 2px;}
 .mat-row{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:5px 0;border-bottom:.5px solid #f0f0ea;}
 .mat-row b{white-space:nowrap;}
+.b-hecho{background:#1a1a18;color:#fff;width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:2px;}
+.b-hecho:disabled{opacity:.5;}
+.hecho{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;background:#D6F5E3;color:#0A6640;border-radius:8px;padding:10px 12px;font-size:15px;font-weight:700;}
+.hecho button{background:none;border:none;color:#0A6640;font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer;font-family:inherit;}
+.card.ok{opacity:.75;}
+.yo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);font-size:14px;}
+.yo b{flex:1;min-width:0;font-size:16px;}
+.yo.falta{background:#FAEEDA;color:#854F0B;}
+.b-sec{background:#f0f0ea;color:#1a1a18;}
+.b-inc{background:#FAECE7;color:#993C1D;}
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;align-items:center;justify-content:center;padding:16px;}
+.ov.open{display:flex;}
+.ov-box{background:#fff;border-radius:14px;width:100%;max-width:440px;padding:18px;display:flex;flex-direction:column;gap:12px;}
+.ov-box h2{font-size:18px;}
+.ov-box p{font-size:14px;color:#6b6a64;}
+.ov-box textarea{width:100%;min-height:110px;font-size:15px;font-family:inherit;padding:10px;border:1px solid #d8d4c8;border-radius:8px;}
+.persona{display:block;width:100%;text-align:left;font-size:17px;font-weight:600;padding:14px;border-radius:10px;border:1px solid #d8d4c8;background:#fff;cursor:pointer;font-family:inherit;}
+.acc{display:flex;justify-content:flex-end;gap:8px;}
+.b-ok{background:#1a1a18;color:#fff;}
 </style>
 </head>
 <body>
@@ -60,6 +79,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="hdr-sub"><span id="fecha"></span><span id="act"></span></div>
 </div>
 <div id="body"><div class="msg">Cargando ruta...</div></div>
+
+<!-- Si hoy van dos o más en el vehículo: quién lleva el móvil -->
+<div class="ov" id="ov-persona"><div class="ov-box">
+  <h2>¿Quién lleva el móvil?</h2>
+  <p>Hoy vais varios en este vehículo. Toca tu nombre.</p>
+  <div id="personas" style="display:flex;flex-direction:column;gap:8px;"></div>
+  <div class="acc"><button class="btn b-inc" onclick="abrirIncidencia('No aparezco entre los conductores de hoy de este vehículo. Soy: ')">No estoy en la lista</button></div>
+</div></div>
+
+<!-- Incidencia: conductor mal asignado u otro problema -->
+<div class="ov" id="ov-inc"><div class="ov-box">
+  <h2>Avisar a Logística</h2>
+  <p>Escribe qué pasa (por ejemplo, si el conductor asignado está mal). Llega como incidencia a Logística.</p>
+  <textarea id="inc-txt"></textarea>
+  <div class="acc"><button class="btn b-sec" onclick="cerrarOv('ov-inc')">Cancelar</button><button class="btn b-ok" id="inc-enviar" onclick="enviarIncidencia()">Enviar</button></div>
+</div></div>
 <script>
 var codigo=location.pathname.split('/')[2]||'';
 var ultimaFirma='', abiertos={}, materiales={};
@@ -93,8 +128,9 @@ function pintar(d){
   document.getElementById('veh').textContent=d.vehiculo;
   var n=d.vueltas.reduce(function(s,v){return s+v.paradas.length;},0);
   document.getElementById('fecha').textContent=fechaLarga(d.fecha)+' · '+n+(n===1?' parada':' paradas');
-  if(!n){document.getElementById('body').innerHTML='<div class="msg">Hoy no hay paradas asignadas a <b>'+esc(d.vehiculo)+'</b>.</div>';return;}
-  var html='';
+  conductoresHoy=d.conductores||[];
+  if(!n){document.getElementById('body').innerHTML=barraYo()+'<div class="msg">Hoy no hay paradas asignadas a <b>'+esc(d.vehiculo)+'</b>.</div>';return;}
+  var html=barraYo();
   var varias=d.vueltas.length>1;
   d.vueltas.forEach(function(v){
     if(varias)html+='<div class="vuelta">'+(ORDINAL[v.vuelta-1]||(v.vuelta+'ª'))+' vuelta</div>';
@@ -102,11 +138,55 @@ function pintar(d){
   });
   document.getElementById('body').innerHTML=html;
   Object.keys(abiertos).forEach(function(id){if(abiertos[id])pintarMaterial(id);});
+  // Varios conductores y nadie elegido hoy en este móvil: se pregunta
+  if(conductoresHoy.length>1&&!yo())elegirYo();
+}
+
+// ── Quién lleva el móvil: el conductor que Logística ha asignado; si son varios, elige él ──
+var conductoresHoy=[], CLAVE_YO='orum_conductor_yo', yoMem=null;
+function hoyIso(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Madrid'});}
+function yo(){
+  if(conductoresHoy.length===1)return conductoresHoy[0];
+  var x=yoMem;
+  try{x=JSON.parse(localStorage.getItem(CLAVE_YO)||'null')||yoMem;}catch(e){}
+  return x&&x.dia===hoyIso()&&conductoresHoy.indexOf(x.nombre)!==-1?x.nombre:'';
+}
+function barraYo(){
+  var h, n=yo();
+  if(n)h='<div class="yo">&#128100; <b>'+esc(n)+'</b>'+(conductoresHoy.length>1?'<button class="btn b-sec" onclick="elegirYo()">Cambiar</button>':'')+'<button class="btn b-inc" onclick="abrirIncidencia(\'\')">&#9888; Avisar</button></div>';
+  else if(conductoresHoy.length>1)h='<div class="yo falta"><b>Elige quién lleva el móvil</b><button class="btn b-sec" onclick="elegirYo()">Elegir</button></div>';
+  else h='<div class="yo falta"><b>Sin conductor asignado hoy</b><button class="btn b-inc" onclick="abrirIncidencia(\'Hoy no tengo conductor asignado en la ruta. Soy: \')">&#9888; Avisar</button></div>';
+  return h;
+}
+function elegirYo(){
+  document.getElementById('personas').innerHTML=conductoresHoy.map(function(n,i){return '<button class="persona" onclick="ponerYo('+i+')">'+esc(n)+'</button>';}).join('');
+  document.getElementById('ov-persona').classList.add('open');
+}
+function ponerYo(i){
+  // Se recuerda en el móvil hasta el día siguiente (en memoria si el navegador no deja guardar)
+  yoMem={dia:hoyIso(),nombre:conductoresHoy[i]};
+  try{localStorage.setItem(CLAVE_YO,JSON.stringify(yoMem));}catch(e){}
+  cerrarOv('ov-persona');ultimaFirma='';cargar();
+}
+function cerrarOv(id){document.getElementById(id).classList.remove('open');}
+function abrirIncidencia(txt){
+  cerrarOv('ov-persona');
+  var t=document.getElementById('inc-txt');t.value=txt||'';
+  document.getElementById('ov-inc').classList.add('open');t.focus();
+}
+function enviarIncidencia(){
+  var texto=document.getElementById('inc-txt').value.trim(), b=document.getElementById('inc-enviar');
+  if(!texto){alert('Escribe qué pasa');return;}
+  b.disabled=true;
+  fetch('/api/conductor/'+encodeURIComponent(codigo)+'/incidencia',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto:texto,persona:yo()})})
+    .then(function(r){return r.json();})
+    .then(function(d){b.disabled=false;if(d.error){alert(d.error);return;}cerrarOv('ov-inc');alert('Enviado a Logística');})
+    .catch(function(){b.disabled=false;alert('Sin conexión. Inténtalo otra vez.');});
 }
 
 function tarjeta(p,pos,id){
   var tipoTxt={ENTREGA:'ENTREGA',RECOGIDA:'RECOGIDA',COMPRA:'COMPRA',TALLER:'TALLER'}[p.tipo]||p.tipo||'OTRO';
-  var h='<div class="card"><div class="tipo t-'+esc(p.tipo)+'"><b>'+esc(tipoTxt.charAt(0))+'</b><span>'+pos+'</span></div><div class="cont">';
+  var h='<div class="card'+(p.completado_en?' ok':'')+'"><div class="tipo t-'+esc(p.tipo)+'"><b>'+esc(tipoTxt.charAt(0))+'</b><span>'+pos+'</span></div><div class="cont">';
   h+='<div class="tipo-txt">'+esc(tipoTxt)+(p.numero?'<span class="num">#'+esc(p.numero)+'</span>':'')+'</div>';
   h+='<div class="cli">'+esc(p.cliente||'—')+'</div>';
   if(p.direccion)h+='<div class="dir">'+esc(p.direccion)+'</div>';
@@ -122,8 +202,32 @@ function tarjeta(p,pos,id){
   if(p.telefono)h+='<a class="btn b-tel" href="tel:'+esc(String(p.telefono).replace(/[^0-9+]/g,''))+'">&#128222; '+esc((p.contacto?p.contacto+' · ':'')+p.telefono)+'</a>';
   else if(p.proyecto_id)h+='<span class="sin-tel">Sin teléfono de contacto</span>';
   if(p.material)h+='<button class="btn b-mat" onclick="verMaterial(\''+id+'\',\''+esc(p.proyecto_id)+'\',\''+esc(p.clave)+'\')" id="bm-'+id+'">&#128230; '+(abiertos[id]?'Ocultar material':'Ver material')+'</button>';
-  h+='</div><div id="mat-'+id+'"></div></div></div>';
+  h+='</div><div id="mat-'+id+'"></div>'+botonHecho(p)+'</div></div>';
   return h;
+}
+
+// Entregado / Recogido: en Rutas sale ese estado en la parada
+var HECHO={ENTREGA:['Entrega completada','Entregado'],RECOGIDA:['Recogida completada','Recogido']};
+function botonHecho(p){
+  if(!p.clave)return'';
+  var t=HECHO[p.tipo]||['Parada completada','Completada'];
+  if(p.completado_en){
+    var hora=new Date(p.completado_en).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+    return '<div class="hecho"><span>&#10003; '+t[1]+' '+hora+'</span><button onclick="completar(this,\''+esc(p.clave)+'\',false)">Deshacer</button></div>';
+  }
+  return '<div class="btns"><button class="btn b-hecho" onclick="completar(this,\''+esc(p.clave)+'\',true)">&#10003; '+t[0]+'</button></div>';
+}
+function completar(btn,clave,completado){
+  if(completado&&conductoresHoy.length>1&&!yo()){elegirYo();return;}
+  if(!completado&&!confirm('¿Quitar la marca de completada?'))return;
+  btn.disabled=true;
+  fetch('/api/conductor/'+encodeURIComponent(codigo)+'/completar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:clave,completado:completado,persona:yo()})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.error){btn.disabled=false;alert(d.error);return;}
+      ultimaFirma='';cargar();
+    })
+    .catch(function(){btn.disabled=false;alert('Sin conexión. Inténtalo otra vez.');});
 }
 
 function verMaterial(id,pid,clave){

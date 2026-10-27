@@ -146,6 +146,43 @@ span.chk { margin-right: 10px; }
 .dia-titulo { font-size: 13px; color: #6b6a64; margin-bottom: 10px; }
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 20px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 300; }
 #toast.show { opacity: 1; }
+/* Quién ha preparado y contenedores (por zona) */
+.prep-bloque { background: #f7f7f3; border-radius: 10px; padding: 10px 12px; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.prep-bloque .fila { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.prep-bloque .zona-nom { font-weight: 600; }
+.prep-bloque .falta { color: #854F0B; background: #FAEEDA; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+.prep-bloque .nombres { color: #0F6E56; }
+.btn-sec { background: #fff; border: 0.5px solid #d8d4c8; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.cont-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.cont-item { display: flex; align-items: center; gap: 8px; background: #fff; border: 0.5px solid #e2e2de; border-radius: 8px; padding: 6px 8px; }
+.cont-item span { flex: 1; min-width: 0; }
+.cont-item button { width: 34px; height: 34px; border-radius: 8px; border: 0.5px solid #d8d4c8; background: #f0f0ec; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+.cont-item b { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
+.card-quien { font-size: 11px; color: #0F6E56; margin-top: 4px; }
+/* Material de la ficha: por zona y familia */
+.mat-zona { font-size: 13px; font-weight: 700; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1.5px solid #1a1a18; }
+.fam-bloque { border: 0.5px solid #e2e2de; border-radius: 10px; padding: 4px 12px 2px; margin-bottom: 10px; background: #fff; }
+.fam-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0 6px; border-bottom: 0.5px solid #f0f0ec; }
+.fam-nom { font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: #4a4944; }
+.fam-quien { font-size: 11px; color: #0F6E56; padding: 4px 0 2px; }
+.art-nom { flex: 1; min-width: 0; word-break: break-word; }
+.art-cant { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 40px; text-align: right; }
+.persona-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #E1F5EE; color: #0F6E56; border-radius: 10px; padding: 10px 12px; margin: 10px 0; font-size: 14px; }
+.persona-bar.falta { background: #FAEEDA; color: #854F0B; }
+.persona-bar b { flex: 1; min-width: 0; }
+#quien-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 250; align-items: center; justify-content: center; padding: 16px; }
+#quien-overlay.open { display: flex; }
+#quien-box { background: #fff; border-radius: 14px; width: 100%; max-width: 520px; max-height: 85vh; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+#quien-box h3 { margin: 0; font-size: 17px; }
+#quien-box p { margin: 0; font-size: 13px; color: #6b6a64; }
+.quien-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.quien-chip { border: 1px solid #d8d4c8; background: #fff; border-radius: 20px; padding: 9px 14px; font-size: 14px; cursor: pointer; font-family: inherit; }
+.quien-chip.on { background: #1D9E75; border-color: #1D9E75; color: #fff; font-weight: 600; }
+.quien-otro { display: flex; gap: 8px; }
+.quien-otro input { flex: 1; padding: 9px 10px; font-size: 14px; border: 0.5px solid #d8d4c8; border-radius: 8px; font-family: inherit; }
+.quien-acc { display: flex; justify-content: flex-end; gap: 8px; }
+.quien-acc .ok { background: #1a1a18; color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.quien-acc .ok:disabled { opacity: .5; }
 .inc-btn { float: right; margin: 0 0 8px 8px; border: 0.5px solid #F0997B; background: #FAECE7; color: #993C1D; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; }
 </style>
 </head>
@@ -196,6 +233,23 @@ span.chk { margin-right: 10px; }
   </div>
 </div>
 
+<!-- ¿Quién ha preparado? Sale solo al marcar el último artículo de la zona -->
+<div id="quien-overlay">
+  <div id="quien-box">
+    <h3 id="quien-titulo">¿Quién ha preparado el proyecto?</h3>
+    <p id="quien-sub">Toca los nombres de quienes lo han preparado.</p>
+    <div class="quien-chips" id="quien-chips"></div>
+    <div class="quien-otro">
+      <input type="text" id="quien-otro-txt" placeholder="Otra persona: nombre y apellido">
+      <button class="btn-sec" id="quien-otro-btn">Añadir</button>
+    </div>
+    <div class="quien-acc">
+      <button class="btn-sec" id="quien-cancelar">Más tarde</button>
+      <button class="ok" id="quien-guardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast">Copiado</div>
 
 <script>
@@ -229,6 +283,8 @@ var subtabActiva = 'Por proyecto';
 var datosCache = {};
 var equipmentCache = {};
 var filtroTexto = '';
+var CONTENEDORES = []; // [{id, nombre}] — los manda el servidor
+var PERSONAL = { lavanderia: [], office: [] }; // plantilla de cada zona, para "¿Quién ha preparado?"
 
 function initKeypad() {
   var kp = document.getElementById('keypad');
@@ -369,13 +425,13 @@ function cambiarSubtab(st) {
 }
 
 function esListo(estado) {
-  var e = (estado || '').toLowerCase();
-  return ['returned','cargado','marbella','on location','controlado','preparado'].some(function(x) { return e.indexOf(x) !== -1; });
+  var e = (estado || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return ['returned','cargado','marbella','on location','controlado','preparado','en curso','ejecucion realizada','redondeado'].some(function(x) { return e.indexOf(x) !== -1; });
 }
 
 function estadoBadge(estado) {
-  var e = (estado || '').toLowerCase();
-  if (['returned','cargado','marbella','on location','controlado','preparado'].some(function(x) { return e.indexOf(x) !== -1; }))
+  var e = (estado || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (['returned','cargado','marbella','on location','controlado','preparado','en curso','ejecucion realizada','redondeado'].some(function(x) { return e.indexOf(x) !== -1; }))
     return '<span class="badge-estado badge-listo">' + estado + '</span>';
   if (['pending','concept','inquiry'].some(function(x) { return e.indexOf(x) !== -1; }))
     return '<span class="badge-estado badge-warning">' + estado + '</span>';
@@ -428,8 +484,20 @@ function tarjetaProyecto(p) {
   if (p.localizacion) h += '<span>Loc: ' + esc(p.localizacion) + '</span>';
   if (p.notas && p.notas.length) h += '<span class="notas-chip" title="Notas">💬 ' + p.notas.length + '</span>';
   if (zonaActual() && p.zona_total) h += '<span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
-  h += '</div>' + zonasTexto(p) + '</div>';
+  h += '</div>' + zonasTexto(p) + quienTexto(p) + '</div>';
   return h;
+}
+
+// "Preparado por ..." en la tarjeta (en Almacén, de cada zona)
+function quienTexto(p) {
+  var pz = p.prep_zona || {}, partes = [];
+  (zonaActual() ? [zonaActual()] : ['lavanderia', 'office']).forEach(function(z) {
+    var n = (pz[z] && pz[z].preparadores) || [];
+    // Mientras no se ha cerrado la zona, se ve quién lo está preparando
+    if (!n.length && pz[z] && pz[z].preparando) n = [pz[z].preparando + ' (preparando)'];
+    if (n.length) partes.push((zonaActual() ? '' : TAB_NOMBRES[z] + ': ') + n.join(', '));
+  });
+  return partes.length ? '<div class="card-quien">' + esc(partes.join(' · ')) + '</div>' : '';
 }
 
 // En Almacén: cómo van Lavandería y Office con ese proyecto
@@ -469,12 +537,30 @@ function textoCheck(check) {
   return '';
 }
 var proyectoModal = null;
+// La tablet entra con un usuario compartido. Cada proyecto guarda (en el servidor,
+// sql/preparacion_zona.sql) quién lo está preparando en esa zona: se elige una vez
+// y se queda, aunque se cierre la ficha o se abra en otra tablet, hasta que alguien
+// pulse «No soy yo». Lo que se marque en ese proyecto va a su nombre.
+function personaProyecto(p, zona) { return (p && datosZona(p, zona).preparando) || ''; }
+function elegirPersona(p, zona, despues) {
+  abrirQuien(p, zona, { uno: true, despues: function(n) {
+    guardarZona(p.id, zona, { preparando: n }).then(function() {
+      if (proyectoModal) abrirModal(proyectoModal); else if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
+      if (despues) despues();
+    }).catch(function(err) { mostrarToast(err.message); });
+  } });
+}
+
 function marcarArticulo(btn) {
   if (btn.classList.contains('guardando')) return;
   var marcado = btn.getAttribute('data-on') !== '1';
   var pid = btn.getAttribute('data-pid'), art = btn.getAttribute('data-art');
+  var proyecto = proyectoModal && String(proyectoModal.id) === String(pid) ? proyectoModal : buscarProyecto(pid);
+  var persona = personaProyecto(proyecto, tabActiva);
+  // Proyecto sin persona todavía: primero se pregunta quién lo prepara y luego se marca
+  if (marcado && !persona && proyecto) { elegirPersona(proyecto, tabActiva, function() { marcarArticulo(btn); }); return; }
   btn.classList.add('guardando');
-  fetch('/api/preparacion/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proyecto_id: pid, area: tabActiva, articulo: art, marcado: marcado }) })
+  fetch('/api/preparacion/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proyecto_id: pid, area: tabActiva, articulo: art, marcado: marcado, persona: persona }) })
     .then(function(r) { return r.json().then(function(d) { d._ok = r.ok; return d; }); })
     .then(function(d) {
       btn.classList.remove('guardando');
@@ -484,6 +570,8 @@ function marcarArticulo(btn) {
       if (proyectoModal) abrirModal(proyectoModal);
       else if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
       mostrarToast(marcado ? 'Marcado como preparado' : 'Desmarcado');
+      // Último artículo de la zona: se pregunta quién lo ha preparado (si nadie lo ha dicho aún)
+      if (marcado && proyecto && zonaCompletaLocal(pid, tabActiva) && !preparadoresDe(proyecto, tabActiva).length) abrirQuien(proyecto, tabActiva);
       recargarSilencioso();
     })
     .catch(function() { btn.classList.remove('guardando'); mostrarToast('Sin conexión'); });
@@ -503,7 +591,7 @@ function recargarSilencioso() {
     guardarDatos(tab, data);
     // No se repinta con el detalle de un proyecto abierto ni mientras se escribe en el buscador
     if (!proyectoModal && document.activeElement !== document.getElementById('buscador') && document.activeElement !== document.getElementById('dia-input')) renderizar(data);
-    else if (proyectoModal && !document.activeElement.matches('#nota-txt, #nota-edit-txt') && notaEditando === null) {
+    else if (proyectoModal && !document.activeElement.matches('#nota-txt, #nota-edit-txt') && notaEditando === null && !contPendiente) {
       var todos = [];
       (data.orden_periodos || []).forEach(function(per) { var pp = data.por_proyecto[per]; if (pp) todos = todos.concat(pp.confirmado, pp.preparado); });
       var nuevo = todos.filter(function(p) { return String(p.id) === String(proyectoModal.id); })[0];
@@ -514,6 +602,8 @@ function recargarSilencioso() {
 }
 function guardarDatos(tab, data) {
   datosCache[tab] = data;
+  if (data.contenedores_office) CONTENEDORES = data.contenedores_office;
+  if (data.personal) PERSONAL = data.personal;
   equipmentCache = {};
   (data.equipment_detalle || []).forEach(function(e) {
     var pid = String(e.proyecto_id);
@@ -677,16 +767,208 @@ function renderLogistica(data) {
       html += '<div class="proyecto-card" style="color:#6b6a64;font-size:13px;">Sin proyectos en los proximos 14 dias</div>';
     } else {
       items.forEach(function(p) {
-        var pid = JSON.stringify(p).replace(/"/g, '&quot;');
-        html += '<div class="proyecto-card' + (esListo(p.estado) ? ' listo' : '') + '" data-p="' + pid + '">';
-        html += '<div class="card-top"><div style="flex:1"><div class="card-numero-wrap"><span class="card-numero">#' + p.numero + '</span><button class="copy-btn" data-num="' + String(p.numero) + '">copiar</button></div><div class="card-cliente">' + (p.cliente || '-') + '</div></div>' + estadoBadge(p.estado) + '</div>';
-        if (p.fecha_entrega) html += '<div class="card-meta"><span>' + p.fecha_entrega + '</span></div>';
-        html += '</div>';
+        // Al tocarla se abre la ficha con todo el material, lo preparado y quién lo ha preparado
+        var pid = JSON.stringify(p).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        var listo = p.zona_preparada || esListo(p.estado);
+        html += '<div class="proyecto-card' + (listo ? ' listo' : '') + '" data-p="' + pid + '">';
+        html += '<div class="card-top"><div style="flex:1"><div class="card-numero-wrap"><span class="card-numero">#' + p.numero + '</span><button class="copy-btn" data-num="' + String(p.numero) + '">copiar</button></div><div class="card-cliente">' + esc(p.cliente || '-') + '</div></div>' + (p.zona_preparada ? '<span class="badge-estado badge-listo">Preparado</span>' : estadoBadge(p.estado)) + '</div>';
+        if (p.fecha_entrega) html += '<div class="card-meta"><span>' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + '</span>' + (p.notas && p.notas.length ? '<span class="notas-chip" title="Notas">💬 ' + p.notas.length + '</span>' : '') + '</div>';
+        html += zonasTexto(p) + quienTexto(p) + '</div>';
       });
     }
     html += '</div>';
   });
   return html;
+}
+
+// ── Quién ha preparado y contenedores (por zona, sql/preparacion_zona.sql) ──
+function buscarProyecto(pid) {
+  var d = datosCache[tabActiva], todos = [];
+  if (!d) return null;
+  (d.orden_periodos || []).forEach(function(per) { var pp = d.por_proyecto[per]; if (pp) todos = todos.concat(pp.confirmado, pp.preparado); });
+  if (d.logistica) todos = todos.concat(d.logistica.lavanderia || [], d.logistica.office || []);
+  return todos.filter(function(p) { return String(p.id) === String(pid); })[0] || null;
+}
+function datosZona(p, zona) { return (p.prep_zona && p.prep_zona[zona]) || { preparadores: [], contenedores: {} }; }
+function preparadoresDe(p, zona) { return datosZona(p, zona).preparadores || []; }
+// Con lo que hay en pantalla (incluido lo que se acaba de marcar): ¿está todo marcado en esa zona?
+function zonaCompletaLocal(pid, zona) {
+  var lineas = (equipmentCache[String(pid)] || []).filter(function(e) { return e.check && e.check.zona === zona; });
+  return lineas.length > 0 && lineas.every(function(e) { return e.check.marcado; });
+}
+function progresoLocal(pid, zona) {
+  var porArt = {};
+  (equipmentCache[String(pid)] || []).forEach(function(e) { if (e.check && e.check.zona === zona) porArt[e.articulo] = e.check.marcado; });
+  var arts = Object.keys(porArt);
+  return { total: arts.length, marcados: arts.filter(function(a) { return porArt[a]; }).length };
+}
+function textoContenedores(cont) {
+  return CONTENEDORES.filter(function(c) { return cont && cont[c.id]; }).map(function(c) { return cont[c.id] + ' ' + c.nombre; }).join(', ');
+}
+// En la ficha: en Lavandería/Office, su zona (editable si la tablet es de esa zona);
+// en Almacén (responsable), un resumen de cada zona que lleva material.
+function htmlPrepZona(p) {
+  var zonas = zonaActual() ? [zonaActual()] : ['lavanderia', 'office'];
+  var h = '';
+  zonas.forEach(function(z) {
+    var pr = progresoLocal(p.id, z);
+    if (!pr.total) return;
+    var completa = pr.marcados === pr.total, dz = datosZona(p, z), nombres = dz.preparadores || [];
+    var editable = zonaActual() === z && puedeMarcar();
+    h += '<div class="prep-bloque">';
+    h += '<div class="fila"><span class="zona-nom">' + TAB_NOMBRES[z] + '</span>' + (completa ? '<span class="zona-chip ok">✓ Preparado</span>' : '<span class="zona-chip' + (pr.marcados ? ' parcial' : '') + '">' + pr.marcados + '/' + pr.total + ' marcados</span>') + '</div>';
+    if (nombres.length) h += '<div class="fila">Preparado por <span class="nombres">' + esc(nombres.join(', ')) + '</span>' + (editable ? ' <button class="btn-sec" data-quien="' + z + '">Cambiar</button>' : '') + '</div>';
+    else if (completa) h += '<div class="fila"><span class="falta">Falta indicar quién lo ha preparado</span>' + (editable ? ' <button class="btn-sec" data-quien="' + z + '">Indicar</button>' : '') + '</div>';
+    if (z === 'office' && CONTENEDORES.length) {
+      var cont = dz.contenedores || {};
+      if (editable) {
+        h += '<div class="fila" style="font-weight:600;">Contenedores</div><div class="cont-lista">';
+        CONTENEDORES.forEach(function(c) {
+          h += '<div class="cont-item"><span>' + esc(c.nombre) + '</span><button data-cont="' + c.id + '" data-delta="-1" aria-label="Quitar ' + esc(c.nombre) + '">−</button><b id="cont-' + c.id + '">' + (cont[c.id] || 0) + '</b><button data-cont="' + c.id + '" data-delta="1" aria-label="Añadir ' + esc(c.nombre) + '">+</button></div>';
+        });
+        h += '</div>';
+      } else if (textoContenedores(cont)) {
+        h += '<div class="fila">Contenedores: ' + esc(textoContenedores(cont)) + '</div>';
+      }
+    }
+    h += '</div>';
+  });
+  return h;
+}
+
+function guardarZona(pid, zona, cambios) {
+  var cuerpo = Object.assign({ proyecto_id: pid, area: zona }, cambios);
+  return fetch('/api/preparacion/zona', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })
+    .then(function(r) { return r.json().then(function(d) { d._ok = r.ok; return d; }); })
+    .then(function(d) {
+      if (!d._ok || d.error) throw new Error(d.error || 'No se ha podido guardar');
+      // Se apunta en todas las copias del proyecto que hay en pantalla
+      [proyectoModal, buscarProyecto(pid)].forEach(function(p) {
+        if (p && String(p.id) === String(pid)) { p.prep_zona = p.prep_zona || {}; p.prep_zona[zona] = d.zona; }
+      });
+      return d.zona;
+    });
+}
+
+// Contenedores de Office: + / − y se guarda al poco de dejar de tocar
+var contTimer = null, contPendiente = null;
+function cambiarContenedor(btn) {
+  var p = proyectoModal;
+  if (!p) return;
+  var id = btn.getAttribute('data-cont'), delta = +btn.getAttribute('data-delta');
+  var dz = datosZona(p, 'office');
+  var cont = Object.assign({}, dz.contenedores || {});
+  cont[id] = Math.max(0, Math.min(999, (cont[id] || 0) + delta));
+  p.prep_zona = p.prep_zona || {};
+  p.prep_zona.office = Object.assign({}, dz, { contenedores: cont });
+  var b = document.getElementById('cont-' + id);
+  if (b) b.textContent = cont[id];
+  contPendiente = { pid: p.id, cont: cont };
+  clearTimeout(contTimer);
+  contTimer = setTimeout(function() {
+    var x = contPendiente; contPendiente = null;
+    guardarZona(x.pid, 'office', { contenedores: x.cont }).then(function() { mostrarToast('Contenedores guardados'); }).catch(function(err) { mostrarToast(err.message); });
+  }, 700);
+}
+
+// Ventana "¿Quién ha preparado?"
+// opciones.uno: elegir solo un nombre ("¿Quién eres?") y llamar a opciones.despues(nombre)
+var quienCtx = null;
+function abrirQuien(p, zona, opciones) {
+  opciones = opciones || {};
+  var elegidos;
+  if (opciones.uno) elegidos = personaProyecto(p, zona) ? [personaProyecto(p, zona)] : [];
+  else {
+    elegidos = preparadoresDe(p, zona).slice();
+    // Si aún no se ha dicho, se proponen los que han ido marcando los artículos
+    if (!elegidos.length) (equipmentCache[String(p.id)] || []).forEach(function(e) {
+      if (e.check && e.check.zona === zona && e.check.marcado && e.check.persona && elegidos.indexOf(e.check.persona) === -1) elegidos.push(e.check.persona);
+    });
+  }
+  var lista = (PERSONAL[zona] || []).slice();
+  elegidos.forEach(function(n) { if (lista.indexOf(n) === -1) lista.push(n); });
+  quienCtx = { pid: p ? p.id : null, zona: zona, lista: lista, elegidos: elegidos, uno: !!opciones.uno, despues: opciones.despues };
+  document.getElementById('quien-titulo').textContent = opciones.uno ? '¿Quién prepara #' + p.numero + ' en ' + TAB_NOMBRES[zona] + '?' : '¿Quién ha preparado #' + p.numero + ' en ' + TAB_NOMBRES[zona] + '?';
+  document.getElementById('quien-sub').textContent = opciones.uno ? 'Toca tu nombre. Se queda guardado en este proyecto hasta que alguien pulse «No soy yo».' : 'Toca los nombres de quienes lo han preparado.';
+  document.getElementById('quien-guardar').textContent = opciones.uno ? 'Soy yo' : 'Guardar';
+  document.getElementById('quien-otro-txt').value = '';
+  pintarQuien();
+  document.getElementById('quien-overlay').classList.add('open');
+}
+function pintarQuien() {
+  var c = quienCtx;
+  document.getElementById('quien-chips').innerHTML = c.lista.map(function(n, i) {
+    return '<button class="quien-chip' + (c.elegidos.indexOf(n) !== -1 ? ' on' : '') + '" data-quien-i="' + i + '">' + esc(n) + '</button>';
+  }).join('') || '<p>No hay nadie en la lista: escribe el nombre abajo.</p>';
+  document.getElementById('quien-guardar').disabled = !c.elegidos.length;
+}
+function cerrarQuien() { quienCtx = null; document.getElementById('quien-overlay').classList.remove('open'); }
+document.getElementById('quien-chips').addEventListener('click', function(e) {
+  var b = e.target.closest('[data-quien-i]');
+  if (!b || !quienCtx) return;
+  var n = quienCtx.lista[+b.getAttribute('data-quien-i')], i = quienCtx.elegidos.indexOf(n);
+  if (quienCtx.uno) quienCtx.elegidos = [n];
+  else if (i === -1) quienCtx.elegidos.push(n); else quienCtx.elegidos.splice(i, 1);
+  pintarQuien();
+});
+document.getElementById('quien-otro-btn').addEventListener('click', function() {
+  var inp = document.getElementById('quien-otro-txt'), n = inp.value.trim().replace(/\s+/g, ' ');
+  if (!n || !quienCtx) return;
+  if (n.split(' ').length < 2) { mostrarToast('Escribe nombre y apellido'); return; }
+  if (quienCtx.lista.indexOf(n) === -1) quienCtx.lista.push(n);
+  if (quienCtx.uno) quienCtx.elegidos = [n];
+  else if (quienCtx.elegidos.indexOf(n) === -1) quienCtx.elegidos.push(n);
+  inp.value = '';
+  pintarQuien();
+});
+document.getElementById('quien-cancelar').addEventListener('click', cerrarQuien);
+document.getElementById('quien-guardar').addEventListener('click', function() {
+  var c = quienCtx, btn = this;
+  if (!c || !c.elegidos.length) return;
+  if (c.uno) { cerrarQuien(); if (c.despues) c.despues(c.elegidos[0]); return; }
+  btn.disabled = true;
+  guardarZona(c.pid, c.zona, { preparadores: c.elegidos }).then(function() {
+    btn.disabled = false;
+    cerrarQuien();
+    mostrarToast('Guardado quién lo ha preparado');
+    if (proyectoModal) abrirModal(proyectoModal); else if (datosCache[tabActiva]) renderizar(datosCache[tabActiva]);
+  }).catch(function(err) { btn.disabled = false; mostrarToast(err.message); });
+});
+
+// Material de la ficha: por zona (en Almacén: Office, Lavandería y el resto) y,
+// dentro, por familia con su avance y quién la ha preparado.
+function htmlMaterial(p, items) {
+  var grupos = {};
+  items.forEach(function(e) {
+    var z = e.check ? e.check.zona : 'otros', fam = e.familia || 'Sin familia';
+    var g = grupos[z] = grupos[z] || {}, f = g[fam] = g[fam] || {};
+    // Un artículo puede venir en varias líneas (subproyectos): una fila por artículo con la suma
+    var a = f[e.articulo] = f[e.articulo] || { articulo: e.articulo, cantidad: 0, check: e.check };
+    a.cantidad += e.cantidad || 0;
+  });
+  var zonas = ['office', 'lavanderia', 'otros'].filter(function(z) { return grupos[z]; });
+  var h = '';
+  zonas.forEach(function(z) {
+    if (zonas.length > 1) h += '<div class="mat-zona">' + (z === 'otros' ? 'Resto del material' : TAB_NOMBRES[z]) + '</div>';
+    Object.keys(grupos[z]).sort(function(a, b) { return a.localeCompare(b, 'es'); }).forEach(function(fam) {
+      var arts = Object.keys(grupos[z][fam]).map(function(k) { return grupos[z][fam][k]; })
+        .sort(function(a, b) { return String(a.articulo || '').localeCompare(String(b.articulo || ''), 'es'); });
+      var conCheck = arts.filter(function(a) { return a.check; });
+      var hechos = conCheck.filter(function(a) { return a.check.marcado; });
+      var nombres = [];
+      hechos.forEach(function(a) { if (a.check.usuario && nombres.indexOf(a.check.usuario) === -1) nombres.push(a.check.usuario); });
+      h += '<div class="fam-bloque"><div class="fam-cab"><span class="fam-nom">' + esc(fam) + '</span>';
+      if (conCheck.length) h += '<span class="zona-chip' + (hechos.length === conCheck.length ? ' ok' : hechos.length ? ' parcial' : '') + '">' + (hechos.length === conCheck.length ? '✓ ' : '') + hechos.length + '/' + conCheck.length + '</span>';
+      h += '</div>';
+      if (nombres.length) h += '<div class="fam-quien">Preparado por ' + esc(nombres.join(', ')) + '</div>';
+      arts.forEach(function(e) {
+        var on = e.check && e.check.marcado;
+        h += '<div class="modal-item' + (on ? ' on' : '') + '">' + botonCheck(p.id, e.articulo, e.check) + '<span class="art-nom">' + esc(e.articulo || '') + textoCheck(e.check) + '</span><span class="art-cant">' + Math.round(e.cantidad * 100) / 100 + '</span></div>';
+      });
+      h += '</div>';
+    });
+  });
+  return h;
 }
 
 function abrirModal(p) {
@@ -700,30 +982,17 @@ function abrirModal(p) {
   if (p.fecha_entrega) html += '<div style="font-size:13px;color:#6b6a64;margin-bottom:8px;">Fecha: ' + p.fecha_entrega + (p.entrega_hora ? ' ' + p.entrega_hora : '') + (p.localizacion ? '  Loc: ' + p.localizacion : '') + '</div>';
   html += p.zona_preparada ? '<span class="badge-estado badge-listo">Preparado</span>' : estadoBadge(p.estado);
   if (zonaActual() && p.zona_total) html += ' <span class="zona-prog' + (p.zona_preparada ? ' ok' : '') + '" style="margin-left:6px;">' + p.zona_marcados + '/' + p.zona_total + ' marcados</span>';
-  if (puedeMarcar()) html += '<div style="font-size:12px;color:#6b6a64;margin-top:8px;">Marca cada artículo cuando esté preparado. Con todo marcado, el proyecto pasa a Preparado.</div>';
+  if (puedeMarcar()) {
+    html += '<div style="font-size:12px;color:#6b6a64;margin-top:8px;">Marca cada artículo cuando esté preparado. Con todo marcado, el proyecto pasa a Preparado.</div>';
+    var yo = personaProyecto(p, tabActiva);
+    html += yo ? '<div class="persona-bar">Preparando este proyecto: <b>' + esc(yo) + '</b><button class="btn-sec" data-persona="1">No soy yo</button></div>'
+      : '<div class="persona-bar falta"><b>¿Quién prepara este proyecto?</b><button class="btn-sec" data-persona="1">Elegir</button></div>';
+  }
+  html += htmlPrepZona(p);
   html += htmlNotas(p);
   var items = equipmentCache[String(p.id)] || [];
   html += '<div class="modal-seccion">Material</div>';
-  if (items.length) {
-    var familias = {};
-    items.forEach(function(e) {
-      var fam = e.familia || 'Sin familia';
-      if (!familias[fam]) familias[fam] = [];
-      familias[fam].push(e);
-    });
-    Object.keys(familias).sort().forEach(function(fam) {
-      html += '<div style="font-size:11px;color:#9a988f;margin:8px 0 4px;font-weight:600;">' + fam + '</div>';
-      // Un artículo puede venir en varias líneas (subproyectos): una fila por artículo con la suma
-      var porArt = {};
-      familias[fam].forEach(function(e) { var a = porArt[e.articulo] = porArt[e.articulo] || { articulo: e.articulo, cantidad: 0, check: e.check }; a.cantidad += e.cantidad || 0; });
-      Object.keys(porArt).forEach(function(k) {
-        var e = porArt[k], on = e.check && e.check.marcado;
-        html += '<div class="modal-item' + (on ? ' on' : '') + '">' + botonCheck(p.id, e.articulo, e.check) + '<span style="flex:1;">' + esc(e.articulo || '') + textoCheck(e.check) + '</span><span style="font-weight:500;">x' + Math.round(e.cantidad * 100) / 100 + '</span></div>';
-      });
-    });
-  } else {
-    html += '<div style="font-size:13px;color:#9a988f;padding:8px 0;">Sin articulos cargados</div>';
-  }
+  html += items.length ? htmlMaterial(p, items) : '<div style="font-size:13px;color:#9a988f;padding:8px 0;">Sin articulos cargados</div>';
   body.innerHTML = html;
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -754,6 +1023,11 @@ document.addEventListener('click', function(e) {
   if (botonNota) { e.stopPropagation(); accionNota(botonNota); return; }
   var chk = e.target.closest('[data-chk]');
   if (chk) { e.stopPropagation(); marcarArticulo(chk); return; }
+  var cont = e.target.closest('[data-cont]');
+  if (cont) { e.stopPropagation(); cambiarContenedor(cont); return; }
+  if (e.target.closest('[data-persona]') && proyectoModal) { e.stopPropagation(); elegirPersona(proyectoModal, tabActiva); return; }
+  var quien = e.target.closest('[data-quien]');
+  if (quien && proyectoModal) { e.stopPropagation(); abrirQuien(proyectoModal, quien.getAttribute('data-quien')); return; }
   var flecha = e.target.closest('[data-dia]');
   if (flecha) { diaElegido = sumarDias(diaElegido, +flecha.getAttribute('data-dia')); renderizar(datosCache[tabActiva]); return; }
   var rapido = e.target.closest('[data-ir]');

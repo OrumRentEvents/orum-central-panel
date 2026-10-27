@@ -65,15 +65,29 @@ Dentro de cada pestaña:
 ### Marcar lo preparado (Lavandería y Office)
 
 1. En la ficha del proyecto, cada artículo de Lavandería u Office tiene su casilla. Se marca cuando ese artículo está preparado; queda apuntado quién y cuándo.
-2. Cuando todos los artículos de la zona están marcados, el proyecto pasa a **preparado** para esa zona.
+2. Cuando todos los artículos de la zona están marcados, el proyecto pasa a **preparado** para esa zona y la tablet pregunta **quién lo ha preparado**. Office apunta también los contenedores (racks, cajas grises pequeñas y grandes, platibox, pallet, carro porta platos).
 3. **Si el comercial cambia la cantidad en Rentman**, la casilla se desmarca sola y sale «antes → ahora» para que se prepare la diferencia. Además llega un aviso de proyecto.
 
 - Cada tablet marca solo su zona; Logística y Dirección pueden marcar las dos.
-- En Almacén, cada proyecto muestra el avance de las zonas, por ejemplo «Lavandería ✓ 1/1 · Office 0/15».
+- En Almacén, cada proyecto muestra el avance de las zonas, por ejemplo «Lavandería ✓ 1/1 · Office 0/15», y quién lo ha preparado.
+- **Almacén → Logística** (pantalla del responsable): al tocar un proyecto se abre su ficha con todo el material, si cada artículo está preparado o no, quién preparó cada zona y los contenedores de Office.
 
 ### Cuándo un proyecto cuenta como listo
 
-Un proyecto está listo cuando su estado en Rentman es Preparado, Controlado, Cargado, Marbella, On location o Returned. **Al terminar de prepararlo, cambia el estado en Rentman.**
+En Almacén, un proyecto pasa a la columna **Preparado** cuando Lavandería y Office (las zonas que lleve) tienen todo marcado. También cuenta como listo si en Rentman está **En curso**, **Ejecución realizada** o **Redondeado**. Los proyectos antiguos con estado Preparado, Controlado, Cargado, Marbella, On location o Returned también cuentan como listos.
+
+### Estados en Rentman, quién los pone
+
+| Paso | Dónde | Quién |
+| --- | --- | --- |
+| Preparado (Lavandería / Office) | ORUM, en la tablet | Cada zona, al marcar todo |
+| Controlado | Rentman, estado de almacén | El responsable de controlar la mercancía |
+| Cargado | Primero en Rutas (casilla «Cargado» de la parada) y después en Rentman | El responsable |
+| En localización y Recogido | Rentman, estado de almacén | Los repartidores, como hasta ahora |
+| Entregado / Recogido en la ruta | App del vehículo | El conductor, al terminar la parada |
+| Retornado y pérdidas de material | Rentman | El responsable |
+
+ORUM no puede leer los estados de almacén de Rentman (Controlado, Cargado…): Rentman no los da por su conexión.
 
 ### Notas de Preparación
 
@@ -107,7 +121,10 @@ La app de Rutas es donde se decide qué vehículo hace cada entrega y recogida, 
 ### Durante el día
 
 - **Estado del material en cada parada:** marca Preparado, Cargado o Incidencia. Una incidencia pide describir qué ha pasado.
-- **Office y Lavandería:** en las entregas con material de esas áreas, se marca que esa parada lleva su parte.
+- **Office y Lavandería:** en las entregas con material de esas áreas, la casilla se pone **verde sola** cuando esa zona lo tiene todo preparado en su tablet. Desde Rutas no se puede cambiar. Si la parada no lleva material de esa zona, la casilla sale clarita.
+- **Cargado:** debajo del estado de cada parada hay una casilla **«Cargado»**. Al marcarla, el estado de la parada pasa a «Cargado». Rentman no lo pasa a ORUM, así que después hay que ponerlo también en Rentman.
+- **Entregado / Recogido:** cuando el conductor marca la parada como hecha en la app del vehículo, el estado de la parada pasa a «Entregado» o «Recogido» (al pasar el ratón se ve la hora y quién la marcó).
+- **Conductores:** en la lista de choferes, cada uno con **nombre y apellido**: con ese nombre firman en la app del vehículo. Si un conductor avisa desde su móvil (por ejemplo, de que el conductor asignado está mal), llega como **incidencia** a los usuarios de Logística.
 - **Avisos de la parada:** «Traspa» = necesita transpalé. «Sin teléfono» = el proyecto no tiene teléfono de la persona de contacto en Rentman: hay que pedírselo al comercial.
 - **Material:** el icono de caja junto al número de proyecto abre su material por familias para comprobar la carga.
 - **Historial:** quién cambió qué y cuándo; se puede filtrar por usuario o acción.

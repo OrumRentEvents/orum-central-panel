@@ -20,10 +20,13 @@ La pantalla se actualiza sola cada minuto. Arriba salen los avisos sin ver.
 
 ### Paso a paso para preparar un proyecto
 
-1. En **Por proyecto** busca el proyecto (por cliente o número) y tócalo para abrir su ficha.
-2. Prepara cada artículo y **marca su casilla** cuando esté listo. Queda apuntado cuándo se marcó.
-3. Cuando todos los artículos están marcados, el proyecto queda **preparado** para tu zona y Logística lo ve al momento.
-4. Si algo falta o hay que avisar de algo, deja una **nota** en la ficha del proyecto (botón de notas). La ven Logística y las demás zonas.
+1. En **Por proyecto** busca el proyecto (por cliente o número) y tócalo para abrir su ficha. El material sale **ordenado por familias**, cada una con su avance (por ejemplo «3/5»).
+2. **Di quién prepara el proyecto:** la primera vez que marques algo en un proyecto, toca tu nombre (nombre y apellido). Se queda guardado **en ese proyecto** («Preparando este proyecto: …»), aunque cierres la ficha o se abra en otra tablet. Cada proyecto tiene su persona: si tú preparas uno y una compañera otro, cada uno sale con su nombre. **Si al abrir un proyecto no eres la persona que sale, pulsa «No soy yo»** y elige tu nombre: lo que marques desde entonces va a tu nombre. Si no estás en la lista, escribe tu nombre y apellido.
+3. Prepara cada artículo y **marca su casilla** cuando esté listo. Queda apuntado quién lo marcó y cuándo.
+4. **Office:** en la ficha, apunta con **+** y **−** los contenedores que metes en el proyecto: racks, cajas grises pequeñas, cajas grises grandes, platibox, pallet y carro porta platos. Se guarda solo.
+5. Cuando todos los artículos están marcados, el proyecto queda **preparado** para tu zona y sale la ventana **«¿Quién ha preparado?»**, con ya marcados quienes han ido marcando artículos: añade o quita nombres y pulsa **Guardar**. Si eliges «Más tarde», la ficha avisa de que falta y se puede indicar con el botón **Indicar**.
+6. Logística lo ve al momento y, en Rutas, la casilla de tu zona se pone verde en esa entrega.
+7. Si algo falta o hay que avisar de algo, deja una **nota** en la ficha del proyecto (botón de notas). La ven Logística y las demás zonas.
 
 - **Por material** suma cada artículo de todos los proyectos del periodo: sirve para sacar de una vez, por ejemplo, todos los manteles de mañana.
 - **Por día** muestra el material de un día concreto; con las flechas se cambia de día.

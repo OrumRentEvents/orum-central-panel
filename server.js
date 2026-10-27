@@ -853,7 +853,7 @@ app.post('/api/fianzas/recargar', requiereLogin, bloquearComercial, async (req, 
 // ================================================================
 
 const ESTADOS_EXCLUIR_NOMBRE = ['pending', 'concept', 'inquiry', 'cancelado', 'canceled'].map(normalizarTexto);
-const ESTADOS_LISTO_NOMBRE = ['returned', 'cargado', 'marbella', 'on location', 'controlado', 'preparado'].map(normalizarTexto);
+const ESTADOS_LISTO_NOMBRE = ['returned', 'cargado', 'marbella', 'on location', 'controlado', 'preparado', 'en curso', 'ejecucion realizada', 'redondeado'].map(normalizarTexto);
 
 function normalizarTexto(str) {
   return (str || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -861,6 +861,96 @@ function normalizarTexto(str) {
 
 const FAMILIAS_LAVANDERIA = ['manteleria'].map(normalizarTexto);
 const FAMILIAS_OFFICE = ['cuberteria', 'cristaleria', 'buffet', 'vajilla', 'catering'].map(normalizarTexto);
+
+// Contenedores que cuenta Office al preparar un proyecto (sql/preparacion_zona.sql)
+const CONTENEDORES_OFFICE = [
+  { id: 'racks', nombre: 'Racks' },
+  { id: 'cajas_pequenas', nombre: 'Cajas grises pequeñas' },
+  { id: 'cajas_grandes', nombre: 'Cajas grises grandes' },
+  { id: 'platibox', nombre: 'Platibox' },
+  { id: 'pallet', nombre: 'Pallet' },
+  { id: 'carro_platos', nombre: 'Carro porta platos' }
+];
+const DEPARTAMENTO_ZONA = { lavanderia: 'Lavandería', office: 'Office' };
+// PostgREST: tabla que todavía no existe (falta ejecutar su SQL)
+const tablaNoExiste = error => error && (error.code === '42P01' || error.code === 'PGRST205');
+
+// Quién ha preparado y contenedores de cada zona, por proyecto: { pid: { office: {...}, lavanderia: {...} } }
+async function leerPreparacionZona() {
+  const { data, error } = await supabase.from('preparacion_zona').select('area,proyecto_id,preparadores,contenedores,preparando,usuario,actualizado_en');
+  if (tablaNoExiste(error)) return {};
+  if (error) throw error;
+  const porProyecto = {};
+  (data || []).forEach(z => {
+    (porProyecto[String(z.proyecto_id)] = porProyecto[String(z.proyecto_id)] || {})[z.area] =
+      { preparadores: z.preparadores || [], contenedores: z.contenedores || {}, preparando: z.preparando || '', usuario: z.usuario, actualizado_en: z.actualizado_en };
+  });
+  return porProyecto;
+}
+
+// Nombre y apellido (pedido 27 oct 2026): "GARCÍA LÓPEZ, ANA MARÍA" → "Ana María García";
+// con completo = true, los dos apellidos ("Ana María García López"), para cuando dos coinciden.
+const PARTICULAS_NOMBRE = ['de', 'del', 'la', 'las', 'los', 'y'];
+const capitalizar = txt => txt.toLowerCase().split(/\s+/).filter(Boolean)
+  .map((w, i) => i > 0 && PARTICULAS_NOMBRE.includes(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+function nombrePersona(nombre, completo) {
+  const partes = String(nombre || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (partes.length !== 2) return capitalizar(partes.join(' '));
+  let apellidos = partes[0].split(/\s+/);
+  if (!completo) {
+    // Primer apellido, con sus partículas ("de la Torre")
+    const fin = apellidos.findIndex(w => !PARTICULAS_NOMBRE.includes(w.toLowerCase()));
+    apellidos = apellidos.slice(0, fin + 1);
+  }
+  return capitalizar(partes[1] + ' ' + apellidos.join(' '));
+}
+
+// Plantilla activa de Lavandería y Office, para elegir quién ha preparado
+async function personalPreparacion() {
+  const { data, error } = await supabase.from('empleados_departamento').select('nombre,departamento,baja_desde').in('departamento', Object.values(DEPARTAMENTO_ZONA));
+  if (error) throw error;
+  const activos = (data || []).filter(e => !e.baja_desde);
+  const corto = {};
+  activos.forEach(e => { const n = nombrePersona(e.nombre); (corto[n] = corto[n] || new Set()).add(e.nombre); });
+  const personal = { lavanderia: [], office: [] };
+  activos.forEach(e => {
+    const zona = Object.keys(DEPARTAMENTO_ZONA).find(z => DEPARTAMENTO_ZONA[z] === e.departamento);
+    let n = nombrePersona(e.nombre);
+    if (corto[n].size > 1) n = nombrePersona(e.nombre, true); // dos personas distintas con el mismo nombre y apellido
+    if (zona && n && !personal[zona].includes(n)) personal[zona].push(n);
+  });
+  Object.values(personal).forEach(l => l.sort((a, b) => a.localeCompare(b, 'es')));
+  return personal;
+}
+
+// Zona de un artículo según su familia (las líneas sin familia de estas zonas no cuentan)
+function zonaDeFamilia(familia) {
+  return familiaPerteneceA(familia, FAMILIAS_LAVANDERIA) ? 'lavanderia' : familiaPerteneceA(familia, FAMILIAS_OFFICE) ? 'office' : null;
+}
+
+// Zonas con todo preparado en cada proyecto: { pid: { office: true/false, lavanderia: true/false } }.
+// Mismo criterio que Preparación: cada artículo marcado con la cantidad que tiene ahora en Rentman.
+async function zonasPreparadas(equipment) {
+  const { data, error } = await supabase.from('preparacion_checks').select('area,proyecto_id,articulo,cantidad');
+  if (error) throw error;
+  const marcado = {};
+  (data || []).forEach(c => { marcado[c.area + '|' + c.proyecto_id + '|' + c.articulo] = Number(c.cantidad); });
+  const cantidad = {};
+  (equipment || []).forEach(e => {
+    const zona = e.familia ? zonaDeFamilia(e.familia) : null;
+    if (!zona) return;
+    const k = zona + '|' + e.proyecto_id + '|' + (e.articulo || '');
+    cantidad[k] = (cantidad[k] || 0) + (parseFloat(e.cantidad) || 0);
+  });
+  const resultado = {};
+  Object.keys(cantidad).forEach(k => {
+    const [zona, pid] = k.split('|');
+    const ok = marcado[k] !== undefined && Math.round(marcado[k] * 100) === Math.round(cantidad[k] * 100);
+    const z = resultado[pid] = resultado[pid] || {};
+    z[zona] = (z[zona] === undefined || z[zona]) && ok;
+  });
+  return resultado;
+}
 
 function familiaPerteneceA(familia, listaNormalizada) {
   const f = normalizarTexto(familia);
@@ -963,7 +1053,7 @@ async function construirRespuestaPreparacion(vista) {
   });
   const checks = {};
   {
-    let q = supabase.from('preparacion_checks').select('area,proyecto_id,articulo,cantidad,usuario,marcado_en');
+    let q = supabase.from('preparacion_checks').select('area,proyecto_id,articulo,cantidad,usuario,preparado_por,marcado_en');
     if (area) q = q.eq('area', area);
     const { data, error } = await q;
     if (error) throw error;
@@ -976,7 +1066,8 @@ async function construirRespuestaPreparacion(vista) {
     if (!c) return { zona, marcado: false };
     const ahora = Math.round((cantidadesArt[k] || 0) * 100) / 100, antes = Math.round(Number(c.cantidad) * 100) / 100;
     if (ahora !== antes) return { zona, marcado: false, cambio: { antes, ahora } };
-    return { zona, marcado: true, usuario: c.usuario, marcado_en: c.marcado_en };
+    // usuario = quién lo marcó: la persona elegida en la tablet (o el usuario, en marcas antiguas)
+    return { zona, marcado: true, usuario: c.preparado_por || c.usuario, persona: c.preparado_por || null, marcado_en: c.marcado_en };
   };
   const progreso = {}; // 'zona|pid' -> { marcados, total }
   Object.keys(cantidadesArt).forEach(k => {
@@ -1004,6 +1095,14 @@ async function construirRespuestaPreparacion(vista) {
     (data || []).forEach(n => { (notasPorProyecto[String(n.proyecto_id)] = notasPorProyecto[String(n.proyecto_id)] || []).push(n); });
   }
 
+  // Quién ha preparado cada zona y contenedores de Office (sql/preparacion_zona.sql)
+  const [prepZona, personal] = await Promise.all([leerPreparacionZona(), personalPreparacion()]);
+  // En Almacén el proyecto pasa a preparado cuando todas sus zonas (Lavandería/Office) tienen todo marcado
+  const zonasListas = pid => {
+    const z = zonasDe(pid), nombres = Object.keys(z);
+    return nombres.length > 0 && nombres.every(n => z[n].total && z[n].marcados === z[n].total);
+  };
+
   const idsProyectosConEquipo = new Set(equipmentFiltrado.map(e => String(e.proyecto_id)));
   const proyectosVista = vista === 'almacen'
     ? proyectosConfirmados
@@ -1018,8 +1117,8 @@ async function construirRespuestaPreparacion(vista) {
     // En Lavandería/Office, "preparado" también cuando su zona tiene todo marcado
     const prog = progresoArea[String(p.id)];
     const zonaLista = !!(prog && prog.total && prog.marcados === prog.total);
-    const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado)) || zonaLista;
-    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: zonaLista, zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0, zonas: area ? undefined : zonasDe(String(p.id)), notas: notasPorProyecto[String(p.id)] || [] };
+    const estaListo = ESTADOS_LISTO_NOMBRE.includes(normalizarTexto(p.estado)) || (area ? zonaLista : zonasListas(String(p.id)));
+    const item = { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, comercial: p.comercial, estado: p.estado, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, es_nuevo_hoy: false, zona_preparada: area ? zonaLista : zonasListas(String(p.id)), zona_marcados: prog ? prog.marcados : 0, zona_total: prog ? prog.total : 0, zonas: area ? undefined : zonasDe(String(p.id)), prep_zona: prepZona[String(p.id)] || {}, notas: notasPorProyecto[String(p.id)] || [] };
     if (estaListo) porProyecto[periodo].preparado.push(item);
     else porProyecto[periodo].confirmado.push(item);
   });
@@ -1085,7 +1184,7 @@ async function construirRespuestaPreparacion(vista) {
     });
   });
 
-  const respuesta = { vista, modo, area, orden_periodos: ordenPeriodos, resumen_periodos: resumenPeriodos, por_proyecto: porProyecto, por_material: porMaterialArray, equipment_detalle: equipmentDetalle, lineas_dia: lineasDia, ultima_actualizacion: proyectosResp.ultima_actualizacion };
+  const respuesta = { vista, modo, area, orden_periodos: ordenPeriodos, resumen_periodos: resumenPeriodos, por_proyecto: porProyecto, por_material: porMaterialArray, equipment_detalle: equipmentDetalle, lineas_dia: lineasDia, contenedores_office: CONTENEDORES_OFFICE, personal, ultima_actualizacion: proyectosResp.ultima_actualizacion };
 
   if (vista === 'almacen') {
     const serviciosResp = await llamarOrumCentral('servicios');
@@ -1117,7 +1216,11 @@ async function construirRespuestaPreparacion(vista) {
       const fechaMs = inicioDelDia(fecha).getTime();
       return fechaMs >= hoyMs && fechaMs <= limite14diasMs;
     });
-    const mapear = p => ({ id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, fecha_entrega: p.entrega_fecha, estado: p.estado });
+    const mapear = p => {
+      const pid = String(p.id), listo = zonasListas(pid);
+      return { id: p.id, subproyecto_id: p.subproyecto_id, numero: p.numero, cliente: p.cliente, fecha_entrega: p.entrega_fecha, entrega_hora: p.entrega_hora, localizacion: p.localizacion, estado: p.estado,
+        zona_preparada: listo, zonas: zonasDe(pid), prep_zona: prepZona[pid] || {}, notas: notasPorProyecto[pid] || [] };
+    };
     respuesta.logistica = {
       lavanderia: proyectosEnVentana.filter(p => idsLavanderia.has(String(p.id))).map(mapear).sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || '')),
       office: proyectosEnVentana.filter(p => idsOffice.has(String(p.id))).map(mapear).sort((a, b) => (a.fecha_entrega || '').localeCompare(b.fecha_entrega || ''))
@@ -1351,6 +1454,8 @@ app.post('/api/preparacion/check', requiereLogin, async (req, res) => {
   try {
     const u = req.session.usuario;
     const { proyecto_id, area, articulo, marcado } = req.body || {};
+    // Nombre de la persona que prepara (las tablets comparten usuario)
+    const persona = String((req.body || {}).persona || '').trim().slice(0, 80) || null;
     if (!['lavanderia', 'office'].includes(area)) return res.status(400).json({ error: 'Zona no válida' });
     const zonaPropia = VISTA_PREPARACION_POR_ROL[u.rol];
     if (!(zonaPropia === area || (!zonaPropia && ['Direccion', 'Logistica'].includes(u.rol)))) return res.status(403).json({ error: 'No puedes marcar artículos de esta zona' });
@@ -1359,7 +1464,8 @@ app.post('/api/preparacion/check', requiereLogin, async (req, res) => {
     if (!marcado) {
       const { error } = await supabase.from('preparacion_checks').delete().eq('area', area).eq('proyecto_id', pid).eq('articulo', articulo);
       if (error) throw error;
-      return res.json({ ok: true, check: { marcado: false } });
+      emitirRutas('preparacion', { proyecto_id: pid });
+      return res.json({ ok: true, check: { zona: area, marcado: false } });
     }
     const familias = area === 'lavanderia' ? FAMILIAS_LAVANDERIA : FAMILIAS_OFFICE;
     const { data, error } = await supabase.from('equipment').select('familia,articulo,cantidad').eq('proyecto_id', pid).eq('articulo', articulo);
@@ -1367,12 +1473,54 @@ app.post('/api/preparacion/check', requiereLogin, async (req, res) => {
     const lineas = (data || []).filter(e => familiaPerteneceA(e.familia, familias));
     if (!lineas.length) return res.status(404).json({ error: 'Ese artículo ya no está en el proyecto: recarga' });
     const cantidad = Math.round(lineas.reduce((t, e) => t + (parseFloat(e.cantidad) || 0), 0) * 100) / 100;
-    const fila = { area, proyecto_id: pid, articulo, cantidad, usuario: u.nombre || u.usuario, marcado_en: new Date().toISOString() };
+    const fila = { area, proyecto_id: pid, articulo, cantidad, usuario: u.nombre || u.usuario, preparado_por: persona, marcado_en: new Date().toISOString() };
     const r = await supabase.from('preparacion_checks').upsert(fila, { onConflict: 'area,proyecto_id,articulo' });
     if (r.error) throw r.error;
-    res.json({ ok: true, check: { marcado: true, usuario: fila.usuario, marcado_en: fila.marcado_en } });
+    // Rutas pinta la casilla de Office/Lavandería según lo preparado aquí
+    emitirRutas('preparacion', { proyecto_id: pid });
+    res.json({ ok: true, check: { zona: area, marcado: true, usuario: persona || fila.usuario, persona, marcado_en: fila.marcado_en } });
   } catch (err) {
     console.error('Error en /api/preparacion/check:', err);
+    res.status(500).json({ error: 'No se ha podido guardar: ' + err.message });
+  }
+});
+
+// Quién ha preparado una zona de un proyecto y, en Office, cuántos contenedores
+// lleva. Mismos permisos que marcar artículos. Se manda solo lo que cambia.
+app.post('/api/preparacion/zona', requiereLogin, async (req, res) => {
+  try {
+    const u = req.session.usuario;
+    const b = req.body || {};
+    const area = b.area;
+    if (!['lavanderia', 'office'].includes(area)) return res.status(400).json({ error: 'Zona no válida' });
+    const zonaPropia = VISTA_PREPARACION_POR_ROL[u.rol];
+    if (!(zonaPropia === area || (!zonaPropia && ['Direccion', 'Logistica'].includes(u.rol)))) return res.status(403).json({ error: 'No puedes cambiar esta zona' });
+    const pid = Number(b.proyecto_id);
+    if (!pid) return res.status(400).json({ error: 'Faltan datos' });
+    const { data: previa, error: e1 } = await supabase.from('preparacion_zona').select('preparadores,contenedores,preparando').eq('area', area).eq('proyecto_id', pid);
+    if (tablaNoExiste(e1)) return res.status(500).json({ error: 'Falta crear la tabla preparacion_zona en Supabase (sql/preparacion_zona.sql)' });
+    if (e1) throw e1;
+    const fila = Object.assign({ preparadores: [], contenedores: {} }, (previa && previa[0]) || {}, { area, proyecto_id: pid, usuario: u.nombre || u.usuario, actualizado_en: new Date().toISOString() });
+    // Quién está preparando este proyecto ahora (se cambia con «No soy yo»)
+    if (typeof b.preparando === 'string') fila.preparando = b.preparando.trim().slice(0, 80) || null;
+    if (Array.isArray(b.preparadores)) {
+      fila.preparadores = [...new Set(b.preparadores.map(n => String(n || '').trim().slice(0, 80)).filter(Boolean))].slice(0, 20);
+    }
+    if (b.contenedores && typeof b.contenedores === 'object' && area === 'office') {
+      const c = Object.assign({}, fila.contenedores);
+      CONTENEDORES_OFFICE.forEach(t => {
+        if (b.contenedores[t.id] === undefined) return;
+        const n = Math.max(0, Math.min(999, parseInt(b.contenedores[t.id], 10) || 0));
+        if (n) c[t.id] = n; else delete c[t.id];
+      });
+      fila.contenedores = c;
+    }
+    const r = await supabase.from('preparacion_zona').upsert(fila, { onConflict: 'area,proyecto_id' });
+    if (r.error) throw r.error;
+    emitirRutas('preparacion', { proyecto_id: pid });
+    res.json({ ok: true, zona: { preparadores: fila.preparadores, contenedores: fila.contenedores, preparando: fila.preparando || '', usuario: fila.usuario, actualizado_en: fila.actualizado_en } });
+  } catch (err) {
+    console.error('Error en /api/preparacion/zona:', err);
     res.status(500).json({ error: 'No se ha podido guardar: ' + err.message });
   }
 });
@@ -1937,7 +2085,11 @@ app.get('/api/rutas/estados-parada', async (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   try {
-    const data = await selectAll('rutas_estados_parada', 'clave,preparado,cargado,incidencia,incidencia_texto,usuario');
+    // completado* = el conductor dio la parada por hecha (sql/preparacion_zona.sql). Hasta
+    // que se ejecute ese SQL las columnas no existen: se leen las de siempre.
+    let data;
+    try { data = await selectAll('rutas_estados_parada', 'clave,preparado,cargado,incidencia,incidencia_texto,usuario,completado,completado_en,completado_por'); }
+    catch (e) { data = await selectAll('rutas_estados_parada', 'clave,preparado,cargado,incidencia,incidencia_texto,usuario'); }
     res.json({ ok: true, estados: data });
   } catch (err) {
     console.error('Error en GET /api/rutas/estados-parada:', err);
@@ -2128,6 +2280,9 @@ app.get('/api/rutas/estado-pago', async (req, res) => {
     const equipmentConFamilia = (equipmentResp.data || []).filter(e => e.familia);
     const idsLavanderia = new Set(equipmentConFamilia.filter(e => familiaPerteneceA(e.familia, FAMILIAS_LAVANDERIA)).map(e => String(e.proyecto_id)));
     const idsOffice = new Set(equipmentConFamilia.filter(e => familiaPerteneceA(e.familia, FAMILIAS_OFFICE)).map(e => String(e.proyecto_id)));
+    // Las casillas de Office / Lavandería de Rutas se ponen verdes solas cuando
+    // esa zona tiene todo marcado en Preparación (ya no se marcan a mano).
+    const preparadas = await zonasPreparadas(equipmentConFamilia);
     const proyectos = (proyectosResp.data || []).filter(p => p.cancelado !== 'SI');
     const facturas = facturasResp.data || [];
     const ncConfirmaciones = cajaResp.nc_confirmaciones || [];
@@ -2184,6 +2339,7 @@ app.get('/api/rutas/estado-pago', async (req, res) => {
       const serviciosExtra = serviciosPorProyectoId[String(p.id)] || [];
       resultado[String(p.id)] = { estado_pago: estadoPago, detalle_pago: detallePago, servicios_extra: serviciosExtra, comercial: p.comercial || '',
         tiene_lavanderia: idsLavanderia.has(String(p.id)), tiene_office: idsOffice.has(String(p.id)),
+        prep_lavanderia: !!(preparadas[String(p.id)] || {}).lavanderia, prep_office: !!(preparadas[String(p.id)] || {}).office,
         // Teléfono para la ruta: solo el de la persona de contacto del proyecto. Si no lo tiene no se
         // enseña ninguno (a propósito no se usa el general del cliente): así se ve que falta y se le
         // reclama al comercial que lo pida.
@@ -4814,7 +4970,7 @@ const emailFianzas = require('./lib/emailFianzas').crearEmailFianzas({
 emailFianzas.registrarRutas(app, requiereLogin);
 
 // App del conductor: ruta de hoy de cada vehículo, sin importes — ver lib/rutasConductor.js
-require('./lib/rutasConductor').registrar(app, { requiereLogin, bloquearComercial });
+require('./lib/rutasConductor').registrar(app, { requiereLogin, bloquearComercial, emitirRutas, logHistorialRutas });
 
 // Sincronización directa Rentman → Supabase (ver lib/rentmanSync.js). Tras cada
 // proyecto sincronizado se vacía la caché de datos y se avisa a las pantallas de Rutas.

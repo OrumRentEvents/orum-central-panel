@@ -1,6 +1,6 @@
 # Manual de Conductores
 
-Los conductores no tienen que entrar en ninguna aplicación: la ruta del día llega por WhatsApp, preparada por Logística en la app de Rutas. Este manual es para los conductores de ORUM, fijos y eventuales, y para Logística, que es quien les explica el funcionamiento.
+La ruta del día llega por WhatsApp, preparada por Logística en la app de Rutas. Además, cada vehículo tiene en su móvil la **app de la ruta de hoy**, donde el conductor marca cada parada como hecha. Este manual es para los conductores de ORUM, fijos y eventuales, y para Logística, que es quien les explica el funcionamiento.
 
 - **Logística monta la ruta** en la app de Rutas: qué vehículo, qué vuelta, en qué orden, quién va y quién conduce. También marca allí el material preparado, cargado o con incidencia.
 - **El conductor recibe la ruta** por WhatsApp, con todas las paradas, direcciones, mapa y teléfono de contacto.
@@ -8,12 +8,20 @@ Los conductores no tienen que entrar en ninguna aplicación: la ruta del día ll
 
 Por eso es importante avisar a Logística de cualquier cambio: si conduce otra persona, si se cambia de vehículo o si una parada no se hace.
 
+## La app del vehículo
+
+- Arriba sale **tu nombre**: es el conductor que Logística ha puesto en la ruta de hoy.
+- Si vais **dos o más** en el vehículo, la app pregunta **quién lleva el móvil**: toca tu nombre. Se queda puesto hasta el día siguiente; con «Cambiar» se cambia.
+- **Si el nombre está mal** (no eres tú, falta alguien o no hay nadie asignado), pulsa **«⚠ Avisar»**, escribe qué pasa y envíalo: llega como incidencia a Logística.
+
 ## Un día de ruta, paso a paso
 
 1. **Antes de salir:** lee la ruta que te han mandado por WhatsApp. Comprueba el vehículo, la vuelta y si pone «LLEVAR TRASPA».
 2. **En la carga:** comprueba con almacén que el material de cada parada está cargado. Si falta algo, díselo a Logística antes de salir.
 3. **En ruta:** sigue el orden de las paradas. Usa el enlace del mapa para llegar y el teléfono de contacto si hace falta.
-4. **En cada parada:** entrega o recoge todo el material de la parada y avisa de cualquier problema (ver abajo).
+4. **En cada parada:** entrega o recoge todo el material de la parada y avisa de cualquier problema (ver abajo). Al terminar:
+   - en **Rentman**, pon el estado de almacén como siempre: **En localización** al entregar y **Recogido** al recoger;
+   - en la **app del vehículo**, pulsa **«Entrega completada»** o **«Recogida completada»**. En Rutas la parada pasa a Entregado o Recogido. Si te equivocas, pulsa «Deshacer».
 5. **Al repostar:** guarda el ticket y di a Logística los kilómetros y los litros, que se apuntan en la app (Repostaje).
 6. **Al volver a la nave:** cuenta a Logística cualquier incidencia (material roto o que falta, cliente ausente, recogida incompleta, problema con el vehículo).
 7. **Si haces horas extra, domingo, festivo o nocturno:** díselo a tu responsable para que lo registre.

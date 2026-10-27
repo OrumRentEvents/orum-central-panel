@@ -131,6 +131,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .td-area{text-align:center;}
 .td-area input[type=checkbox]{width:16px;height:16px;cursor:pointer;vertical-align:middle;accent-color:#1D9E75;}
 .td-area input[type=checkbox]:disabled{cursor:default;opacity:.35;}
+/* Office / Lavanderia con material: se ve fuerte (verde si esta preparado), sin poder tocarla */
+.td-area input.area-auto:disabled{opacity:1;}
+.be-hecho{background:#0A6640;color:#fff;}
+.be-carg{background:#FFF3E0;color:#8B4513;}
+.carg-rapido{display:flex;align-items:center;gap:4px;font-size:10px;color:#6b6a64;margin-top:4px;cursor:pointer;white-space:nowrap;}
+.carg-rapido input{width:15px;height:15px;margin:0;accent-color:#8B4513;cursor:pointer;}
 
 /* TABLA — columnas con ancho fijo para que no se muevan */
 .tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:0 0 8px 8px;border:.5px solid #ddddd8;overflow:hidden;table-layout:fixed;}
@@ -404,7 +410,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     </div>
     <div id="lista-choferes-editable" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;max-height:50vh;overflow-y:auto;"></div>
     <div style="display:flex;gap:8px;">
-      <input type="text" id="nuevo-chofer-input" placeholder="Nombre nuevo chofer..." style="flex:1;padding:8px 12px;font-size:13px;border:.5px solid #e2e2de;border-radius:8px;">
+      <input type="text" id="nuevo-chofer-input" placeholder="Nombre y apellido del nuevo chofer..." style="flex:1;padding:8px 12px;font-size:13px;border:.5px solid #e2e2de;border-radius:8px;">
       <button onclick="agregarChofer()" style="padding:8px 14px;font-size:13px;background:#1a1a18;color:#fff;border:none;border-radius:8px;cursor:pointer;">Añadir</button>
     </div>
     <button onclick="guardarListaChoferes()" style="width:100%;padding:10px;font-size:13px;font-weight:500;background:#1D9E75;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-top:12px;">Guardar lista</button>
@@ -500,7 +506,6 @@ var estadosVehiculo={}; // clave: "fecha_vehiculo_vuelta" → 'EN RUTA' | 'FINAL
 // Estado de cada parada: preparado / cargado / incidencia
 var estadosParada={}; // clave: p.clave (o "manual_<id>") → {preparado,cargado,incidencia,incidencia_texto}
 // Parada asignada a Office / Lavanderia — solo editable por rol logistica
-var checksArea={}; // clave: p.clave (o "manual_<id>") → {office,lavanderia}
 // Paradas que necesitan transpale. Clave sin fecha: "<proyecto_id>_ENTREGA" / "<proyecto_id>_RECOGIDA",
 // o la de la parada manual. Ver claveTranspale().
 var transpales={}; // clave → {transpale,auto}
@@ -637,7 +642,6 @@ function load(silencioso){
   var urlEstadoVeh='/api/rutas/estado-vehiculos?desde='+r.desde+'&hasta='+r.hasta+'&token=ORUMx2026RutasPublic&t='+Date.now();
   var urlEstadosParada='/api/rutas/estados-parada?token=ORUMx2026RutasPublic&t='+Date.now();
   var urlEstadoPago='/api/rutas/estado-pago?token=ORUMx2026RutasPublic&t='+Date.now();
-  var urlChecksArea='/api/rutas/checks-area?token=ORUMx2026RutasPublic&t='+Date.now();
   var urlTranspale='/api/rutas/transpale?token=ORUMx2026RutasPublic&t='+Date.now();
 
   Promise.all([
@@ -646,7 +650,6 @@ function load(silencioso){
     fetch(urlEstadoVeh).then(function(res){return res.json();}).catch(function(){return{};}),
     fetch(urlEstadosParada).then(function(res){return res.json();}).catch(function(){return{};}),
     fetch(urlEstadoPago).then(function(res){return res.json();}).catch(function(){return{};}),
-    fetch(urlChecksArea).then(function(res){return res.json();}).catch(function(){return{};}),
     fetch(urlTranspale).then(function(res){return res.json();}).catch(function(){return{};})
   ]).then(function(resultados){
     var data=resultados[0];
@@ -654,8 +657,7 @@ function load(silencioso){
     var dataEstadoVeh=resultados[2];
     var dataEstadosParada=resultados[3];
     var dataEstadoPago=resultados[4];
-    var dataChecksArea=resultados[5]||{};
-    var dataTranspale=resultados[6]||{};
+    var dataTranspale=resultados[5]||{};
 
     if(silencioso){
       // Datos pedidos antes de un cambio propio, o el usuario esta ocupado: no se aplican (se reintenta)
@@ -691,20 +693,12 @@ function load(silencioso){
     if(!silencioso||dataEstadosParada.estados){
       estadosParada={};
       (dataEstadosParada.estados||[]).forEach(function(a){
-        estadosParada[a.clave]={preparado:!!a.preparado,cargado:!!a.cargado,incidencia:!!a.incidencia,incidencia_texto:a.incidencia_texto||''};
+        estadosParada[a.clave]={preparado:!!a.preparado,cargado:!!a.cargado,incidencia:!!a.incidencia,incidencia_texto:a.incidencia_texto||'',completado:!!a.completado,completado_en:a.completado_en||null,completado_por:a.completado_por||''};
       });
     }
 
     // Cargar estado de pago + servicios extra por proyecto
     if(!silencioso||dataEstadoPago.estado_pago) estadoPago=dataEstadoPago.estado_pago||{};
-
-    // Cargar casillas Office / Lavanderia
-    if(!silencioso||dataChecksArea.checks){
-      checksArea={};
-      (dataChecksArea.checks||[]).forEach(function(a){
-        checksArea[a.clave]={office:!!a.office,lavanderia:!!a.lavanderia};
-      });
-    }
 
     // Cargar marcas de transpale
     if(!silencioso||dataTranspale.transpale){
@@ -741,7 +735,7 @@ var COMPROBACION_SILENCIOSA_MS=60*1000; // cambios que vienen de Rentman (no pas
 
 // Huella de todo lo que pinta render(): sirve para saber si una recarga silenciosa trae algo distinto
 function firmaDatos(){
-  return JSON.stringify([paradas,VEHS,asignacionesConductores,conductorPrincipal,estadosVehiculo,estadosParada,estadoPago,checksArea,transpales]);
+  return JSON.stringify([paradas,VEHS,asignacionesConductores,conductorPrincipal,estadosVehiculo,estadosParada,estadoPago,transpales]);
 }
 
 // Todos los guardados de Rutas pasan por aqui: se cuentan y llevan el id de esta pantalla,
@@ -787,11 +781,15 @@ function recibirEventoRutas(ev){
   if(m.tipo==='estado_vehiculo'){estadosVehiculo[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.estado||'';}
   else if(m.tipo==='conductores'){asignacionesConductores[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.conductores||[];conductorPrincipal[d.fecha+'_'+d.vehiculo+'_'+d.vuelta]=d.conductor||null;}
   else if(m.tipo==='choferes'){if(d.choferes&&d.choferes.length>0)CHOFERES=d.choferes;return;}
-  else if(m.tipo==='estado_parada'){estadosParada[d.clave]={preparado:!!d.preparado,cargado:!!d.cargado,incidencia:!!d.incidencia,incidencia_texto:d.incidencia_texto||''};}
-  else if(m.tipo==='check_area'){
-    if(!checksArea[d.clave])checksArea[d.clave]={office:false,lavanderia:false};
-    checksArea[d.clave][d.campo]=!!d.valor;
+  else if(m.tipo==='estado_parada'){
+    // Este aviso no trae lo del conductor (completado): se conserva lo que habia
+    estadosParada[d.clave]=Object.assign({},estadosParada[d.clave]||{},{preparado:!!d.preparado,cargado:!!d.cargado,incidencia:!!d.incidencia,incidencia_texto:d.incidencia_texto||''});
   }
+  else if(m.tipo==='parada_completada'){
+    estadosParada[d.clave]=Object.assign({},estadosParada[d.clave]||{},{completado:!!d.completado,completado_en:d.completado_en||null,completado_por:d.completado_por||''});
+  }
+  // Office / Lavanderia han marcado algo en Preparacion: cambian las casillas verdes
+  else if(m.tipo==='preparacion'){programarRecargaSilenciosa();return;}
   else if(m.tipo==='transpale'){(d.filas||[]).forEach(function(f){transpales[f.clave]={transpale:!!f.transpale,auto:!!f.auto};});}
   else if(m.tipo==='paradas'){programarRecargaSilenciosa();return;}
   else return;
@@ -1173,7 +1171,7 @@ function renderFila(idx,gkey){
   var tipo=(p.tipo||'OTRO').toLowerCase();
   var bc=p.es_manual?'b-manual':('b-'+tipo);
   var bt=p.tipo||'OTRO';
-  var esOk=['returned','cargado','marbella','on location','controlado','preparado'].some(function(x){return(p.estado||'').toLowerCase().indexOf(x)!==-1;});
+  var esOk=['returned','cargado','marbella','on location','controlado','preparado','en curso','ejecucion realizada','redondeado'].some(function(x){return(p.estado||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().indexOf(x)!==-1;});
   var estH=p.estado?('<span class="be '+(esOk?'be-ok':'be-cf')+'">'+p.estado+'</span>'):'';
   var mapsH=p.google_maps_url?('<a href="'+p.google_maps_url+'" target="_blank" class="a-maps">Maps</a>'):'';
   // CAMBIO 6: solo fecha, sin hora
@@ -1195,6 +1193,14 @@ function renderFila(idx,gkey){
   // Estado de la parada: preparado / cargado / incidencia
   var claveEst=claveParada(p);
   var estParada=estadosParada[claveEst]||{preparado:false,cargado:false,incidencia:false,incidencia_texto:''};
+  // Cargado lo marca el responsable aqui (Rentman no lo pasa); luego lo pone en Rentman
+  if(estParada.cargado&&!estParada.completado)estH='<span class="be be-carg">Cargado</span>';
+  // El conductor dio la parada por hecha desde su app: el estado pasa a Entregado / Recogido
+  if(estParada.completado){
+    var hechoTxt=tipo==='entrega'?'Entregado':(tipo==='recogida'?'Recogido':'Completada');
+    var hechoHora=estParada.completado_en?new Date(estParada.completado_en).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'';
+    estH='<span class="be be-hecho" title="'+hechoTxt+(hechoHora?' a las '+hechoHora:'')+(estParada.completado_por?' · '+String(estParada.completado_por).replace(/"/g,'&quot;'):'')+'">'+hechoTxt+'</span>';
+  }
   var tituloChk=[];
   if(estParada.preparado)tituloChk.push('Preparado');
   if(estParada.cargado)tituloChk.push('Cargado');
@@ -1221,15 +1227,16 @@ function renderFila(idx,gkey){
   // Iniciales del comercial que ha hecho el proyecto
   var iniCom=epInfo?inicialesComercial(epInfo.comercial):'';
   var comH=iniCom?('<span class="com-ini" title="Comercial: '+String(epInfo.comercial).replace(/"/g,'&quot;')+'">'+iniCom+'</span>'):'';
-  // Casillas Office / Lavanderia: solo en ENTREGAS, y solo se pueden marcar si el
-  // proyecto lleva material de esa area (si no, salen deshabilitadas). Se guardan
-  // al marcar; solo logistica puede cambiarlas.
-  var areaPar=checksArea[claveEst]||{office:false,lavanderia:false};
+  // Casillas Office / Lavanderia: solo en ENTREGAS. Se ponen verdes solas cuando esa
+  // zona tiene todo marcado en Preparacion; desde Rutas no se tocan. Sin material
+  // de esa zona salen claritas, como siempre.
   var areaChk=function(campo){
     if(tipo!=='entrega')return'';
+    var nombre=campo==='office'?'Office':'Lavanderia';
     var tieneMaterial=!!(epInfo&&epInfo['tiene_'+campo]);
-    var tit=tieneMaterial?'':' title="Sin material de '+(campo==='office'?'Office':'Lavanderia')+'"';
-    return '<input type="checkbox"'+(areaPar[campo]?' checked':'')+tit+(ROL==='logistica'&&tieneMaterial?' onchange="toggleCheckArea(this,'+idx+',\''+campo+'\')"':' disabled')+'>';
+    var listo=tieneMaterial&&!!epInfo['prep_'+campo];
+    var tit=!tieneMaterial?'Sin material de '+nombre:(listo?nombre+': todo preparado':nombre+': pendiente de preparar');
+    return '<input type="checkbox" disabled'+(listo?' checked':'')+(tieneMaterial?' class="area-auto"':'')+' title="'+tit+'">';
   };
   // Telefono de la persona de contacto del proyecto. Si no tiene, no se muestra ninguno (asi se ve que falta)
   var telH='';
@@ -1242,7 +1249,8 @@ function renderFila(idx,gkey){
   }
   html+='<td class="td-cli"><div class="cli-wrap">'+comH+'<div class="cli-datos"><div class="cli-nom">'+(p.cliente||'—')+'</div>'+(p.subproyectos?'<span class="sub-tag" title="Este proyecto tiene varias fechas: esta parada es la de estos subproyectos">'+String(p.subproyectos).replace(/</g,'&lt;')+'</span>':'')+telH+'</div></div></td>';
   html+='<td class="td-loc"><div class="loc-nom">'+(p.localizacion||'—')+mapsH+'</div>'+etiquetaZona(p)+'</td>';
-  html+='<td class="td-est">'+estH+'</td>';
+  var cargH=ROL==='logistica'&&!estParada.completado?'<label class="carg-rapido" onclick="event.stopPropagation()"><input type="checkbox"'+(estParada.cargado?' checked':'')+' onchange="toggleCargado(this,'+idx+')"> Cargado</label>':'';
+  html+='<td class="td-est">'+estH+cargH+'</td>';
   html+='<td class="td-chk">'+chkHtml+'</td>';
   html+='<td class="td-area td-off">'+areaChk('office')+'</td>';
   html+='<td class="td-area td-lav">'+areaChk('lavanderia')+'</td>';
@@ -1638,7 +1646,8 @@ function guardarDetalle(btn){
     paradas[idx].conductor=conductor;
     paradas[idx].notas=notas;
     paradas[idx].vuelta=vuelta;
-    if(estadoParadaBody) estadosParada[claveEst]=estadoParadaBody;
+    // Se conserva lo que marco el conductor (completado), que no va en este guardado
+    if(estadoParadaBody) estadosParada[claveEst]=Object.assign({},estadosParada[claveEst]||{},estadoParadaBody);
     btn.textContent='Guardado';btn.classList.add('ok');
     var msg=document.getElementById('msg-'+key);if(msg)msg.textContent='Guardado';
     toast('Guardado');
@@ -1832,8 +1841,10 @@ function cerrarModalGestionChoferes(){
 
 function agregarChofer(){
   var input=document.getElementById('nuevo-chofer-input');
-  var nombre=input.value.trim();
+  var nombre=input.value.trim().replace(/\s+/g,' ');
   if(!nombre)return;
+  // Siempre nombre y apellido: con ese nombre firma el conductor en la app del vehiculo
+  if(nombre.split(' ').length<2){toast('Escribe nombre y apellido');return;}
   if(CHOFERES.indexOf(nombre)!==-1){toast('Ya existe en la lista');return;}
   CHOFERES.push(nombre);
   input.value='';
@@ -1973,22 +1984,25 @@ function toggleTranspale(chk, idx){
   }).catch(revertir);
 }
 
-// ── CASILLAS OFFICE / LAVANDERIA — se guardan al marcar, solo rol logistica ──
-function toggleCheckArea(chk, idx, campo){
+// ── CARGADO desde la fila (responsable de logistica). Rentman no lo pasa: despues se pone alli ──
+function toggleCargado(chk, idx){
   if(ROL!=='logistica'){chk.checked=!chk.checked;return;}
   var clave=claveParada(paradas[idx]);
-  var valor=chk.checked;
-  if(!checksArea[clave])checksArea[clave]={office:false,lavanderia:false};
-  checksArea[clave][campo]=valor;
-  var revertir=function(){checksArea[clave][campo]=!valor;chk.checked=!valor;toast('Error al guardar');};
-  fetch('/api/rutas/checks-area',{
+  var antes=Object.assign({preparado:false,cargado:false,incidencia:false,incidencia_texto:''},estadosParada[clave]||{});
+  var nuevo=Object.assign({},antes,{cargado:chk.checked});
+  estadosParada[clave]=nuevo;
+  postsEnCurso++;
+  var fallo=function(){estadosParada[clave]=antes;toast('Error al guardar');render();};
+  fetch('/api/rutas/estados-parada',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token:'ORUMx2026RutasPublic',clave:clave,campo:campo,valor:valor,usuario:NOMBRE_USUARIO})
+    body:JSON.stringify({token:'ORUMx2026RutasPublic',usuario:NOMBRE_USUARIO,cid:CLIENTE_ID,clave:clave,preparado:nuevo.preparado,cargado:nuevo.cargado,incidencia:nuevo.incidencia,incidencia_texto:nuevo.incidencia_texto})
   }).then(function(r){return r.json();}).then(function(d){
-    if(!d||d.error){revertir();return;}
-    toast((campo==='office'?'Office':'Lavanderia')+(valor?' asignado':' sin asignar'));
-  }).catch(revertir);
+    postsEnCurso--;
+    if(!d||d.error){fallo();return;}
+    toast(nuevo.cargado?'Marcado como cargado':'Quitado cargado');
+    render();
+  }).catch(function(){postsEnCurso--;fallo();});
 }
 
 function enviarWhatsApp(gkey){
@@ -2160,6 +2174,7 @@ var ACCION_LABELS_HIST={
   set_estado_vehiculo:{label:'Estado de ruta',color:'#0A6640',bg:'#D6F5E3'},
   set_estado_parada:{label:'Estado de parada',color:'#0A6640',bg:'#D6F5E3'},
   set_check_area:{label:'Office / Lavandería',color:'#185FA5',bg:'#E6F1FB'},
+  completar_parada:{label:'Parada completada (conductor)',color:'#0A6640',bg:'#D6F5E3'},
   set_transpale:{label:'Traspa',color:'#5C4400',bg:'#FFE36E'},
   add_manual:{label:'Parada manual añadida',color:'#3C3489',bg:'#EEEDFE'},
   update_manual:{label:'Parada manual editada',color:'#8B4A00',bg:'#FDEBD0'},
