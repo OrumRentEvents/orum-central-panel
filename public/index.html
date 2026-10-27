@@ -372,7 +372,6 @@ function mostrarApp() {
   document.getElementById('sidebar-role-badge').textContent = (ETIQUETA_ROL[usuarioActual.rol] || usuarioActual.rol) + (usuarioActual.solo_lectura ? ' · Solo consulta' : '');
   construirMenu();
   cargarMisAccesos();
-  if (window.avisoActividad) avisoActividad();
   if (usuarioActual.rol !== 'Comercial' && typeof actualizarContadorVehiculos === 'function') actualizarContadorVehiculos();
   if (['Direccion', 'Logistica', 'Contabilidad'].includes(usuarioActual.rol)) { actualizarContadorRecuperacion(); setInterval(actualizarContadorRecuperacion, 5 * 60 * 1000); }
   if (ROLES_INCIDENCIAS.includes(usuarioActual.rol)) { actualizarContadorIncidencias(); setInterval(actualizarContadorIncidencias, 5 * 60 * 1000); }

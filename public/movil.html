@@ -431,7 +431,7 @@ function entrar(u) {
   if (ROLES_TABLET.indexOf(u.rol) !== -1) { location.replace(PANTALLA_ROL[u.rol]); return; }
   mostrar('app');
   irInicio();
-  if (window.registrarVista) { registrarVista('pantalla', 'App · Inicio'); avisoActividad(); }
+  if (window.registrarVista) registrarVista('pantalla', 'App · Inicio');
   fetch('/api/mis-accesos').then(function (r) { return r.json(); }).then(function (d) {
     MIS_BOTONES = (d.accesos && d.accesos.movil) || null;
     CONOCIDOS = (d.accesos && d.accesos.movil_conocidos) || null;
