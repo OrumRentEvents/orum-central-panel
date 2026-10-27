@@ -810,6 +810,13 @@ function entrarConSesion(u) {
   document.getElementById('btn-salir').style.display = tablet && !EMBEBIDO ? '' : 'none';
   // Botón Chat (public/chat-boton.js): solo si el usuario tiene algún chat
   if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.app-header-top'), { antesDe: document.getElementById('btn-salir'), enPanel: true });
+  // Botón «?» de la Ayuda (en el panel ya está en el menú)
+  if (!EMBEBIDO) {
+    var ayuda = document.createElement('button');
+    ayuda.className = 'btn-recargar'; ayuda.textContent = '?'; ayuda.title = 'Ayuda'; ayuda.style.marginRight = '8px';
+    ayuda.onclick = function () { location.href = '/ayuda?pantalla=' + encodeURIComponent('Preparación ' + (TAB_NOMBRES[tabActiva] || '')) + '&volver=' + encodeURIComponent('/preparacion'); };
+    document.querySelector('.app-header-top').insertBefore(ayuda, document.getElementById('btn-recargar'));
+  }
   // Botón "⚠ Incidencia" en la ficha de cada proyecto (no para las tablets)
   if (window.prepararIncidencias) prepararIncidencias();
   // Avisos de cambios en proyectos con el botón «Visto» (public/avisos-banda.js)

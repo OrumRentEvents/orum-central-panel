@@ -120,6 +120,13 @@ function arrancar(u) {
   document.getElementById('btn-salir').style.display = soloMant && !EMBEBIDO ? '' : 'none';
   // Botón Chat (public/chat-boton.js): solo si el usuario tiene algún chat
   if (window.ponerBotonChat) ponerBotonChat(document.querySelector('.cab-top'), { antesDe: document.getElementById('btn-salir') });
+  // Botón «?» de la Ayuda (en el panel ya está en el menú)
+  if (!EMBEBIDO) {
+    var ayuda = document.createElement('button');
+    ayuda.textContent = '?'; ayuda.title = 'Ayuda';
+    ayuda.onclick = function () { location.href = '/ayuda?pantalla=Mantenimiento&volver=' + encodeURIComponent('/mantenimiento'); };
+    document.querySelector('.cab-top').insertBefore(ayuda, document.getElementById('btn-recargar'));
+  }
   // Botón "⚠" en cada salida para registrar una incidencia de ese proyecto
   if (window.prepararIncidencias) prepararIncidencias(function (ok) { if (ok) pintar(); });
   // Avisos de cambios en proyectos con el botón «Visto» (public/avisos-banda.js)

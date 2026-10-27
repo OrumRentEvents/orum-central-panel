@@ -4830,6 +4830,11 @@ function areasDeLinea(familia, articulo) {
   return areas;
 }
 const avisosProyecto = require('./lib/avisosProyecto').registrar(app, { supabase, requiereLogin, areasDeLinea, chat: chatModulo });
+// Ayuda: manuales de la carpeta ayuda/ y chat que contesta con ellos — lib/ayuda.js
+require('./lib/ayuda').registrar(app, { supabase, requiereLogin });
+app.get('/ayuda', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'ayuda.html'));
+});
 app.get('/actividad', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'actividad.html'));
 });
