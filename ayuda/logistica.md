@@ -2,7 +2,7 @@
 
 Logística y almacén trabajan desde ORUM Central: preparación del material, rutas, mantenimiento, vehículos, extras, incidencias y material recuperado. Rentman sigue siendo el origen: proyectos, fechas, direcciones y material se cambian allí y ORUM Central los copia solo en segundos.
 
-Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación y Registrar extras), Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat. Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Registrar extras, Servicios Isabella y Repostaje.
+Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación, Registrar extras y Bolsa de horas), Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat. Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Registrar extras, Servicios Isabella y Repostaje.
 
 ## Rutina de trabajo
 
@@ -178,6 +178,17 @@ Los responsables apuntan aquí los extras de su equipo, el mismo día o al termi
 | Plus / Descuento | Importe libre | — |
 
 Cuando alguien disfruta un día de descanso, apúntalo como «Descanso disfrutado» para que su saldo de días esté al día.
+
+## Bolsa de horas
+
+En Logística → Bolsa de horas llevas lo que se debe a cada trabajador, o lo que debe él. No genera pagos ni necesita aprobación: lo que se paga en nómina se apunta en Registrar extras, no aquí. No apuntes lo mismo en los dos sitios.
+
+- **Horas:** «+ Sumar horas» cuando se le deben y «− Quitar horas» cuando se le compensan o se le pagan. Se pueden escribir como 1,5, 1:30 o 1h30. La ficha indica «Le debes», «Te debe» o «Al día».
+- **Días de festivo:** «+ Día de festivo» por cada festivo trabajado. Cuando lo coja, márcalo como «Disfrutado» en Historial y ajustes.
+- **Días de descanso:** «± Días de descanso» suma o resta, con medios días si hace falta.
+- **Vacaciones:** se apuntan con fecha de inicio y de fin, y se cuentan en días naturales.
+- **Historial y ajustes:** muestra cada apunte y quién lo hizo. Si te equivocas, pulsa «Anular»: deja de contar, pero queda en el historial.
+- **Añadir empleado:** solo para quien no está en nómina. El resto de la plantilla sale de Personal.
 
 ## Vehículos
 

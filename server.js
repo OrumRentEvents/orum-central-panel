@@ -203,6 +203,8 @@ const { ROLES_SOLO_MOVIL } = require('./lib/usuariosAdmin');
 require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
 // Chat por departamento (Office, Lavandería, Mantenimiento) — lib/chat.js
 const chatModulo = require('./lib/chat').registrar(app, { supabase, requiereLogin });
+// Bolsa de horas: horas, festivos, descansos y vacaciones de la plantilla — lib/bolsa.js
+require('./lib/bolsa').registrar(app, { supabase, requiereLogin, trabajadoresParaExtras: () => trabajadoresParaExtras() });
 // Incidencias: crear, asignar y seguir hasta cerrarla — lib/incidencias.js
 require('./lib/incidencias').registrar(app, { supabase, requiereLogin });
 // Financiero → Informe semanal (No Confirmados / Resto en PDF guardado) — lib/informeSemanalProyectos.js

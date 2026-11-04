@@ -985,6 +985,7 @@ const MENU = [
       { id: 'per-informe', label: 'Informe', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('informe') },
       { id: 'per-registrar-extras', label: 'Registrar extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarRegistrarExtras() },
       { id: 'per-aprobar-extras', label: 'Aprobar y pagar extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarGestionExtras() },
+      { id: 'per-bolsa', label: 'Bolsa de horas', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarBolsaHoras('per-bolsa') },
       { id: 'per-extras', label: 'Extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('extras') },
       { id: 'per-analisis', label: 'Análisis', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('analisis') },
       { id: 'per-historico', label: 'Histórico de personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('historico') },
@@ -1028,6 +1029,7 @@ const MENU = [
       // registran horas de más, domingos, festivos y nocturnos; Dirección aprueba.
       // Solo rol Logística: Dirección/Contabilidad lo tienen en Personal.
       { id: 'log-extras', label: 'Registrar extras', rolesPermitidos: ['Logistica'], onClick: () => cargarRegistrarExtras() },
+      { id: 'log-bolsa', label: 'Bolsa de horas', rolesPermitidos: ['Logistica'], onClick: () => cargarBolsaHoras('log-bolsa') },
   ]},
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
   // Módulo Vehículos (public/vehiculos.js): flota, fichas, vencimientos y mantenimientos.
@@ -9584,6 +9586,7 @@ function filaLead(l) {
 comprobarSesion();
 </script>
 <script src="vehiculos.js"></script>
+<script src="bolsa.js"></script>
 <script src="/actividad-registro.js"></script>
 <script src="recorte-documento.js"></script>
 </body>

@@ -59,6 +59,7 @@ Todo el apartado Personal es solo para Dirección y Contabilidad.
 | Nóminas | Subir los PDF de nóminas de cada mes; el coste se reparte por departamento en el Cierre Mensual |
 | Informe | Coste de personal del año: nóminas más extras, por trabajador, departamento y empresa, comparado con años anteriores |
 | Registrar extras / Aprobar y pagar extras | Registro, aprobación y pago de horas extra, domingos, festivos y nocturnos |
+| Bolsa de horas | Horas, festivos, descansos y vacaciones que se deben a cada trabajador; no genera pagos |
 | Extras | Histórico de extras del año |
 | Análisis, Histórico de personal, Comparador | Evolución del coste, previsión de cierre del año y comparación entre periodos y trabajadores |
 | Configuración → Personal | Departamento de cada trabajador, que decide a qué departamento va su coste |
