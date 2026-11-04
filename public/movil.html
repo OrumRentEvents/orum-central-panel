@@ -566,14 +566,15 @@ function pintarListaBolsa() {
   var q = BH.filtro.trim().toLowerCase();
   document.getElementById('bh-lista').innerHTML = BH.ctx.empleados.map(function (e, i) {
     if (q && String(e.nombre).toLowerCase().indexOf(q) === -1) return '';
-    return '<button class="veh-btn" onclick="elegirPersonaBolsa(' + i + ')"><b>' + esc(nombreBolsa(e.nombre)) + '</b><span>' + esc(e.area) + '</span><span class="mat">' + esc(textoHorasBolsa(e.horas)) + (e.descanso ? ' · ' + numES(e.descanso) + ' d' : '') + '</span></button>';
+    return '<button class="veh-btn" onclick="elegirPersonaBolsa(' + i + ')"><b>' + esc(nombreBolsa(e.nombre)) + '</b><span>' + esc(e.area) + '</span><span class="mat">' + esc(textoHorasBolsa(e.horas)) + '</span><span>' + numES(e.descanso) + ' desc. · ' + numES(e.vac_pendientes) + ' vac.</span></button>';
   }).join('') || '<div class="nota">Nadie coincide con la búsqueda.</div>';
 }
 function elegirPersonaBolsa(i) {
   var e = BH.emp = BH.ctx.empleados[i];
   window.scrollTo(0, 0);
   document.getElementById('cuerpo').innerHTML =
-    '<div class="veh-elegido"><div><b>' + esc(nombreBolsa(e.nombre)) + '</b><span>' + esc(textoHorasBolsa(e.horas)) + ' · ' + numES(e.descanso) + ' días de descanso</span></div><button onclick="pintarPersonasBolsa()">Cambiar</button></div>' +
+    '<div class="veh-elegido"><div><b>' + esc(nombreBolsa(e.nombre)) + '</b><span>' + esc(textoHorasBolsa(e.horas)) + ' · ' + numES(e.descanso) + ' días de descanso · ' + numES(e.vac_pendientes) + ' de vacaciones</span></div><button onclick="pintarPersonasBolsa()">Cambiar</button></div>' +
+    (!BH.ctx.puede_apuntar ? '<div class="nota">Puedes consultar los saldos. Apuntan Leo, Jesús Aguilera, Rafa Pérez y Sergio.</div>' :
     '<div class="form">' +
       '<div class="campo"><label>Qué quieres apuntar</label><select id="bh-que" onchange="camposBolsa()">' +
         '<optgroup label="Horas (a la bolsa)"><option value="horas-sumar">Sumar horas</option><option value="horas-quitar">Quitar horas: ya recuperadas</option></optgroup>' +
@@ -589,7 +590,8 @@ function elegirPersonaBolsa(i) {
       '<div class="nota" id="bh-aviso" style="margin-bottom:10px;"></div>' +
       '<button class="enviar" id="bh-enviar" onclick="guardarBolsa()">Guardar</button>' +
       '<div class="estado-form" id="bh-estado"></div>' +
-    '</div>';
+    '</div>');
+  if (!BH.ctx.puede_apuntar) return;
   camposBolsa();
   document.getElementById('bh-cant').focus();
 }

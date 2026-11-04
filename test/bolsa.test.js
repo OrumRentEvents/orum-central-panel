@@ -90,9 +90,39 @@ test('tiposApuntables: sin Hora Extra ni descanso, con la tarifa vigente en esa 
   const lista = b.tiposApuntables([
     t(1, 'Hora Extra', 'por_hora', '2025-01-01'), t(2, 'Domingo', 'fijo', '2025-01-01'), t(3, 'Descanso Disfrutado', 'descanso', '2025-01-01'),
     t(4, 'Plus', 'libre', '2025-01-01'), t(5, 'Sábado tarde', 'fijo', '2025-01-01'), t(6, 'Sábado tarde', 'fijo', '2026-06-01', false), t(7, 'Futuro', 'fijo', '2030-01-01')
-  ], '2026-11-04');
+  ], '2026-11-04', true);
   assert.deepEqual(lista.map(x => x.tipo), ['Domingo', 'Plus']);
   assert.equal(lista[1].libre, true);
+});
+
+test('vacaciones pendientes: ajustes menos periodos apuntados, sin lo anulado', () => {
+  const s = b.calcularSaldos({
+    anio: 2026, mes: 11, registros: [], saldosDescanso: {},
+    movimientos: [{ clave: 'a', tipo: 'vacaciones', cantidad: 22 }, { clave: 'a', tipo: 'vacaciones', cantidad: 5, anulado_en: 'x' }],
+    vacaciones: [{ clave: 'a', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-10', dias: 10 }, { clave: 'a', fecha_inicio: '2026-09-01', fecha_fin: '2026-09-02', dias: 2, anulado_en: 'x' }]
+  });
+  assert.equal(s.a.vac_pendientes, 12);
+});
+
+test('parsearConSigno: la hoja de ajuste admite cero y negativos', () => {
+  assert.equal(b.parsearConSigno('0', b.parsearHoras), 0);
+  assert.equal(b.parsearConSigno('-4', b.parsearHoras), -4);
+  assert.equal(b.parsearConSigno('−1,5', b.parsearHoras), -1.5);
+  assert.equal(b.parsearConSigno('1:30', b.parsearHoras), 1.5);
+  assert.equal(b.parsearConSigno('2,5', b.parsearDias), 2.5);
+  assert.equal(b.parsearConSigno('abc', b.parsearDias), null);
+  assert.equal(b.parsearConSigno('', b.parsearDias), null);
+});
+
+test('puedeApuntar: Leo, Jesús, Rafa y Sergio, nadie más', () => {
+  for (const usuario of ['leo', 'jesus', 'rafa', 'sergio', 'LEO']) assert.equal(b.puedeApuntar({ usuario }), true, usuario);
+  for (const usuario of ['maria', 'ana', 'isabel', 'jose', '']) assert.equal(b.puedeApuntar({ usuario }), false, usuario);
+});
+
+test('tiposApuntables: Plus y Descuento solo con importes visibles', () => {
+  const tarifas = [{ id: 1, tipo: 'Domingo', modo: 'fijo', vigente_desde: '2025-01-01', activo: true, orden: 1 }, { id: 2, tipo: 'Plus', modo: 'libre', vigente_desde: '2025-01-01', activo: true, orden: 2 }];
+  assert.deepEqual(b.tiposApuntables(tarifas, '2026-11-04', false).map(t => t.tipo), ['Domingo']);
+  assert.deepEqual(b.tiposApuntables(tarifas, '2026-11-04', true).map(t => t.tipo), ['Domingo', 'Plus']);
 });
 
 test('trabajadorDeClave: eventual o de nómina', () => {

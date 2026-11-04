@@ -165,17 +165,18 @@ Cuando un cliente pierde material, Rentman le cobra un coste «ARTÍCULO NO DEVU
 
 En Logística → Bolsa de horas (o en la app → Bolsa de horas) se apunta todo lo de cada trabajador, el mismo día o al terminar la semana. En el panel cada trabajador tiene su tarjeta con sus botones; en la app eliges a la persona, apuntas y guardas, como en Repostaje.
 
-| Qué apuntas | Se paga | Días de descanso | ¿Lo aprueba Dirección? |
-| --- | --- | --- | --- |
-| Horas: sumar o quitar | No, se recuperan con tiempo libre | — | No, cuenta al momento |
-| Domingo, festivo, nocturno, sábado tarde | 50 € | +1 | Sí |
-| Plus / Descuento | Importe libre | — | Sí |
-| Días de descanso: sumar o restar | No | Más o menos, con medios días | No, cuenta al momento |
+Apuntan Leo, Jesús Aguilera, Rafa Pérez y Sergio. Se ven los saldos de días y horas, no los importes.
 
-- **Horas:** se pueden escribir como 1,5, 1:30 o 1h30. Cuando alguien las recupera, usa «− Quitar horas». La tarjeta indica «Le debes», «Te debe» o «Al día». Las horas no se pagan: solo Sergio puede cambiarlas por dinero.
+| Qué apuntas | Días de descanso | ¿Lo aprueba Dirección? |
+| --- | --- | --- |
+| Horas: sumar o quitar | — | No, cuenta al momento |
+| Domingo, festivo, nocturno, sábado tarde | +1 | Sí |
+| Días de descanso: sumar o restar | Más o menos, con medios días | No, cuenta al momento |
+
+- **Horas:** se pueden escribir como 1,5, 1:30 o 1h30. Cuando alguien las recupera, usa «− Quitar horas». La tarjeta indica «Le debes», «Te debe» o «Al día». Las horas no se pagan: solo Sergio puede cambiarlas por dinero, y es quien apunta pluses y descuentos.
 - **Domingos y festivos:** la tarjeta muestra los de este mes. Sus días de descanso se suman cuando Dirección los aprueba; hasta entonces salen como «por aprobar».
 - **Varios a la vez:** «Apuntar a varios» sirve si hicieron lo mismo, por ejemplo un nocturno de un montaje con cuatro personas.
-- **Vacaciones:** se apuntan con fecha de inicio y de fin, y se cuentan en días naturales.
+- **Vacaciones:** se apuntan con fecha de inicio y de fin, se cuentan en días naturales y se restan de sus vacaciones pendientes. El saldo inicial lo pone Sergio.
 - **Historial y ajustes:** muestra cada apunte y quién lo hizo. Las horas, los descansos y las vacaciones se corrigen con «Anular»: dejan de contar, pero quedan en el historial. Los extras se pueden borrar mientras están por aprobar.
 - **Añadir empleado:** solo para quien no está en nómina. El resto de la plantilla sale de Personal.
 

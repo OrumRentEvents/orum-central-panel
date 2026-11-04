@@ -1055,6 +1055,7 @@ const MENU = [
       { id: 'fin-cuentas-gasto', label: 'Cuentas de gasto', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarCuentasGasto() },
       { id: 'fin-gastos-anuales', label: 'Pagos Anuales', onClick: () => cargarGastosAnuales() },
       { id: 'per-config', label: 'Personal', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('config') },
+      { id: 'bolsa-config', label: 'Bolsa de horas: saldos', soloUsuario: 'sergio', onClick: () => cargarAjustesBolsa() },
       // Usuarios del panel (oct 2026): antes en la hoja USUARIOS de Google. Solo Sergio.
       { id: 'usuarios', label: 'Usuarios', soloUsuario: 'sergio', onClick: () => cargarUsuarios() },
       // Control de accesos e histórico de actividad (oct 2026) — public/actividad.html

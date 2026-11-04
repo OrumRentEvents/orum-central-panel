@@ -31,14 +31,16 @@ let blDesdeHistorial = null; // trabajador cuyo historial está abierto, para vo
     .bl-card-top { display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:10px; }
     .bl-nombre { font-size:16.5px; font-weight:600; }
     .bl-area { font-size:12.5px; color:#6b6a64; margin-top:2px; }
-    .bl-saldos { display:flex; gap:24px; flex-wrap:wrap; }
-    .bl-saldo { min-width:92px; }
     .bl-pill { display:inline-block; font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:10px; white-space:nowrap; }
     .bl-pill.debes { background:#FBE9CF; color:#854F0B; }
     .bl-pill.debe { background:#DCE9F5; color:#2F6280; }
     .bl-pill.ok { background:#DFF0E4; color:#1E6B34; }
     .bl-pill.gris { background:#efeee9; color:#6b6a64; font-weight:500; }
-    .bl-acciones { display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+    .bl-cols { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:16px; }
+    .bl-col { min-width:0; }
+    .bl-pills { display:flex; flex-wrap:wrap; gap:4px; min-height:21px; }
+    .bl-col-btn { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+    .bl-col-btn .bl-btn { width:100%; white-space:normal; }
     .bl-fondo { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:6vh 16px 16px; overflow:auto; }
     .bl-modal { background:#fff; border-radius:12px; padding:18px 20px; width:100%; max-width:440px; box-sizing:border-box; }
     .bl-modal.ancho { max-width:720px; }
@@ -60,7 +62,7 @@ let blDesdeHistorial = null; // trabajador cuyo historial está abierto, para vo
     .bl-fila small { display:block; color:#6b6a64; font-size:11.5px; }
     .bl-fila.anulado > div:first-child { text-decoration:line-through; color:#9a988f; }
     .bl-vacio { font-size:13px; color:#9a988f; padding:4px 0; }
-    @media (max-width: 600px) { .bl-resumen { gap:14px 28px; } .bl-saldos { gap:14px; width:100%; justify-content:space-between; } .bl-saldo { min-width:0; } .bl-et { font-size:10px; } }`;
+    @media (max-width: 600px) { .bl-resumen { gap:14px 28px; } .bl-cols { grid-template-columns:repeat(2, minmax(0, 1fr)); } .bl-et { font-size:10px; } }`;
   document.head.appendChild(el);
 })();
 
@@ -113,6 +115,8 @@ function pintarBolsa() {
   const domingos = E.reduce((s, e) => s + e.domingos_mes, 0);
   const descanso = E.reduce((s, e) => s + Math.max(0, e.descanso), 0);
   const porAprobar = E.reduce((s, e) => s + e.por_aprobar, 0);
+  const vacaciones = E.reduce((s, e) => s + Math.max(0, e.vac_pendientes), 0);
+  const P = bolsa.datos;
   document.getElementById('content-body').innerHTML = `
     <div style="max-width:880px;">
       <p style="font-size:13.5px; color:#6b6a64; margin:0 0 12px;">Horas, domingos, festivos, descansos y vacaciones de tu plantilla. Las horas se recuperan con tiempo libre; domingos, festivos y demás extras pasan a Aprobar y pagar.</p>
@@ -121,14 +125,16 @@ function pintarBolsa() {
         <div><div class="bl-et">Horas que debes</div><div class="bl-num debes">${blNum(debes)} h</div></div>
         <div><div class="bl-et">Domingos y festivos · ${blMes()}</div><div class="bl-num">${blNum(domingos)}</div></div>
         <div><div class="bl-et">Días de descanso</div><div class="bl-num debes">${blNum(descanso)}</div></div>
+        <div><div class="bl-et">Vacaciones pendientes</div><div class="bl-num debes">${blNum(vacaciones)}</div></div>
         <div><div class="bl-et">Por aprobar</div><div class="bl-num">${blNum(porAprobar)}</div></div>
       </div>
       <div class="bl-filtros">
         <input type="text" id="bl-busca" placeholder="Buscar empleado" value="${blEsc(bolsa.busca)}" oninput="bolsa.busca = this.value; pintarListaBolsa()">
         <select onchange="bolsa.area = this.value; pintarListaBolsa()"><option value="">Todas las áreas</option>${areas.map(a => `<option ${a === bolsa.area ? 'selected' : ''}>${blEsc(a)}</option>`).join('')}</select>
         <button class="bl-btn ${bolsa.soloPendientes ? 'on' : ''}" onclick="bolsa.soloPendientes = !bolsa.soloPendientes; this.classList.toggle('on', bolsa.soloPendientes); pintarListaBolsa()">Solo con pendientes</button>
-        <button class="bl-btn" onclick="blFormApunte(null, 'Domingo')">Apuntar a varios</button>
-        <button class="bl-btn prim" onclick="blAnadirEmpleado()">Añadir empleado</button>
+        ${P.puede_apuntar ? `<button class="bl-btn" onclick="blFormApunte(null, 'Domingo')">Apuntar a varios</button>
+        <button class="bl-btn prim" onclick="blAnadirEmpleado()">Añadir empleado</button>` : ''}
+        ${P.puede_ajustar ? '<button class="bl-btn" onclick="cargarAjustesBolsa()">Ajustar saldos</button>' : ''}
       </div>
       <div id="bl-lista"></div>
     </div>`;
@@ -142,27 +148,34 @@ function pintarListaBolsa() {
     (!bolsa.soloPendientes || e.horas !== 0 || e.descanso !== 0 || e.por_aprobar !== 0));
   document.getElementById('bl-lista').innerHTML = lista.map(blTarjeta).join('') || '<p class="bl-vacio">Nadie coincide con la búsqueda.</p>';
 }
+// Cada saldo lleva debajo sus botones
 function blTarjeta(e) {
-  const h = blEstadoHoras(e.horas), c = blEsc(JSON.stringify(e.clave));
-  const desc = e.descanso;
-  const aprobar = e.dias_por_aprobar ? `<div style="margin-top:3px;"><span class="bl-pill gris">${e.dias_por_aprobar > 0 ? '+' : ''}${blNum(e.dias_por_aprobar)} por aprobar</span></div>` : '';
+  const h = blEstadoHoras(e.horas), c = blEsc(JSON.stringify(e.clave)), P = bolsa.datos, desc = e.descanso, vac = e.vac_pendientes;
+  const aprobar = e.dias_por_aprobar ? `<span class="bl-pill gris">${e.dias_por_aprobar > 0 ? '+' : ''}${blNum(e.dias_por_aprobar)} por aprobar</span>` : '';
+  const botones = html => (P.puede_apuntar ? `<div class="bl-col-btn">${html}</div>` : '');
+  const cls = n => (n > 0 ? 'debes' : n < 0 ? 'debe' : '');
   return `<div class="bl-card">
     <div class="bl-card-top">
       <div><div class="bl-nombre">${blEsc(blNombre(e.nombre))}</div><div class="bl-area">${blEsc(e.area)}${e.estado === 'baja' ? ' · baja' : e.estado === 'discontinuo' ? ' · fijo discontinuo' : ''}</div></div>
-      <div class="bl-saldos">
-        <div class="bl-saldo"><div class="bl-et">Horas</div><div class="bl-num ${h.cls === 'ok' ? '' : h.cls}">${blNum(Math.abs(e.horas))} h</div><span class="bl-pill ${h.cls}">${h.txt}</span></div>
-        <div class="bl-saldo"><div class="bl-et">Domingos y festivos</div><div class="bl-num">${blNum(e.domingos_mes)}</div><span class="bl-pill gris">en ${blMes()}</span></div>
-        <div class="bl-saldo"><div class="bl-et">Días de descanso</div><div class="bl-num ${desc > 0 ? 'debes' : desc < 0 ? 'debe' : ''}">${blNum(desc)}</div><span class="bl-pill ${desc > 0 ? 'debes' : desc < 0 ? 'debe' : 'ok'}">${desc > 0 ? 'Pendientes' : desc < 0 ? 'Te debe' : 'Sin pendientes'}</span>${aprobar}</div>
-      </div>
-    </div>
-    <div class="bl-acciones">
-      <button class="bl-btn" onclick='blFormApunte(${c}, "horas-sumar")'>+ Sumar horas</button>
-      <button class="bl-btn" onclick='blFormApunte(${c}, "horas-quitar")'>− Quitar horas</button>
-      <button class="bl-btn" onclick='blFormApunte(${c}, "Domingo")'>+ Domingo o festivo</button>
-      <button class="bl-btn" onclick='blFormApunte(${c}, "descanso-quitar")'>± Días de descanso</button>
-      <button class="bl-btn" onclick='blFormVacaciones(${c})'>+ Vacaciones</button>
-      ${bolsa.datos.puede_pagar && e.horas > 0 ? `<button class="bl-btn dinero" onclick='blFormPagar(${c})'>Cambiar por dinero</button>` : ''}
       <button class="bl-btn texto" onclick='blHistorial(${c})'>Historial y ajustes</button>
+    </div>
+    <div class="bl-cols">
+      <div class="bl-col">
+        <div class="bl-et">Horas</div><div class="bl-num ${h.cls === 'ok' ? '' : h.cls}">${blNum(Math.abs(e.horas))} h</div><div class="bl-pills"><span class="bl-pill ${h.cls}">${h.txt}</span></div>
+        ${botones(`<button class="bl-btn" onclick='blFormApunte(${c}, "horas-sumar")'>+ Sumar horas</button><button class="bl-btn" onclick='blFormApunte(${c}, "horas-quitar")'>− Quitar horas</button>${P.puede_pagar && e.horas > 0 ? `<button class="bl-btn dinero" onclick='blFormPagar(${c})'>Cambiar por dinero</button>` : ''}`)}
+      </div>
+      <div class="bl-col">
+        <div class="bl-et">Domingos y festivos</div><div class="bl-num">${blNum(e.domingos_mes)}</div><div class="bl-pills"><span class="bl-pill gris">en ${blMes()}</span></div>
+        ${botones(`<button class="bl-btn" onclick='blFormApunte(${c}, "Domingo")'>+ Domingo o festivo</button>`)}
+      </div>
+      <div class="bl-col">
+        <div class="bl-et">Días de descanso</div><div class="bl-num ${cls(desc)}">${blNum(desc)}</div><div class="bl-pills"><span class="bl-pill ${cls(desc) || 'ok'}">${desc > 0 ? 'Pendientes' : desc < 0 ? 'Te debe' : 'Sin pendientes'}</span>${aprobar}</div>
+        ${botones(`<button class="bl-btn" onclick='blFormApunte(${c}, "descanso-quitar")'>± Días de descanso</button>`)}
+      </div>
+      <div class="bl-col">
+        <div class="bl-et">Vacaciones</div><div class="bl-num ${cls(vac)}">${blNum(vac)}</div><div class="bl-pills"><span class="bl-pill ${cls(vac) || 'ok'}">${vac > 0 ? 'Pendientes' : vac < 0 ? 'De más' : 'Sin pendientes'}</span></div>
+        ${botones(`<button class="bl-btn" onclick='blFormVacaciones(${c})'>+ Vacaciones</button>`)}
+      </div>
     </div>
   </div>`;
 }
@@ -308,9 +321,59 @@ function blEnviarEmpleado() {
   blGuardar('/api/bolsa/empleados', { nombre: blVal('bl-nombre'), area: blVal('bl-area') });
 }
 
+// ── Ajustar saldos (solo Sergio; el servidor lo comprueba también) ──
+// Se escribe cuánto debe quedar y se apunta la diferencia como «Ajuste» en el historial.
+let blAjustes = { datos: null, busca: '' };
+async function cargarAjustesBolsa() {
+  document.getElementById('content-title').textContent = 'Bolsa de horas · Ajustar saldos';
+  marcarMenuActivo('menu-item-bolsa-config');
+  const body = document.getElementById('content-body');
+  body.innerHTML = '<p class="loading-text">Cargando...</p>';
+  try {
+    bolsa.datos = await blApi('/api/bolsa');
+    if (!bolsa.datos.puede_ajustar) { body.innerHTML = '<p class="loading-text">Solo Sergio puede ajustar los saldos.</p>'; return; }
+    const input = (e, campo, valor) => `<input type="text" inputmode="decimal" autocomplete="off" data-clave="${blEsc(e.clave)}" data-campo="${campo}" data-inicial="${blEsc(String(valor).replace('.', ','))}" value="${blEsc(String(valor).replace('.', ','))}" style="width:84px; box-sizing:border-box; text-align:right; font-size:14px; padding:6px 8px; border:1px solid #d9d7cf; border-radius:6px; font-family:inherit;" oninput="this.style.background = this.value.trim() === this.dataset.inicial ? '' : '#FDF3E0'; blContarAjustes()">`;
+    body.innerHTML = `<div style="max-width:880px;">
+      <p style="font-size:13.5px; color:#6b6a64; margin:0 0 12px;">Escribe cuánto debe quedar a cada trabajador. Horas: en positivo se le deben; en negativo las debe él. Días: enteros o medios. El cambio queda en su historial como «Ajuste».</p>
+      <div class="bl-filtros"><input type="text" placeholder="Buscar empleado" oninput="blFiltrarAjustes(this.value)">
+        <button class="bl-btn" onclick="cargarBolsaHoras()">Volver a la bolsa</button>
+        <button class="bl-btn prim" id="bl-aj-ok" onclick="guardarAjustesBolsa()" disabled>Guardar cambios</button></div>
+      <div class="bl-err" id="bl-aj-err" style="margin-bottom:8px;"></div>
+      <div style="background:#fff; border:1px solid #e2e2de; border-radius:10px; overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+        <thead><tr style="text-align:left; color:#6b6a64; font-size:12px;"><th style="padding:10px 12px;">Trabajador</th><th style="padding:10px 12px; text-align:right;">Horas</th><th style="padding:10px 12px; text-align:right;">Días de descanso</th><th style="padding:10px 12px; text-align:right;">Vacaciones pendientes</th></tr></thead>
+        <tbody>${bolsa.datos.empleados.map(e => `<tr class="bl-aj-fila" data-nombre="${blEsc(String(e.nombre).toLowerCase())}" style="border-top:0.5px solid #efeee9;"><td style="padding:7px 12px;">${blEsc(blNombre(e.nombre))}<div style="font-size:11.5px; color:#9a988f;">${blEsc(e.area)}</div></td><td style="padding:7px 12px; text-align:right;">${input(e, 'horas', e.horas)}</td><td style="padding:7px 12px; text-align:right;">${input(e, 'descanso', e.descanso)}</td><td style="padding:7px 12px; text-align:right;">${input(e, 'vacaciones', e.vac_pendientes)}</td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+  } catch (err) {
+    body.innerHTML = '<p class="loading-text">Error: ' + blEsc(err.message) + '</p>';
+  }
+}
+function blFiltrarAjustes(texto) {
+  const q = texto.trim().toLowerCase();
+  document.querySelectorAll('.bl-aj-fila').forEach(f => { f.style.display = !q || f.dataset.nombre.includes(q) ? '' : 'none'; });
+}
+function blAjustesCambiados() { return [...document.querySelectorAll('[data-campo]')].filter(i => i.value.trim() !== i.dataset.inicial); }
+function blContarAjustes() {
+  const n = blAjustesCambiados().length, b = document.getElementById('bl-aj-ok');
+  b.disabled = !n;
+  b.textContent = n ? 'Guardar ' + n + (n === 1 ? ' cambio' : ' cambios') : 'Guardar cambios';
+}
+async function guardarAjustesBolsa() {
+  const porClave = {};
+  blAjustesCambiados().forEach(i => { (porClave[i.dataset.clave] = porClave[i.dataset.clave] || { clave: i.dataset.clave })[i.dataset.campo] = i.value.trim(); });
+  const err = document.getElementById('bl-aj-err'), b = document.getElementById('bl-aj-ok');
+  err.textContent = ''; b.disabled = true;
+  try {
+    await blApi('/api/bolsa/ajustes', { method: 'POST', body: { ajustes: Object.values(porClave) } });
+    await cargarAjustesBolsa();
+  } catch (e) {
+    err.textContent = e.message; b.disabled = false;
+  }
+}
+
 // ── Historial y ajustes ──
 function blTextoMov(m) {
   const n = Number(m.cantidad), signo = n > 0 ? '+' : '−';
+  if (m.motivo === 'ajuste') return 'Ajuste: ' + signo + blNum(Math.abs(n)) + (m.tipo === 'horas' ? ' h' : m.tipo === 'vacaciones' ? ' días de vacaciones' : ' días de descanso');
   if (m.tipo === 'horas') return signo + blNum(Math.abs(n)) + ' h' + (m.motivo === 'pagadas' ? ' · cambiadas por dinero' : m.motivo === 'compensadas' ? ' · recuperadas' : '');
   return signo + blNum(Math.abs(n)) + (Math.abs(n) === 1 ? ' día de descanso' : ' días de descanso');
 }
@@ -324,14 +387,14 @@ async function blHistorial(clave) {
     const d = await blApi('/api/bolsa/empleado?clave=' + encodeURIComponent(clave));
     // Solo pinta la última petición, y solo si no se ha cerrado la ventana mientras tanto
     if (esta !== blPeticionHistorial || blDesdeHistorial !== clave) return;
-    const c = blEsc(JSON.stringify(clave)), h = blEstadoHoras(e.horas);
-    const filaMov = m => `<div class="bl-fila ${m.anulado_en ? 'anulado' : ''}"><div>${blEsc(blTextoMov(m))}<small>${blSub([blFecha(m.fecha), m.nota, m.registrado_por && 'apuntó ' + m.registrado_por, m.anulado_en && 'anulado por ' + (m.anulado_por || '')])}</small></div>${m.anulado_en || (m.extra_registro_id && !bolsa.datos.puede_pagar) ? '' : `<button class="bl-btn mini peligro" onclick='blAnular("movimientos", ${m.id}, ${c})'>Anular</button>`}</div>`;
-    const filaExtra = r => `<div class="bl-fila ${r.estado === 'rechazado' ? 'anulado' : ''}"><div>${blEsc(r.tipo)}${Number(r.horas) ? ' · ' + blNum(r.horas) + ' h' : ''}${r.importe !== undefined ? ' · ' + blNum(r.importe) + ' €' : ''} <span class="bl-pill ${r.estado === 'pendiente' ? 'debes' : r.estado === 'rechazado' ? 'gris' : 'ok'}">${BL_ESTADO[r.estado] || blEsc(r.estado)}</span><small>${blSub([blFecha(r.fecha), r.proyecto, r.notas, r.registrado_por && 'apuntó ' + r.registrado_por, r.motivo_rechazo])}</small></div>${r.estado === 'pendiente' ? `<button class="bl-btn mini peligro" onclick='blBorrarExtra(${r.id}, ${c})'>Borrar</button>` : ''}</div>`;
+    const c = blEsc(JSON.stringify(clave)), h = blEstadoHoras(e.horas), P = bolsa.datos;
+    const filaMov = m => `<div class="bl-fila ${m.anulado_en ? 'anulado' : ''}"><div>${blEsc(blTextoMov(m))}<small>${blSub([blFecha(m.fecha), m.nota, m.registrado_por && 'apuntó ' + m.registrado_por, m.anulado_en && 'anulado por ' + (m.anulado_por || '')])}</small></div>${m.anulado_en || !P.puede_apuntar || ((m.extra_registro_id || m.motivo === 'ajuste' || m.tipo === 'vacaciones') && !P.puede_pagar) ? '' : `<button class="bl-btn mini peligro" onclick='blAnular("movimientos", ${m.id}, ${c})'>Anular</button>`}</div>`;
+    const filaExtra = r => `<div class="bl-fila ${r.estado === 'rechazado' ? 'anulado' : ''}"><div>${blEsc(r.tipo)}${Number(r.horas) ? ' · ' + blNum(r.horas) + ' h' : ''}${r.importe !== undefined ? ' · ' + blNum(r.importe) + ' €' : ''} <span class="bl-pill ${r.estado === 'pendiente' ? 'debes' : r.estado === 'rechazado' ? 'gris' : 'ok'}">${BL_ESTADO[r.estado] || blEsc(r.estado)}</span><small>${blSub([blFecha(r.fecha), r.proyecto, r.notas, r.registrado_por && 'apuntó ' + r.registrado_por, r.motivo_rechazo])}</small></div>${r.estado === 'pendiente' && P.puede_apuntar ? `<button class="bl-btn mini peligro" onclick='blBorrarExtra(${r.id}, ${c})'>Borrar</button>` : ''}</div>`;
     blVentana(`
-      <div style="display:flex; justify-content:space-between; gap:10px;"><div><h3>${blEsc(blNombre(e.nombre))}</h3><p class="sub">${blEsc(e.area)} · Horas: ${blNum(Math.abs(e.horas))} h (${h.txt.toLowerCase()}) · Descanso: ${blNum(e.descanso)} · Vacaciones ${bolsa.datos.anio}: ${blNum(e.vacaciones)} días</p></div><button class="bl-btn" style="align-self:flex-start;" onclick="blCerrar()">Cerrar</button></div>
-      <div class="bl-sec"><span>Vacaciones</span><button class="bl-btn mini" onclick='blFormVacaciones(${c})'>+ Añadir</button></div>
-      ${d.vacaciones.map(v => `<div class="bl-fila ${v.anulado_en ? 'anulado' : ''}"><div>${blFecha(v.fecha_inicio)} → ${blFecha(v.fecha_fin)} · ${v.dias} ${v.dias === 1 ? 'día' : 'días'}<small>${blSub([v.nota, v.registrado_por && 'apuntó ' + v.registrado_por, v.anulado_en && 'anulado por ' + (v.anulado_por || '')])}</small></div>${v.anulado_en ? '' : `<button class="bl-btn mini peligro" onclick='blAnular("vacaciones", ${v.id}, ${c})'>Anular</button>`}</div>`).join('') || '<div class="bl-vacio">Sin vacaciones apuntadas.</div>'}
-      <div class="bl-sec"><span>Horas y descansos</span><button class="bl-btn mini" onclick='blFormApunte(${c}, "horas-sumar")'>+ Apuntar</button></div>
+      <div style="display:flex; justify-content:space-between; gap:10px;"><div><h3>${blEsc(blNombre(e.nombre))}</h3><p class="sub">${blEsc(e.area)} · Horas: ${blNum(Math.abs(e.horas))} h (${h.txt.toLowerCase()}) · Descanso: ${blNum(e.descanso)} · Vacaciones pendientes: ${blNum(e.vac_pendientes)} · Cogidas en ${bolsa.datos.anio}: ${blNum(e.vacaciones)}</p></div><button class="bl-btn" style="align-self:flex-start;" onclick="blCerrar()">Cerrar</button></div>
+      <div class="bl-sec"><span>Vacaciones</span>${P.puede_apuntar ? `<button class="bl-btn mini" onclick='blFormVacaciones(${c})'>+ Añadir</button>` : ''}</div>
+      ${d.vacaciones.map(v => `<div class="bl-fila ${v.anulado_en ? 'anulado' : ''}"><div>${blFecha(v.fecha_inicio)} → ${blFecha(v.fecha_fin)} · ${v.dias} ${v.dias === 1 ? 'día' : 'días'}<small>${blSub([v.nota, v.registrado_por && 'apuntó ' + v.registrado_por, v.anulado_en && 'anulado por ' + (v.anulado_por || '')])}</small></div>${v.anulado_en || !P.puede_apuntar ? '' : `<button class="bl-btn mini peligro" onclick='blAnular("vacaciones", ${v.id}, ${c})'>Anular</button>`}</div>`).join('') || '<div class="bl-vacio">Sin vacaciones apuntadas.</div>'}
+      <div class="bl-sec"><span>Horas y descansos</span>${P.puede_apuntar ? `<button class="bl-btn mini" onclick='blFormApunte(${c}, "horas-sumar")'>+ Apuntar</button>` : ''}</div>
       ${d.movimientos.map(filaMov).join('') || '<div class="bl-vacio">Todavía no hay movimientos.</div>'}
       <div class="bl-sec">Domingos, festivos y extras</div>
       ${d.extras.map(filaExtra).join('') || '<div class="bl-vacio">Todavía no hay extras.</div>'}`, true);

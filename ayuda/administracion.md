@@ -147,7 +147,7 @@ Cuando un cliente pierde material, Rentman le cobra un coste «ARTÍCULO NO DEVU
 
 Para Administración, los extras son informativos: se consultan, pero no se aprueban ni se pagan desde aquí. Sirven para saber qué extras tiene cada trabajador y cuánto cuestan en el Cierre Mensual.
 
-1. **Apuntar:** los responsables de cada área apuntan en Bolsa de horas el trabajador, la fecha, el tipo y el proyecto o una nota.
+1. **Apuntar:** Leo, Jesús Aguilera, Rafa Pérez y Sergio apuntan en Bolsa de horas el trabajador, la fecha, el tipo y el proyecto o una nota. Contabilidad consulta esa pantalla, y ve los importes en Aprobar y pagar extras.
 2. **Aprobar o rechazar:** Dirección, en Personal → Aprobar y pagar extras.
 3. **Pagar:** lo aprobado se abona en nómina y se marca como pagado.
 

@@ -3942,7 +3942,11 @@ app.get('/api/extras-form/contexto', requiereLogin, puedeRegistrarExtras, async 
     // Dirección no registra horas extras: fuera del desplegable del formulario
     // (sigue en la gestión, por si tuviera saldo o registros antiguos).
     const trabajadoresFormulario = trabajadores.filter(t => t.departamento !== 'Dirección');
-    res.json({ ok: true, trabajadores: trabajadoresFormulario, eventuales, tarifas, proyectos, registros: misRegistros, inicio: inicio.texto, puede_gestionar: esGestorExtras(req), usuario: { usuario, nombre: req.session.usuario.nombre, rol: req.session.usuario.rol } });
+    // Quien no gestiona extras (Logística) no recibe importes por este camino
+    const gestor = esGestorExtras(req);
+    const tarifasVisibles = gestor ? tarifas : tarifas.map(({ importe, ...t }) => t);
+    const registrosVisibles = gestor ? misRegistros : misRegistros.map(({ importe, ...r }) => r);
+    res.json({ ok: true, trabajadores: trabajadoresFormulario, eventuales, tarifas: tarifasVisibles, proyectos, registros: registrosVisibles, inicio: inicio.texto, puede_gestionar: gestor, usuario: { usuario, nombre: req.session.usuario.nombre, rol: req.session.usuario.rol } });
   } catch (err) {
     console.error('Error en /api/extras-form/contexto:', err);
     res.status(500).json({ error: 'Error al cargar el formulario: ' + err.message });
@@ -3954,8 +3958,11 @@ app.get('/api/extras-form/contexto', requiereLogin, puedeRegistrarExtras, async 
 const esSergio = (req) => String(req.session.usuario.usuario || '').toLowerCase() === 'sergio';
 app.post('/api/extras-form/registros', requiereLogin, puedeRegistrarExtras, async (req, res) => {
   try {
-    // Las horas van a la Bolsa de horas: solo Sergio las cambia por dinero (nov 2026)
-    if (/^hora extra$/i.test(String((req.body || {}).tipo || '')) && !esSergio(req)) return res.status(403).json({ error: 'Las horas se apuntan en la Bolsa de horas. Solo Sergio puede cambiarlas por dinero.' });
+    // Se apunta desde la Bolsa de horas (lib/bolsa.js): mismas reglas aquí, para que nadie
+    // las salte. Horas, Plus y Descuento mueven dinero directo: solo Sergio (nov 2026).
+    const tipoPedido = String((req.body || {}).tipo || '');
+    if (!require('./lib/bolsa').puedeApuntar(req.session.usuario)) return res.status(403).json({ error: 'Solo Leo, Jesús Aguilera, Rafa Pérez y Sergio pueden apuntar extras.' });
+    if (/^(hora extra|plus|descuento)$/i.test(tipoPedido) && !esSergio(req)) return res.status(403).json({ error: 'Las horas se apuntan en la Bolsa de horas. Solo Sergio puede cambiarlas por dinero o apuntar pluses y descuentos.' });
     res.json({ ok: true, registros: await crearRegistrosExtras(req.session.usuario, req.body || {}) });
   } catch (err) {
     console.error('Error en POST /api/extras-form/registros:', err);
@@ -4022,7 +4029,8 @@ app.put('/api/extras-form/registros/:id', requiereLogin, puedeRegistrarExtras, a
     const cambios = { fecha, anio, mes, tipo, ...calc, proyecto: b.proyecto !== undefined ? ((b.proyecto || '').toString().trim() || null) : r.proyecto, notas: b.notas !== undefined ? ((b.notas || '').toString().trim() || null) : r.notas, updated_at: new Date().toISOString() };
     const { data, error } = await supabase.from('extras_registros').update(cambios).eq('id', r.id).select().single();
     if (error) throw error;
-    res.json({ ok: true, registro: data });
+    const { importe: _importe, ...sinImporte } = data;
+    res.json({ ok: true, registro: esGestorExtras(req) ? data : sinImporte });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
