@@ -37,8 +37,8 @@ let blDesdeHistorial = null; // trabajador cuyo historial está abierto, para vo
     .bl-pill.ok { background:#DFF0E4; color:#1E6B34; }
     .bl-pill.gris { background:#efeee9; color:#6b6a64; font-weight:500; }
     .bl-cols { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:16px; }
-    .bl-col { min-width:0; }
-    .bl-pills { display:flex; flex-wrap:wrap; gap:4px; min-height:21px; }
+    .bl-col { min-width:0; text-align:center; }
+    .bl-pills { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; min-height:21px; }
     .bl-col-btn { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
     .bl-col-btn .bl-btn { width:100%; white-space:normal; }
     .bl-fondo { position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:6vh 16px 16px; overflow:auto; }
@@ -132,9 +132,8 @@ function pintarBolsa() {
         <input type="text" id="bl-busca" placeholder="Buscar empleado" value="${blEsc(bolsa.busca)}" oninput="bolsa.busca = this.value; pintarListaBolsa()">
         <select onchange="bolsa.area = this.value; pintarListaBolsa()"><option value="">Todas las áreas</option>${areas.map(a => `<option ${a === bolsa.area ? 'selected' : ''}>${blEsc(a)}</option>`).join('')}</select>
         <button class="bl-btn ${bolsa.soloPendientes ? 'on' : ''}" onclick="bolsa.soloPendientes = !bolsa.soloPendientes; this.classList.toggle('on', bolsa.soloPendientes); pintarListaBolsa()">Solo con pendientes</button>
-        ${P.puede_apuntar ? `<button class="bl-btn" onclick="blFormApunte(null, 'Domingo')">Apuntar a varios</button>
-        <button class="bl-btn prim" onclick="blAnadirEmpleado()">Añadir empleado</button>` : ''}
-        ${P.puede_ajustar ? '<button class="bl-btn" onclick="cargarAjustesBolsa()">Ajustar saldos</button>' : ''}
+        ${P.puede_apuntar ? `<button class="bl-btn" onclick="blFormApunte(null, 'Domingo')">Apuntar a varios</button>` : ''}
+        ${P.puede_ajustar ? `<button class="bl-btn prim" onclick="blAnadirEmpleado()">Añadir empleado</button><button class="bl-btn" onclick="cargarAjustesBolsa()">Ajustar saldos</button>` : ''}
       </div>
       <div id="bl-lista"></div>
     </div>`;
@@ -157,7 +156,10 @@ function blTarjeta(e) {
   return `<div class="bl-card">
     <div class="bl-card-top">
       <div><div class="bl-nombre">${blEsc(blNombre(e.nombre))}</div><div class="bl-area">${blEsc(e.area)}${e.estado === 'baja' ? ' · baja' : e.estado === 'discontinuo' ? ' · fijo discontinuo' : ''}</div></div>
-      <button class="bl-btn texto" onclick='blHistorial(${c})'>Historial y ajustes</button>
+      <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:flex-start;">
+        <button class="bl-btn texto" onclick='blHistorial(${c})'>Historial y ajustes</button>
+        ${P.puede_ajustar ? `<button class="bl-btn texto peligro" onclick='blQuitarEmpleado(${c})'>Quitar de plantilla</button>` : ''}
+      </div>
     </div>
     <div class="bl-cols">
       <div class="bl-col">
@@ -310,12 +312,31 @@ function blFormPagar(clave) {
 function blEnviarPagar() {
   blGuardar('/api/bolsa/pagar-horas', { clave: bolsa.form.clave, cantidad: blVal('bl-cant'), fecha: blVal('bl-fecha'), nota: blVal('bl-nota') });
 }
+// Añadir y quitar de la plantilla: solo Sergio; el servidor lo comprueba también
 function blAnadirEmpleado() {
   const areas = [...new Set(bolsa.datos.empleados.map(e => e.area))].sort((a, b) => a.localeCompare(b, 'es'));
-  blVentana(`<h3>Añadir empleado</h3><p class="sub">Para quien no está en nómina. El resto ya sale de Personal.</p>
-    <div class="bl-campo"><label>Nombre</label><input id="bl-nombre" data-foco type="text" placeholder="Apellidos, Nombre"></div>
+  blVentana(`<h3>Añadir empleado</h3><p class="sub">Quien vuelve conserva sus saldos e historial.</p>
+    <div class="bl-campo"><label>Fuera de la plantilla</label><input id="bl-filtro-f" data-foco type="text" placeholder="Buscar..." oninput="blPintarFuera()"><div class="bl-varios" id="bl-fuera"></div></div>
+    <div class="bl-sec">Persona nueva, que no está en la lista</div>
+    <div class="bl-campo"><label>Nombre</label><input id="bl-nombre" type="text" placeholder="Apellidos, Nombre"></div>
     <div class="bl-campo"><label>Área</label><input id="bl-area" type="text" list="bl-areas"><datalist id="bl-areas">${areas.map(a => `<option value="${blEsc(a)}">`).join('')}</datalist></div>
-    ${blPie('blEnviarEmpleado()', 'Añadir')}`);
+    ${blPie('blEnviarEmpleado()', 'Añadir persona nueva')}`);
+  blPintarFuera();
+}
+function blPintarFuera() {
+  const q = blVal('bl-filtro-f').toLowerCase();
+  document.getElementById('bl-fuera').innerHTML = (bolsa.datos.fuera || []).filter(e => !q || String(e.nombre).toLowerCase().includes(q)).map(e => {
+    const saldos = [e.horas ? blNum(e.horas) + ' h' : '', e.descanso ? blNum(e.descanso) + ' desc.' : '', e.vac_pendientes ? blNum(e.vac_pendientes) + ' vac.' : ''].filter(Boolean).join(' · ');
+    return `<div class="bl-fila" style="padding:6px;"><div>${blEsc(blNombre(e.nombre))}<small>${blSub([e.area, e.fuera_desde && 'quitado el ' + blFecha(e.fuera_desde), saldos])}</small></div><button class="bl-btn mini" onclick='blVolverEmpleado(${blEsc(JSON.stringify(e.clave))})'>Volver</button></div>`;
+  }).join('') || '<div class="bl-vacio">Nadie.</div>';
+}
+function blVolverEmpleado(clave) { blGuardar('/api/bolsa/empleados/volver', { clave }); }
+async function blQuitarEmpleado(clave) {
+  if (!confirm('¿Quitar a ' + blNombre(blEmp(clave).nombre) + ' de la plantilla? Conserva sus saldos e historial, y puedes volver a añadirlo cuando regrese.')) return;
+  try {
+    await blApi('/api/bolsa/empleados/quitar', { method: 'POST', body: { clave } });
+    await cargarBolsaHoras();
+  } catch (err) { alert('No se ha podido quitar: ' + err.message); }
 }
 function blEnviarEmpleado() {
   blGuardar('/api/bolsa/empleados', { nombre: blVal('bl-nombre'), area: blVal('bl-area') });

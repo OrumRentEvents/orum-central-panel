@@ -125,6 +125,24 @@ test('tiposApuntables: Plus y Descuento solo con importes visibles', () => {
   assert.deepEqual(b.tiposApuntables(tarifas, '2026-11-04', true).map(t => t.tipo), ['Domingo', 'Plus']);
 });
 
+test('plantilla: quitado no sale y conserva saldo; vuelve aunque nómina diga baja', () => {
+  const t = (num, estado, departamento) => ({ empresa_nif: 'N', formato_origen: 'f', num_empleado: num, nombre: 'P' + num, departamento, estado });
+  const trabajadores = [t(1, 'activo', 'Logística'), t(2, 'activo', 'Office'), t(3, 'baja', 'Office'), t(4, 'baja', 'Office'), t(5, 'baja', 'Dirección')];
+  const anadidos = [
+    { clave: 'N|f|2', nombre: 'P2', area: 'Office', fuera_desde: '2026-11-04' },
+    { clave: 'N|f|3', nombre: 'P3', area: 'Office', fuera_desde: null },
+    { clave: 'libre|ANA', nombre: 'ANA', area: 'Office', fuera_desde: '2026-10-01' }
+  ];
+  const saldos = { 'N|f|2': { horas: 6, descanso: 1, por_aprobar: 0, vacaciones: 0, vac_pendientes: 3 }, 'libre|ANA': { horas: 2, descanso: 0, por_aprobar: 0, vacaciones: 0 } };
+  const lista = b.construirPlantilla(trabajadores, anadidos, saldos);
+  assert.deepEqual(lista.map(e => e.nombre), ['P1', 'P3']);
+  const fuera = b.fueraDePlantilla(trabajadores, anadidos, saldos, lista);
+  assert.deepEqual(fuera.map(e => e.nombre), ['ANA', 'P2', 'P4']);
+  assert.equal(fuera.find(e => e.nombre === 'P2').horas, 6);
+  assert.equal(fuera.find(e => e.nombre === 'P2').fuera_desde, '2026-11-04');
+  assert.equal(fuera.find(e => e.nombre === 'P4').fuera_desde, null);
+});
+
 test('trabajadorDeClave: eventual o de nómina', () => {
   assert.deepEqual(b.trabajadorDeClave('libre|ANA LOPEZ'), { nombre_libre: 'ANA LOPEZ' });
   assert.deepEqual(b.trabajadorDeClave('B1|f|7'), { empresa_nif: 'B1', formato_origen: 'f', num_empleado: '7' });

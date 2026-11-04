@@ -178,7 +178,7 @@ Apuntan Leo, Jesús Aguilera, Rafa Pérez y Sergio. Se ven los saldos de días y
 - **Varios a la vez:** «Apuntar a varios» sirve si hicieron lo mismo, por ejemplo un nocturno de un montaje con cuatro personas.
 - **Vacaciones:** se apuntan con fecha de inicio y de fin, se cuentan en días naturales y se restan de sus vacaciones pendientes. El saldo inicial lo pone Sergio.
 - **Historial y ajustes:** muestra cada apunte y quién lo hizo. Las horas, los descansos y las vacaciones se corrigen con «Anular»: dejan de contar, pero quedan en el historial. Los extras se pueden borrar mientras están por aprobar.
-- **Añadir empleado:** solo para quien no está en nómina. El resto de la plantilla sale de Personal.
+- **Plantilla:** sale de Personal. Solo Sergio puede añadir o quitar a alguien; quien no está en la plantilla no aparece, y si vuelve conserva sus saldos.
 
 ## Vehículos
 

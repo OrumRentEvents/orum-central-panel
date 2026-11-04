@@ -58,7 +58,7 @@ Todo el apartado Personal es solo para Dirección y Contabilidad.
 | --- | --- |
 | Nóminas | Subir los PDF de nóminas de cada mes; el coste se reparte por departamento en el Cierre Mensual |
 | Informe | Coste de personal del año: nóminas más extras, por trabajador, departamento y empresa, comparado con años anteriores |
-| Bolsa de horas | Horas, domingos, festivos, descansos y vacaciones de cada trabajador. Apuntan Leo, Jesús Aguilera, Rafa Pérez y Sergio; Sergio también ve importes, apunta pluses y descuentos, y ajusta los saldos en Bolsa de horas: saldos |
+| Bolsa de horas | Horas, domingos, festivos, descansos y vacaciones de cada trabajador. Apuntan Leo, Jesús Aguilera, Rafa Pérez y Sergio; Sergio también ve importes, apunta pluses y descuentos, ajusta los saldos en Bolsa de horas: saldos, y añade o quita gente de la plantilla (quien sale conserva sus saldos para cuando vuelva) |
 | Aprobar y pagar extras | Aprobación y pago de domingos, festivos, nocturnos y demás extras |
 | Extras | Histórico de extras del año |
 | Análisis, Histórico de personal, Comparador | Evolución del coste, previsión de cierre del año y comparación entre periodos y trabajadores |
