@@ -15,7 +15,7 @@ Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Serv
 | Antes de cada salida | Revisar el material de especial cuidado de los próximos 15 días | Mantenimiento |
 | Cuando llega un aviso de proyecto | Leerlo y pulsar «Visto» | Preparación o Avisos |
 | Cuando aparece material perdido | Marcarlo en Rentman y confirmarlo en ORUM Central | Rentman + Material recuperado |
-| Al repostar | Apuntar km, litros y quién reposta | App → Repostaje |
+| Al repostar | Apuntar km, litros y quién reposta | App → Repostaje, o panel → Vehículos → Repostajes |
 | Cada semana | Revisar los servicios extra de los próximos 15 días | Servicios Extra |
 | Cuando se hace | Registrar cada servicio prestado al grupo Isabella | Servicios Isabella |
 | Cuando se hace | Registrar horas extra, domingos, festivos y nocturnos del personal | Registrar extras |
@@ -186,7 +186,7 @@ Logística ve y edita la ficha de cada vehículo. El responsable de vehículos e
 - **Flota:** cada vehículo con su matrícula, kilómetros y próximo vencimiento. La línea de color indica su estado: rojo vencido, naranja próximo, verde al día. «+ Nuevo vehículo» da de alta uno.
 - **Vencimientos:** ITV, seguros y revisiones por fecha o por kilómetros, con la cita si ya está pedida. Llega un email cuando un vencimiento pasa a próximo (30 días o 1.000 km antes) o a vencido, y los lunes a las 8:00 un resumen de todo lo pendiente. También sirven para tareas sueltas (por ejemplo, tipo «Otro»: «Taller: cambiar embrague», con su cita).
 - **Uso:** kilómetros por vehículo y conductor, sacados del localizador GPS. El Excel del localizador se sube con «Importar localizador». «A revisar» y «Sin conductor» señalan días en los que la ruta no dice quién conducía: por eso hay que marcar bien quién conduce en Rutas.
-- **Repostajes:** cada repostaje se apunta en la app → Repostaje: vehículo, kilómetros, litros y quién reposta. Los kilómetros del repostaje cuentan también como lectura del vehículo.
+- **Repostajes:** cada repostaje se apunta en la app → Repostaje o aquí con «+ Apuntar repostaje»: vehículo, kilómetros, litros y quién reposta. Se guarda con la fecha de hoy. Los kilómetros del repostaje cuentan también como lectura del vehículo.
 - **Incidencias del vehículo:** desde la ficha (⚠) se abre una incidencia ligada a ese vehículo.
 
 ### Completar una tarea (ITV, revisión, taller…)

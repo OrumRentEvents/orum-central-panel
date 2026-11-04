@@ -2,7 +2,17 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" id="meta-viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<script>
+// Android: viewport-fit=cover hace que la pantalla se dibuje debajo de la barra
+// de navegación del sistema, que tapaba la caja de escribir. Sin él Android deja
+// la página encima de la barra; y resizes-content encoge la página con el teclado.
+// En iPhone sigue igual (cover hace falta para la muesca).
+if (/Android/i.test(navigator.userAgent) && window.self === window.top) {
+  document.getElementById('meta-viewport').content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, interactive-widget=resizes-content';
+  document.documentElement.classList.add('android');
+}
+</script>
 <title>ORUM Chat</title>
 <link rel="manifest" href="/movil.webmanifest?v=2">
 <meta name="theme-color" content="#1a1a18">
@@ -13,6 +23,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+html.android, html.android body { overflow: hidden; }
+html.android body { position: fixed; top: 0; left: 0; right: 0; height: var(--alto-chat, 100dvh); }
 button { font-family: inherit; }
 .oculto { display: none !important; }
 .cab { background: #1a1a18; color: #fff; padding: calc(12px + env(safe-area-inset-top)) 16px 10px; flex-shrink: 0; }
@@ -262,6 +274,20 @@ texto.addEventListener('keydown', function (e) {
   // En el ordenador Intro envía (Mayúsculas+Intro, salto de línea); en el móvil Intro es salto de línea
   if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); enviar(); }
 });
+// Android: la pantalla mide lo que queda visible (sin barras ni teclado), también
+// en los navegadores que no encogen la página al abrir el teclado
+(function ajustarAlAndroid() {
+  if (!document.documentElement.classList.contains('android') || !window.visualViewport) return;
+  var vv = window.visualViewport;
+  function ajustar() {
+    if (vv.scale > 1.01) return; // con zoom no se toca
+    document.documentElement.style.setProperty('--alto-chat', Math.round(vv.height) + 'px');
+    window.scrollTo(0, 0);
+    if (document.activeElement === texto) { var l = document.getElementById('lista'); l.scrollTop = l.scrollHeight; }
+  }
+  vv.addEventListener('resize', ajustar);
+  ajustar();
+})();
 document.getElementById('btn-enviar').onclick = enviar;
 document.getElementById('btn-foto').onclick = function () { document.getElementById('in-foto').click(); };
 document.getElementById('in-foto').onchange = function () {

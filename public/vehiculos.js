@@ -944,9 +944,9 @@ async function guardarAjustesRanking() {
 }
 
 // ── Repostajes (oct 2026) ──
-// Se apuntan desde la app (botón Repostaje): vehículo, km, litros y quién
-// reposta. Aquí se ven por mes y se pueden borrar si se apuntó mal.
-let vehRepMes = null, vehRepDatos = null;
+// Se apuntan desde la app (botón Repostaje) o desde aquí: vehículo, km, litros
+// y quién reposta. Aquí se ven por mes y se pueden borrar si se apuntó mal.
+let vehRepMes = null, vehRepDatos = null, vehRepCtx = null;
 async function cargarRepostajesVehiculos(mes) {
   document.getElementById('content-title').textContent = 'Vehículos · Repostajes';
   marcarMenuActivo('menu-item-veh-repostajes');
@@ -970,13 +970,15 @@ function pintarRepostajes() {
     <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-bottom:12px;">
       <div class="veh-form" style="grid-template-columns:auto;"><div><label>Mes</label><input type="month" value="${vehRepMes}" onchange="cargarRepostajesVehiculos(this.value)"></div></div>
       <div style="flex:1; min-width:200px; display:flex; padding-bottom:2px;">${vehBuscadorHtml('Buscar vehículo, matrícula o persona...')}</div>
+      <button class="veh-btn prim" style="margin-bottom:2px;" onclick="abrirFormRepostaje()">+ Apuntar repostaje</button>
     </div>
+    <div id="vr-form"></div>
     <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1rem;">
       ${kpiCard('Repostajes', lista.length)}
       ${kpiCard('Litros', vehNum(Math.round(litros * 10) / 10))}
       ${resumen.slice(0, 3).map(v => kpiCard(vehEsc(v.matricula || v.nombre), vehNum(Math.round(v.litros * 10) / 10) + ' L · ' + v.n)).join('')}
     </div>
-    <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Se apuntan desde la app (Repostaje). Los km de cada repostaje cuentan como lectura del cuentakilómetros del vehículo.</p>
+    <p style="font-size:12px; color:var(--text-muted); margin:0 0 10px;">Se apuntan aquí o desde la app (Repostaje), siempre con la fecha de hoy. Los km de cada repostaje cuentan como lectura del cuentakilómetros del vehículo.</p>
     <div class="veh-seccion veh-tabla-wrap">
       ${lista.length ? `<table>
         <thead><tr><th>Fecha</th><th>Vehículo</th><th style="text-align:right;">Km</th><th style="text-align:right;">Litros</th><th>Ha repostado</th><th>Apuntado por</th><th></th></tr></thead>
@@ -992,6 +994,69 @@ function pintarRepostajes() {
       </table>` : '<p style="margin:0; font-size:12.5px; color:var(--text-muted);">No hay repostajes este mes.</p>'}
     </div>`;
   vehFiltrar();
+}
+// Mismos datos y mismas comprobaciones que el botón Repostaje de la app (movil.html)
+async function abrirFormRepostaje() {
+  const cont = document.getElementById('vr-form');
+  cont.innerHTML = '<p class="loading-text">Cargando vehículos...</p>';
+  try {
+    vehRepCtx = await vehApi('/api/vehiculos/repostajes/contexto');
+  } catch (err) {
+    cont.innerHTML = '<p class="loading-text">Error: ' + vehEsc(err.message) + '</p>';
+    return;
+  }
+  // Quien está en el panel, si está en la lista de choferes (mismo nombre y apellido)
+  const palabras = t => vehNorm(t).split(/\s+/).filter(Boolean);
+  const yo = palabras(typeof usuarioActual !== 'undefined' && usuarioActual ? usuarioActual.nombre : '');
+  const miChofer = (vehRepCtx.choferes || []).find(c => { const p = palabras(c); return p.length && p.every(w => yo.includes(w)); });
+  cont.innerHTML = `<div class="veh-seccion">
+    <h3>Apuntar repostaje</h3>
+    <div class="veh-form" style="align-items:end;">
+      <div><label>Vehículo</label><select id="vr-veh" onchange="vehRepPistaKm()"><option value="">Elige…</option>${vehRepCtx.vehiculos.map(v => `<option value="${v.id}">${vehEsc(v.matricula || '')} · ${vehEsc(v.nombre)}</option>`).join('')}</select></div>
+      <div><label>Km del cuentakilómetros</label><input id="vr-km" type="text" inputmode="numeric" autocomplete="off" placeholder="p. ej. 125430"></div>
+      <div><label>Litros repostados</label><input id="vr-litros" type="text" inputmode="decimal" autocomplete="off" placeholder="p. ej. 65,4"></div>
+      <div><label>Quién ha repostado</label><select id="vr-persona"><option value="">Elige…</option>${(vehRepCtx.choferes || []).map(c => `<option${c === miChofer ? ' selected' : ''}>${vehEsc(c)}</option>`).join('')}</select></div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button class="veh-btn prim" id="vr-guardar" onclick="guardarRepostajePanel()">Guardar repostaje</button>
+      <button class="veh-btn" onclick="document.getElementById('vr-form').innerHTML=''">Cancelar</button>
+    </div>
+    <div class="veh-error" id="vr-err"></div>
+  </div>`;
+  document.getElementById('vr-veh').focus();
+}
+function vehRepPistaKm() {
+  const v = vehRepCtx.vehiculos.find(x => String(x.id) === document.getElementById('vr-veh').value);
+  document.getElementById('vr-km').placeholder = v && v.km_actuales ? 'Unos ' + vehNum(Math.round(v.km_actuales)) : 'p. ej. 125430';
+}
+async function guardarRepostajePanel(confirmar) {
+  const cuerpo = {
+    vehiculo_id: document.getElementById('vr-veh').value,
+    km: document.getElementById('vr-km').value.trim(),
+    litros: document.getElementById('vr-litros').value.trim(),
+    persona: document.getElementById('vr-persona').value,
+    confirmar: !!confirmar
+  };
+  if (!cuerpo.vehiculo_id) return vehError('vr-err', 'Elige el vehículo');
+  if (!cuerpo.km) return vehError('vr-err', 'Indica los km');
+  if (!cuerpo.litros) return vehError('vr-err', 'Indica los litros');
+  if (!cuerpo.persona) return vehError('vr-err', 'Elige quién ha repostado');
+  vehError('vr-err', '');
+  const btn = document.getElementById('vr-guardar');
+  btn.disabled = true;
+  try {
+    const d = await vehApi('/api/vehiculos/repostajes', { method: 'POST', body: cuerpo });
+    btn.disabled = false;
+    if (d.confirmar) {
+      if (confirm('Para este vehículo se esperaban unos ' + vehNum(d.km_esperados) + ' km y has puesto ' + cuerpo.km + '.\n\n¿Están bien los km?')) return guardarRepostajePanel(true);
+      return;
+    }
+    // Se guarda con la fecha de hoy: se abre ese mes para que se vea en la tabla
+    cargarRepostajesVehiculos(String(d.repostaje.fecha).slice(0, 7));
+  } catch (err) {
+    btn.disabled = false;
+    vehError('vr-err', err.message);
+  }
 }
 async function borrarRepostaje(id) {
   if (!confirm('¿Borrar este repostaje?')) return;
