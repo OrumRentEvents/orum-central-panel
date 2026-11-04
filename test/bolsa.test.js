@@ -38,35 +38,64 @@ test('diasVacacionesEnAnio: reparte los periodos que cruzan de año', () => {
   assert.equal(b.diasVacacionesEnAnio(v, 2028), 0);
 });
 
-test('calcularSaldos: suma y resta, y no cuenta lo anulado ni lo disfrutado', () => {
-  const movimientos = [
-    { clave: 'a', tipo: 'horas', cantidad: 6 },
-    { clave: 'a', tipo: 'horas', cantidad: -1.5 },
-    { clave: 'a', tipo: 'horas', cantidad: 100, anulado_en: '2026-11-04' },
-    { clave: 'a', tipo: 'festivo', cantidad: 1 },
-    { clave: 'a', tipo: 'festivo', cantidad: 1, disfrutado_fecha: '2026-11-01' },
-    { clave: 'a', tipo: 'descanso', cantidad: 2 },
-    { clave: 'a', tipo: 'descanso', cantidad: -0.5 },
-    { clave: 'b', tipo: 'horas', cantidad: -4 }
-  ];
-  const vacaciones = [
-    { clave: 'a', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-10' },
-    { clave: 'a', fecha_inicio: '2026-09-01', fecha_fin: '2026-09-30', anulado_en: '2026-09-01' }
-  ];
-  const s = b.calcularSaldos(movimientos, vacaciones, 2026);
-  assert.deepEqual(s.a, { horas: 4.5, festivos: 1, descanso: 1.5, vacaciones: 10 });
+test('calcularSaldos: junta bolsa y extras, sin lo anulado ni lo rechazado', () => {
+  const s = b.calcularSaldos({
+    anio: 2026, mes: 11,
+    movimientos: [
+      { clave: 'a', tipo: 'horas', cantidad: 6 },
+      { clave: 'a', tipo: 'horas', cantidad: -1.5 },
+      { clave: 'a', tipo: 'horas', cantidad: 100, anulado_en: '2026-11-04' },
+      { clave: 'a', tipo: 'descanso', cantidad: -0.5 }, // ya va dentro de saldosDescanso
+      { clave: 'b', tipo: 'horas', cantidad: -4 }
+    ],
+    vacaciones: [
+      { clave: 'a', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-10' },
+      { clave: 'a', fecha_inicio: '2026-09-01', fecha_fin: '2026-09-30', anulado_en: '2026-09-01' }
+    ],
+    saldosDescanso: { x: { clave: 'a', nombre: 'Ana', inicial: 2, generados: 1, disfrutados: 0.5 } },
+    registros: [
+      { clave: 'a', tipo: 'Domingo', estado: 'aprobado', genera_descanso: true, anio: 2026, mes: 11 },
+      { clave: 'a', tipo: 'Festivo', estado: 'pendiente', genera_descanso: true, anio: 2026, mes: 11 },
+      { clave: 'a', tipo: 'Domingo', estado: 'rechazado', genera_descanso: true, anio: 2026, mes: 11 },
+      { clave: 'a', tipo: 'Domingo', estado: 'pagado', genera_descanso: true, anio: 2026, mes: 10 },
+      { clave: 'a', tipo: 'Nocturno', estado: 'pendiente', genera_descanso: true, anio: 2026, mes: 11 },
+      { clave: 'a', tipo: 'Plus', estado: 'pendiente', genera_descanso: false, anio: 2026, mes: 11 }
+    ]
+  });
+  assert.equal(s.a.horas, 4.5);
+  assert.equal(s.a.descanso, 2.5);
+  assert.equal(s.a.vacaciones, 10);
+  assert.equal(s.a.domingos_mes, 2);
+  assert.equal(s.a.por_aprobar, 3);
+  assert.equal(s.a.dias_por_aprobar, 2);
   assert.equal(s.b.horas, -4);
 });
 
-test('construirPlantilla: sin bajas ni Dirección, salvo que tengan saldo', () => {
+test('construirPlantilla: sin bajas ni Dirección salvo con saldo; eventuales con algo pendiente', () => {
   const t = (num, estado, departamento) => ({ empresa_nif: 'N', formato_origen: 'f', num_empleado: num, nombre: 'P' + num, departamento, estado });
+  const vacio = { horas: 0, descanso: 0, por_aprobar: 0, vacaciones: 0 };
   const lista = b.construirPlantilla(
     [t(1, 'activo', 'Logística'), t(2, 'baja', 'Office'), t(3, 'baja', 'Office'), t(4, 'activo', 'Dirección'), t(5, 'discontinuo', null)],
     [{ clave: 'libre|ANA', nombre: 'ANA', area: 'Office' }],
-    { 'N|f|3': { horas: 2, festivos: 0, descanso: 0, vacaciones: 0 } }
+    { 'N|f|3': { ...vacio, horas: 2 }, 'libre|LUIS': { ...vacio, descanso: 1, nombre: 'LUIS' }, 'libre|VIEJO': { ...vacio } }
   );
-  assert.deepEqual(lista.map(e => e.nombre), ['ANA', 'P1', 'P3', 'P5']);
+  assert.deepEqual(lista.map(e => e.nombre), ['ANA', 'LUIS', 'P1', 'P3', 'P5']);
   assert.equal(lista.find(e => e.nombre === 'P3').horas, 2);
   assert.equal(lista.find(e => e.nombre === 'P5').area, 'Sin área');
-  assert.equal(lista.find(e => e.nombre === 'ANA').manual, true);
+  assert.equal(lista.find(e => e.nombre === 'LUIS').area, 'Eventual');
+});
+
+test('tiposApuntables: sin Hora Extra ni descanso, con la tarifa vigente en esa fecha', () => {
+  const t = (id, tipo, modo, vigente_desde, activo = true, orden = id) => ({ id, tipo, modo, vigente_desde, activo, orden, genera_descanso: modo === 'fijo' });
+  const lista = b.tiposApuntables([
+    t(1, 'Hora Extra', 'por_hora', '2025-01-01'), t(2, 'Domingo', 'fijo', '2025-01-01'), t(3, 'Descanso Disfrutado', 'descanso', '2025-01-01'),
+    t(4, 'Plus', 'libre', '2025-01-01'), t(5, 'Sábado tarde', 'fijo', '2025-01-01'), t(6, 'Sábado tarde', 'fijo', '2026-06-01', false), t(7, 'Futuro', 'fijo', '2030-01-01')
+  ], '2026-11-04');
+  assert.deepEqual(lista.map(x => x.tipo), ['Domingo', 'Plus']);
+  assert.equal(lista[1].libre, true);
+});
+
+test('trabajadorDeClave: eventual o de nómina', () => {
+  assert.deepEqual(b.trabajadorDeClave('libre|ANA LOPEZ'), { nombre_libre: 'ANA LOPEZ' });
+  assert.deepEqual(b.trabajadorDeClave('B1|f|7'), { empresa_nif: 'B1', formato_origen: 'f', num_empleado: '7' });
 });

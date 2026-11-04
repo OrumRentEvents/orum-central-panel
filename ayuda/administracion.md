@@ -2,7 +2,7 @@
 
 Administración trabaja en ORUM Central, Rentman, Caja y Holded. Rentman es el origen de proyectos, facturas de venta y cobros; ORUM Central es donde se revisa, se aprueba y se cierra; Holded es la contabilidad y todo lo que llega allí pasa antes por una aprobación en ORUM Central.
 
-Con el rol Contabilidad ves el menú Financiero y Personal (incluidas las pantallas Holded, Cuentas de gasto, Registrar extras y Aprobar y pagar extras), Material recuperado e Incidencias. La Caja se abre desde Financiero → Caja, en otra pestaña.
+Con el rol Contabilidad ves el menú Financiero y Personal (incluidas las pantallas Holded, Cuentas de gasto, Bolsa de horas y Aprobar y pagar extras), Material recuperado e Incidencias. La Caja se abre desde Financiero → Caja, en otra pestaña.
 
 ## Rutina de trabajo
 
@@ -147,13 +147,13 @@ Cuando un cliente pierde material, Rentman le cobra un coste «ARTÍCULO NO DEVU
 
 Para Administración, los extras son informativos: se consultan, pero no se aprueban ni se pagan desde aquí. Sirven para saber qué extras tiene cada trabajador y cuánto cuestan en el Cierre Mensual.
 
-1. **Registrar:** los responsables de cada área apuntan en Registrar extras el trabajador (o su nombre, si es eventual), la fecha, el tipo, la cantidad y el proyecto o una nota.
+1. **Apuntar:** los responsables de cada área apuntan en Bolsa de horas el trabajador, la fecha, el tipo y el proyecto o una nota.
 2. **Aprobar o rechazar:** Dirección, en Personal → Aprobar y pagar extras.
 3. **Pagar:** lo aprobado se abona en nómina y se marca como pagado.
 
 | Tipo | Importe | Días de descanso |
 | --- | --- | --- |
-| Hora extra | 8 €/h (admite horas negativas) | — |
+| Hora extra | No se paga: va a la bolsa y se recupera. Solo Sergio la cambia por dinero (8 €/h) | — |
 | Domingo, festivo, nocturno, sábado tarde | 50 € | +1 |
 | Descanso disfrutado | — | −1 |
 | Plus / Descuento | Importe libre | — |

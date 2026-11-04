@@ -2,7 +2,7 @@
 
 Logística y almacén trabajan desde ORUM Central: preparación del material, rutas, mantenimiento, vehículos, extras, incidencias y material recuperado. Rentman sigue siendo el origen: proyectos, fechas, direcciones y material se cambian allí y ORUM Central los copia solo en segundos.
 
-Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación, Registrar extras y Bolsa de horas), Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat. Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Registrar extras, Servicios Isabella y Repostaje.
+Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación y Bolsa de horas), Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat. Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Bolsa de horas, Servicios Isabella y Repostaje.
 
 ## Rutina de trabajo
 
@@ -18,7 +18,7 @@ Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Serv
 | Al repostar | Apuntar km, litros y quién reposta | App → Repostaje, o panel → Vehículos → Repostajes |
 | Cada semana | Revisar los servicios extra de los próximos 15 días | Servicios Extra |
 | Cuando se hace | Registrar cada servicio prestado al grupo Isabella | Servicios Isabella |
-| Cuando se hace | Registrar horas extra, domingos, festivos y nocturnos del personal | Registrar extras |
+| Cuando se hace | Apuntar horas, domingos, festivos y nocturnos del personal | Bolsa de horas |
 
 ## Inicio, servicios extra y servicios Isabella
 
@@ -161,33 +161,22 @@ Cuando un cliente pierde material, Rentman le cobra un coste «ARTÍCULO NO DEVU
 2. En ORUM Central → **Material recuperado**, la misma persona **confirma el proyecto y la cantidad** (el sistema propone el proyecto, pero hay que confirmarlo siempre). Sin confirmar no pasa a Administración.
 3. Administración quita el cargo al cliente en Rentman y ORUM Central lo cierra solo.
 
-## Registrar extras
-
-Los responsables apuntan aquí los extras de su equipo, el mismo día o al terminar la semana. Dirección los aprueba y se pagan en nómina.
-
-1. Entra en Logística → Registrar extras (o en la app → Registrar extras).
-2. Elige el trabajador; se pueden marcar varios si hicieron lo mismo. Si es un eventual que no está en la lista, escribe su nombre abajo.
-3. Indica fecha, tipo y cantidad, y añade el proyecto o una nota que explique el extra.
-4. Guarda. El registro queda pendiente hasta que Dirección lo aprueba.
-
-| Tipo | Importe | Días de descanso |
-| --- | --- | --- |
-| Hora extra | 8 €/h (se pueden poner horas negativas) | — |
-| Domingo, festivo, nocturno, sábado tarde | 50 € | +1 |
-| Descanso disfrutado | — | −1 |
-| Plus / Descuento | Importe libre | — |
-
-Cuando alguien disfruta un día de descanso, apúntalo como «Descanso disfrutado» para que su saldo de días esté al día.
-
 ## Bolsa de horas
 
-En Logística → Bolsa de horas llevas lo que se debe a cada trabajador, o lo que debe él. No genera pagos ni necesita aprobación: lo que se paga en nómina se apunta en Registrar extras, no aquí. No apuntes lo mismo en los dos sitios.
+En Logística → Bolsa de horas (o en la app → Bolsa de horas) se apunta todo lo de cada trabajador, el mismo día o al terminar la semana. En el panel cada trabajador tiene su tarjeta con sus botones; en la app eliges a la persona, apuntas y guardas, como en Repostaje.
 
-- **Horas:** «+ Sumar horas» cuando se le deben y «− Quitar horas» cuando se le compensan o se le pagan. Se pueden escribir como 1,5, 1:30 o 1h30. La ficha indica «Le debes», «Te debe» o «Al día».
-- **Días de festivo:** «+ Día de festivo» por cada festivo trabajado. Cuando lo coja, márcalo como «Disfrutado» en Historial y ajustes.
-- **Días de descanso:** «± Días de descanso» suma o resta, con medios días si hace falta.
+| Qué apuntas | Se paga | Días de descanso | ¿Lo aprueba Dirección? |
+| --- | --- | --- | --- |
+| Horas: sumar o quitar | No, se recuperan con tiempo libre | — | No, cuenta al momento |
+| Domingo, festivo, nocturno, sábado tarde | 50 € | +1 | Sí |
+| Plus / Descuento | Importe libre | — | Sí |
+| Días de descanso: sumar o restar | No | Más o menos, con medios días | No, cuenta al momento |
+
+- **Horas:** se pueden escribir como 1,5, 1:30 o 1h30. Cuando alguien las recupera, usa «− Quitar horas». La tarjeta indica «Le debes», «Te debe» o «Al día». Las horas no se pagan: solo Sergio puede cambiarlas por dinero.
+- **Domingos y festivos:** la tarjeta muestra los de este mes. Sus días de descanso se suman cuando Dirección los aprueba; hasta entonces salen como «por aprobar».
+- **Varios a la vez:** «Apuntar a varios» sirve si hicieron lo mismo, por ejemplo un nocturno de un montaje con cuatro personas.
 - **Vacaciones:** se apuntan con fecha de inicio y de fin, y se cuentan en días naturales.
-- **Historial y ajustes:** muestra cada apunte y quién lo hizo. Si te equivocas, pulsa «Anular»: deja de contar, pero queda en el historial.
+- **Historial y ajustes:** muestra cada apunte y quién lo hizo. Las horas, los descansos y las vacaciones se corrigen con «Anular»: dejan de contar, pero quedan en el historial. Los extras se pueden borrar mientras están por aprobar.
 - **Añadir empleado:** solo para quien no está en nómina. El resto de la plantilla sale de Personal.
 
 ## Vehículos

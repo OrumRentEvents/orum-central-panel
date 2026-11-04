@@ -58,15 +58,15 @@ Todo el apartado Personal es solo para Dirección y Contabilidad.
 | --- | --- |
 | Nóminas | Subir los PDF de nóminas de cada mes; el coste se reparte por departamento en el Cierre Mensual |
 | Informe | Coste de personal del año: nóminas más extras, por trabajador, departamento y empresa, comparado con años anteriores |
-| Registrar extras / Aprobar y pagar extras | Registro, aprobación y pago de horas extra, domingos, festivos y nocturnos |
-| Bolsa de horas | Horas, festivos, descansos y vacaciones que se deben a cada trabajador; no genera pagos |
+| Bolsa de horas | Horas, domingos, festivos, descansos y vacaciones de cada trabajador; desde aquí se apunta todo |
+| Aprobar y pagar extras | Aprobación y pago de domingos, festivos, nocturnos y demás extras |
 | Extras | Histórico de extras del año |
 | Análisis, Histórico de personal, Comparador | Evolución del coste, previsión de cierre del año y comparación entre periodos y trabajadores |
 | Configuración → Personal | Departamento de cada trabajador, que decide a qué departamento va su coste |
 
 ### Aprobar y pagar extras, paso a paso
 
-1. Los responsables registran los extras durante el mes (Registrar extras).
+1. Los responsables apuntan los extras durante el mes (Bolsa de horas). Las horas van a la bolsa y se recuperan con tiempo libre: no pasan por aquí, salvo las que Sergio cambie por dinero con «Cambiar por dinero», que llegan ya aprobadas. Si se rechazan, las horas vuelven a la bolsa.
 2. A fin de mes, entra en Personal → Aprobar y pagar extras → pestaña **Registros**: revisa los pendientes y apruébalos o recházalos.
 3. En **Pagos del mes y descansos** ves lo que se paga a cada trabajador y su saldo de días de descanso. Cuando se abona en nómina, se marca como pagado.
 4. En **Tarifas y ajustes** se cambian los precios, siempre con fecha de entrada en vigor (los meses anteriores no se recalculan).

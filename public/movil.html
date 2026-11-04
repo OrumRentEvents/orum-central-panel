@@ -398,7 +398,7 @@ var BOTONES = [
   { id: 'recuperacion', titulo: 'Material recuperado', sub: 'Confirmar lo que vuelve y quitar cargos', roles: ['Direccion', 'Logistica', 'Contabilidad'], href: '/recuperacion' },
   { id: 'avisos', titulo: 'Avisos', sub: 'Proyectos que cambian o se confirman para hoy o mañana', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/avisos' },
   { id: 'chat', titulo: 'Chat', sub: 'Office, Lavandería y Mantenimiento', roles: ['Direccion', 'Logistica'], href: '/chat' },
-  { id: 'extras', titulo: 'Registrar extras', sub: 'Horas de más, domingos, festivos, nocturnos y saldo del personal', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaExtras(); } },
+  { id: 'extras', titulo: 'Bolsa de horas', sub: 'Horas, domingos, festivos, descansos y vacaciones', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaBolsa(); } },
   { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
   { id: 'ayuda', titulo: 'Ayuda', sub: 'Manual de tu puesto y dudas sobre cómo se hace algo', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], href: '/ayuda' },
   { id: 'incidencias', titulo: 'Incidencias', sub: 'Registrar y seguir lo que va pasando', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], href: '/incidencias' },
@@ -526,187 +526,96 @@ function abrirPantalla(titulo) {
   window.scrollTo(0, 0);
 }
 
-// ── Registrar extras ──
-// Mismo formulario que en el panel (Personal → Registrar extras), mismas
-// rutas del servidor (/api/extras-form/*) y las mismas reglas de tarifas.
-var EX = { ctx: null, sel: {}, eventuales: [], filtro: '' };
+// ── Bolsa de horas ──
+// Igual que Repostaje: se elige a la persona, se apunta y se guarda. Mismas rutas
+// que el panel (/api/bolsa, lib/bolsa.js). Las horas van a la bolsa y se recuperan;
+// el cambio por dinero solo se hace desde el panel.
+var BH = { ctx: null, emp: null, filtro: '' };
 function hoyISO() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-function tarifaVigente(tarifas, tipo, fecha) {
-  return tarifas.filter(function (t) { return t.tipo === tipo && t.vigente_desde <= fecha; })
-    .sort(function (a, b) { return a.vigente_desde === b.vigente_desde ? b.id - a.id : (a.vigente_desde < b.vigente_desde ? 1 : -1); })[0] || null;
-}
-function tiposDisponibles(tarifas, fecha) {
-  var tipos = []; tarifas.forEach(function (t) { if (tipos.indexOf(t.tipo) === -1) tipos.push(t.tipo); });
-  return tipos.map(function (t) { return tarifaVigente(tarifas, t, fecha); }).filter(function (t) { return t && t.activo; }).sort(function (a, b) { return a.orden - b.orden; });
-}
-function textoTarifa(t) {
-  if (!t) return '';
-  if (t.modo === 'por_hora') return euros(t.importe) + '/h';
-  if (t.modo === 'fijo') return euros(t.importe) + (t.genera_descanso ? ' + 1 día de descanso' : '');
-  if (t.modo === 'descanso') return 'resta 1 día del saldo';
-  return 'importe libre';
-}
-function claveTrab(t) { return t.empresa_nif + '|' + t.formato_origen + '|' + t.num_empleado; }
-function pantallaExtras() {
-  abrirPantalla('Registrar extras');
+function fechaCorta(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : iso; }
+function pantallaBolsa(aviso) {
+  abrirPantalla('Bolsa de horas');
   document.getElementById('cuerpo').innerHTML = '<div class="cargando">Cargando…</div>';
-  fetch('/api/extras-form/contexto').then(function (r) { return r.json(); }).then(function (d) {
+  fetch('/api/bolsa').then(function (r) { return r.json(); }).then(function (d) {
     if (d.error) throw new Error(d.error);
-    EX.ctx = d; EX.sel = {}; EX.eventuales = []; EX.filtro = '';
-    pintarExtras(hoyISO());
+    BH.ctx = d; BH.emp = null; BH.filtro = '';
+    pintarPersonasBolsa(aviso);
   }).catch(function (e) { document.getElementById('cuerpo').innerHTML = '<div class="cargando">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
 }
-function pintarExtras(fecha, tipoSel) {
-  var C = EX.ctx, tipos = tiposDisponibles(C.tarifas, fecha);
-  tipoSel = tipoSel || (tipos[0] || {}).tipo;
-  var proyectos = (C.proyectos || []).map(function (p) { return '<option value="' + esc(p.numero) + '">' + esc(p.numero + ' · ' + (p.nombre || '') + (p.cliente ? ' (' + p.cliente + ')' : '')) + '</option>'; }).join('');
-  document.getElementById('cuerpo').innerHTML = pestanasExtras('registrar') +
-    '<div class="form">' +
-      '<div class="fila2"><div class="campo"><label>Fecha</label><input type="date" id="ex-fecha" value="' + fecha + '" max="' + hoyISO() + '"></div>' +
-      '<div class="campo"><label>Tipo de extra</label><select id="ex-tipo">' + tipos.map(function (t) { return '<option value="' + esc(t.tipo) + '"' + (t.tipo === tipoSel ? ' selected' : '') + '>' + esc(t.tipo) + '</option>'; }).join('') + '</select></div></div>' +
-      '<div class="nota" id="ex-tarifa"></div>' +
-      '<div class="campo" id="ex-b-horas"><label>Horas (en negativo para descontar)</label><input type="number" step="0.25" inputmode="decimal" id="ex-horas" placeholder="p. ej. 2,5"></div>' +
-      '<div class="campo" id="ex-b-importe"><label>Importe (€)</label><input type="number" step="0.01" inputmode="decimal" id="ex-importe" placeholder="p. ej. 100"></div>' +
-      '<div class="campo"><label>Nº de proyecto (opcional)</label><input id="ex-proyecto" list="ex-proyectos" placeholder="Busca por nº o nombre" autocomplete="off"><datalist id="ex-proyectos">' + proyectos + '</datalist></div>' +
-      '<div class="campo"><label>Notas (opcional)</label><input id="ex-notas" placeholder="Qué se hizo, montaje, motivo…"></div>' +
-      '<div class="trab-cab">Trabajadores <span id="ex-num"></span></div>' +
-      '<div class="campo"><input id="ex-buscar" placeholder="Buscar trabajador…" value="' + esc(EX.filtro) + '" autocomplete="off"></div>' +
-      '<div class="trab-lista" id="ex-lista"></div>' +
-      '<div class="fila-add campo"><input id="ex-eventual" list="ex-eventuales" placeholder="Eventual sin nómina (APELLIDOS, NOMBRE)" autocomplete="off"><datalist id="ex-eventuales">' + (C.eventuales || []).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist><button onclick="anadirEventual()">Añadir</button></div>' +
-      '<div class="chips" id="ex-chips"></div>' +
-      '<div class="resumen-form" id="ex-resumen"></div>' +
-      '<button class="enviar" id="ex-enviar" onclick="guardarExtras()">Registrar</button>' +
-      '<div class="estado-form" id="ex-estado"></div>' +
-    '</div>' +
-    '<div class="seccion-tit">Mis registros</div><div id="ex-mios">' + htmlMisExtras() + '</div>';
-  document.getElementById('ex-fecha').onchange = function () { pintarExtras(this.value || hoyISO(), document.getElementById('ex-tipo').value); };
-  document.getElementById('ex-tipo').onchange = actualizarTarifaExtras;
-  document.getElementById('ex-horas').oninput = actualizarResumenExtras;
-  document.getElementById('ex-importe').oninput = actualizarResumenExtras;
-  document.getElementById('ex-buscar').oninput = function () { EX.filtro = this.value; pintarTrabajadores(); };
-  pintarTrabajadores(); pintarEventuales(); actualizarTarifaExtras();
+function nombreBolsa(n) { return String(n || '').toLowerCase().replace(/\s+,/g, ',').replace(/(^|[\s,.-])(\p{L})/gu, function (m, a, b) { return a + b.toUpperCase(); }); }
+function textoHorasBolsa(h) { return h > 0 ? 'Le debes ' + numES(h) + ' h' : h < 0 ? 'Te debe ' + numES(-h) + ' h' : 'Horas al día'; }
+function textoUltimoBolsa(u) {
+  if (u.tipo === 'horas') return (u.cantidad > 0 ? '+' : '−') + numES(Math.abs(u.cantidad)) + ' h';
+  if (u.tipo === 'descanso') return (u.cantidad > 0 ? '+' : '−') + numES(Math.abs(u.cantidad)) + (Math.abs(u.cantidad) === 1 ? ' día' : ' días') + ' de descanso';
+  return u.tipo + (u.estado === 'pendiente' ? ' · por aprobar' : u.estado === 'rechazado' ? ' · rechazado' : '');
 }
-function pintarTrabajadores() {
-  var q = EX.filtro.trim().toLowerCase(), orden = { activo: 0, discontinuo: 1, baja: 2 };
-  var lista = EX.ctx.trabajadores.filter(function (t) { return t.estado !== 'baja' || EX.sel[claveTrab(t)]; })
-    .filter(function (t) { return !q || t.nombre.toLowerCase().indexOf(q) !== -1; })
-    .sort(function (a, b) { return (orden[a.estado] - orden[b.estado]) || a.nombre.localeCompare(b.nombre); });
-  document.getElementById('ex-lista').innerHTML = lista.map(function (t) {
-    var k = claveTrab(t), on = !!EX.sel[k];
-    return '<label class="trab' + (on ? ' on' : '') + '"><input type="checkbox"' + (on ? ' checked' : '') + ' data-trab="' + esc(k) + '"><span>' + esc(t.nombre) + '<small>' + esc(t.departamento || 'Sin departamento') + (t.estado === 'discontinuo' ? ' · fijo discontinuo' : '') + '</small></span></label>';
+function pintarPersonasBolsa(aviso) {
+  document.getElementById('cuerpo').innerHTML =
+    (aviso ? '<div class="estado-form ok" style="margin-bottom:12px;">' + aviso + '</div>' : '') +
+    '<div class="seccion-tit" style="margin-top:0;">¿De quién es?</div>' +
+    '<div class="campo"><input id="bh-buscar" placeholder="Buscar trabajador…" value="' + esc(BH.filtro) + '" autocomplete="off"></div>' +
+    '<div class="veh-lista" id="bh-lista"></div>' +
+    '<div class="seccion-tit">Últimos apuntes</div>' +
+    ((BH.ctx.ultimos || []).map(function (u) {
+      return '<div class="reg"><div class="reg-top"><b>' + esc(nombreBolsa(u.nombre)) + '</b></div><div class="reg-sub">' + fechaCorta(u.fecha) + ' · ' + esc(textoUltimoBolsa(u)) + '</div></div>';
+    }).join('') || '<div class="nota">Todavía no hay apuntes.</div>');
+  document.getElementById('bh-buscar').oninput = function () { BH.filtro = this.value; pintarListaBolsa(); };
+  pintarListaBolsa();
+}
+function pintarListaBolsa() {
+  var q = BH.filtro.trim().toLowerCase();
+  document.getElementById('bh-lista').innerHTML = BH.ctx.empleados.map(function (e, i) {
+    if (q && String(e.nombre).toLowerCase().indexOf(q) === -1) return '';
+    return '<button class="veh-btn" onclick="elegirPersonaBolsa(' + i + ')"><b>' + esc(nombreBolsa(e.nombre)) + '</b><span>' + esc(e.area) + '</span><span class="mat">' + esc(textoHorasBolsa(e.horas)) + (e.descanso ? ' · ' + numES(e.descanso) + ' d' : '') + '</span></button>';
   }).join('') || '<div class="nota">Nadie coincide con la búsqueda.</div>';
-  document.querySelectorAll('[data-trab]').forEach(function (el) {
-    el.onchange = function () { var k = el.getAttribute('data-trab'); if (el.checked) EX.sel[k] = true; else delete EX.sel[k]; el.closest('.trab').classList.toggle('on', el.checked); actualizarResumenExtras(); };
-  });
-  actualizarResumenExtras();
 }
-function anadirEventual() {
-  var inp = document.getElementById('ex-eventual'), n = inp.value.trim().toUpperCase();
-  if (n && EX.eventuales.indexOf(n) === -1) EX.eventuales.push(n);
-  inp.value = ''; pintarEventuales();
+function elegirPersonaBolsa(i) {
+  var e = BH.emp = BH.ctx.empleados[i];
+  window.scrollTo(0, 0);
+  document.getElementById('cuerpo').innerHTML =
+    '<div class="veh-elegido"><div><b>' + esc(nombreBolsa(e.nombre)) + '</b><span>' + esc(textoHorasBolsa(e.horas)) + ' · ' + numES(e.descanso) + ' días de descanso</span></div><button onclick="pintarPersonasBolsa()">Cambiar</button></div>' +
+    '<div class="form">' +
+      '<div class="campo"><label>Qué quieres apuntar</label><select id="bh-que" onchange="camposBolsa()">' +
+        '<optgroup label="Horas (a la bolsa)"><option value="horas-sumar">Sumar horas</option><option value="horas-quitar">Quitar horas: ya recuperadas</option></optgroup>' +
+        '<optgroup label="Días trabajados y extras">' + BH.ctx.tipos.map(function (t) { return '<option value="' + esc(t.tipo) + '">' + esc(t.tipo) + '</option>'; }).join('') + '</optgroup>' +
+        '<optgroup label="Días de descanso"><option value="descanso-quitar">Descanso disfrutado</option><option value="descanso-sumar">Se le debe un descanso</option></optgroup>' +
+        '<optgroup label="Vacaciones"><option value="vacaciones">Vacaciones</option></optgroup>' +
+      '</select></div>' +
+      '<div class="campo" id="bh-b-cant"><label id="bh-l-cant">Horas</label><input class="grande" type="text" inputmode="text" id="bh-cant" autocomplete="off"></div>' +
+      '<div class="campo" id="bh-b-imp"><label>Importe (€)</label><input class="grande" type="text" inputmode="decimal" id="bh-imp" autocomplete="off" placeholder="p. ej. 100"></div>' +
+      '<div class="campo" id="bh-b-fecha"><label>Fecha</label><input type="date" id="bh-fecha" max="' + hoyISO() + '" value="' + hoyISO() + '"></div>' +
+      '<div class="fila2" id="bh-b-vac"><div class="campo"><label>Desde</label><input type="date" id="bh-ini"></div><div class="campo"><label>Hasta</label><input type="date" id="bh-fin"></div></div>' +
+      '<div class="campo"><label>Nota (opcional)</label><input type="text" id="bh-nota" autocomplete="off"></div>' +
+      '<div class="nota" id="bh-aviso" style="margin-bottom:10px;"></div>' +
+      '<button class="enviar" id="bh-enviar" onclick="guardarBolsa()">Guardar</button>' +
+      '<div class="estado-form" id="bh-estado"></div>' +
+    '</div>';
+  camposBolsa();
+  document.getElementById('bh-cant').focus();
 }
-function pintarEventuales() {
-  document.getElementById('ex-chips').innerHTML = EX.eventuales.map(function (n, i) { return '<span>' + esc(n) + '<b onclick="EX.eventuales.splice(' + i + ',1); pintarEventuales();">✕</b></span>'; }).join('');
-  actualizarResumenExtras();
+function camposBolsa() {
+  var que = document.getElementById('bh-que').value, horas = que.indexOf('horas-') === 0, dias = que.indexOf('descanso-') === 0, vac = que === 'vacaciones';
+  var tipo = BH.ctx.tipos.filter(function (t) { return t.tipo === que; })[0];
+  var ver = function (id, si) { document.getElementById(id).style.display = si ? '' : 'none'; };
+  ver('bh-b-cant', horas || dias); ver('bh-b-imp', !!(tipo && tipo.libre)); ver('bh-b-fecha', !vac); ver('bh-b-vac', vac); ver('bh-aviso', !!tipo);
+  document.getElementById('bh-l-cant').textContent = horas ? 'Horas' : 'Días';
+  var cant = document.getElementById('bh-cant');
+  cant.placeholder = horas ? '1,5 · 1:30 · 1h30' : '1 · 0,5 · 1,5';
+  if (dias && !cant.value) cant.value = '1';
+  if (horas && cant.value === '1') cant.value = '';
+  if (tipo) document.getElementById('bh-aviso').textContent = tipo.genera_descanso ? 'Genera su pago y 1 día de descanso. Cuenta cuando Dirección lo aprueba.' : 'Genera un apunte en nómina. Cuenta cuando Dirección lo aprueba.';
 }
-function tarifaActualExtras() { return tarifaVigente(EX.ctx.tarifas, document.getElementById('ex-tipo').value, document.getElementById('ex-fecha').value); }
-function actualizarTarifaExtras() {
-  var t = tarifaActualExtras();
-  document.getElementById('ex-tarifa').textContent = t ? 'Tarifa: ' + textoTarifa(t) : 'No hay tarifa para ese tipo en esa fecha';
-  document.getElementById('ex-b-horas').classList.toggle('oculto', !(t && t.modo === 'por_hora'));
-  document.getElementById('ex-b-importe').classList.toggle('oculto', !(t && t.modo === 'libre'));
-  actualizarResumenExtras();
-}
-function importeExtras() {
-  var t = tarifaActualExtras(), tipo = document.getElementById('ex-tipo').value;
-  if (!t) return { t: null, importe: 0 };
-  var horas = parseFloat(document.getElementById('ex-horas').value) || 0, imp = parseFloat(document.getElementById('ex-importe').value) || 0;
-  if (t.modo === 'por_hora') return { t: t, importe: Math.round(horas * parseFloat(t.importe) * 100) / 100 };
-  if (t.modo === 'fijo') return { t: t, importe: parseFloat(t.importe) };
-  if (t.modo === 'descanso') return { t: t, importe: 0 };
-  return { t: t, importe: /descuento/i.test(tipo) ? -Math.abs(imp) : imp };
-}
-function actualizarResumenExtras() {
-  var res = document.getElementById('ex-resumen');
-  if (!res) return;
-  var n = Object.keys(EX.sel).length + EX.eventuales.length;
-  document.getElementById('ex-num').textContent = n ? n + ' elegido' + (n > 1 ? 's' : '') : '';
-  var c = importeExtras();
-  res.classList.toggle('aviso', !n || !c.t);
-  if (!c.t) { res.textContent = 'No hay tarifa para ese tipo en esa fecha'; return; }
-  var extra = c.t.genera_descanso ? ' · +1 día de descanso' + (n > 1 ? ' a cada uno' : '') : (c.t.modo === 'descanso' ? ' · resta 1 día del saldo' : '');
-  res.innerHTML = n ? '<b>' + n + '</b> × ' + euros(c.importe) + ' = <b>' + euros(n * c.importe) + '</b>' + extra : 'Elige al menos un trabajador';
-}
-function guardarExtras() {
-  var est = document.getElementById('ex-estado'), btn = document.getElementById('ex-enviar');
-  var trabajadores = Object.keys(EX.sel).map(function (k) { var p = k.split('|'); return { empresa_nif: p[0], formato_origen: p[1], num_empleado: p[2] }; })
-    .concat(EX.eventuales.map(function (n) { return { nombre_libre: n }; }));
-  if (!trabajadores.length) { est.className = 'estado-form mal'; est.textContent = 'Elige al menos un trabajador'; return; }
-  var cuerpo = { fecha: document.getElementById('ex-fecha').value, tipo: document.getElementById('ex-tipo').value, horas: document.getElementById('ex-horas').value, importe: document.getElementById('ex-importe').value,
-    proyecto: document.getElementById('ex-proyecto').value, notas: document.getElementById('ex-notas').value, trabajadores: trabajadores };
+function guardarBolsa() {
+  var est = document.getElementById('bh-estado'), btn = document.getElementById('bh-enviar'), que = document.getElementById('bh-que').value;
+  var val = function (id) { return document.getElementById(id).value.trim(); };
+  var url = '/api/bolsa/apuntes', cuerpo = { claves: [BH.emp.clave], que: que, cantidad: val('bh-cant'), importe: val('bh-imp'), fecha: val('bh-fecha'), nota: val('bh-nota') };
+  if (que === 'vacaciones') { url = '/api/bolsa/vacaciones'; cuerpo = { clave: BH.emp.clave, fecha_inicio: val('bh-ini'), fecha_fin: val('bh-fin'), nota: val('bh-nota') }; }
   btn.disabled = true; est.className = 'estado-form'; est.textContent = 'Guardando…';
-  postJson('/api/extras-form/registros', cuerpo).then(function (d) {
+  postJson(url, cuerpo).then(function (d) {
     btn.disabled = false;
     if (!d.ok) { est.className = 'estado-form mal'; est.textContent = d.error || 'No se ha podido guardar'; return; }
-    var n = (d.registros || []).length;
-    EX.ctx.registros = (d.registros || []).concat(EX.ctx.registros || []);
-    EX.sel = {}; EX.eventuales = [];
-    pintarExtras(cuerpo.fecha, cuerpo.tipo);
-    var e2 = document.getElementById('ex-estado'); e2.className = 'estado-form ok'; e2.textContent = '✓ ' + n + ' registro' + (n > 1 ? 's' : '') + ' enviado' + (n > 1 ? 's' : '') + ' a aprobar';
+    pantallaBolsa('✓ Apuntado a ' + esc(nombreBolsa(BH.emp.nombre)) + (d.aprobar ? '. Falta que Dirección lo apruebe.' : ''));
   }).catch(function () { btn.disabled = false; est.className = 'estado-form mal'; est.textContent = 'Sin conexión'; });
-}
-function fechaCorta(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : iso; }
-function htmlMisExtras() {
-  var regs = (EX.ctx.registros || []).slice(0, 25);
-  if (!regs.length) return '<div class="nota">Todavía no has registrado nada.</div>';
-  return regs.map(function (r) {
-    return '<div class="reg"><div class="reg-top"><b>' + esc(r.nombre_trabajador) + '</b><span>' + euros(r.importe) + '</span></div>' +
-      '<div class="reg-sub">' + fechaCorta(r.fecha) + ' · ' + esc(r.tipo) + (r.horas ? ' · ' + r.horas + ' h' : '') + (r.proyecto ? ' · nº ' + esc(r.proyecto) : '') + '</div>' +
-      '<div class="reg-pie"><span class="est ' + esc(r.estado) + '">' + esc(r.estado) + '</span>' + (r.estado === 'pendiente' ? '<button onclick="borrarExtra(' + r.id + ')">Borrar</button>' : '') + '</div></div>';
-  }).join('');
-}
-function borrarExtra(id) {
-  if (!confirm('¿Borrar este registro?')) return;
-  fetch('/api/extras-form/registros/' + id, { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (d) {
-    if (d.error) { alert(d.error); return; }
-    EX.ctx.registros = EX.ctx.registros.filter(function (r) { return r.id !== id; });
-    document.getElementById('ex-mios').innerHTML = htmlMisExtras();
-  }).catch(function () { alert('Sin conexión'); });
-}
-
-// ── Saldo del personal ──
-// Pestaña de Registrar extras, igual que en el panel: días de descanso
-// aprobados y horas extra; lo pendiente de aprobar, aparte.
-var SALDOS = null;
-function pestanasExtras(activa) {
-  return '<div class="segmentos" style="margin-bottom:12px;"><button' + (activa === 'registrar' ? ' class="on"' : '') + ' onclick="pantallaExtras()">Registrar</button><button' + (activa === 'saldos' ? ' class="on"' : '') + ' onclick="pantallaSaldos()">Saldo del personal</button></div>';
-}
-function pantallaSaldos() {
-  abrirPantalla('Registrar extras');
-  document.getElementById('cuerpo').innerHTML = pestanasExtras('saldos') + '<div class="cargando">Cargando…</div>';
-  fetch('/api/extras-form/saldos').then(function (r) { return r.json(); }).then(function (d) {
-    if (d.error) throw new Error(d.error);
-    SALDOS = d;
-    document.getElementById('cuerpo').innerHTML = pestanasExtras('saldos') +
-      '<div class="campo"><input id="sl-buscar" placeholder="Buscar trabajador…" autocomplete="off"></div>' +
-      '<div class="nota" style="margin:0 0 10px;">Descanso: saldo inicial + días generados − disfrutados (lo aprobado). Horas: horas extra registradas este mes y este año.</div>' +
-      '<div id="sl-lista"></div>';
-    document.getElementById('sl-buscar').oninput = function () { pintarSaldos(this.value); };
-    pintarSaldos('');
-  }).catch(function (e) { document.getElementById('cuerpo').innerHTML = pestanasExtras('saldos') + '<div class="cargando">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
-}
-function pintarSaldos(q) {
-  q = String(q || '').trim().toLowerCase();
-  var num = function (n) { return Number(n).toLocaleString('es-ES', { maximumFractionDigits: 2 }); };
-  var signo = function (n) { return (n > 0 ? '+' : '') + num(n); };
-  var lista = SALDOS.trabajadores.filter(function (t) { return !q || String(t.nombre || '').toLowerCase().indexOf(q) !== -1; });
-  document.getElementById('sl-lista').innerHTML = lista.map(function (t) {
-    var pend = [t.dias_pendientes ? signo(t.dias_pendientes) + ' día' + (Math.abs(t.dias_pendientes) === 1 ? '' : 's') : '', t.horas_pendientes ? signo(t.horas_pendientes) + ' h' : ''].filter(Boolean).join(' · ');
-    return '<div class="reg"><div class="reg-top"><b>' + esc(t.nombre || t.clave) + '</b><span style="font-weight:600;' + (t.dias < 0 ? 'color:#A32D2D;' : '') + '">' + num(t.dias) + ' día' + (Math.abs(t.dias) === 1 ? '' : 's') + '</span></div>' +
-      '<div class="reg-sub">' + esc(t.departamento || (String(t.clave).indexOf('libre|') === 0 ? 'Eventual' : '')) + (t.estado === 'discontinuo' ? ' · fijo discontinuo' : '') + '</div>' +
-      '<div class="reg-sub">Horas este mes: <b>' + (t.horas_mes ? num(t.horas_mes) + ' h' : '—') + '</b> · año: <b>' + (t.horas_anio ? num(t.horas_anio) + ' h' : '—') + '</b></div>' +
-      (pend ? '<div class="reg-pie"><span class="est pendiente">Pendiente de aprobar: ' + pend + '</span></div>' : '') + '</div>';
-  }).join('') || '<div class="nota">Nadie coincide con la búsqueda.</div>';
 }
 
 // ── Repostaje ──

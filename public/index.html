@@ -983,7 +983,6 @@ const MENU = [
   { id: 'per', icon: 'users', group: 'gestion', label: 'Personal', submenu: [
       { id: 'per-nominas', label: 'Nóminas', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('nominas') },
       { id: 'per-informe', label: 'Informe', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('informe') },
-      { id: 'per-registrar-extras', label: 'Registrar extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarRegistrarExtras() },
       { id: 'per-aprobar-extras', label: 'Aprobar y pagar extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarGestionExtras() },
       { id: 'per-bolsa', label: 'Bolsa de horas', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarBolsaHoras('per-bolsa') },
       { id: 'per-extras', label: 'Extras', rolesPermitidos: ['Direccion', 'Contabilidad'], onClick: () => cargarPersonal('extras') },
@@ -1025,10 +1024,9 @@ const MENU = [
       // menú. Aterriza en "almacen" porque es la vista más completa (incluye
       // Servicios y Logística además de Por proyecto/Por material).
       { id: 'log-preparacion', label: 'Preparación', onClick: () => cargarPreparacion('almacen') },
-      // Formulario de extras de ORUM Central (28 sep 2026): los responsables
-      // registran horas de más, domingos, festivos y nocturnos; Dirección aprueba.
-      // Solo rol Logística: Dirección/Contabilidad lo tienen en Personal.
-      { id: 'log-extras', label: 'Registrar extras', rolesPermitidos: ['Logistica'], onClick: () => cargarRegistrarExtras() },
+      // Bolsa de horas (nov 2026): aquí se apuntan horas, domingos, festivos y demás
+      // extras (public/bolsa.js). Sustituye a Registrar extras, que solo se abre ya
+      // para corregir un registro desde Aprobar y pagar. Dirección/Contabilidad: Personal.
       { id: 'log-bolsa', label: 'Bolsa de horas', rolesPermitidos: ['Logistica'], onClick: () => cargarBolsaHoras('log-bolsa') },
   ]},
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
@@ -2806,13 +2804,13 @@ async function pintarPersonalConfig() {
       <td style="text-align:right;">${p.mesesTrabajados}</td>
       <td><select class="select-depto-persona" data-inicial="${dep}" style="font-size:13px; padding:4px; border-radius:4px; border:1px solid #e2e2de;"><option value="">Sin clasificar</option>${opciones}</select></td>
       <td style="text-align:center;"><input type="checkbox" class="check-fijo-discontinuo" ${p.fijoDiscontinuo ? 'checked' : ''}></td>
-      <td style="text-align:center;"><input type="checkbox" class="check-baja-manual" ${p.bajaManual ? 'checked' : ''} title="Fuera de la lista de Registrar extras hasta que tenga una nómina de un mes posterior"></td>
+      <td style="text-align:center;"><input type="checkbox" class="check-baja-manual" ${p.bajaManual ? 'checked' : ''} title="Fuera de la lista de Bolsa de horas hasta que tenga una nómina de un mes posterior"></td>
     </tr>`;
   };
   const tablaPersonas = (lista, inactivo, vacio) => `
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto; margin-bottom:1.5rem;">
       <table>
-        <thead><tr><th>Trabajador</th><th>Inicio</th>${inactivo ? '<th>Último mes</th><th>Estado</th>' : ''}<th style="text-align:right;">Meses nómina</th><th>Departamento</th><th style="text-align:center;">Fijo discontinuo</th><th style="text-align:center;" title="Ya no está en la empresa: sale de la lista de Registrar extras. Vuelve solo al subir una nómina suya de un mes posterior.">Baja</th></tr></thead>
+        <thead><tr><th>Trabajador</th><th>Inicio</th>${inactivo ? '<th>Último mes</th><th>Estado</th>' : ''}<th style="text-align:right;">Meses nómina</th><th>Departamento</th><th style="text-align:center;">Fijo discontinuo</th><th style="text-align:center;" title="Ya no está en la empresa: sale de la lista de Bolsa de horas. Vuelve solo al subir una nómina suya de un mes posterior.">Baja</th></tr></thead>
         <tbody class="tbody-personas-config">${lista.map(p => filaPersona(p, inactivo)).join('') || `<tr><td colspan="8" style="padding:1.2rem 4px; color:#9a988f;">${vacio}</td></tr>`}</tbody>
       </table>
     </div>`;
@@ -2839,7 +2837,7 @@ async function pintarPersonalConfig() {
     </div>`;
   cont.innerHTML = `
     ${cabeceraSeccion('Personal en activo (' + activos.length + ')', 'estado-guardar-depto-personal', 'guardarConfigPersonal()')}
-    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Con nómina en el último mes subido (${textoYM(reg.ultimoMesNomina)}). El departamento se aplica a la persona entera (también a su histórico fusionado) y es el que usa Cierre Mensual. Marca <strong>Baja</strong> a quien ya no está en la empresa aunque tenga nómina este mes: pasa a baja y sale de la lista de Registrar extras; vuelve solo en cuanto se suba una nómina suya de un mes posterior. Pulsa un nombre para ver su ficha.</p>
+    <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Con nómina en el último mes subido (${textoYM(reg.ultimoMesNomina)}). El departamento se aplica a la persona entera (también a su histórico fusionado) y es el que usa Cierre Mensual. Marca <strong>Baja</strong> a quien ya no está en la empresa aunque tenga nómina este mes: pasa a baja y sale de la lista de Bolsa de horas; vuelve solo en cuanto se suba una nómina suya de un mes posterior. Pulsa un nombre para ver su ficha.</p>
     ${tablaPersonas(activos, false, 'Sube una nómina primero.')}
     ${cabeceraSeccion('Personal en baja / inactivo (' + inactivos.length + ')', null, null)}
     <p style="font-size:12px; color:#6b6a64; margin:0 0 10px;">Tuvieron nómina pero no en ${textoYM(reg.ultimoMesNomina)}, o están marcados como <strong>Baja</strong> (desmárcala para que vuelvan antes de su próxima nómina). Marca <strong>Fijo discontinuo</strong> a quien volverá en la próxima campaña: sale como tal (no como baja) en el Histórico e Informe, y en cuanto se suba una nómina suya vuelve a "activo" solo. Se guarda con el mismo botón de arriba.</p>
@@ -5072,7 +5070,7 @@ function pintarGestionExtras() {
       </div>
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
         ${pend.length ? '<span style="font-size:12px; color:#854F0B;">Pendientes de aprobar:</span>' + pend.map(([k, n]) => { const [a, m] = k.split('-'); return `<button onclick="irAMesGestionExtras('${k}')" style="font-size:12px; padding:4px 10px; border-radius:12px; border:none; background:#FDF3E0; color:#854F0B; cursor:pointer;">${MESES_ES_FACTURAS[parseInt(m)].slice(0, 3)} ${a} (${n})</button>`; }).join('') : '<span style="font-size:12px; color:#27500A;">✓ Nada pendiente de aprobar</span>'}
-        <span onclick="marcarMenuActivo('menu-item-per-registrar-extras'); cargarRegistrarExtras();" style="font-size:13px; color:#3D7C9E; cursor:pointer; margin-left:8px;">+ Registrar extras</span>
+        <span onclick="cargarBolsaHoras('per-bolsa');" style="font-size:13px; color:#3D7C9E; cursor:pointer; margin-left:8px;">+ Bolsa de horas</span>
       </div>
     </div>
     ${D.anio * 100 + D.mes < parseInt(String(D.inicio).replace('-', '')) ? `<div class="no-imprimir" style="background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.7rem 1rem; margin-bottom:12px; font-size:12.5px; color:#2F6280;">${MESES_ES_FACTURAS[D.mes]} ${D.anio} es anterior al formulario (empieza en ${MESES_ES_FACTURAS[parseInt(D.inicio.split('-')[1])].toLowerCase()} ${D.inicio.split('-')[0]}): sus extras siguen saliendo de la hoja de Google (pestañas PAGOS) o del histórico de 2025, ya se dan por pagados y no pasan por aprobación. Aquí solo aparece lo que se haya registrado a posteriori con fecha de este mes, que se suma a lo de la hoja.</div>` : ''}
@@ -5144,7 +5142,7 @@ async function cambiarEstadoExtras(estado, ids) {
 async function editarExtraDesdeGestion(id) {
   const r = gestionExtras.datos.registros.find(x => x.id === id);
   if (!r) return;
-  marcarMenuActivo('menu-item-per-registrar-extras');
+  marcarMenuActivo('menu-item-per-aprobar-extras');
   await cargarRegistrarExtras();
   registroExtras.editando = r;
   pintarRegistrarExtras();
@@ -5361,7 +5359,7 @@ function pintarPersonalExtras() {
       </table>
     </div>
   ` : `
-    ${personalGlobal.inicioFormularioExtras ? `<div style="background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.8rem 1rem; margin-bottom:1rem; font-size:12.5px; color:#2F6280;">Desde <strong>${MESES_ES_FACTURAS[parseInt(personalGlobal.inicioFormularioExtras.split('-')[1])]} ${personalGlobal.inicioFormularioExtras.split('-')[0]}</strong> los extras se registran en <span onclick="marcarMenuActivo('menu-item-per-registrar-extras'); cargarRegistrarExtras();" style="text-decoration:underline; cursor:pointer;">Registrar extras</span> y cuentan al aprobarlos en <span onclick="marcarMenuActivo('menu-item-per-aprobar-extras'); cargarGestionExtras();" style="text-decoration:underline; cursor:pointer;">Aprobar y pagar extras</span>. Los meses anteriores son el histórico importado de la hoja de Google.</div>` : ''}
+    ${personalGlobal.inicioFormularioExtras ? `<div style="background:#E8F0F6; border:0.5px solid #C9DCE8; border-radius:8px; padding:0.8rem 1rem; margin-bottom:1rem; font-size:12.5px; color:#2F6280;">Desde <strong>${MESES_ES_FACTURAS[parseInt(personalGlobal.inicioFormularioExtras.split('-')[1])]} ${personalGlobal.inicioFormularioExtras.split('-')[0]}</strong> los extras se registran en <span onclick="cargarBolsaHoras('per-bolsa');" style="text-decoration:underline; cursor:pointer;">Bolsa de horas</span> y cuentan al aprobarlos en <span onclick="marcarMenuActivo('menu-item-per-aprobar-extras'); cargarGestionExtras();" style="text-decoration:underline; cursor:pointer;">Aprobar y pagar extras</span>. Los meses anteriores son el histórico importado de la hoja de Google.</div>` : ''}
     <!-- Oct 2026: ya no hay botón "Sincronizar" - los meses anteriores al
     formulario propio se importaron una vez de la hoja "HORAS EXTRAS 2026"
     (Google) y quedan fijos; desde entonces todo sale del formulario. -->

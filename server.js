@@ -204,7 +204,7 @@ require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
 // Chat por departamento (Office, Lavandería, Mantenimiento) — lib/chat.js
 const chatModulo = require('./lib/chat').registrar(app, { supabase, requiereLogin });
 // Bolsa de horas: horas, festivos, descansos y vacaciones de la plantilla — lib/bolsa.js
-require('./lib/bolsa').registrar(app, { supabase, requiereLogin, trabajadoresParaExtras: () => trabajadoresParaExtras() });
+require('./lib/bolsa').registrar(app, { supabase, requiereLogin, datosExtras: () => datosExtrasParaBolsa(), crearExtras: (u, datos, estado) => crearRegistrosExtras(u, datos, estado) });
 // Incidencias: crear, asignar y seguir hasta cerrarla — lib/incidencias.js
 require('./lib/incidencias').registrar(app, { supabase, requiereLogin });
 // Financiero → Informe semanal (No Confirmados / Resto en PDF guardado) — lib/informeSemanalProyectos.js
@@ -3951,18 +3951,27 @@ app.get('/api/extras-form/contexto', requiereLogin, puedeRegistrarExtras, async 
 
 // Crea uno o varios registros (mismo extra para varios trabajadores, ej. un
 // nocturno de un montaje con 4 personas).
+const esSergio = (req) => String(req.session.usuario.usuario || '').toLowerCase() === 'sergio';
 app.post('/api/extras-form/registros', requiereLogin, puedeRegistrarExtras, async (req, res) => {
   try {
-    const { fecha, tipo, horas, importe, proyecto, notas, trabajadores } = req.body || {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) return res.status(400).json({ error: 'Fecha no válida.' });
-    if (!Array.isArray(trabajadores) || trabajadores.length === 0) return res.status(400).json({ error: 'Elige al menos un trabajador.' });
+    // Las horas van a la Bolsa de horas: solo Sergio las cambia por dinero (nov 2026)
+    if (/^hora extra$/i.test(String((req.body || {}).tipo || '')) && !esSergio(req)) return res.status(403).json({ error: 'Las horas se apuntan en la Bolsa de horas. Solo Sergio puede cambiarlas por dinero.' });
+    res.json({ ok: true, registros: await crearRegistrosExtras(req.session.usuario, req.body || {}) });
+  } catch (err) {
+    console.error('Error en POST /api/extras-form/registros:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+// También lo usa la Bolsa de horas (lib/bolsa.js)
+async function crearRegistrosExtras(u, { fecha, tipo, horas, importe, proyecto, notas, trabajadores }, estado = 'pendiente') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || '')) throw new Error('Fecha no válida.');
+    if (!Array.isArray(trabajadores) || trabajadores.length === 0) throw new Error('Elige al menos un trabajador.');
     const [tarifas, depto] = await Promise.all([
       selectTodoPersonal('extras_tarifas', '*', ['id']),
       selectTodoPersonal('empleados_departamento', 'empresa_nif, formato_origen, num_empleado, nombre', ['id'])
     ]);
     const calc = calcularRegistroExtra(tarifas, { fecha, tipo, horas, importe });
     const [anio, mes] = fecha.split('-').map(Number);
-    const u = req.session.usuario;
     const filas = trabajadores.map(t => {
       if (t.nombre_libre) {
         const nombreLibre = String(t.nombre_libre).trim().toUpperCase();
@@ -3975,7 +3984,8 @@ app.post('/api/extras-form/registros', requiereLogin, puedeRegistrarExtras, asyn
     }).map(t => ({
       ...t, fecha, anio, mes, tipo, ...calc,
       proyecto: (proyecto || '').toString().trim() || null, notas: (notas || '').toString().trim() || null,
-      estado: 'pendiente', registrado_por: u.usuario, registrado_por_nombre: u.nombre, origen: 'panel'
+      estado, ...(estado === 'aprobado' ? { revisado_por: u.nombre, revisado_en: new Date().toISOString() } : {}),
+      registrado_por: u.usuario, registrado_por_nombre: u.nombre, origen: 'panel'
     }));
     const { data, error } = await supabase.from('extras_registros').insert(filas).select();
     if (error) throw error;
@@ -3985,12 +3995,8 @@ app.post('/api/extras-form/registros', requiereLogin, puedeRegistrarExtras, asyn
       await supabase.from('extras_departamento').upsert(libres.map(nombre => ({ nombre })), { onConflict: 'nombre', ignoreDuplicates: true });
       await supabase.from('extras_alias').upsert(libres.map(nombre => ({ nombre })), { onConflict: 'nombre', ignoreDuplicates: true });
     }
-    res.json({ ok: true, registros: data });
-  } catch (err) {
-    console.error('Error en POST /api/extras-form/registros:', err);
-    res.status(400).json({ error: err.message });
-  }
-});
+    return data;
+}
 
 // Editar / borrar: Logística solo lo suyo y mientras está pendiente;
 // Dirección/Contabilidad cualquiera que no esté pagado.
@@ -4006,6 +4012,9 @@ app.put('/api/extras-form/registros/:id', requiereLogin, puedeRegistrarExtras, a
   try {
     const r = await cargarRegistroEditable(req, parseInt(req.params.id));
     const b = req.body || {};
+    if (/^hora extra$/i.test(String(b.tipo || r.tipo)) && !esSergio(req)) throw new Error('Las horas pagadas solo las cambia Sergio.');
+    const { data: enlazados } = await supabase.from('bolsa_movimientos').select('id').eq('extra_registro_id', r.id).limit(1);
+    if (enlazados && enlazados.length) throw new Error('Viene de la Bolsa de horas: anúlalo allí y vuelve a apuntarlo.');
     const fecha = b.fecha || r.fecha, tipo = b.tipo || r.tipo;
     const tarifas = await selectTodoPersonal('extras_tarifas', '*', ['id']);
     const calc = calcularRegistroExtra(tarifas, { fecha, tipo, horas: b.horas != null ? b.horas : r.horas, importe: b.importe != null ? b.importe : r.importe });
@@ -4023,6 +4032,7 @@ app.delete('/api/extras-form/registros/:id', requiereLogin, puedeRegistrarExtras
     const r = await cargarRegistroEditable(req, parseInt(req.params.id));
     const { error } = await supabase.from('extras_registros').delete().eq('id', r.id);
     if (error) throw error;
+    await devolverHorasABolsa([r.id], req.session.usuario.nombre);
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -4036,16 +4046,18 @@ app.get('/api/extras-form/gestion', requiereLogin, soloPersonal, async (req, res
   try {
     const anio = parseInt(req.query.anio), mes = parseInt(req.query.mes);
     if (!anio || !mes) return res.status(400).json({ error: 'Falta el mes.' });
-    const [delMes, todosDescanso, saldosIniciales, pendientes, trabajadores, tarifas, inicio] = await Promise.all([
+    const [delMes, todosDescanso, saldosIniciales, pendientes, trabajadores, tarifas, inicio, descansos] = await Promise.all([
       consultaSupabaseConReintento(() => supabase.from('extras_registros').select('*').eq('anio', anio).eq('mes', mes).order('fecha').order('id'), 'registros mes'),
       selectTodoPersonal('extras_registros', 'empresa_nif, formato_origen, num_empleado, nombre_libre, nombre_trabajador, tipo, genera_descanso, estado, anio, mes', ['id']),
       selectTodoPersonal('extras_saldo_inicial', '*', ['id']),
       consultaSupabaseConReintento(() => supabase.from('extras_registros').select('anio, mes').eq('estado', 'pendiente'), 'pendientes'),
       trabajadoresParaExtras(),
       selectTodoPersonal('extras_tarifas', '*', ['orden', 'id']),
-      leerInicioFormularioExtras()
+      leerInicioFormularioExtras(),
+      descansosDeBolsa()
     ]);
-    const saldos = calcularSaldosDescanso(saldosIniciales, todosDescanso.filter(r => parseInt(r.anio) * 100 + parseInt(r.mes) <= anio * 100 + mes), trabajadores);
+    const hastaMes = anio + '-' + String(mes).padStart(2, '0');
+    const saldos = calcularSaldosDescanso(saldosIniciales, todosDescanso.filter(r => parseInt(r.anio) * 100 + parseInt(r.mes) <= anio * 100 + mes), trabajadores, descansos.filter(m => String(m.fecha).slice(0, 7) <= hastaMes));
     const pendientesPorMes = {};
     pendientes.forEach(p => { const k = p.anio + '-' + String(p.mes).padStart(2, '0'); pendientesPorMes[k] = (pendientesPorMes[k] || 0) + 1; });
     res.json({ ok: true, anio, mes, registros: delMes, saldos: Object.values(saldos), pendientes_por_mes: pendientesPorMes, trabajadores, tarifas, inicio: inicio.texto });
@@ -4058,7 +4070,7 @@ app.get('/api/extras-form/gestion', requiereLogin, soloPersonal, async (req, res
 // disfrutados, contando solo lo aprobado/pagado). Lo comparten la gestión y
 // la consulta de saldos de los responsables.
 function claveTrabajadorExtra(x) { return x.empresa_nif ? x.empresa_nif + '|' + x.formato_origen + '|' + x.num_empleado : 'libre|' + (x.nombre_libre || ''); }
-function calcularSaldosDescanso(saldosIniciales, registros, trabajadores) {
+function calcularSaldosDescanso(saldosIniciales, registros, trabajadores, descansosBolsa = []) {
   const saldos = {};
   const s = (k, nombre) => (saldos[k] = saldos[k] || { clave: k, nombre, inicial: 0, generados: 0, disfrutados: 0 });
   saldosIniciales.forEach(x => { s(claveTrabajadorExtra(x), x.nombre_libre || null).inicial += parseFloat(x.dias) || 0; });
@@ -4067,21 +4079,48 @@ function calcularSaldosDescanso(saldosIniciales, registros, trabajadores) {
     if (r.genera_descanso) x.generados++;
     if (/^descanso/i.test(r.tipo)) x.disfrutados++;
   });
+  // Bolsa de horas: cantidad positiva = se le debe; negativa = ya disfrutado (admite medios días)
+  descansosBolsa.forEach(m => { s(m.clave, m.nombre).disfrutados -= parseFloat(m.cantidad) || 0; });
   trabajadores.forEach(t => { const k = claveTrabajadorExtra(t); if (saldos[k]) saldos[k].nombre = t.nombre; });
   return saldos;
+}
+async function descansosDeBolsa() {
+  const filas = await selectTodoPersonal('bolsa_movimientos', 'clave, nombre, cantidad, fecha, anulado_en, tipo', ['id']);
+  return filas.filter(m => m.tipo === 'descanso' && !m.anulado_en);
+}
+// Lo que la Bolsa de horas necesita de los extras
+async function datosExtrasParaBolsa() {
+  const [registros, saldosIniciales, descansos, trabajadores, tarifas] = await Promise.all([
+    selectTodoPersonal('extras_registros', '*', ['id']),
+    selectTodoPersonal('extras_saldo_inicial', '*', ['id']),
+    descansosDeBolsa(),
+    trabajadoresParaExtras(),
+    selectTodoPersonal('extras_tarifas', '*', ['orden', 'id'])
+  ]);
+  return {
+    trabajadores, tarifas,
+    saldosDescanso: calcularSaldosDescanso(saldosIniciales, registros, trabajadores, descansos),
+    registros: registros.map(r => ({ ...r, clave: claveTrabajadorExtra(r) }))
+  };
+}
+// Un pago de horas rechazado o borrado: las horas vuelven a la bolsa
+async function devolverHorasABolsa(ids, quien) {
+  const { error } = await supabase.from('bolsa_movimientos').update({ anulado_por: quien, anulado_en: new Date().toISOString() }).in('extra_registro_id', ids).is('anulado_en', null);
+  if (error) throw error;
 }
 // Saldo del personal para los responsables (también Logística, oct 2026):
 // días de descanso y horas extra de cada trabajador. Solo días y horas —
 // nada de importes, que Logística no ve.
 app.get('/api/extras-form/saldos', requiereLogin, puedeRegistrarExtras, async (req, res) => {
   try {
-    const [registros, saldosIniciales, trabajadores] = await Promise.all([
+    const [registros, saldosIniciales, trabajadores, descansos] = await Promise.all([
       selectTodoPersonal('extras_registros', 'empresa_nif, formato_origen, num_empleado, nombre_libre, nombre_trabajador, tipo, horas, genera_descanso, estado, anio, mes', ['id']),
       selectTodoPersonal('extras_saldo_inicial', '*', ['id']),
-      trabajadoresParaExtras()
+      trabajadoresParaExtras(),
+      descansosDeBolsa()
     ]);
     const hoy = new Date(), anio = hoy.getFullYear(), mes = hoy.getMonth() + 1;
-    const saldos = calcularSaldosDescanso(saldosIniciales, registros, trabajadores);
+    const saldos = calcularSaldosDescanso(saldosIniciales, registros, trabajadores, descansos);
     const filas = {};
     const fila = (k, nombre) => (filas[k] = filas[k] || { clave: k, nombre, departamento: null, estado: null, dias: 0, dias_pendientes: 0, horas_mes: 0, horas_anio: 0, horas_pendientes: 0 });
     Object.values(saldos).forEach(x => { fila(x.clave, x.nombre).dias = x.inicial + x.generados - x.disfrutados; });
@@ -4130,6 +4169,12 @@ app.post('/api/extras-form/estado', requiereLogin, soloPersonal, async (req, res
     cambios.updated_at = ahora;
     const { data, error } = await supabase.from('extras_registros').update(cambios).in('id', ids.map(Number)).in('estado', permitidos[estado]).select('id');
     if (error) throw error;
+    const cambiados = (data || []).map(x => x.id);
+    if (cambiados.length && estado === 'rechazado') await devolverHorasABolsa(cambiados, u.nombre);
+    if (cambiados.length && estado !== 'rechazado') {
+      const { error: e2 } = await supabase.from('bolsa_movimientos').update({ anulado_por: null, anulado_en: null }).in('extra_registro_id', cambiados);
+      if (e2) throw e2;
+    }
     res.json({ ok: true, cambiados: (data || []).length, ignorados: ids.length - (data || []).length });
   } catch (err) {
     console.error('Error en /api/extras-form/estado:', err);
