@@ -31,6 +31,7 @@ Hay cuatro chats fijos: **Office**, **Lavandería**, **Mantenimiento** y **Comer
 
 - Se puede escribir texto y mandar fotos.
 - Los mensajes no se pueden editar.
+- **«✓ Visto»:** debajo de cada mensaje de otra persona hay un botón «✓ Visto». Púlsalo para dejar claro que lo has recibido (se quita pulsándolo otra vez). Debajo del mensaje se ve quién lo ha marcado, también en los tuyos: así sabes quién se ha enterado sin tener que contestar «ok».
 - «Activar avisos» (en la pantalla del chat) hace que el móvil o la tablet avise de los mensajes nuevos aunque la app esté cerrada. Cada uno elige de qué chats quiere aviso.
 - En el panel, quien tiene chat (Logística, Dirección y comerciales) ve un globo de chat abajo a la derecha en cualquier pantalla.
 
@@ -77,7 +78,7 @@ Cuando en Rentman se confirma un proyecto para hoy o mañana, o cambia algo de u
 - Solo avisa de proyectos confirmados, sin recoger, con entrega en los próximos 15 días. Los cambios de precio no avisan.
 - El material de embalaje y transporte que añade el almacén (familia Almacenaje de Rentman: racks, cajas grises, platibox, palets, jaulas, carros) tampoco avisa.
 - Si el comercial guarda varias veces seguidas, llega un solo aviso con todo junto (unos 3 minutos después del último cambio).
-- **Cómo llega:** a los departamentos, como mensaje «🔔 Aviso Rentman» en su chat y como tarjeta arriba en Preparación (o Mantenimiento). A Logística y Dirección, por aviso al móvil y en las mismas tarjetas. La pantalla **Avisos** de la app móvil reúne todos.
+- **Cómo llega:** a los departamentos, como mensaje «🔔 Aviso Rentman» en su chat (cada uno solo lo de su material); al **chat Comercial**, un solo mensaje por proyecto con el cambio completo y a qué departamentos se ha avisado y como tarjeta arriba en Preparación (o Mantenimiento). A Logística y Dirección, por aviso al móvil y en las mismas tarjetas. La pantalla **Avisos** de la app móvil reúne todos.
 - **Botón «Visto»:** cada departamento lo pulsa en su tarjeta cuando se ha enterado. En ese momento, el comercial del proyecto recibe un aviso de que ese departamento lo ha visto. Las tarjetas muestran qué departamentos lo han visto y cuáles no.
 - **Ver quién lo ha visto:** una vez vista, la tarjeta desaparece de Preparación. Para consultarla, pulsa el enlace «Ver los avisos de los últimos 3 días y quién los ha visto» que hay debajo de las tarjetas (o app → Avisos → «Últimos 3 días»): cada aviso dice qué departamento lo vio, a qué hora y quién.
 - Para recibir los avisos de proyectos en el móvil (Logística, Dirección y comerciales): app → **Avisos** → «Activar avisos».

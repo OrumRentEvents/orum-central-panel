@@ -120,6 +120,10 @@ El chat **Comercial** es el canal entre los comerciales y los responsables de Lo
 2. Escribe el mensaje o adjunta una foto. Pon siempre el **número de proyecto** para que Logística lo encuentre rápido.
 3. Para que el móvil te avise de los mensajes nuevos: en la pantalla del chat, «Activar avisos».
 
+Además, cada vez que cambia un proyecto confirmado, llega aquí un **«🔔 Aviso Rentman»** con el cambio completo (material, fechas, dirección o cancelación) y a qué departamentos se ha avisado. Cada departamento recibe en su chat solo lo suyo; aquí está todo junto, para los comerciales y los responsables de Logística.
+
+Para confirmar que has visto un mensaje o un aviso, pulsa **«✓ Visto»** debajo de él; los demás verán tu nombre. No hace falta contestar «ok».
+
 Los mensajes no se pueden editar, así que repasa antes de enviar. El chat no sustituye a Rentman: si cambia algo del proyecto (material, fecha, dirección), cámbialo en Rentman, que es lo que avisa a los departamentos.
 
 ## Material recuperado

@@ -49,6 +49,11 @@ button { font-family: inherit; }
 .msg .borrar { background: none; border: none; color: #b91c1c; font-size: 10.5px; padding: 0 8px 0 0; cursor: pointer; text-decoration: underline; }
 .msg img { display: block; max-width: 100%; max-height: 320px; border-radius: 10px; margin: 2px 0 4px; cursor: zoom-in; background: #f0efe9; min-width: 120px; min-height: 80px; object-fit: cover; }
 .msg.seguido { margin-top: -1px; }
+.msg .pie-msg { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; flex-wrap: wrap; }
+.msg .pie-msg .hora { margin-top: 0; margin-left: auto; }
+.msg .vistos { font-size: 11.5px; color: #0F6E56; }
+.msg .b-visto { background: #f0efe9; border: 0.5px solid #d8d4c8; color: #1a1a18; border-radius: 12px; font-size: 12px; padding: 3px 10px; cursor: pointer; font-family: inherit; }
+.msg .b-visto.on { background: #1D9E75; border-color: #1D9E75; color: #fff; font-weight: 600; }
 .msg.seguido .quien { display: none; }
 .vacio { text-align: center; color: #9a988f; font-size: 14px; margin: auto; padding: 2rem; }
 .escribir { flex-shrink: 0; background: #fff; border-top: 0.5px solid #e2e2de; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
@@ -202,8 +207,34 @@ function htmlMensaje(m, anterior) {
     '<div class="quien">' + esc(m.nombre) + '</div>' +
     (m.foto ? '<img src="/api/chat/foto/' + m.id + '" alt="Foto" loading="lazy" data-foto="' + m.id + '">' : '') +
     (m.texto ? '<div class="txt">' + esc(m.texto) + '</div>' : '') +
-    '<div class="hora">' + (puedeBorrar() ? '<button class="borrar" data-borrar="' + m.id + '" title="Eliminar este mensaje">Eliminar</button>' : '') + hora(m.creado_en) + '</div></div>';
+    '<div class="pie-msg">' + htmlVistos(m, mio) +
+    '<div class="hora">' + (puedeBorrar() ? '<button class="borrar" data-borrar="' + m.id + '" title="Eliminar este mensaje">Eliminar</button>' : '') + hora(m.creado_en) + '</div></div></div>';
 }
+// «✓ Visto» (nov 2026): en los mensajes de otros, un botón para dejar claro que lo
+// has recibido; debajo de cada mensaje, quién lo ha marcado (también en los míos)
+function htmlVistos(m, mio) {
+  var v = m.vistos || [], yo = USUARIO && v.some(function (x) { return x.usuario === USUARIO.usuario; });
+  var otros = v.filter(function (x) { return !USUARIO || x.usuario !== USUARIO.usuario; }).map(function (x) { return esc(String(x.nombre || x.usuario).split(' ')[0]); });
+  var h = '';
+  if (!mio) h += '<button class="b-visto' + (yo ? ' on' : '') + '" data-visto="' + m.id + '" title="' + (yo ? 'Quitar mi visto' : 'Marcar como visto') + '">✓ Visto</button>';
+  if (otros.length) h += '<span class="vistos">' + (mio || !yo ? '✓ ' : 'y ') + otros.join(', ') + '</span>';
+  return h;
+}
+function ponerVistos(id, vistos) {
+  var cambiado = false;
+  MENSAJES.forEach(function (x) { if (x.id === id) { x.vistos = vistos; cambiado = true; } });
+  if (cambiado) { var abajo = cercaDelFinal(); pintarMensajes(false); if (abajo) bajarAlFinal(); }
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-visto]');
+  if (!b) return;
+  b.disabled = true;
+  var id = Number(b.getAttribute('data-visto'));
+  fetch('/api/chat/mensajes/' + id + '/visto', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
+    if (d.error) throw new Error(d.error);
+    ponerVistos(id, d.vistos || []);
+  }).catch(function () { b.disabled = false; });
+});
 // Solo Sergio puede borrar mensajes (lib/chat.js)
 function puedeBorrar() { return !!USUARIO && String(USUARIO.usuario || '').toLowerCase() === 'sergio'; }
 function quitarMensaje(id) {
@@ -253,7 +284,7 @@ var fuente = null;
 function conectarEventos() {
   if (!window.EventSource) return;
   fuente = new EventSource('/api/chat/eventos');
-  fuente.onmessage = function (e) { try { var d = JSON.parse(e.data); if (d.tipo === 'mensaje') recibir(d.mensaje); else if (d.tipo === 'borrado' && d.canal === canal) quitarMensaje(d.id); } catch (err) {} };
+  fuente.onmessage = function (e) { try { var d = JSON.parse(e.data); if (d.tipo === 'mensaje') recibir(d.mensaje); else if (d.tipo === 'borrado' && d.canal === canal) quitarMensaje(d.id); else if (d.tipo === 'vistos' && d.canal === canal) ponerVistos(d.id, d.vistos || []); } catch (err) {} };
 }
 // Al volver a la pantalla (móvil bloqueado, otra app…) se recupera lo que llegó mientras tanto
 document.addEventListener('visibilitychange', function () {
@@ -261,6 +292,11 @@ document.addEventListener('visibilitychange', function () {
   var ultimo = MENSAJES.length ? MENSAJES[MENSAJES.length - 1].id : 0;
   fetch('/api/chat/' + canal + '/mensajes').then(function (r) { return r.json(); }).then(function (d) {
     if (d.error) return;
+    // Los «Visto» que se marcaron mientras tanto
+    var vistosDe = {}; d.mensajes.forEach(function (m) { vistosDe[m.id] = m.vistos || []; });
+    var cambio = false;
+    MENSAJES.forEach(function (x) { if (vistosDe[x.id] && JSON.stringify(vistosDe[x.id]) !== JSON.stringify(x.vistos || [])) { x.vistos = vistosDe[x.id]; cambio = true; } });
+    if (cambio) pintarMensajes(false);
     d.mensajes.filter(function (m) { return m.id > ultimo; }).forEach(recibir);
     marcarLeido();
   });
