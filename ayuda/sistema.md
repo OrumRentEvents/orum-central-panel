@@ -72,6 +72,18 @@ Salta una alerta (y un aviso al móvil de Dirección, si tiene activados los avi
 
 Puedes eliminar cualquier mensaje del chat con el enlace «Eliminar» que sale junto a la hora: desaparece para todos al momento, con su foto. Nadie más ve esa opción.
 
+## Calendario: conexión con Google
+
+Para que aparezca el botón «Conectar con Google», el servidor necesita un cliente de Google configurado:
+
+1. En Google Cloud Console (con la cuenta de la empresa), crea un proyecto, activa la **Google Calendar API** y configura la pantalla de consentimiento (si la empresa usa Google Workspace, tipo **Interno**).
+2. Crea unas credenciales **ID de cliente de OAuth → Aplicación web**, con este URI de redirección: `https://<dominio de ORUM Central>/api/calendario/google/vuelta`.
+3. En Railway, añade las variables **GOOGLE_CLIENT_ID** y **GOOGLE_CLIENT_SECRET** y espera a que se publique.
+
+Cada persona conecta después su propio calendario desde el Calendario. Tú ves las reuniones y visitas de todos los que lo hayan conectado.
+
+**Rutas y la Bolsa de horas:** Rutas reconoce sola a cada chofer en la Bolsa por su nombre («Jesus Aguilera» = «AGUILERA MARTIN, JESUS»). Si alguien de vacaciones no sale en la banda de Rutas, puede que su nombre en la lista de choferes no coincida con el de nómina: corrígelo en la lista de choferes o pide que se empareje a mano.
+
 ## Estado Sincronización
 
 Configuración → Estado Sincronización (se abre en otra pestaña) muestra cuántos registros hay de cada tipo y cuándo se sincronizó cada tabla por última vez. Es lo primero que hay que mirar cuando alguien dice que un dato de Rentman no aparece.

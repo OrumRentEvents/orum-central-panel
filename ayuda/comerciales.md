@@ -6,7 +6,7 @@ Los comerciales siguen trabajando en Rentman, y ORUM Central les da cada mañana
 - **ORUM Central es para consultar** tu actividad y lo que tienes pendiente. Lo que ves depende de lo bien rellenado que esté Rentman.
 - **Logística y Administración trabajan con tus datos de Rentman:** un teléfono que falta o un servicio sin dar de alta acaba en un problema el día del evento.
 
-**Qué ves.** En el panel: el apartado Comercial (Resumen, Proyectos, Presupuestos y Leads, solo con tus propios proyectos, más los accesos directos a Rutas y Caja), Incidencias, Chat y Material recuperado. En la app móvil: Rutas, Avisos, Chat, Material recuperado, Incidencias y Caja. Caja se abre en otra pestaña y entras con tu usuario de Caja.
+**Qué ves.** En el panel: el apartado Comercial (Resumen, Proyectos, Presupuestos y Leads, solo con tus propios proyectos, más los accesos directos a Rutas y Caja), Calendario, Incidencias, Chat y Material recuperado. En la app móvil: Rutas, Avisos, Calendario, Chat, Material recuperado, Incidencias y Caja. Caja se abre en otra pestaña y entras con tu usuario de Caja.
 
 ## Rutina de trabajo
 
@@ -101,6 +101,16 @@ Un cobro que no se clasifica en Caja no llega a la contabilidad, y el proyecto s
 3. María o Sergio revisan la solicitud y la **autorizan**.
 4. La devolución por transferencia la hace Administración los viernes; en efectivo o TPV, María o el comercial.
 5. María la marca como devuelta en Rentman y envía al cliente el justificante.
+
+## Calendario
+
+En el menú **Calendario** (o en la app) ves tus reuniones y visitas comerciales junto a lo demás. Se siguen creando en tu Google Calendar; ORUM solo las lee.
+
+1. La primera vez, pulsa **«Conectar con Google»** y acepta (solo lectura).
+2. Tu calendario principal sale como **visitas comerciales**. Con «Elegir calendarios» puedes añadir otros o marcar alguno como reuniones.
+3. Un evento cuyo título empiece por **«Visita»** cuenta siempre como visita, esté en el calendario que esté.
+
+Dirección ve las reuniones y visitas de todos; tú solo ves las tuyas.
 
 ## Chat Comercial
 

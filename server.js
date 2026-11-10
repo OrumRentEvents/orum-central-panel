@@ -205,6 +205,8 @@ require('./lib/usuariosAdmin').registrar(app, { supabase, bcrypt });
 const chatModulo = require('./lib/chat').registrar(app, { supabase, requiereLogin });
 // Bolsa de horas: horas, festivos, descansos y vacaciones de la plantilla — lib/bolsa.js
 require('./lib/bolsa').registrar(app, { supabase, requiereLogin, datosExtras: () => datosExtrasParaBolsa(), crearExtras: (u, datos, estado) => crearRegistrosExtras(u, datos, estado) });
+// Calendario (nov 2026): Google Calendar + vacaciones/descansos de la Bolsa + turnos + citas de taller
+const calendarioModulo = require('./lib/calendario').registrar(app, { supabase, requiereLogin, datosExtras: () => datosExtrasParaBolsa() });
 // Incidencias: crear, asignar y seguir hasta cerrarla — lib/incidencias.js
 require('./lib/incidencias').registrar(app, { supabase, requiereLogin });
 // Financiero → Informe semanal (No Confirmados / Resto en PDF guardado) — lib/informeSemanalProyectos.js
@@ -1643,6 +1645,11 @@ app.get('/incidencias', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'incidencias.html'));
 });
 
+// Calendario (nov 2026): misma pantalla en la app y en el panel — public/calendario.html.
+app.get('/calendario', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'calendario.html'));
+});
+
 // App móvil (oct 2026): entrada con PIN y botones según el rol — public/movil.html.
 app.get('/movil', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'movil.html'));
@@ -2023,7 +2030,11 @@ app.get('/api/rutas/conductores', async (req, res) => {
   try {
     const { desde, hasta } = req.query;
     const [data, choferes] = await Promise.all([obtenerConductores(desde, hasta), obtenerChoferes()]);
-    res.json({ ok: true, asignaciones: data.asignaciones, choferes });
+    // Quién está de vacaciones o de descanso cada día (Bolsa de horas), para no
+    // planificarlo. Si falla, Rutas funciona igual sin el aviso.
+    let ausencias = {};
+    try { ausencias = await calendarioModulo.ausenciasRutas(desde, hasta, choferes); } catch (e) { console.error('[Rutas] Ausencias:', e.message); }
+    res.json({ ok: true, asignaciones: data.asignaciones, choferes, ausencias });
   } catch (err) {
     console.error('Error en GET /api/rutas/conductores:', err);
     res.status(500).json({ error: err.message });

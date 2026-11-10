@@ -2,7 +2,7 @@
 
 Administración trabaja en ORUM Central, Rentman, Caja y Holded. Rentman es el origen de proyectos, facturas de venta y cobros; ORUM Central es donde se revisa, se aprueba y se cierra; Holded es la contabilidad y todo lo que llega allí pasa antes por una aprobación en ORUM Central.
 
-Con el rol Contabilidad ves el menú Financiero y Personal (incluidas las pantallas Holded, Cuentas de gasto, Bolsa de horas y Aprobar y pagar extras), Material recuperado e Incidencias. La Caja se abre desde Financiero → Caja, en otra pestaña.
+Con el rol Contabilidad ves el menú Financiero y Personal (incluidas las pantallas Holded, Cuentas de gasto, Bolsa de horas y Aprobar y pagar extras), Calendario, Material recuperado e Incidencias. La Caja se abre desde Financiero → Caja, en otra pestaña.
 
 ## Rutina de trabajo
 

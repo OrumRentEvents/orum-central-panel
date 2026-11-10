@@ -56,6 +56,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* DIA SEPARADOR */
 .dia-sep{font-size:13px;font-weight:700;color:#1a1a18;padding:16px 2px 8px;margin-top:6px;border-bottom:2px solid #1a1a18;margin-bottom:10px;letter-spacing:.2px;}
 .dia-sep:first-child{padding-top:4px;}
+.banda-ausencias{background:#FFF4E5;border:1px solid #F0C27A;color:#7a4a00;border-radius:8px;padding:8px 12px;font-size:12.5px;margin:0 0 10px;line-height:1.5;}
+.aus-etq{display:inline-block;background:#FFF4E5;color:#9a5b00;border:1px solid #F0C27A;border-radius:10px;font-size:10.5px;font-weight:600;padding:0 6px;margin-left:4px;}
 
 /* GRUPO */
 .grupo{margin-bottom:12px;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.1);}
@@ -502,6 +504,25 @@ var estadoPago={}; // proyecto_id -> {estado_pago, detalle_pago, servicios_extra
 // Conductores: lista global editable y asignaciones por vehículo+vuelta+día
 var CHOFERES=['Adrian Cuesta','Antonio Jimenez','Carlos Maldonado','Jesus Aguilera','Jesus Calero','Joaquin','Jorge Cuesta','Jose Enriquez','Jose Ortiz','Juan Rios','Leo Ferreyra','Leo Haro','Nourdin','Rafa Perez','Ruben Romo','Sergio Gonzalez','Wilson'];
 var asignacionesConductores={}; // clave: "fecha_vehiculo_vuelta" → [nombres]
+// Quién está de vacaciones o de descanso cada día (Bolsa de horas, nov 2026):
+// { fecha: [{chofer, tipo:'vacaciones'|'descanso', medio}] }. Solo avisa: se puede asignar igualmente.
+var ausenciasDia={};
+function ausenciaDe(fecha,nombre){
+  return (ausenciasDia[fecha]||[]).filter(function(a){return a.chofer===nombre;})[0]||null;
+}
+function textoAusencia(a){
+  return a.tipo==='vacaciones'?'de vacaciones':(a.medio?'medio día de descanso':'de descanso');
+}
+function bandaAusencias(fecha){
+  var l=ausenciasDia[fecha]||[];
+  if(!l.length)return '';
+  var vac=l.filter(function(a){return a.tipo==='vacaciones';}).map(function(a){return a.chofer;});
+  var des=l.filter(function(a){return a.tipo==='descanso';}).map(function(a){return a.chofer+(a.medio?' (medio día)':'');});
+  var partes=[];
+  if(vac.length)partes.push('<b>De vacaciones:</b> '+vac.join(', '));
+  if(des.length)partes.push('<b>De descanso:</b> '+des.join(', '));
+  return '<div class="banda-ausencias">&#128683; '+partes.join(' &nbsp;·&nbsp; ')+'</div>';
+}
 // Quién conduce cuando van varios (la lista se guarda en orden alfabético) — clave igual; null = sin marcar
 var conductorPrincipal={};
 // Estado del vehiculo (EN RUTA / FINALIZADO) por vehiculo+vuelta+dia — solo editable por rol logistica
@@ -673,6 +694,7 @@ function load(silencioso){
     // En recarga silenciosa, si una de las consultas secundarias falla se conserva lo que ya habia
     // Cargar choferes y asignaciones
     if(dataCond.choferes&&dataCond.choferes.length>0) CHOFERES=dataCond.choferes;
+    if(!silencioso||dataCond.ausencias) ausenciasDia=dataCond.ausencias||{};
     if(!silencioso||dataCond.asignaciones){
       asignacionesConductores={};
       conductorPrincipal={};
@@ -964,6 +986,7 @@ function render(){
   var html='';
 
   var renderDia=function(fecha,gruposDia){
+    html+=bandaAusencias(esSemana?fecha:(document.getElementById('fpicker').value||hoy()));
     // Las rutas FINALIZADAS se acumulan aqui y se pintan al final del dia,
     // para que arriba queden siempre las rutas vigentes.
     var htmlFinalizadas='';
@@ -1762,7 +1785,8 @@ function abrirModalConductores(gkey, fecha){
     var sel=seleccionados.indexOf(nombre)!==-1;
     var lbl=document.createElement('label');
     lbl.className='veh-check-lbl'+(sel?' seleccionado':'');
-    lbl.innerHTML='<input type="checkbox" value="'+nombre+'"'+(sel?' checked':'')+' onchange="toggleVehCheck(this,\'\');pintarConduceModal()"> '+nombre;
+    var aus=ausenciaDe(fecha,nombre);
+    lbl.innerHTML='<input type="checkbox" value="'+nombre+'"'+(sel?' checked':'')+' onchange="toggleVehCheck(this,\'\');pintarConduceModal()"> '+nombre+(aus?'<span class="aus-etq">'+(aus.tipo==='vacaciones'?'Vacaciones':(aus.medio?'½ descanso':'Descanso'))+'</span>':'');
     cont.appendChild(lbl);
   });
   modalCondConduce=conductorPrincipal[clave]||null;
@@ -1797,6 +1821,10 @@ function guardarConductoresModal(){
   var cont=document.getElementById('modal-cond-checks');
   var seleccionados=[];
   cont.querySelectorAll('input[type=checkbox]:checked').forEach(function(chk){seleccionados.push(chk.value);});
+  // Aviso si se elige a alguien que no está ese día (se puede seguir: puede venir a cubrir)
+  var antes=asignacionesConductores[modalCondFecha+'_'+modalCondVeh+'_'+modalCondVuelta]||[];
+  var faltan=seleccionados.filter(function(n){return antes.indexOf(n)===-1&&ausenciaDe(modalCondFecha,n);});
+  if(faltan.length&&!confirm(faltan.map(function(n){return n+' está '+textoAusencia(ausenciaDe(modalCondFecha,n));}).join('\n')+' ese día.\n\n¿Lo asignas igualmente?'))return;
 
   var clave=modalCondFecha+'_'+modalCondVeh+'_'+modalCondVuelta;
   asignacionesConductores[clave]=seleccionados;

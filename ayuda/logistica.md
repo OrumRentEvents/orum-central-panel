@@ -2,7 +2,7 @@
 
 Logística y almacén trabajan desde ORUM Central: preparación del material, rutas, mantenimiento, vehículos, extras, incidencias y material recuperado. Rentman sigue siendo el origen: proyectos, fechas, direcciones y material se cambian allí y ORUM Central los copia solo en segundos.
 
-Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación y Bolsa de horas), Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat (los chats de Office, Lavandería y Mantenimiento, y el chat Comercial con los comerciales). Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Bolsa de horas, Servicios Isabella y Repostaje.
+Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación y Bolsa de horas), Mantenimiento, Vehículos, Calendario, Material recuperado, Incidencias y Chat (los chats de Office, Lavandería y Mantenimiento, y el chat Comercial con los comerciales). Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Bolsa de horas, Servicios Isabella y Repostaje.
 
 ## Rutina de trabajo
 
@@ -118,6 +118,9 @@ La app de Rutas es donde se decide qué vehículo hace cada entrega y recogida, 
 2. **Asigna vehículo y vuelta** a cada parada. Las que no tienen vehículo salen agrupadas por zona (O, O1…O5, E1…E4, N1…N3) para repartirlas mejor. Para mover un grupo entero usa «Cambiar vehículo de todas las paradas».
 3. **Ordena las paradas** dentro de cada vuelta y añade notas si hace falta.
 4. **Asigna conductores** con el botón «Conductores» del vehículo y vuelta (puede ser más de uno) y **marca quién conduce** (🚐). Es importante: los kilómetros y el ranking se asignan a quien conduce según la ruta.
+   - Arriba de cada día sale una banda naranja con **quién está de vacaciones o de descanso** ese día (sale de la Bolsa de horas). En la lista de conductores, esas personas llevan la etiqueta «Vacaciones» o «Descanso».
+   - Si eliges a alguien que no está, ORUM pregunta antes de guardar. Se puede asignar igualmente (por ejemplo, si viene a cubrir), pero revísalo.
+   - Para que salga bien, las vacaciones y los descansos tienen que estar apuntados en la Bolsa **antes** del día.
 5. **Envía la ruta por WhatsApp** al conductor con el botón de cada ruta. Si la ruta cambia, envíala de nuevo: vale siempre el último mensaje.
 
 ### Durante el día
@@ -177,8 +180,19 @@ Apuntan Leo, Jesús Aguilera, Rafa Pérez y Sergio. Se ven los saldos de días y
 - **Domingos y festivos:** la tarjeta muestra los de este mes. Sus días de descanso se suman cuando Dirección los aprueba; hasta entonces salen como «por aprobar».
 - **Varios a la vez:** «Apuntar a varios» sirve si hicieron lo mismo, por ejemplo un nocturno de un montaje con cuatro personas.
 - **Vacaciones:** se apuntan con fecha de inicio y de fin, se cuentan en días naturales y se restan de sus vacaciones pendientes. El saldo inicial lo pone Sergio.
+- **Descansos que se van a disfrutar:** apúntalos **en cuanto se sepan**, aunque sean para dentro de unos días: «Restar: lo disfruta», con el día en que empieza. Si son varios días, cuentan seguidos desde esa fecha (1,5 = un día entero y medio día el siguiente). Así salen en el Calendario y en Rutas, y nadie lo planifica ese día. El saldo baja al apuntarlo.
 - **Historial y ajustes:** muestra cada apunte y quién lo hizo. Las horas, los descansos y las vacaciones se corrigen con «Anular»: dejan de contar, pero quedan en el historial. Los extras se pueden borrar mientras están por aprobar.
 - **Plantilla:** sale de Personal. Solo Sergio puede añadir o quitar a alguien; quien no está en la plantilla no aparece, y si vuelve conserva sus saldos.
+
+## Turnos
+
+El horario de cada trabajador se ve en el **Calendario**. Lo cambian Leo, Jesús Aguilera, Rafa Pérez y Sergio.
+
+1. **Horario habitual:** Calendario → pestaña **Turnos** → pulsa en la persona. Pon entrada y salida de cada día (la segunda línea es solo para jornada partida) o marca «Libre». «Copiar el lunes de martes a viernes» ahorra escribirlo cinco veces. Deja vacío el día que no tenga horario fijo.
+2. **Un día distinto** (cambio de turno, refuerzo, libre): en el Calendario, vista Semana, pulsa **«Cambiar»** junto a su turno o **«Cambiar turno»** en el día. Puedes poner «Hasta» para varios días seguidos. Sale marcado como «cambio».
+3. **Volver a su horario:** abre ese cambio y pulsa «Volver a su horario».
+
+Las vacaciones y los descansos no se apuntan como turno: van en la Bolsa de horas.
 
 ## Vehículos
 

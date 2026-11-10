@@ -385,6 +385,7 @@ var ICONOS = {
   mantenimiento: '<svg viewBox="0 0 24 24"><path d="M14.7 3.3a4.5 4.5 0 0 0-5.9 5.6L3 14.7 6.3 18l5.8-5.8a4.5 4.5 0 0 0 5.6-5.9l-3 3-2.5-2.5 3-3Z"/></svg>',
   recuperacion: '<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M9 14l2 2 4-4"/></svg>',
   chat: '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  calendario: '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/></svg>',
   ayuda: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.4-2.5 3.9"/><path d="M12 17.2h.01"/></svg>',
   avisos: '<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>',
   isabella: '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>'
@@ -397,6 +398,7 @@ var BOTONES = [
   { id: 'mantenimiento', titulo: 'Mantenimiento', sub: 'Material de especial cuidado y chill out, próximos 15 días', roles: ['Direccion', 'Logistica'], href: '/mantenimiento' },
   { id: 'recuperacion', titulo: 'Material recuperado', sub: 'Lo que vuelve al almacén y los cargos que se quitan', roles: ['Direccion', 'Logistica', 'Contabilidad', 'Comercial'], href: '/recuperacion' },
   { id: 'avisos', titulo: 'Avisos', sub: 'Proyectos que cambian o se confirman para hoy o mañana', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/avisos' },
+  { id: 'calendario', titulo: 'Calendario', sub: 'Reuniones, visitas, vacaciones, descansos, turnos y taller', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], href: '/calendario' },
   { id: 'chat', titulo: 'Chat', sub: 'Mensajes con cada departamento', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/chat' },
   { id: 'extras', titulo: 'Bolsa de horas', sub: 'Horas, domingos, festivos, descansos y vacaciones', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaBolsa(); } },
   { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
@@ -581,12 +583,12 @@ function elegirPersonaBolsa(i) {
       '<div class="campo"><label>Qué quieres apuntar</label><select id="bh-que" onchange="camposBolsa()">' +
         '<optgroup label="Horas (a la bolsa)"><option value="horas-sumar">Sumar horas</option><option value="horas-quitar">Quitar horas: ya recuperadas</option></optgroup>' +
         '<optgroup label="Días trabajados y extras">' + BH.ctx.tipos.map(function (t) { return '<option value="' + esc(t.tipo) + '">' + esc(t.tipo) + '</option>'; }).join('') + '</optgroup>' +
-        '<optgroup label="Días de descanso"><option value="descanso-quitar">Descanso disfrutado</option><option value="descanso-sumar">Se le debe un descanso</option></optgroup>' +
+        '<optgroup label="Días de descanso"><option value="descanso-quitar">Descanso: lo disfruta (también futuro)</option><option value="descanso-sumar">Se le debe un descanso</option></optgroup>' +
         '<optgroup label="Vacaciones"><option value="vacaciones">Vacaciones</option></optgroup>' +
       '</select></div>' +
       '<div class="campo" id="bh-b-cant"><label id="bh-l-cant">Horas</label><input class="grande" type="text" inputmode="text" id="bh-cant" autocomplete="off"></div>' +
       '<div class="campo" id="bh-b-imp"><label>Importe (€)</label><input class="grande" type="text" inputmode="decimal" id="bh-imp" autocomplete="off" placeholder="p. ej. 100"></div>' +
-      '<div class="campo" id="bh-b-fecha"><label>Fecha</label><input type="date" id="bh-fecha" max="' + hoyISO() + '" value="' + hoyISO() + '"></div>' +
+      '<div class="campo" id="bh-b-fecha"><label id="bh-l-fecha">Fecha</label><input type="date" id="bh-fecha" max="' + hoyISO() + '" value="' + hoyISO() + '"></div>' +
       '<div class="fila2" id="bh-b-vac"><div class="campo"><label>Desde</label><input type="date" id="bh-ini"></div><div class="campo"><label>Hasta</label><input type="date" id="bh-fin"></div></div>' +
       '<div class="campo"><label>Nota (opcional)</label><input type="text" id="bh-nota" autocomplete="off"></div>' +
       '<div class="nota" id="bh-aviso" style="margin-bottom:10px;"></div>' +
@@ -607,6 +609,11 @@ function camposBolsa() {
   cant.placeholder = horas ? '1,5 · 1:30 · 1h30' : '1 · 0,5 · 1,5';
   if (dias && !cant.value) cant.value = '1';
   if (horas && cant.value === '1') cant.value = '';
+  // Descanso: se apunta antes de disfrutarlo (sale en Calendario y Rutas); varios días van seguidos desde esta fecha
+  var fecha = document.getElementById('bh-fecha');
+  if (que === 'descanso-quitar') fecha.removeAttribute('max');
+  else { fecha.max = hoyISO(); if (fecha.value > fecha.max) fecha.value = fecha.max; }
+  document.getElementById('bh-l-fecha').textContent = que === 'descanso-quitar' ? 'Desde el día' : 'Fecha';
   if (tipo) document.getElementById('bh-aviso').textContent = tipo.genera_descanso ? 'Genera su pago y 1 día de descanso. Cuenta cuando Dirección lo aprueba.' : 'Genera un apunte en nómina. Cuenta cuando Dirección lo aprueba.';
 }
 function guardarBolsa() {

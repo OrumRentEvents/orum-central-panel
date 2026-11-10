@@ -228,12 +228,12 @@ function blFormApunte(clave, que) {
     <div class="bl-campo"><label>¿Qué quieres apuntar?</label><select id="bl-que" data-foco onchange="blCamposApunte()">
       <optgroup label="Horas (a la bolsa, no se pagan)"><option value="horas-sumar">Sumar horas: se le deben</option><option value="horas-quitar">Quitar horas: ya las ha recuperado</option></optgroup>
       <optgroup label="Días trabajados y extras">${tipos.map(t => `<option value="${blEsc(t.tipo)}">${blEsc(t.tipo)}</option>`).join('')}</optgroup>
-      <optgroup label="Días de descanso"><option value="descanso-quitar">Restar: ya lo ha disfrutado</option><option value="descanso-sumar">Sumar: se le debe un descanso</option></optgroup>
+      <optgroup label="Días de descanso"><option value="descanso-quitar">Restar: lo disfruta (también días futuros)</option><option value="descanso-sumar">Sumar: se le debe un descanso</option></optgroup>
     </select></div>
     <div class="bl-dos">
       <div class="bl-campo" id="bl-b-cant"><label id="bl-l-cant">Horas</label><input id="bl-cant" type="text" autocomplete="off"></div>
       <div class="bl-campo" id="bl-b-imp"><label>Importe (€)</label><input id="bl-imp" type="text" inputmode="decimal" autocomplete="off" placeholder="p. ej. 100"></div>
-      <div class="bl-campo"><label>Fecha</label><input id="bl-fecha" type="date" max="${blHoy()}" value="${blHoy()}"></div>
+      <div class="bl-campo"><label id="bl-l-fecha">Fecha</label><input id="bl-fecha" type="date" max="${blHoy()}" value="${blHoy()}"></div>
     </div>
     <div class="bl-campo" id="bl-b-proy"><label>Nº de proyecto (opcional)</label><input id="bl-proy" type="text" list="bl-proyectos" placeholder="Busca por nº o nombre"><datalist id="bl-proyectos">${blOpcionesProyectos()}</datalist></div>
     <div class="bl-campo"><label>Nota (opcional)</label><input id="bl-nota" type="text"></div>
@@ -259,6 +259,12 @@ function blCamposApunte() {
   const aviso = document.getElementById('bl-aviso');
   aviso.style.display = tipo ? '' : 'none';
   aviso.textContent = tipo ? (tipo.genera_descanso ? 'Genera su pago y 1 día de descanso. Cuenta cuando Dirección lo aprueba.' : 'Genera un apunte en nómina. Cuenta cuando Dirección lo aprueba.') : '';
+  // Un descanso se puede apuntar antes de disfrutarlo (sale en Calendario y Rutas);
+  // si son varios días, cuentan seguidos desde esta fecha
+  const fecha = document.getElementById('bl-fecha');
+  if (que === 'descanso-quitar') fecha.removeAttribute('max');
+  else { fecha.max = blHoy(); if (fecha.value > fecha.max) fecha.value = fecha.max; }
+  document.getElementById('bl-l-fecha').textContent = que === 'descanso-quitar' ? 'Desde el día' : 'Fecha';
   if (horas || dias) cant.focus();
 }
 function blPintarVarios() {

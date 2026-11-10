@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ORUM Calendario</title>
+<link rel="manifest" href="/movil.webmanifest?v=2">
+<meta name="theme-color" content="#1a1a18">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-orum.png?v=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f6f2; color: #1a1a18; min-height: 100vh; }
+button, input, select { font-family: inherit; }
+.oculto { display: none !important; }
+:root { --reunion: #2F6FDB; --visita: #1D9E75; --vacaciones: #D9822B; --descanso: #8E5BD0; --turno: #6b6a64; --taller: #C0392B; }
+.cab { background: #1a1a18; color: #fff; padding: calc(12px + env(safe-area-inset-top)) 16px 10px; position: sticky; top: 0; z-index: 10; }
+.cab-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cab h1 { font-size: 16px; font-weight: 600; flex: 1; min-width: 120px; }
+.cab button { background: transparent; border: 0.5px solid rgba(255,255,255,.3); color: rgba(255,255,255,.85); font-size: 12.5px; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.tabs { display: flex; gap: 4px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { border: none; background: transparent; color: rgba(255,255,255,.65); font-size: 13.5px; padding: 7px 12px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; cursor: pointer; }
+.tabs button.on { background: rgba(255,255,255,.15); color: #fff; font-weight: 600; }
+.cuerpo { padding: 12px 16px 32px; max-width: 1200px; margin: 0 auto; }
+.cargando { text-align: center; padding: 3rem 1rem; color: #6b6a64; font-size: 14px; }
+.nota { font-size: 12.5px; color: #6b6a64; line-height: 1.45; margin-bottom: 10px; }
+.aviso { background: #FCEBEB; color: #A32D2D; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; margin-bottom: 10px; }
+.barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.barra .titulo { font-size: 17px; font-weight: 600; flex: 1; min-width: 160px; }
+.btn { border: none; border-radius: 8px; padding: 8px 12px; font-size: 13.5px; font-weight: 600; cursor: pointer; background: #f0efe9; color: #1a1a18; }
+.btn.pri { background: #1D9E75; color: #fff; } .btn.osc { background: #1a1a18; color: #fff; } .btn.peli { background: none; color: #A32D2D; font-weight: 500; }
+.btn:disabled { opacity: .5; }
+.seg { display: inline-flex; background: #f0efe9; border-radius: 8px; padding: 2px; }
+.seg button { border: none; background: transparent; padding: 6px 11px; font-size: 13px; border-radius: 6px; cursor: pointer; color: #6b6a64; }
+.seg button.on { background: #fff; color: #1a1a18; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.filtros { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.chip { border: 1px solid #d8d4c8; background: #fff; color: #6b6a64; border-radius: 16px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chip .pt { width: 9px; height: 9px; border-radius: 50%; }
+.chip.on { color: #1a1a18; font-weight: 600; border-color: #1a1a18; }
+.chip:not(.on) .pt { opacity: .35; }
+.filtros select { padding: 6px 8px; border: 1px solid #d8d4c8; border-radius: 8px; background: #fff; font-size: 13px; max-width: 220px; }
+.google { background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; padding: 9px 12px; font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.google .txt { flex: 1; min-width: 180px; color: #6b6a64; }
+.google b { color: #1a1a18; }
+/* Mes */
+.mes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: #e2e2de; gap: 1px; border: 1px solid #e2e2de; border-radius: 10px; overflow: hidden; }
+.mes .cab-dia { background: #f0efe9; font-size: 11px; font-weight: 600; color: #6b6a64; text-align: center; padding: 5px 0; text-transform: uppercase; }
+.celda { background: #fff; min-height: 104px; padding: 4px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.celda.fuera { background: #faf9f6; }
+.celda.fuera .num { color: #bdbbb2; }
+.celda.hoy .num { background: #1a1a18; color: #fff; border-radius: 10px; padding: 0 6px; }
+.celda .num { font-size: 12px; font-weight: 600; align-self: flex-start; margin-bottom: 1px; }
+.ev { font-size: 11.5px; line-height: 1.3; padding: 1px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+.ev.claro { background: #f0efe9 !important; color: #1a1a18; border-left: 3px solid; border-radius: 3px; }
+.mas { font-size: 11px; color: #6b6a64; padding-left: 4px; }
+/* Semana / agenda */
+.dia-ag { background: #fff; border: 0.5px solid #e2e2de; border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+.dia-ag h3 { font-size: 13.5px; font-weight: 600; padding: 9px 12px; background: #f0efe9; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.dia-ag h3 .btn { background: #fff; padding: 4px 9px; font-size: 12px; }
+.dia-ag h3.hoy { background: #1a1a18; color: #fff; }
+.dia-ag .vacio-dia { font-size: 12.5px; color: #9a988f; padding: 10px 12px; }
+.item { display: flex; gap: 10px; padding: 9px 12px; border-top: 0.5px solid #efeee9; align-items: flex-start; }
+.item:first-of-type { border-top: none; }
+.item .barra-c { width: 4px; align-self: stretch; border-radius: 2px; flex-shrink: 0; }
+.item .hora { font-size: 12.5px; color: #6b6a64; width: 76px; flex-shrink: 0; padding-top: 1px; }
+.item .x { flex: 1; min-width: 0; }
+.item .tit { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.item .sub { font-size: 12.5px; color: #6b6a64; margin-top: 2px; line-height: 1.4; word-break: break-word; }
+.item .sub a { color: #2F6FDB; }
+.item .acc { flex-shrink: 0; }
+.etq { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 9px; margin-left: 4px; background: #f0efe9; color: #6b6a64; vertical-align: 1px; }
+/* Turnos */
+.tabla-turnos { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; font-size: 13px; }
+.tabla-turnos th, .tabla-turnos td { padding: 8px 10px; border-bottom: 0.5px solid #efeee9; text-align: left; }
+.tabla-turnos th { background: #f0efe9; font-size: 11.5px; color: #6b6a64; font-weight: 600; text-transform: uppercase; }
+.tabla-turnos tr.click { cursor: pointer; } .tabla-turnos tr.click:hover td { background: #faf9f6; }
+.tabla-turnos .area { font-size: 11.5px; color: #9a988f; }
+.envoltura-tabla { overflow-x: auto; border-radius: 10px; border: 0.5px solid #e2e2de; }
+/* Ventana */
+.fondo { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.ventana { background: #fff; border-radius: 14px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; padding: 16px; }
+.ventana h2 { font-size: 16px; margin-bottom: 4px; }
+.ventana .sub { font-size: 12.5px; color: #6b6a64; margin-bottom: 12px; }
+.campo { margin-bottom: 10px; }
+.campo label { display: block; font-size: 12px; color: #6b6a64; margin-bottom: 4px; }
+.campo input, .campo select { width: 100%; padding: 9px 10px; font-size: 15px; border: 0.5px solid #d8d4c8; border-radius: 8px; background: #fff; }
+.dos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fila-dia { display: grid; grid-template-columns: 34px 1fr 1fr auto; gap: 6px; align-items: center; margin-bottom: 6px; font-size: 13px; }
+.fila-dia input[type=time] { padding: 7px 6px; font-size: 14px; border: 0.5px solid #d8d4c8; border-radius: 7px; width: 100%; min-width: 0; }
+.fila-dia .parte2 { grid-column: 2 / 4; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fila-dia label.lib { display: flex; gap: 4px; align-items: center; font-size: 12px; color: #6b6a64; white-space: nowrap; }
+.pie { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+.error { color: #A32D2D; font-size: 13px; min-height: 16px; margin-top: 6px; }
+.cal-g { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-top: 0.5px solid #efeee9; font-size: 13.5px; }
+.cal-g:first-child { border-top: none; }
+.cal-g .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cal-g select { padding: 6px 8px; border: 0.5px solid #d8d4c8; border-radius: 7px; font-size: 13px; }
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a18; color: #fff; font-size: 13px; padding: 9px 16px; border-radius: 20px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 60; max-width: 90%; text-align: center; }
+#toast.show { opacity: 1; }
+@media (max-width: 700px) {
+  .celda { min-height: 64px; }
+  .ev { font-size: 0; height: 6px; padding: 0; }
+  .ev.claro { border-left-width: 6px; }
+  .mas { font-size: 10px; }
+  .item .hora { width: 58px; }
+}
+</style>
+</head>
+<body>
+<div class="cab">
+  <div class="cab-top">
+    <button id="btn-volver" class="oculto">&lsaquo; Inicio</button>
+    <h1>Calendario</h1>
+    <button id="btn-actualizar">Actualizar</button>
+  </div>
+  <div class="tabs oculto" id="tabs"><button data-pest="calendario" class="on">Calendario</button><button data-pest="turnos">Turnos</button></div>
+</div>
+<div class="cuerpo" id="cuerpo"><div class="cargando">Cargando…</div></div>
+<div id="ventana-cont"></div>
+<div id="toast"></div>
+
+<script>
+// Calendario (nov 2026). Reuniones y visitas vienen de Google Calendar de cada
+// usuario (se crean en Google; aquí solo se ven), vacaciones y descansos de la
+// Bolsa de horas, turnos de las tablas de turnos y citas de taller de Vehículos.
+// API en lib/calendario.js. Misma pantalla en la app (/calendario) y en el panel (?embebido=1).
+var PARAMS = new URLSearchParams(location.search);
+var EMBEBIDO = PARAMS.get('embebido') === '1';
+var TIPOS = {
+  reunion: { nombre: 'Reuniones', corto: 'Reunión', color: 'var(--reunion)' },
+  visita: { nombre: 'Visitas comerciales', corto: 'Visita', color: 'var(--visita)' },
+  vacaciones: { nombre: 'Vacaciones', corto: 'Vacaciones', color: 'var(--vacaciones)' },
+  descanso: { nombre: 'Descansos', corto: 'Descanso', color: 'var(--descanso)' },
+  turno: { nombre: 'Turnos', corto: 'Turno', color: 'var(--turno)' },
+  taller: { nombre: 'Citas de taller', corto: 'Taller', color: 'var(--taller)' }
+};
+var DIAS_CORTOS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+var USUARIO = null, D = null, pestana = 'calendario';
+var vista = window.innerWidth < 700 ? 'semana' : 'mes';
+var ancla = hoyISO(); // un día dentro del mes o la semana que se ve
+var activos = null;   // tipos marcados en los filtros
+var persona = '';     // filtro por persona ('' = todas)
+var T = null;         // datos de la pestaña Turnos
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function toast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(function () { t.classList.remove('show'); }, 2600); }
+function pedir(url, metodo, cuerpo) {
+  return fetch(url, { method: metodo || 'GET', headers: cuerpo ? { 'Content-Type': 'application/json' } : {}, body: cuerpo ? JSON.stringify(cuerpo) : undefined })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok || d.error) throw new Error(d.error || ('Error ' + r.status)); return d; }); });
+}
+// Fechas como 'YYYY-MM-DD' en hora local
+function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function hoyISO() { return iso(new Date()); }
+function deISO(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function sumar(s, n) { var d = deISO(s); d.setDate(d.getDate() + n); return iso(d); }
+function lunesDe(s) { var d = deISO(s), w = (d.getDay() + 6) % 7; d.setDate(d.getDate() - w); return iso(d); }
+function mayus(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+function textoDia(s, conAnio) { return mayus(deISO(s).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: conAnio ? 'numeric' : undefined })); }
+function horaDe(ts) { return new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
+
+// ── Entrada: sesión abierta o la llave del dispositivo de la app ──
+function entrar() {
+  fetch('/api/sesion').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }).then(function (d) {
+    if (d && d.usuario) return arrancar(d.usuario);
+    var llave = ''; try { llave = localStorage.getItem('orum_movil_dispositivo') || ''; } catch (e) {}
+    if (!llave) return location.replace(EMBEBIDO ? '/' : '/movil');
+    fetch('/api/movil/dispositivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositivo: llave }) })
+      .then(function (r) { return r.json(); }).then(function (r) { if (r.ok) arrancar(r.usuario); else location.replace('/movil'); })
+      .catch(function () { location.replace('/movil'); });
+  });
+}
+function arrancar(u) {
+  USUARIO = u;
+  if (!EMBEBIDO) { var b = document.getElementById('btn-volver'); b.classList.remove('oculto'); b.onclick = function () { location.href = '/movil'; }; }
+  var g = PARAMS.get('google');
+  if (g) {
+    toast(g === 'conectado' ? 'Google Calendar conectado' : g === 'cancelado' ? 'No se ha conectado Google' : 'No se ha podido conectar Google. Inténtalo otra vez.');
+    history.replaceState(null, '', location.pathname + (EMBEBIDO ? '?embebido=1' : ''));
+  }
+  try { var f = JSON.parse(localStorage.getItem('orum_calendario_filtros') || 'null'); if (f && Array.isArray(f.activos)) activos = f.activos; } catch (e) {}
+  cargar();
+}
+document.getElementById('btn-actualizar').onclick = function () { pestana === 'turnos' ? cargarTurnos() : cargar(); };
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-pest]'); if (!b) return;
+  pestana = b.getAttribute('data-pest');
+  [].forEach.call(document.querySelectorAll('#tabs button'), function (x) { x.classList.toggle('on', x === b); });
+  pestana === 'turnos' ? cargarTurnos() : pintar();
+});
+
+// ── Rango que se ve ──
+function rango() {
+  if (vista === 'semana') { var l = lunesDe(ancla); return { desde: l, hasta: sumar(l, 6) }; }
+  var d = deISO(ancla), primero = iso(new Date(d.getFullYear(), d.getMonth(), 1)), ultimo = iso(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  var desde = lunesDe(primero), hasta = sumar(lunesDe(ultimo), 6);
+  return { desde: desde, hasta: hasta };
+}
+function cargar() {
+  var r = rango();
+  if (!D) document.getElementById('cuerpo').innerHTML = '<div class="cargando">Cargando…</div>';
+  return pedir('/api/calendario?desde=' + r.desde + '&hasta=' + r.hasta).then(function (d) {
+    D = d;
+    if (!activos) activos = d.tipos.slice();
+    activos = activos.filter(function (t) { return d.tipos.indexOf(t) !== -1; });
+    document.getElementById('tabs').classList.toggle('oculto', d.tipos.indexOf('turno') === -1);
+    if (pestana === 'calendario') pintar();
+  }).catch(function (e) { document.getElementById('cuerpo').innerHTML = '<div class="cargando">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+function mover(n) {
+  if (vista === 'semana') ancla = sumar(ancla, 7 * n);
+  else { var d = deISO(ancla); ancla = iso(new Date(d.getFullYear(), d.getMonth() + n, 1)); }
+  D = D && { ...D, eventos: [] };
+  cargar();
+}
+function guardarFiltros() { try { localStorage.setItem('orum_calendario_filtros', JSON.stringify({ activos: activos })); } catch (e) {} }
+
+// ── Eventos por día ──
+// Día local de inicio y fin de un evento (los de hora se pasan a la hora de aquí)
+function diasDe(ev) {
+  if (ev.todo_el_dia) return { ini: ev.inicio.slice(0, 10), fin: (ev.fin || ev.inicio).slice(0, 10) };
+  var ini = iso(new Date(ev.inicio)), finD = new Date(ev.fin || ev.inicio);
+  // Si acaba justo a medianoche, el último día es el anterior
+  if (finD.getHours() === 0 && finD.getMinutes() === 0 && +finD > +new Date(ev.inicio)) finD = new Date(+finD - 60000);
+  return { ini: ini, fin: iso(finD) };
+}
+function visibles() {
+  return (D.eventos || []).filter(function (e) { return activos.indexOf(e.tipo) !== -1 && (!persona || e.persona === persona); });
+}
+function porDia(lista, desde, hasta) {
+  var out = {};
+  lista.forEach(function (e) {
+    var r = diasDe(e), f = r.ini < desde ? desde : r.ini, fin = r.fin > hasta ? hasta : r.fin, i = 0;
+    while (f <= fin && i++ < 62) { (out[f] = out[f] || []).push(e); f = sumar(f, 1); }
+  });
+  var orden = { vacaciones: 0, descanso: 1, taller: 2, reunion: 3, visita: 3, turno: 4 };
+  Object.keys(out).forEach(function (k) {
+    out[k].sort(function (a, b) {
+      return (a.todo_el_dia === b.todo_el_dia ? 0 : a.todo_el_dia ? -1 : 1) || (orden[a.tipo] - orden[b.tipo]) ||
+        String(a.todo_el_dia ? '' : a.inicio).localeCompare(String(b.todo_el_dia ? '' : b.inicio)) || String(a.persona || '').localeCompare(String(b.persona || ''), 'es');
+    });
+  });
+  return out;
+}
+function etiquetaEvento(e) {
+  // En reuniones y visitas el nombre solo sale si no son mías (Dirección ve las de todos)
+  var quien = e.persona && (e.tipo !== 'reunion' && e.tipo !== 'visita' || (USUARIO && e.usuario !== String(USUARIO.usuario).toLowerCase())) ? e.persona : '';
+  if (e.tipo === 'turno') return (quien ? nombreCorto(quien) + ' ' : '') + e.titulo;
+  if (e.tipo === 'vacaciones' || e.tipo === 'descanso') return nombreCorto(e.persona) + (e.medio ? ' · ½' : '');
+  return (e.todo_el_dia ? '' : horaDe(e.inicio) + ' ') + e.titulo + (quien ? ' · ' + nombreCorto(quien) : '');
+}
+// «AGUILERA MARTIN, JESUS» → «Jesus Aguilera»; otros nombres, tal cual
+function nombreCorto(n) {
+  n = String(n || '');
+  var m = n.match(/^([^,]+),\s*(.+)$/);
+  if (!m) return n;
+  var cap = function (s) { return s.toLowerCase().replace(/(^|\s)\S/g, function (x) { return x.toUpperCase(); }); };
+  return cap(m[2].split(' ')[0]) + ' ' + cap(m[1].split(' ')[0]);
+}
+
+// ── Pintar ──
+function pintar() {
+  if (!D) return;
+  var r = rango(), h = '';
+  (D.avisos || []).forEach(function (a) { h += '<div class="aviso">' + esc(a) + '</div>'; });
+  h += cajaGoogle();
+  var corta = function (f) { return deISO(f).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace('.', ''); };
+  var titulo = vista === 'semana' ? 'Semana del ' + corta(r.desde) + ' al ' + corta(r.hasta)
+    : mayus(deISO(ancla).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }));
+  h += '<div class="barra"><button class="btn" onclick="mover(-1)">&lsaquo;</button><button class="btn" onclick="ancla=hoyISO();cargar()">Hoy</button><button class="btn" onclick="mover(1)">&rsaquo;</button>' +
+    '<div class="titulo">' + esc(titulo) + '</div>' +
+    '<div class="seg"><button class="' + (vista === 'mes' ? 'on' : '') + '" onclick="cambiarVista(\'mes\')">Mes</button><button class="' + (vista === 'semana' ? 'on' : '') + '" onclick="cambiarVista(\'semana\')">Semana</button></div></div>';
+  h += filtros();
+  var lista = visibles();
+  h += vista === 'mes' ? pintarMes(r, lista) : pintarSemana(r, lista);
+  document.getElementById('cuerpo').innerHTML = h;
+}
+function cambiarVista(v) { if (v === vista) return; vista = v; cargar(); }
+function filtros() {
+  var h = '<div class="filtros">';
+  var todos = D.tipos.every(function (t) { return activos.indexOf(t) !== -1; });
+  h += '<button class="chip' + (todos ? ' on' : '') + '" onclick="filtroTodos()">Todo</button>';
+  D.tipos.forEach(function (t) {
+    h += '<button class="chip' + (activos.indexOf(t) !== -1 ? ' on' : '') + '" onclick="filtroTipo(\'' + t + '\')"><span class="pt" style="background:' + TIPOS[t].color + '"></span>' + TIPOS[t].nombre + '</button>';
+  });
+  var personas = {};
+  (D.eventos || []).forEach(function (e) { if (e.persona) personas[e.persona] = 1; });
+  var ps = Object.keys(personas).sort(function (a, b) { return nombreCorto(a).localeCompare(nombreCorto(b), 'es'); });
+  if (ps.length > 1 || persona) h += '<select onchange="persona=this.value;pintar()"><option value="">Todas las personas</option>' + ps.map(function (p) { return '<option value="' + esc(p) + '"' + (p === persona ? ' selected' : '') + '>' + esc(nombreCorto(p)) + '</option>'; }).join('') + '</select>';
+  return h + '</div>';
+}
+function filtroTodos() { activos = D.tipos.every(function (t) { return activos.indexOf(t) !== -1; }) ? [] : D.tipos.slice(); guardarFiltros(); pintar(); }
+function filtroTipo(t) {
+  var i = activos.indexOf(t);
+  if (i === -1) activos.push(t); else activos.splice(i, 1);
+  guardarFiltros(); pintar();
+}
+
+function chipEvento(e) {
+  var claro = e.tipo === 'turno';
+  return '<div class="ev' + (claro ? ' claro' : '') + '" style="' + (claro ? 'border-color:' : 'background:') + TIPOS[e.tipo].color + '" title="' + esc(etiquetaEvento(e)) + '">' + esc(etiquetaEvento(e)) + '</div>';
+}
+function pintarMes(r, lista) {
+  var dias = porDia(lista, r.desde, r.hasta), mesActual = deISO(ancla).getMonth(), hoy = hoyISO();
+  var h = '<div class="mes">' + DIAS_CORTOS.map(function (d) { return '<div class="cab-dia">' + d + '</div>'; }).join('');
+  for (var f = r.desde; f <= r.hasta; f = sumar(f, 1)) {
+    var evs = dias[f] || [];
+    // En el mes, los turnos de todos se resumen en una línea (si no se filtra por persona)
+    var turnos = evs.filter(function (e) { return e.tipo === 'turno'; }), otros = evs.filter(function (e) { return e.tipo !== 'turno'; });
+    var chips = otros.map(chipEvento);
+    if (turnos.length) chips.push(persona || turnos.length === 1 ? chipEvento(turnos[0]) : '<div class="ev claro" style="border-color:var(--turno)">Turnos · ' + turnos.filter(function (t) { return !t.libre; }).length + ' trabajan</div>');
+    var max = 4;
+    h += '<div class="celda' + (deISO(f).getMonth() !== mesActual ? ' fuera' : '') + (f === hoy ? ' hoy' : '') + '" onclick="verDia(\'' + f + '\')"><span class="num">' + deISO(f).getDate() + '</span>' +
+      chips.slice(0, max).join('') + (chips.length > max ? '<span class="mas">+' + (chips.length - max) + ' más</span>' : '') + '</div>';
+  }
+  return h + '</div>';
+}
+function pintarSemana(r, lista) {
+  var dias = porDia(lista, r.desde, r.hasta), hoy = hoyISO(), h = '';
+  for (var f = r.desde; f <= r.hasta; f = sumar(f, 1)) h += bloqueDia(f, dias[f] || [], f === hoy);
+  return h;
+}
+function bloqueDia(f, evs, esHoy) {
+  return '<div class="dia-ag"><h3 class="' + (esHoy ? 'hoy' : '') + '">' + esc(textoDia(f)) + (D.puede_turnos && D.tipos.indexOf('turno') !== -1 ? '<button class="btn" onclick="formCambioTurno(null,\'' + f + '\')">Cambiar turno</button>' : '') + '</h3>' +
+    (evs.length ? evs.map(function (e) { return itemEvento(e, f); }).join('') : '<div class="vacio-dia">Nada este día</div>') + '</div>';
+}
+function itemEvento(e, f) {
+  var hora = e.todo_el_dia ? (e.tipo === 'turno' && e.hora ? '' : 'Todo el día') : horaDe(e.inicio) + (e.fin ? '–' + horaDe(e.fin) : '');
+  if (e.tipo === 'turno') hora = e.libre ? 'Libre' : 'Turno';
+  var r = diasDe(e), varios = r.ini !== r.fin;
+  var sub = [];
+  if ((e.tipo === 'reunion' || e.tipo === 'visita') && e.persona && USUARIO && e.usuario !== String(USUARIO.usuario).toLowerCase()) sub.push(esc(nombreCorto(e.persona)));
+  if (varios) sub.push('Del ' + deISO(r.ini).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ' al ' + deISO(r.fin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
+  if (e.lugar) sub.push(esc(e.lugar));
+  if (e.detalle) sub.push(esc(e.detalle));
+  if (e.enlace) sub.push('<a href="' + esc(e.enlace) + '" target="_blank" rel="noopener">Abrir en Google</a>');
+  var titulo = e.tipo === 'vacaciones' || e.tipo === 'descanso' || e.tipo === 'turno' ? esc(nombreCorto(e.persona)) + ' <span class="etq">' + esc(e.titulo) + (e.cambio ? ' · cambio' : '') + '</span>' : esc(e.titulo) + ' <span class="etq">' + TIPOS[e.tipo].corto + '</span>';
+  var acc = e.tipo === 'turno' && D.puede_turnos ? '<div class="acc"><button class="btn" style="padding:5px 9px;font-size:12px;" onclick=\'formCambioTurno(' + esc(JSON.stringify(e)) + ', "' + f + '")\'>Cambiar</button></div>' : '';
+  return '<div class="item"><span class="barra-c" style="background:' + TIPOS[e.tipo].color + '"></span><div class="hora">' + esc(hora) + '</div><div class="x"><div class="tit">' + titulo + '</div>' + (sub.length ? '<div class="sub">' + sub.join(' · ') + '</div>' : '') + '</div>' + acc + '</div>';
+}
+function verDia(f) {
+  var evs = porDia(visibles(), f, f)[f] || [];
+  ventana(bloqueDia(f, evs, f === hoyISO()) + '<div class="pie"><button class="btn" onclick="cerrarVentana()">Cerrar</button></div>');
+}
+
+// ── Google ──
+function cajaGoogle() {
+  var g = D.google || {};
+  if (!g.disponible) return '';
+  if (!g.conectado) return '<div class="google"><div class="txt"><b>Conecta tu Google Calendar</b> para ver aquí tus reuniones y visitas. Se siguen creando en Google; ORUM solo las lee.</div><button class="btn osc" onclick="conectarGoogle()">Conectar con Google</button></div>';
+  var usados = (g.calendarios || []).filter(function (c) { return c.tipo !== 'no'; }).length;
+  return '<div class="google"><div class="txt">Google Calendar: <b>' + esc(g.email || 'conectado') + '</b> · ' + usados + ' calendario' + (usados === 1 ? '' : 's') + ' a la vista' + (g.error ? ' · <span style="color:#A32D2D">' + esc(g.error) + '</span>' : '') + '</div>' +
+    (g.error ? '<button class="btn osc" onclick="conectarGoogle()">Volver a conectar</button>' : '') + '<button class="btn" onclick="formCalendarios()">Elegir calendarios</button></div>';
+}
+function conectarGoogle() {
+  // Google no deja abrir su pantalla dentro de un marco: se va a la ventana entera
+  var url = '/api/calendario/google/conectar' + (EMBEBIDO ? '?desde=panel' : '');
+  (EMBEBIDO && window.top ? window.top : window).location.href = url;
+}
+function formCalendarios() {
+  var g = D.google;
+  ventana('<h2>Tus calendarios de Google</h2><div class="sub">Elige cuáles salen en ORUM y si son reuniones o visitas comerciales. Un evento cuyo título empiece por «Visita» cuenta siempre como visita.</div>' +
+    (g.calendarios || []).map(function (c, i) {
+      return '<div class="cal-g"><span class="n">' + esc(c.nombre) + (c.principal ? ' <span class="etq">Principal</span>' : '') + '</span><select data-cal="' + i + '">' +
+        [['reunion', 'Reuniones'], ['visita', 'Visitas'], ['no', 'No mostrar']].map(function (o) { return '<option value="' + o[0] + '"' + (c.tipo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+    }).join('') +
+    '<div class="error" id="v-err"></div><div class="pie"><button class="btn peli" onclick="desconectarGoogle()">Desconectar Google</button><button class="btn" onclick="cerrarVentana()">Cancelar</button><button class="btn pri" id="v-ok" onclick="guardarCalendarios()">Guardar</button></div>');
+}
+function guardarCalendarios() {
+  var lista = [].map.call(document.querySelectorAll('[data-cal]'), function (s) { return { id: D.google.calendarios[+s.getAttribute('data-cal')].id, tipo: s.value }; });
+  document.getElementById('v-ok').disabled = true;
+  pedir('/api/calendario/google/calendarios', 'POST', { calendarios: lista }).then(function () { cerrarVentana(); toast('Guardado'); cargar(); })
+    .catch(function (e) { document.getElementById('v-ok').disabled = false; document.getElementById('v-err').textContent = e.message; });
+}
+function desconectarGoogle() {
+  if (!confirm('¿Desconectar tu Google Calendar? Tus reuniones y visitas dejarán de salir en ORUM.')) return;
+  pedir('/api/calendario/google/desconectar', 'POST', {}).then(function () { cerrarVentana(); toast('Google desconectado'); cargar(); })
+    .catch(function (e) { document.getElementById('v-err').textContent = e.message; });
+}
+
+// ── Turnos ──
+function cargarTurnos() {
+  document.getElementById('cuerpo').innerHTML = '<div class="cargando">Cargando…</div>';
+  return pedir('/api/calendario/turnos').then(function (d) { T = d; pintarTurnos(); })
+    .catch(function (e) { document.getElementById('cuerpo').innerHTML = '<div class="cargando">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
+}
+function semanaDe(clave) { return T.semana.filter(function (s) { return s.clave === clave; }); }
+function textoTurno(s) { return s.libre ? 'Libre' : s.entrada + '–' + s.salida + (s.entrada2 ? ' y ' + s.entrada2 + '–' + s.salida2 : ''); }
+function pintarTurnos() {
+  var h = '<div class="nota">El horario habitual de cada trabajador. Para un día distinto (cambio de turno, refuerzo, libre), usa «Cambiar turno» en el Calendario. ' +
+    (T.puede_editar ? 'Pulsa en una persona para cambiar su horario.' : 'Los cambian Leo, Jesús Aguilera, Rafa Pérez y Sergio.') + '</div>';
+  h += '<div class="envoltura-tabla"><table class="tabla-turnos"><thead><tr><th>Trabajador</th>' + DIAS_CORTOS.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '</tr></thead><tbody>';
+  T.empleados.forEach(function (e) {
+    var s = semanaDe(e.clave);
+    h += '<tr' + (T.puede_editar ? ' class="click" onclick="formSemana(\'' + esc(e.clave).replace(/'/g, '&#39;') + '\')"' : '') + '><td><b>' + esc(nombreCorto(e.nombre)) + '</b><div class="area">' + esc(e.area) + '</div></td>' +
+      [1, 2, 3, 4, 5, 6, 7].map(function (d) { var x = s.filter(function (t) { return t.dia === d; })[0]; return '<td style="white-space:nowrap;' + (x && x.libre ? 'color:#9a988f;' : '') + '">' + (x ? esc(textoTurno(x)) : '<span style="color:#d0cec6">—</span>') + '</td>'; }).join('') + '</tr>';
+  });
+  h += '</tbody></table></div>';
+  if (!T.empleados.length) h = '<div class="cargando">No hay nadie en la plantilla de la Bolsa de horas.</div>';
+  document.getElementById('cuerpo').innerHTML = h;
+}
+function formSemana(clave) {
+  var e = T.empleados.filter(function (x) { return x.clave === clave; })[0], s = semanaDe(clave);
+  var filas = [1, 2, 3, 4, 5, 6, 7].map(function (d) {
+    var x = s.filter(function (t) { return t.dia === d; })[0] || {};
+    return '<div class="fila-dia" data-dia="' + d + '"><b>' + DIAS_CORTOS[d - 1] + '</b><input type="time" data-c="entrada" value="' + (x.entrada || '') + '"><input type="time" data-c="salida" value="' + (x.salida || '') + '">' +
+      '<label class="lib"><input type="checkbox" data-c="libre"' + (x.libre ? ' checked' : '') + '> Libre</label>' +
+      '<span></span><div class="parte2"><input type="time" data-c="entrada2" value="' + (x.entrada2 || '') + '" title="Partido: entrada de la tarde"><input type="time" data-c="salida2" value="' + (x.salida2 || '') + '" title="Partido: salida de la tarde"></div></div>';
+  }).join('');
+  ventana('<h2>' + esc(nombreCorto(e.nombre)) + '</h2><div class="sub">Horario de cada semana: entrada y salida. La segunda línea es solo para jornada partida. Deja vacío el día que no tenga horario fijo.</div>' + filas +
+    '<div class="pie" style="justify-content:flex-start;margin-top:4px;"><button class="btn" onclick="copiarLunes()">Copiar el lunes de martes a viernes</button></div>' +
+    '<div class="error" id="v-err"></div><div class="pie"><button class="btn" onclick="cerrarVentana()">Cancelar</button><button class="btn pri" id="v-ok" onclick=\'guardarSemana(' + esc(JSON.stringify(clave)) + ')\'>Guardar</button></div>');
+}
+function copiarLunes() {
+  var lun = document.querySelector('[data-dia="1"]');
+  [2, 3, 4, 5].forEach(function (d) {
+    var f = document.querySelector('[data-dia="' + d + '"]');
+    ['entrada', 'salida', 'entrada2', 'salida2'].forEach(function (c) { f.querySelector('[data-c="' + c + '"]').value = lun.querySelector('[data-c="' + c + '"]').value; });
+    f.querySelector('[data-c="libre"]').checked = lun.querySelector('[data-c="libre"]').checked;
+  });
+}
+function guardarSemana(clave) {
+  var dias = [].map.call(document.querySelectorAll('.fila-dia'), function (f) {
+    var v = function (c) { return f.querySelector('[data-c="' + c + '"]').value; };
+    return { dia: +f.getAttribute('data-dia'), entrada: v('entrada'), salida: v('salida'), entrada2: v('entrada2'), salida2: v('salida2'), libre: f.querySelector('[data-c="libre"]').checked };
+  });
+  document.getElementById('v-ok').disabled = true;
+  pedir('/api/calendario/turnos/semana', 'PUT', { clave: clave, dias: dias }).then(function () { cerrarVentana(); toast('Horario guardado'); D = null; cargarTurnos(); })
+    .catch(function (e) { document.getElementById('v-ok').disabled = false; document.getElementById('v-err').textContent = e.message; });
+}
+// Cambio de turno para un día (o varios seguidos). ev = el turno pinchado, o null para elegir persona.
+function formCambioTurno(ev, fecha) {
+  var abrir = function () {
+    var opciones = T.empleados.map(function (e) { return '<option value="' + esc(e.clave) + '"' + (ev && ev.clave === e.clave ? ' selected' : '') + '>' + esc(nombreCorto(e.nombre)) + '</option>'; }).join('');
+    var partes = ev && !ev.libre ? String(ev.titulo).split(' y ').map(function (p) { return p.split('–'); }) : [];
+    ventana('<h2>Cambiar turno</h2><div class="sub">Solo para ese día (o esos días); el resto de semanas sigue su horario habitual.</div>' +
+      '<div class="campo"><label>Trabajador</label><select id="c-clave">' + (ev ? '' : '<option value="">Elige…</option>') + opciones + '</select></div>' +
+      '<div class="dos"><div class="campo"><label>Día</label><input type="date" id="c-fecha" value="' + fecha + '"></div><div class="campo"><label>Hasta (opcional)</label><input type="date" id="c-hasta"></div></div>' +
+      '<div class="campo"><label style="display:flex;gap:6px;align-items:center;font-size:14px;color:#1a1a18;"><input type="checkbox" id="c-libre"' + (ev && ev.libre ? ' checked' : '') + ' onchange="document.getElementById(\'c-horas\').style.display=this.checked?\'none\':\'\'"> Libre ese día</label></div>' +
+      '<div id="c-horas"' + (ev && ev.libre ? ' style="display:none"' : '') + '><div class="dos"><div class="campo"><label>Entrada</label><input type="time" id="c-e" value="' + ((partes[0] || [])[0] || '') + '"></div><div class="campo"><label>Salida</label><input type="time" id="c-s" value="' + ((partes[0] || [])[1] || '') + '"></div></div>' +
+      '<div class="dos"><div class="campo"><label>Entrada tarde (partido)</label><input type="time" id="c-e2" value="' + ((partes[1] || [])[0] || '') + '"></div><div class="campo"><label>Salida tarde</label><input type="time" id="c-s2" value="' + ((partes[1] || [])[1] || '') + '"></div></div></div>' +
+      '<div class="campo"><label>Nota (opcional)</label><input type="text" id="c-nota" value="' + esc(ev && ev.detalle || '') + '"></div>' +
+      '<div class="nota">Las vacaciones y los días de descanso no se apuntan aquí, sino en la Bolsa de horas.</div>' +
+      '<div class="error" id="v-err"></div><div class="pie">' + (ev && ev.cambio ? '<button class="btn peli" onclick=\'quitarCambio(' + esc(JSON.stringify(ev.clave)) + ',"' + fecha + '")\'>Volver a su horario</button>' : '') +
+      '<button class="btn" onclick="cerrarVentana()">Cancelar</button><button class="btn pri" id="v-ok" onclick="guardarCambio()">Guardar</button></div>');
+  };
+  if (T) abrir(); else pedir('/api/calendario/turnos').then(function (d) { T = d; abrir(); }).catch(function (e) { toast(e.message); });
+}
+function guardarCambio() {
+  var v = function (id) { return document.getElementById(id).value.trim(); };
+  if (!v('c-clave')) { document.getElementById('v-err').textContent = 'Elige al trabajador'; return; }
+  document.getElementById('v-ok').disabled = true;
+  pedir('/api/calendario/turnos/dia', 'PUT', { clave: v('c-clave'), fecha: v('c-fecha'), hasta: v('c-hasta') || v('c-fecha'), libre: document.getElementById('c-libre').checked, entrada: v('c-e'), salida: v('c-s'), entrada2: v('c-e2'), salida2: v('c-s2'), nota: v('c-nota') })
+    .then(function () { cerrarVentana(); toast('Turno cambiado'); cargar(); })
+    .catch(function (e) { document.getElementById('v-ok').disabled = false; document.getElementById('v-err').textContent = e.message; });
+}
+function quitarCambio(clave, fecha) {
+  pedir('/api/calendario/turnos/dia?clave=' + encodeURIComponent(clave) + '&fecha=' + fecha, 'DELETE').then(function () { cerrarVentana(); toast('Vuelve a su horario'); cargar(); })
+    .catch(function (e) { document.getElementById('v-err').textContent = e.message; });
+}
+
+// ── Ventana ──
+function ventana(html) {
+  document.getElementById('ventana-cont').innerHTML = '<div class="fondo" onclick="if(event.target===this)cerrarVentana()"><div class="ventana">' + html + '</div></div>';
+}
+function cerrarVentana() { document.getElementById('ventana-cont').innerHTML = ''; }
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarVentana(); });
+
+// Se refresca sola cada 5 minutos si está a la vista y no hay una ventana abierta
+setInterval(function () { if (USUARIO && pestana === 'calendario' && !document.hidden && !document.getElementById('ventana-cont').innerHTML) cargar(); }, 300000);
+entrar();
+</script>
+<script src="/actividad-registro.js" data-pantalla="Calendario"></script>
+</body>
+</html>

@@ -34,6 +34,34 @@ Hay cuatro chats fijos: **Office**, **Lavandería**, **Mantenimiento** y **Comer
 - «Activar avisos» (en la pantalla del chat) hace que el móvil o la tablet avise de los mensajes nuevos aunque la app esté cerrada. Cada uno elige de qué chats quiere aviso.
 - En el panel, quien tiene chat (Logística, Dirección y comerciales) ve un globo de chat abajo a la derecha en cualquier pantalla.
 
+## Calendario
+
+El Calendario (menú **Calendario** del panel o botón **Calendario** de la app) junta en una sola vista:
+
+| Qué | De dónde sale | Quién lo ve |
+| --- | --- | --- |
+| Reuniones | Tu Google Calendar | Cada uno las suyas; Dirección las de todos |
+| Visitas comerciales | Tu Google Calendar | Cada uno las suyas; Dirección las de todos |
+| Vacaciones | Bolsa de horas | Dirección, Contabilidad y Logística |
+| Días de descanso | Bolsa de horas | Dirección, Contabilidad y Logística |
+| Turnos | Calendario → Turnos | Dirección, Contabilidad y Logística |
+| Citas de taller | Vehículos (cita de cada vencimiento) | Dirección, Contabilidad y Logística |
+
+- **Filtros:** pulsa cada tipo para verlo u ocultarlo, o «Todo». El desplegable de personas muestra solo lo de una persona. ORUM recuerda tus filtros.
+- **Mes o Semana:** en Mes, los turnos de todos se resumen en una línea; pulsa un día para ver el detalle. En el móvil se abre en Semana.
+- **Las reuniones y visitas se siguen creando en Google Calendar** (en el móvil, en Gmail…). ORUM solo las lee: si cambias una, cámbiala en Google y aparecerá aquí en un par de minutos.
+- Las vacaciones y los descansos se apuntan en la **Bolsa de horas**, no en el Calendario. Las citas de taller, en **Vehículos**.
+
+### Conectar tu Google Calendar (una sola vez)
+
+1. Abre el Calendario y pulsa **«Conectar con Google»**.
+2. Elige tu cuenta de Google y acepta que ORUM vea tu calendario (solo lectura: ORUM no puede crear, cambiar ni borrar nada).
+3. Vuelves al Calendario con tus eventos. Por defecto sale tu calendario principal: como **visitas** si eres comercial y como **reuniones** para el resto.
+4. Con **«Elegir calendarios»** decides qué calendarios de Google salen y si cada uno son reuniones o visitas. Un evento cuyo título empiece por **«Visita»** cuenta siempre como visita comercial.
+5. Los eventos marcados como privados en Google salen como «Ocupado», sin título ni lugar.
+
+Si sale el aviso «Google ha retirado el permiso», pulsa «Volver a conectar». Para dejar de compartirlo: «Elegir calendarios» → «Desconectar Google».
+
 ## Avisos de proyectos
 
 Cuando en Rentman se confirma un proyecto para hoy o mañana, o cambia algo de un proyecto que ya se está preparando, ORUM Central avisa solo a quien le afecta.

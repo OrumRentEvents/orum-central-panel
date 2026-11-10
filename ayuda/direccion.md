@@ -99,6 +99,7 @@ Ventas = proyectos confirmados con entrega en esa semana, sin IVA. Cada comercia
 | Vehículos → Uso | Kilómetros por vehículo y conductor, a partir del localizador GPS cruzado con las rutas |
 | Vehículos → Ranking conductores | Puntuación de conducción de cada conductor (sobre 100); «Ajustes del ranking» cambia pesos y umbrales |
 | Material recuperado | Material perdido que ha vuelto y cargos que hay que quitar al cliente |
+| Calendario | Reuniones y visitas de todos (de Google Calendar), vacaciones, descansos, turnos y citas de taller, con filtros |
 | Chat | Los cuatro chats (Office, Lavandería, Mantenimiento, Comercial) |
 
 Los vencimientos de vehículos avisan por email a Jesús, Leo, Rafa, Sergio y logistica@orumevents.com cuando un vencimiento empeora; los lunes llega un resumen con todo lo pendiente.
@@ -128,9 +129,9 @@ Los vencimientos de vehículos avisan por email a Jesús, Leo, Rafa, Sergio y lo
 | Rol | Qué ve |
 | --- | --- |
 | Dirección | Todo |
-| Contabilidad | Financiero, Personal, Material recuperado, Incidencias y Configuración (salvo Usuarios) |
-| Logística | Logística, Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat |
-| Comercial | Comercial (con sus proyectos y accesos a Rutas y Caja), Incidencias, Chat Comercial y Material recuperado (solo consulta, lo ya confirmado por Logística); en la app, además Rutas (solo notas), Avisos y Caja |
+| Contabilidad | Financiero, Personal, Calendario, Material recuperado, Incidencias y Configuración (salvo Usuarios) |
+| Logística | Logística, Mantenimiento, Vehículos, Calendario, Material recuperado, Incidencias y Chat |
+| Comercial | Comercial (con sus proyectos y accesos a Rutas y Caja), Calendario (solo sus reuniones y visitas), Incidencias, Chat Comercial y Material recuperado (solo consulta, lo ya confirmado por Logística); en la app, además Rutas (solo notas), Avisos y Caja |
 | Tablets de Lavandería y Office | Solo su zona de Preparación, su chat y sus avisos, en la app |
 | Mantenimiento | Solo Mantenimiento, su chat y sus avisos, en la app |
 | Usuario de solo consulta | Lo mismo que su rol, sin Configuración, y no puede cambiar nada |
