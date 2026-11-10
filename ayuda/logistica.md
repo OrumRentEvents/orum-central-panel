@@ -2,7 +2,7 @@
 
 Logística y almacén trabajan desde ORUM Central: preparación del material, rutas, mantenimiento, vehículos, extras, incidencias y material recuperado. Rentman sigue siendo el origen: proyectos, fechas, direcciones y material se cambian allí y ORUM Central los copia solo en segundos.
 
-Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación y Bolsa de horas), Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat. Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Bolsa de horas, Servicios Isabella y Repostaje.
+Con el rol Logística ves en el panel: Logística (Inicio, Servicios Extra, Servicios Isabella, Rutas, estadísticas de rutas, Preparación y Bolsa de horas), Mantenimiento, Vehículos, Material recuperado, Incidencias y Chat (los chats de Office, Lavandería y Mantenimiento, y el chat Comercial con los comerciales). Al entrar se abre el Inicio de Logística. En la app móvil tienes Preparación, Rutas, Mantenimiento, Material recuperado, Chat, Avisos, Incidencias, Subir factura, Bolsa de horas, Servicios Isabella y Repostaje.
 
 ## Rutina de trabajo
 

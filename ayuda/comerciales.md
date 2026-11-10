@@ -6,7 +6,7 @@ Los comerciales siguen trabajando en Rentman, y ORUM Central les da cada mañana
 - **ORUM Central es para consultar** tu actividad y lo que tienes pendiente. Lo que ves depende de lo bien rellenado que esté Rentman.
 - **Logística y Administración trabajan con tus datos de Rentman:** un teléfono que falta o un servicio sin dar de alta acaba en un problema el día del evento.
 
-**Qué ves.** En el panel, el apartado Comercial (Resumen, Proyectos, Presupuestos y Leads) solo con tus propios proyectos, e Incidencias. En la app móvil: Rutas, Avisos e Incidencias. Caja tiene su propio acceso.
+**Qué ves.** En el panel: el apartado Comercial (Resumen, Proyectos, Presupuestos y Leads, solo con tus propios proyectos, más los accesos directos a Rutas y Caja), Incidencias, Chat y Material recuperado. En la app móvil: Rutas, Avisos, Chat, Material recuperado, Incidencias y Caja. Caja se abre en otra pestaña y entras con tu usuario de Caja.
 
 ## Rutina de trabajo
 
@@ -88,7 +88,7 @@ Un cobro que no se clasifica en Caja no llega a la contabilidad, y el proyecto s
 ### Clasificar un cobro en Caja
 
 1. Apunta el cobro en Rentman.
-2. Abre Caja → Caja Diaria y pulsa «Cargar cobros».
+2. Abre Caja (panel → Comercial → Caja ↗, o botón Caja de la app) → Caja Diaria y pulsa «Cargar cobros».
 3. Busca el cobro (sale «sin asignar») y elige su método real: TPV Marbella o Efectivo Marbella. Si el cliente pagó una parte de cada forma, reparte el importe.
 
 ### Fianzas paso a paso
@@ -102,9 +102,29 @@ Un cobro que no se clasifica en Caja no llega a la contabilidad, y el proyecto s
 4. La devolución por transferencia la hace Administración los viernes; en efectivo o TPV, María o el comercial.
 5. María la marca como devuelta en Rentman y envía al cliente el justificante.
 
+## Chat Comercial
+
+El chat **Comercial** es el canal entre los comerciales y los responsables de Logística (Dirección también lo ve). Úsalo para lo que antes se hablaba por WhatsApp: un cambio de última hora, una duda sobre una entrega o un recado para el montaje.
+
+1. Ábrelo desde el panel (menú **Chat**) o desde la app (botón **Chat**).
+2. Escribe el mensaje o adjunta una foto. Pon siempre el **número de proyecto** para que Logística lo encuentre rápido.
+3. Para que el móvil te avise de los mensajes nuevos: en la pantalla del chat, «Activar avisos».
+
+Los mensajes no se pueden editar, así que repasa antes de enviar. El chat no sustituye a Rentman: si cambia algo del proyecto (material, fecha, dirección), cámbialo en Rentman, que es lo que avisa a los departamentos.
+
+## Material recuperado
+
+Cuando un cliente no devuelve material, Rentman le carga un coste «<ARTÍCULO> NO DEVUELTO». Si ese material vuelve después, aquí ves cómo va:
+
+1. Logística lo marca como recuperado en Rentman y confirma en ORUM Central de qué proyecto es. **Hasta que no lo confirma no te aparece.**
+2. Aparece en **«Cargos por quitar»**: el artículo, la cantidad, el proyecto y el importe que se quitará al cliente. Si el proyecto ya está facturado, verás que hace falta un abono.
+3. Administración quita el cargo en Rentman (o hace el abono) y pasa al **Historial**.
+
+Esta pantalla es solo de consulta: sirve para poder decirle al cliente que su material ha aparecido y que se le quitará el cargo. Si ves algo que no cuadra, avisa a Logística o a María.
+
 ## App de Rutas
 
-Puedes consultar la app de Rutas (botón Rutas de la app móvil) para saber cuándo y con qué vehículo se entrega o se recoge un proyecto. Solo puedes escribir notas en las paradas (por ejemplo, una indicación de acceso o de horario que te ha dado el cliente); el resto lo gestiona Logística. Usa el buscador para encontrar tu proyecto por cliente, número, ubicación o zona.
+Puedes consultar la app de Rutas (panel → Comercial → Rutas ↗, o botón Rutas de la app móvil) para saber cuándo y con qué vehículo se entrega o se recoge un proyecto. Solo puedes escribir notas en las paradas (por ejemplo, una indicación de acceso o de horario que te ha dado el cliente); el resto lo gestiona Logística. Usa el buscador para encontrar tu proyecto por cliente, número, ubicación o zona.
 
 ## Si algo no cuadra
 

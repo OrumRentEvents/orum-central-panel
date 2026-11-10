@@ -115,7 +115,8 @@ function cargar(forzar) {
   return fetch('/api/recuperacion' + (forzar ? '?actualizar=1' : '')).then(function (r) { return r.json(); }).then(function (d) {
     if (d.error) throw new Error(d.error);
     D = d;
-    if (!vista) vista = d.permisos.cerrar && !d.permisos.confirmar ? 'quitar' : 'confirmar';
+    // Comercial no ve "Por confirmar": solo lo que Logística ya ha confirmado
+    if (!vista || (vista === 'confirmar' && d.permisos.ver_por_confirmar === false)) vista = !d.permisos.confirmar ? 'quitar' : 'confirmar';
     document.getElementById('act').textContent = (d.sincronizado_en ? 'Rentman leído a las ' + new Date(d.sincronizado_en).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'Sin leer Rentman todavía') + (d.error_sync ? ' · ⚠ ' + d.error_sync : '');
     pintar();
   }).catch(function (e) { document.getElementById('act').textContent = ''; document.getElementById('cuerpo').innerHTML = '<div class="vacio">No se ha podido cargar: ' + esc(e.message) + '</div>'; });
@@ -124,7 +125,7 @@ document.getElementById('btn-actualizar').onclick = function () { cargar(true); 
 
 function pintarTabs() {
   var t = function (id, txt, n) { return '<button data-vista="' + id + '"' + (vista === id ? ' class="on"' : '') + '>' + txt + (n ? '<span class="badge">' + n + '</span>' : '') + '</button>'; };
-  document.getElementById('tabs').innerHTML = t('confirmar', 'Por confirmar', D.por_confirmar.length) + t('quitar', 'Cargos por quitar', D.por_quitar.length) + t('historial', 'Historial', 0);
+  document.getElementById('tabs').innerHTML = (D.permisos.ver_por_confirmar === false ? '' : t('confirmar', 'Por confirmar', D.por_confirmar.length)) + t('quitar', 'Cargos por quitar', D.por_quitar.length) + t('historial', 'Historial', 0);
 }
 document.getElementById('tabs').addEventListener('click', function (e) {
   var b = e.target.closest('[data-vista]'); if (!b) return;
@@ -227,7 +228,9 @@ function confirmarProyecto(btn) {
 
 // ── Cargos por quitar (Administración) ──
 function vistaQuitar() {
-  var h = '<div class="nota">Material que ha vuelto, confirmado por Logística. Quita el cargo "NO DEVUELTO" en Rentman (o baja su cantidad): al leer Rentman de nuevo, se cierra solo. Si el proyecto ya está facturado, hay que hacer un abono y cerrarlo aquí.</div>';
+  var h = !D.permisos.cerrar && !D.permisos.confirmar
+    ? '<div class="nota">Material que había quedado como no devuelto y ha vuelto al almacén, ya confirmado por Logística. Administración quitará el cargo "NO DEVUELTO" al cliente en Rentman; cuando lo haga, pasa al Historial.</div>'
+    : '<div class="nota">Material que ha vuelto, confirmado por Logística. Quita el cargo "NO DEVUELTO" en Rentman (o baja su cantidad): al leer Rentman de nuevo, se cierra solo. Si el proyecto ya está facturado, hay que hacer un abono y cerrarlo aquí.</div>';
   if (!D.por_quitar.length) return h + '<div class="vacio">No hay cargos pendientes de quitar.</div>';
   var total = D.por_quitar.reduce(function (s, r) { return s + Number(r.importe || 0); }, 0);
   h += '<div class="nota"><b>' + D.por_quitar.length + '</b> pendiente' + (D.por_quitar.length === 1 ? '' : 's') + ' · <b>' + euros(total) + '</b> a quitar a clientes</div>';

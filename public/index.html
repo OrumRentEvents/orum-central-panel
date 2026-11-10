@@ -996,6 +996,9 @@ const MENU = [
       { id: 'com-proyectos', label: 'Proyectos', rolesPermitidos: ['Comercial'], onClick: () => cargarProyectos() },
       { id: 'com-presupuestos', label: 'Presupuestos', onClick: () => cargarPresupuestos() },
       { id: 'com-leads', label: 'Leads', onClick: () => cargarLeads() },
+      // Accesos directos del comercial (nov 2026): el resto los tiene en Logística y Financiero
+      { id: 'com-rutas', label: 'Rutas ↗', especial: true, rolesPermitidos: ['Comercial'], onClick: () => window.open('/rutas.html', '_blank') },
+      { id: 'com-caja', label: 'Caja ↗', especial: true, rolesPermitidos: ['Comercial'], onClick: () => window.open('https://caja-orum-production.up.railway.app', '_blank') },
   ]},
   { id: 'analisis', icon: 'flask', group: 'gestion', label: 'Análisis', submenu: [
       { id: 'analisis-material', label: 'Material', onClick: () => cargarEstadisticasMaterial() },
@@ -1041,11 +1044,12 @@ const MENU = [
       { id: 'veh-incidencias', label: 'Incidencias', rolesPermitidos: ROLES_INCIDENCIAS, onClick: () => cargarIncidencias({ tipo: 'vehiculo', menu: 'veh-incidencias' }) },
   ]},
   // Material perdido que vuelve: Logística confirma el proyecto, Administración quita el cargo — public/recuperacion.html
-  { id: 'recuperacion', icon: 'box', group: 'operaciones', label: 'Material recuperado', rolesPermitidos: ['Direccion', 'Logistica', 'Contabilidad'], onClick: () => cargarRecuperacion() },
+  // Comercial (nov 2026): solo consulta, y solo lo ya confirmado por Logística
+  { id: 'recuperacion', icon: 'box', group: 'operaciones', label: 'Material recuperado', rolesPermitidos: ['Direccion', 'Logistica', 'Contabilidad', 'Comercial'], onClick: () => cargarRecuperacion() },
   // Incidencias: crear, asignar y seguir hasta cerrarla — public/incidencias.html
   { id: 'incidencias', icon: 'alert', group: 'operaciones', label: 'Incidencias', rolesPermitidos: ROLES_INCIDENCIAS, onClick: () => cargarIncidencias() },
-  // Chat por departamento (Office, Lavandería, Mantenimiento) — public/chat.html
-  { id: 'chat', icon: 'chat', group: 'operaciones', label: 'Chat', rolesPermitidos: ['Direccion', 'Logistica'], onClick: () => cargarChat() },
+  // Chat por departamento (Office, Lavandería, Mantenimiento, Comercial) — public/chat.html
+  { id: 'chat', icon: 'chat', group: 'operaciones', label: 'Chat', rolesPermitidos: ['Direccion', 'Logistica', 'Comercial'], onClick: () => cargarChat() },
   // Configuración (26 oct 2026): juntas aquí las "Config." que estaban
   // repartidas por Financiero y Personal, más Usuarios y Estado Sincronización.
   // Ayuda (oct 2026): manual de cada puesto y chat de dudas — public/ayuda.html, carpeta ayuda/
@@ -1083,7 +1087,8 @@ function construirMenu() {
   searchWrap.innerHTML = '<input type="text" id="menu-search-input" placeholder="🔍 Buscar en el menú..." style="width:100%; padding:7px 10px; font-size:12px; border:1px solid var(--border); border-radius:4px; background:#fff; color:var(--text-primary);">';
   nav.appendChild(searchWrap);
 
-  // Rol Comercial: solo ve el apartado Comercial e Incidencias. Rol Logística:
+  // Rol Comercial: el apartado Comercial (con Rutas y Caja), Incidencias, Chat y
+  // Material recuperado. Rol Logística:
   // el apartado Logística completo (incluye Servicios Isabella) +
   // Mantenimiento, Vehículos, Incidencias, Chat y Material recuperado.
   // Nada más del menú en ninguno de los dos casos.
@@ -1125,7 +1130,7 @@ function menuVisibleUsuario() {
   return menuSegunRol();
 }
 function menuSegunRol() {
-  return usuarioActual.rol === 'Comercial' ? MENU.filter(item => ['comercial', 'incidencias', 'ayuda'].includes(item.id))
+  return usuarioActual.rol === 'Comercial' ? MENU.filter(item => ['comercial', 'incidencias', 'chat', 'recuperacion', 'ayuda'].includes(item.id))
     : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'mantenimiento', 'vehiculos', 'incidencias', 'chat', 'recuperacion', 'ayuda'].includes(item.id))
     : MENU.filter(itemVisibleUsuario);
 }

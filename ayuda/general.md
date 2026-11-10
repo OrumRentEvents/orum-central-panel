@@ -27,12 +27,12 @@ En el panel, pasa el ratón por cualquier apartado del menú y pulsa la estrella
 
 ## Chat por departamento
 
-Hay tres chats fijos: **Office**, **Lavandería** y **Mantenimiento**. Cada tablet ve el suyo; Logística y Dirección ven los tres.
+Hay cuatro chats fijos: **Office**, **Lavandería**, **Mantenimiento** y **Comercial**. Cada tablet ve el suyo; los comerciales, el Comercial; Logística y Dirección ven los cuatro.
 
 - Se puede escribir texto y mandar fotos.
 - Los mensajes no se pueden editar.
 - «Activar avisos» (en la pantalla del chat) hace que el móvil o la tablet avise de los mensajes nuevos aunque la app esté cerrada. Cada uno elige de qué chats quiere aviso.
-- En el panel, Logística y Dirección tienen un globo de chat abajo a la derecha en cualquier pantalla.
+- En el panel, quien tiene chat (Logística, Dirección y comerciales) ve un globo de chat abajo a la derecha en cualquier pantalla.
 
 ## Avisos de proyectos
 

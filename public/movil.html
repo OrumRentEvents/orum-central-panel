@@ -395,9 +395,9 @@ var BOTONES = [
   { id: 'factura', titulo: 'Subir factura', sub: 'Foto o PDF de una factura de proveedor', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaFactura(); } },
   { id: 'rutas', titulo: 'Rutas', sub: 'Entregas y recogidas', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/rutas.html' },
   { id: 'mantenimiento', titulo: 'Mantenimiento', sub: 'Material de especial cuidado y chill out, próximos 15 días', roles: ['Direccion', 'Logistica'], href: '/mantenimiento' },
-  { id: 'recuperacion', titulo: 'Material recuperado', sub: 'Confirmar lo que vuelve y quitar cargos', roles: ['Direccion', 'Logistica', 'Contabilidad'], href: '/recuperacion' },
+  { id: 'recuperacion', titulo: 'Material recuperado', sub: 'Lo que vuelve al almacén y los cargos que se quitan', roles: ['Direccion', 'Logistica', 'Contabilidad', 'Comercial'], href: '/recuperacion' },
   { id: 'avisos', titulo: 'Avisos', sub: 'Proyectos que cambian o se confirman para hoy o mañana', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/avisos' },
-  { id: 'chat', titulo: 'Chat', sub: 'Office, Lavandería y Mantenimiento', roles: ['Direccion', 'Logistica'], href: '/chat' },
+  { id: 'chat', titulo: 'Chat', sub: 'Mensajes con cada departamento', roles: ['Direccion', 'Logistica', 'Comercial'], href: '/chat' },
   { id: 'extras', titulo: 'Bolsa de horas', sub: 'Horas, domingos, festivos, descansos y vacaciones', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaBolsa(); } },
   { id: 'isabella', titulo: 'Servicios Isabella', sub: 'Registrar un servicio al grupo Isabella', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaIsabella(); } },
   { id: 'ayuda', titulo: 'Ayuda', sub: 'Manual de tu puesto y dudas sobre cómo se hace algo', roles: ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'], href: '/ayuda' },
@@ -405,7 +405,8 @@ var BOTONES = [
   // Próximamente (oct 2026): se ven ya en el inicio y se van construyendo
   { id: 'repostaje', titulo: 'Repostaje', sub: 'Km, litros y quién reposta', roles: ['Direccion', 'Contabilidad', 'Logistica'], abrir: function () { pantallaRepostaje(); } },
   { id: 'vehiculos', titulo: 'Vehículos', sub: 'Flota, revisión antes de salir y vencimientos', roles: ['Direccion', 'Logistica'], pronto: true },
-  { id: 'caja', titulo: 'Caja', sub: 'Registrar cobros en efectivo o TPV', roles: ['Direccion', 'Contabilidad', 'Comercial'], pronto: true }
+  // Caja (nov 2026): de momento abre la app de Caja (otra web, con su propio usuario)
+  { id: 'caja', titulo: 'Caja', sub: 'Registrar cobros en efectivo o TPV', roles: ['Direccion', 'Contabilidad', 'Comercial'], href: 'https://caja-orum-production.up.railway.app', externo: true }
 ];
 BOTONES.forEach(function (b) { if (b.pronto) b.abrir = function () { pantallaProximamente(b); }; });
 function pantallaProximamente(b) {
@@ -449,7 +450,7 @@ function irInicio() {
     (botonesDisponibles().length > 1 ? '<button class="btn-editar" onclick="editarBotones()">Editar</button>' : '') + '</div><div class="botones">';
   mios.forEach(function (b) {
     var interior = '<span class="ico">' + ICONOS[b.id] + '</span><span class="tit">' + b.titulo + '</span><span class="sub">' + b.sub + '</span>' + (b.pronto ? '<span class="pronto-et">Próximamente</span>' : '');
-    html += b.href ? '<a class="boton" href="' + b.href + '">' + interior + '</a>' : '<button class="boton' + (b.pronto ? ' pronto' : '') + '" data-b="' + b.id + '">' + interior + '</button>';
+    html += b.href ? '<a class="boton" href="' + b.href + '"' + (b.externo ? ' target="_blank" rel="noopener"' : '') + '>' + interior + '</a>' : '<button class="boton' + (b.pronto ? ' pronto' : '') + '" data-b="' + b.id + '">' + interior + '</button>';
   });
   html += '</div>';
   if (!mios.length) html = botonesDisponibles().length
@@ -465,7 +466,8 @@ function irInicio() {
   // Pendientes en el botón Material recuperado (según el rol, como en el panel)
   var recup = document.querySelector('.boton[href="/recuperacion"]');
   if (recup) fetch('/api/recuperacion/resumen').then(function (r) { return r.json(); }).then(function (d) {
-    var n = (USUARIO.rol === 'Contabilidad' ? 0 : d.por_confirmar || 0) + (USUARIO.rol === 'Logistica' ? 0 : d.por_quitar || 0);
+    // Comercial solo consulta: sin contador
+    var n = USUARIO.rol === 'Comercial' ? 0 : (USUARIO.rol === 'Contabilidad' ? 0 : d.por_confirmar || 0) + (USUARIO.rol === 'Logistica' ? 0 : d.por_quitar || 0);
     if (n) recup.querySelector('.tit').insertAdjacentHTML('beforeend', ' <span class="chat-badge">' + n + '</span>');
   }).catch(function () {});
   // Avisos de proyectos sin ver en el botón Avisos
