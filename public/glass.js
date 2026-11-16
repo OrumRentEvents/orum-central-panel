@@ -576,6 +576,15 @@
       $('content-title').textContent = 'Inicio';
       return pintarInicio();
     };
+    // Logística → Rutas nueva (Planificación, public/rutas-plan.js). La app de siempre
+    // (/rutas.html) sigue en su apartado, con los mismos datos.
+    const log = MENU.find(i => i.id === 'log');
+    if (log && typeof window.cargarRutasPlan === 'function' && !log.submenu.some(s => s.id === 'log-rutas')) {
+      const i = log.submenu.findIndex(s => s.id === 'log-rutas-app');
+      log.submenu.splice(i < 0 ? log.submenu.length : i, 0, { id: 'log-rutas', label: 'Rutas', onClick: () => window.cargarRutasPlan() });
+      const antigua = log.submenu.find(s => s.id === 'log-rutas-app');
+      if (antigua) antigua.label = 'App Rutas ↗';
+    }
     montar();
     // Algunas pantallas viven en scripts aparte (vehiculos.js, bolsa.js…): esperar a que estén cargados.
     if (document.readyState !== 'complete') await new Promise(r => window.addEventListener('load', r, { once: true }));
