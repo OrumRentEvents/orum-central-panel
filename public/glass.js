@@ -487,7 +487,7 @@
     $('g-widgets').innerHTML = `
       <section class="g-widget g-vidrio">
         <div class="g-widget-cab">${iconoMenuHtml('calendario')}<h3>Agenda de hoy</h3>${visible('calendario') ? '<button type="button" class="g-enlace" data-ir="calendario">Ver calendario →</button>' : ''}</div>
-        ${agenda.length ? agenda.slice(0, 6).map(a => `<div class="g-fila"><span class="g-hora">${esc(a.hora)}</span><span class="g-fila-txt"><b>${esc(a.nombre || 'Proyecto ' + a.numero)}</b><small>${esc([a.cliente, a.localizacion].filter(Boolean).join(' · '))}</small></span><span class="g-tipo ${TIPO[a.tipo]}">${a.tipo}</span></div>`).join('')
+        ${agenda.length ? agenda.slice(0, 6).map(a => `<div class="g-fila"><span class="g-hora">${a.hora ? esc(a.hora) : '<small>Todo el día</small>'}</span><span class="g-fila-txt"><b>${esc(a.nombre || 'Proyecto ' + a.numero)}</b><small>${esc([a.cliente, a.localizacion].filter(Boolean).join(' · '))}</small></span><span class="g-tipo ${TIPO[a.tipo]}">${a.tipo}</span></div>`).join('')
           + (agenda.length > 6 ? `<div class="g-mas">y ${agenda.length - 6} más</div>` : '')
           : '<div class="g-vacio">Hoy no hay entregas, montajes ni recogidas.</div>'}
       </section>

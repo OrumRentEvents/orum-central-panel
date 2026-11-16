@@ -268,3 +268,13 @@ html.glass .main-header { justify-content: flex-end; margin-bottom: -6px; }
 @media (max-width: 980px) { .g-titular .g-modulo { font-size: 24px; } .g-titular-ico { width: 46px; height: 46px; flex-basis: 46px; } .g-titular .g-seccion { display: none; } }
 .g-cabecera .g-hamburguesa { display: inline-flex; flex: 0 0 auto; }
 .g-titular { margin-left: 4px; }
+
+/* Menú lateral más compacto: sin barra de desplazamiento con los 12 módulos */
+.g-menu { width: 272px; padding: 14px 12px; scrollbar-width: none; }
+.g-menu::-webkit-scrollbar { display: none; }
+.g-op { height: 40px; font-size: 14px; }
+.g-sel { height: 40px; }
+.g-grupo { padding-top: 9px; padding-bottom: 4px; }
+.g-marca { padding-bottom: 12px; }
+.g-op .g-et { text-overflow: ellipsis; }
+.g-hora small { font-size: 10.5px; line-height: 1.1; display: block; }
