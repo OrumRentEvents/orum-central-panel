@@ -111,6 +111,7 @@ La app de Rutas es donde se decide qué vehículo hace cada entrega y recogida, 
 - Si un proyecto tiene subproyectos con fechas distintas (por ejemplo, un «EXTRA» que se entrega otro día), sale una parada por cada fecha, con la etiqueta del subproyecto («Solo EXTRA») y su material.
 - Si en Rentman cambia la fecha, la parada se mueve sola al nuevo día y conserva su nota; el vehículo, la vuelta y el orden hay que volver a ponerlos.
 - Las paradas que no vienen de Rentman (compras, taller, recoger manteles…) se crean con «Añadir parada manual»; el número de proyecto es opcional.
+- Los lunes, miércoles y viernes aparece sola la parada fija «CAMINOS ISABELLA AL CARBON» (entregar/recoger los caminos de mesa del restaurante), con tres semanas de antelación. Se asigna y se mueve como cualquier parada manual; si un día no toca (festivo), elimínala y no vuelve a salir.
 
 ### Montar la ruta, paso a paso
 

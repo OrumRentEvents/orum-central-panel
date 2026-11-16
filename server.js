@@ -197,6 +197,15 @@ const vehiculosModulo = require('./lib/vehiculosRutas')(app, {
 // ── Rutas sin Google: asignaciones, paradas manuales, choferes e historial
 // se guardan directo en Supabase (ver lib/rutasGuardado.js) ──
 const rutasGuardado = require('./lib/rutasGuardado').crearRutasGuardado(supabase);
+// Paradas fijas L-X-V "Caminos Isabella al Carbon": se crean solas con 3
+// semanas de antelación al arrancar y cada 6 horas.
+function generarParadasFijasRutas() {
+  rutasGuardado.asegurarParadasFijas()
+    .then(creadas => { if (creadas.length) { console.log('[Rutas] Paradas fijas creadas:', creadas.join(', ')); emitirRutas('paradas', {}); } })
+    .catch(err => console.error('[Rutas] Paradas fijas:', err.message));
+}
+setTimeout(generarParadasFijasRutas, 15000).unref();
+setInterval(generarParadasFijasRutas, 6 * 3600 * 1000).unref();
 
 // ── Usuarios del panel: Sistema → Usuarios (solo Sergio), en Supabase ──
 const { ROLES_SOLO_MOVIL } = require('./lib/usuariosAdmin');
