@@ -222,6 +222,20 @@ test('calcularUso: vueltas sin apuntar en Rutas no se cuelan en el conductor de 
   assert.equal(u2.sinConductor[0].km, 60);
 });
 
+test('calcularUso: conductor habitual cubre los días sin Rutas, pero Rutas manda y no entra al ranking', () => {
+  const vehiculos = [{ id: 9, matricula: '1663HNF', nombre_rutas: null, conductor_habitual: 'Equipo comercial' },
+    { id: 10, matricula: 'X', nombre_rutas: 'MERCEDES', conductor_habitual: 'Equipo comercial' }];
+  const t = (id, fecha, km) => ({ vehiculo_id: id, fecha, inicio: fecha + ' 09:00:00', km, destino: 'X', loc_destino: 'Marbella', seg_conduccion: 600, seg_paradas: 60 });
+  const u = L.calcularUso([t(9, '2026-11-03', 50), t(10, '2026-11-04', 30), t(10, '2026-11-05', 20)],
+    [{ fecha: '2026-11-05', vehiculo: 'MERCEDES', vuelta: 1, conductores: ['Wilson'] }], {}, vehiculos);
+  assert.deepEqual(u.sinConductor, []);
+  assert.equal(u.porConductor.find(c => c.conductor === 'Equipo comercial').km, 80);
+  assert.equal(u.porConductor.find(c => c.conductor === 'Wilson').km, 20);
+  assert.equal(u.porVehiculo.find(p => p.vehiculo_id === 9).detalle[0].vueltas[0].habitual, true);
+  // al ranking solo va el día de Rutas
+  assert.deepEqual(u.trayectosConductor.map(x => x.conductor), ['Wilson']);
+});
+
 test('calcularUso: horas de corte que no cuadran con las vueltas se ignoran', () => {
   const vehiculos = [{ id: 1, matricula: '6625MYZ', nombre_rutas: 'IVECO' }];
   const t = (hora, km) => ({ vehiculo_id: 1, fecha: '2026-09-08', inicio: '2026-09-08 ' + hora + ':00', km, destino: 'CARRETERA A-355 KM. 20', loc_destino: 'Monda', seg_conduccion: 600, seg_paradas: 0 });

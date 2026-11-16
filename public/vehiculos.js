@@ -285,6 +285,7 @@ function vehFormDatos(v) {
       <div><label>Propiedad</label><select id="vf-propiedad">${vehOpts(VEH_PROPIEDAD, v.propiedad)}</select></div>
       ${campo('nombre_rutas', 'Nombre en Rutas', v.nombre_rutas)}
       ${campo('nombre_localizador', 'Nombre en el localizador', v.nombre_localizador)}
+      <div><label>Conductor habitual</label><input id="vf-conductor_habitual" type="text" placeholder="p. ej. Equipo comercial" title="Para vehículos que no van por Rutas: los días sin nadie apuntado en Rutas se asignan a este nombre (no cuenta para el ranking)" value="${vehEsc(v.conductor_habitual || '')}"></div>
       ${campo('fecha_alta', 'Fecha de alta', v.fecha_alta, 'date')}
       ${campo('km_base', 'Lectura cuentakilómetros (km)', v.km_base, 'number')}
       ${campo('km_base_fecha', 'Fecha de la lectura', v.km_base_fecha, 'date')}
@@ -302,7 +303,7 @@ function vehFormDatos(v) {
 async function guardarDatosVehiculo() {
   const val = id => document.getElementById('vf-' + id).value.trim();
   const datos = {};
-  ['matricula', 'marca', 'modelo', 'tipo', 'propiedad', 'nombre_rutas', 'nombre_localizador', 'fecha_alta', 'km_base', 'km_base_fecha', 'notas'].forEach(c => { datos[c] = val(c); });
+  ['matricula', 'marca', 'modelo', 'tipo', 'propiedad', 'nombre_rutas', 'nombre_localizador', 'conductor_habitual', 'fecha_alta', 'km_base', 'km_base_fecha', 'notas'].forEach(c => { datos[c] = val(c); });
   datos.repostaje = document.getElementById('vf-repostaje').checked;
   vehError('vf-error', '');
   try {
@@ -715,7 +716,7 @@ function vehUsoVehiculos() {
         <td>${vehFecha(dia.fecha)}</td><td>${vehNum(dia.km)}</td><td>${dia.trayectos}</td><td>${vehHoras(dia.seg_paradas)}</td>
         <td>${dia.sin_rutas ? '<span style="color:var(--orange)">Sin conductor en Rutas</span>'
           : dia.revisar ? '<span style="color:var(--orange)">A revisar: las vueltas no cuadran</span>'
-          : dia.vueltas.map(x => `V${x.vuelta} · ${x.sin_rutas ? '<span style="color:var(--orange)">sin apuntar en Rutas</span>' : vehConductorTxt(x.conductor)} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
+          : dia.vueltas.map(x => `V${x.vuelta} · ${x.sin_rutas ? '<span style="color:var(--orange)">sin apuntar en Rutas</span>' : vehConductorTxt(x.conductor) + (x.habitual ? ' <span style="color:var(--text-muted)">(habitual)</span>' : '')} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
     return `<tr class="veh-filtrable" data-filtro="${filtro}" style="cursor:pointer;" onclick="vehUsoAbierto = vehUsoAbierto === ${v.vehiculo_id} ? null : ${v.vehiculo_id}; pintarUso();">
       <td>${vehEtiquetaHtml(v.vehiculo_id)} ${abierto ? '▾' : '▸'}</td><td>${vehNum(Math.round(v.km))}</td><td>${v.dias}</td>
       <td>${v.trayectos}</td><td>${vehHoras(v.seg_conduccion)}</td><td>${vehHoras(v.seg_paradas)}</td><td>${vehNum(Math.round(v.km / Math.max(v.dias, 1)))}</td></tr>${detalle}`;
