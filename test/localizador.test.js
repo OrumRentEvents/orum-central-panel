@@ -236,6 +236,16 @@ test('calcularUso: conductor habitual cubre los días sin Rutas, pero Rutas mand
   assert.deepEqual(u.trayectosConductor.map(x => x.conductor), ['Wilson']);
 });
 
+test('calcularUso: días sin Rutas de menos de 10 km van a Logística (maniobras), no a sin conductor', () => {
+  const vehiculos = [{ id: 1, matricula: '6625MYZ', nombre_rutas: 'IVECO' }];
+  const t = (fecha, km) => ({ vehiculo_id: 1, fecha, inicio: fecha + ' 09:00:00', km, destino: 'X', loc_destino: 'Monda', seg_conduccion: 300, seg_paradas: 0 });
+  const u = L.calcularUso([t('2026-11-03', 4), t('2026-11-03', 3), t('2026-11-04', 10)], [], {}, vehiculos);
+  assert.deepEqual(u.sinConductor.map(s => [s.fecha, s.km]), [['2026-11-04', 10]]);
+  assert.equal(u.porConductor.find(c => c.conductor === L.CONDUCTOR_MANIOBRAS).km, 7);
+  assert.equal(u.porVehiculo[0].detalle[0].vueltas[0].maniobra, true);
+  assert.deepEqual(u.trayectosConductor, []);
+});
+
 test('calcularUso: horas de corte que no cuadran con las vueltas se ignoran', () => {
   const vehiculos = [{ id: 1, matricula: '6625MYZ', nombre_rutas: 'IVECO' }];
   const t = (hora, km) => ({ vehiculo_id: 1, fecha: '2026-09-08', inicio: '2026-09-08 ' + hora + ':00', km, destino: 'CARRETERA A-355 KM. 20', loc_destino: 'Monda', seg_conduccion: 600, seg_paradas: 0 });

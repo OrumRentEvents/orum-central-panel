@@ -716,7 +716,7 @@ function vehUsoVehiculos() {
         <td>${vehFecha(dia.fecha)}</td><td>${vehNum(dia.km)}</td><td>${dia.trayectos}</td><td>${vehHoras(dia.seg_paradas)}</td>
         <td>${dia.sin_rutas ? '<span style="color:var(--orange)">Sin conductor en Rutas</span>'
           : dia.revisar ? '<span style="color:var(--orange)">A revisar: las vueltas no cuadran</span>'
-          : dia.vueltas.map(x => `V${x.vuelta} · ${x.sin_rutas ? '<span style="color:var(--orange)">sin apuntar en Rutas</span>' : vehConductorTxt(x.conductor) + (x.habitual ? ' <span style="color:var(--text-muted)">(habitual)</span>' : '')} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
+          : dia.vueltas.map(x => `V${x.vuelta} · ${x.sin_rutas ? '<span style="color:var(--orange)">sin apuntar en Rutas</span>' : vehConductorTxt(x.conductor) + (x.habitual ? ' <span style="color:var(--text-muted)">(habitual)</span>' : '') + (x.maniobra ? ' <span style="color:var(--text-muted)">(menos de 10 km sin Rutas)</span>' : '')} · ${vehNum(x.km)} km`).join('<br>')}</td></tr>`).join('')}</tbody></table></td></tr>` : '';
     return `<tr class="veh-filtrable" data-filtro="${filtro}" style="cursor:pointer;" onclick="vehUsoAbierto = vehUsoAbierto === ${v.vehiculo_id} ? null : ${v.vehiculo_id}; pintarUso();">
       <td>${vehEtiquetaHtml(v.vehiculo_id)} ${abierto ? '▾' : '▸'}</td><td>${vehNum(Math.round(v.km))}</td><td>${v.dias}</td>
       <td>${v.trayectos}</td><td>${vehHoras(v.seg_conduccion)}</td><td>${vehHoras(v.seg_paradas)}</td><td>${vehNum(Math.round(v.km / Math.max(v.dias, 1)))}</td></tr>${detalle}`;
