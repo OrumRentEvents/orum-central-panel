@@ -134,6 +134,7 @@
     }
     S.cargando = false;
     pintar();
+    if (F.clave) pintarFicha();
   }
 
   // ── Tiempo real: mismo canal que la app antigua ──
@@ -182,7 +183,8 @@
       const vu = vueltaDe(p);
       ((g[v] = g[v] || {})[vu] = g[v][vu] || []).push(p);
     }));
-    Object.values(g).forEach(vs => Object.values(vs).forEach(l => l.sort((a, b) => (a.orden || 0) - (b.orden || 0) || horaOrden(a).localeCompare(horaOrden(b)))));
+    // Siempre el orden guardado (campo «orden»); nunca se reordena por hora. Empates: el orden en que llegan.
+    Object.values(g).forEach(vs => Object.values(vs).forEach(l => l.sort((a, b) => (a.orden || 0) - (b.orden || 0))));
     return g;
   }
   function listaVehiculos(g) {
@@ -245,7 +247,8 @@
     if (!S.d && S.cargando) return '<div class="rp-cargando g-vidrio">Cargando rutas…</div>';
     if (!S.d && S.error) return `<div class="rp-cargando g-vidrio">No se han podido cargar las rutas: ${esc(S.error)} <button type="button" class="rp-btn" id="rp-reintentar">Reintentar</button></div>`;
     if (!S.d) return '';
-    return htmlPeriodo() + htmlDias() + htmlKpis() + `<div class="rp-rejilla${S.mapaGrande ? ' mapa-grande' : ''}">${htmlBandeja()}${htmlVehiculos()}${htmlRecorrido()}</div>` + htmlBarraSeleccion();
+    const plegada = bandejaPlegada();
+    return htmlPeriodo() + htmlDias() + htmlKpis() + `<div class="rp-rejilla${S.mapaGrande ? ' mapa-grande' : ''}${plegada ? ' bandeja-plegada' : ''}">${htmlBandeja()}${htmlVehiculos()}${htmlRecorrido()}</div>` + htmlBarraSeleccion();
   }
 
   function htmlPeriodo() {
@@ -271,7 +274,7 @@
       const icono = !r.total ? '' : r.sin ? `<span class="rp-dia-ico pend">${ICO.persona}</span>` : `<span class="rp-dia-ico ok">${ICO.check}</span>`;
       return `<button type="button" class="rp-dia g-vidrio${d === S.dia ? ' activo' : ''}${d === hoy ? ' hoy' : ''}${d < hoy ? ' pasado' : ''}" data-dia="${d}">
         <b>${DIAS[diaSemana(d)]} ${numDia(d)}</b>
-        <span class="rp-dia-cifras">${icono}<span>${r.total} ${r.total === 1 ? 'parada' : 'paradas'}<br><em class="${r.sin ? 'rojo' : ''}">${r.sin} sin asignar</em></span></span>
+        <span class="rp-dia-cifras">${icono}<span>${r.total} ${r.total === 1 ? 'parada' : 'paradas'}<br><em class="${r.sin ? 'rojo rp-dia-sin' : ''}" ${r.sin ? `data-dia-sin="${d}" title="Abrir este día con el filtro Sin asignar"` : ''}>${r.sin} sin asignar</em></span></span>
         <small>${r.entregas} ent · ${r.recogidas} rec${r.sinConductor ? ' · ' + r.sinConductor + ' sin cond.' : ''}${r.incidencias ? ' · ⚠ ' + r.incidencias : ''}</small>
       </button>`;
     }).join('');
@@ -335,8 +338,14 @@
     }
     return true;
   }
+  // Sin paradas pendientes, la bandeja se reduce y deja el espacio a Vehículos (se puede abrir a mano)
+  function bandejaPlegada() { return !S.bandejaAbierta && !paradasDia(S.dia).some(p => !vehsDe(p).length); }
   function htmlBandeja() {
     const todas = paradasDia(S.dia).filter(p => !vehsDe(p).length);
+    if (bandejaPlegada()) return `<section class="rp-panel rp-bandeja plegada g-vidrio" data-soltar-bandeja="1">
+      <span class="rp-todo-ok">${ICO.check}</span><b>Todo asignado</b><p>0 paradas sin asignar este día</p>
+      <button type="button" class="rp-btn suave" id="rp-abrir-bandeja">Mostrar bandeja</button>
+      ${puedeEditar() ? '<button type="button" class="rp-btn suave" id="rp-nueva-manual">+ Parada manual</button>' : ''}</section>`;
     const lista = todas.filter(pasaFiltros).sort((a, b) => horaOrden(a).localeCompare(horaOrden(b)) || String(a.cliente).localeCompare(String(b.cliente)));
     const zonas = [...new Set(paradasDia(S.dia).map(p => p.zona_codigo).filter(Boolean))].sort();
     const oculta = S.kpi === 'asignadas' || S.kpi === 'vehiculos' || S.kpi === 'sincond';
@@ -344,6 +353,8 @@
     const sel = (id, val, ops) => `<select id="${id}">${ops.map(([v, n]) => `<option value="${v}"${val === v ? ' selected' : ''}>${n}</option>`).join('')}</select>`;
     return `<section class="rp-panel rp-bandeja g-vidrio${oculta ? ' atenuado' : ''}" data-soltar-bandeja="1">
       <header><div><h3>${ICO.capas} Paradas sin asignar (${todas.length})</h3><p>Pendientes de vehículo · ${fechaLarga(S.dia)}</p></div>
+        ${!todas.length ? '<button type="button" class="rp-icono" id="rp-plegar-bandeja" title="Reducir bandeja">' + ICO.izq + '</button>' : ''}
+        ${ed ? '<button type="button" class="rp-icono" id="rp-nueva-manual" title="Añadir parada manual">+</button>' : ''}
         <div class="rp-vista"><button type="button" class="${S.vistaBandeja === 'compacta' ? 'activo' : ''}" data-vista="compacta">Compacta</button><button type="button" class="${S.vistaBandeja === 'detallada' ? 'activo' : ''}" data-vista="detallada">Detallada</button></div></header>
       <div class="rp-buscar">${ICO.lupa}<input type="search" id="rp-buscar" placeholder="Buscar cliente, proyecto, dirección o zona…" value="${esc(S.buscar)}"></div>
       <div class="rp-filtros">
@@ -415,8 +426,8 @@
         ${inc ? `<span class="rp-p error">⚠ ${inc}</span>` : ''}${estados.map(e => `<span class="rp-p info">${esc(e)}</span>`).join('')}` : ''}
         <span class="rp-girar">${ICO.abajo}</span>
       </button>
-      ${abierto ? `<div class="rp-vueltas">${listaVu.map(n => htmlVuelta(v, n, vueltas[n] || [], r, ed)).join('')}
-        ${ed ? `<div class="rp-vuelta rp-nueva" data-soltar="${esc(v)}" data-vu="${(nums.length ? Math.max(...nums) : 0) + 1}"><span>+ Nueva vuelta</span><small>Suelta aquí una parada</small></div>` : ''}</div>` : ''}
+      ${abierto ? `<div class="rp-vueltas n${Math.min(listaVu.length, 3)}">${listaVu.map(n => htmlVuelta(v, n, vueltas[n] || [], r, ed)).join('')}</div>
+        ${ed ? `<div class="rp-nueva" data-soltar="${esc(v)}" data-vu="${(nums.length ? Math.max(...nums) : 0) + 1}">+ Nueva vuelta <small>· suelta aquí una parada o elige «Nueva vuelta» al asignar</small></div>` : ''}` : ''}
     </article>`;
   }
   function htmlVuelta(v, n, lista, r, ed) {
@@ -424,28 +435,57 @@
     const sinCond = lista.length && !cond.length;
     const sel = S.sel && S.sel.veh === v && S.sel.vu === n;
     const resaltar = S.kpi === 'sincond' && r.sinCondClaves.has(v + '_' + n);
-    const horas = lista.map(p => p.hora).filter(h => h && /^\d/.test(h)).sort();
+    const horas = lista.map(p => p.hora).filter(h => h && /^\d/.test(h)).map(h => h.padStart(5, '0')).sort();
+    const avisos = avisosHorario(lista);
     return `<div class="rp-vuelta${sel ? ' seleccionada' : ''}${resaltar ? ' resaltada' : ''}" data-soltar="${esc(v)}" data-vu="${n}">
       <div class="rp-vuelta-cab">
         <button type="button" class="rp-vuelta-tit" data-ver-ruta="${esc(v)}" data-vu-ruta="${n}" title="Ver el recorrido de esta vuelta">Vuelta ${n}${horas.length ? ` <small>${esc(horas[0])}${horas.length > 1 ? ' – ' + esc(horas[horas.length - 1]) : ''}</small>` : ''}</button>
+        <span class="rp-vuelta-n">${lista.length} ${lista.length === 1 ? 'parada' : 'paradas'}</span>
         <button type="button" class="rp-cond${sinCond ? ' falta' : ''}" ${ed ? `data-conductor="${esc(v)}" data-vu-cond="${n}"` : 'disabled'}>${ICO.persona} ${cond.length ? esc(cond.join(', ')) : (lista.length ? 'Sin conductor' : 'Conductor')}</button>
       </div>
-      <ol class="rp-paradas">${lista.length ? lista.map((p, i) => htmlParadaVuelta(p, i, lista.length, v, n, ed)).join('') : '<li class="rp-hueco">Sin paradas. Suelta aquí o usa «Asignar».</li>'}</ol>
+      <ol class="rp-paradas">${lista.length ? lista.map((p, i) => htmlParadaVuelta(p, i, lista.length, v, n, ed, avisos[p.clave])).join('') : '<li class="rp-hueco">Sin paradas. Suelta aquí o usa «Asignar».</li>'}</ol>
     </div>`;
   }
-  function htmlParadaVuelta(p, i, total, v, n, ed) {
-    const e = S.d.estPar[p.clave] || {};
+  // Aviso informativo: una parada con hora anterior a la de la parada previa de la misma vuelta.
+  // No cambia nada: el orden es el que decide Logística.
+  function avisosHorario(lista) {
+    const av = {};
+    let previa = null;
+    lista.forEach(p => {
+      const h = horaOrden(p);
+      if (h === '99:99') return;
+      if (previa && h < horaOrden(previa)) av[p.clave] = 'Hora (' + p.hora + ') anterior a la parada previa (' + previa.hora + ')';
+      previa = p;
+    });
+    return av;
+  }
+  const localidad = p => p.zona_nombre || (String(p.localizacion || '').split(',').map(x => x.trim()).filter(Boolean).pop() || '');
+  function indicadores(p) {
+    const e = S.d.estPar[p.clave] || {}, pg = S.d.pago[String(p.proyecto_id)] || {};
+    const i = [];
+    i.push(`<span class="rp-ind ${e.preparado ? 'ok' : ''}" title="Preparado: ${e.preparado ? 'sí' : 'no'}">P</span>`);
+    i.push(`<span class="rp-ind ${e.cargado ? 'ok' : ''}" title="Cargado: ${e.cargado ? 'sí' : 'no'}">C</span>`);
+    if (pg.tiene_lavanderia) i.push(`<span class="rp-ind ${pg.prep_lavanderia ? 'ok' : 'aviso'}" title="Lavandería ${pg.prep_lavanderia ? 'preparada' : 'sin terminar'}">L</span>`);
+    if (pg.tiene_office) i.push(`<span class="rp-ind ${pg.prep_office ? 'ok' : 'aviso'}" title="Office ${pg.prep_office ? 'preparado' : 'sin terminar'}">O</span>`);
+    if (e.incidencia) i.push(`<span class="rp-ind error" title="${esc(e.incidencia_texto || 'Incidencia')}">!</span>`);
+    if ((S.d.transpale[claveTranspale(p)] || {}).transpale) i.push('<span class="rp-ind info" title="Necesita transpalé">T</span>');
+    if (pg.estado_pago) i.push(`<span class="rp-pago ${pg.estado_pago}" title="${esc(tituloPago(pg))}"></span>`);
+    return i.join('');
+  }
+  function htmlParadaVuelta(p, i, total, v, n, ed, aviso) {
     const g = S.guardando.has(p.clave);
     const compartida = vehsDe(p).length > 1;
+    const loc = localidad(p);
     return `<li class="rp-parada${g ? ' guardando' : ''}" ${ed && !g ? 'draggable="true"' : ''} data-clave="${esc(p.clave)}" data-origen="${esc(v)}">
-      ${ed ? `<span class="rp-asa" aria-hidden="true">${ICO.asa}</span>` : ''}<span class="rp-num">${i + 1}</span>
-      <span class="rp-parada-txt" data-detalle="${esc(p.clave)}"><b>${esc(p.hora || '—')}</b> ${esc(titulo(p))}${compartida ? ' <span class="rp-c info" title="' + esc(vehsDe(p).join(', ')) + '">Compartida</span>' : ''}${g ? ' <span class="rp-guardando">Guardando…</span>' : ''}</span>
-      <span class="rp-tipo ${tipoClase(p.tipo)}">${tipoCorto(p.tipo)}</span>
-      <span class="rp-estado-mini" title="${e.cargado ? 'Cargado' : e.preparado ? 'Preparado' : 'Sin preparar'}${e.incidencia ? ' · incidencia' : ''}">${e.incidencia ? '<span class="rp-punto error"></span>' : e.cargado ? '<span class="rp-punto ok"></span>' : e.preparado ? '<span class="rp-punto medio"></span>' : '<span class="rp-punto"></span>'}</span>
+      ${ed ? `<span class="rp-asa" aria-hidden="true">${ICO.asa}</span>` : ''}<span class="rp-num ${tipoClase(p.tipo)}">${i + 1}</span>
+      <div class="rp-parada-txt" data-detalle="${esc(p.clave)}">
+        <div class="rp-l1"><b class="rp-h">${esc(p.hora || '—')}</b><span class="rp-tipo ${tipoClase(p.tipo)}">${tipoCorto(p.tipo)}</span><span class="rp-nom">${p.numero ? '<b>#' + esc(p.numero) + '</b> ' : ''}${esc(p.cliente || 'Sin cliente')}</span></div>
+        <div class="rp-l2">${loc ? `<span class="rp-loc">${ICO.pin}${esc(loc)}</span>` : ''}<span class="rp-inds">${indicadores(p)}</span>${compartida ? `<span class="rp-c info" title="${esc(vehsDe(p).join(', '))}">Compartida</span>` : ''}${aviso ? `<span class="rp-c aviso" title="${esc(aviso)}">⏱ Horario</span>` : ''}${g ? '<span class="rp-guardando">Guardando…</span>' : ''}</div>
+      </div>
       ${ed && !g ? `<span class="rp-acciones">
-        <button type="button" data-subir="${esc(p.clave)}" data-veh="${esc(v)}" data-vu="${n}" ${i === 0 ? 'disabled' : ''} aria-label="Subir">▲</button>
-        <button type="button" data-bajar="${esc(p.clave)}" data-veh="${esc(v)}" data-vu="${n}" ${i === total - 1 ? 'disabled' : ''} aria-label="Bajar">▼</button>
-        <button type="button" data-asignar="${esc(p.clave)}" aria-label="Mover">${ICO.asignar}</button>
+        <button type="button" data-subir="${esc(p.clave)}" data-veh="${esc(v)}" data-vu="${n}" ${i === 0 ? 'disabled' : ''} aria-label="Subir" title="Subir">▲</button>
+        <button type="button" data-bajar="${esc(p.clave)}" data-veh="${esc(v)}" data-vu="${n}" ${i === total - 1 ? 'disabled' : ''} aria-label="Bajar" title="Bajar">▼</button>
+        <button type="button" data-asignar="${esc(p.clave)}" aria-label="Mover" title="Mover a otro vehículo o vuelta">${ICO.asignar}</button>
         <button type="button" data-quitar="${esc(p.clave)}" title="Devolver a Sin asignar" aria-label="Devolver a Sin asignar">↩</button></span>` : ''}
     </li>`;
   }
@@ -469,7 +509,7 @@
         <p class="rp-nota">Recorrido previsto según el orden de las paradas. Distancias y tiempos los calcula Google Maps; no es la posición real del vehículo.</p>`;
     }
     return `<section class="rp-panel rp-recorrido g-vidrio">
-      <header><div><h3>${ICO.mapa} Recorrido</h3><p>Vuelta seleccionada · mapa interactivo en la fase 3</p></div>
+      <header><div><h3>${ICO.mapa} Recorrido <span class="rp-c no">Vista provisional</span></h3><p>Lista de la vuelta seleccionada. El mapa real llegará tras comprobar coordenadas y motor de rutas.</p></div>
         <button type="button" class="rp-icono" id="rp-ampliar" title="${S.mapaGrande ? 'Reducir' : 'Ampliar'}">${ICO.ampliar}</button></header>
       <div class="rp-lista" data-scroll="recorrido">${cuerpo}</div>
     </section>`;
@@ -485,6 +525,10 @@
   // ── Eventos ──
   function enlazar(root) {
     root.querySelectorAll('[data-pestana]').forEach(b => b.onclick = () => { S.pestana = b.dataset.pestana; pintar(); });
+    const nm = $('rp-nueva-manual'); if (nm) nm.onclick = () => abrirManual(null);
+    const ab = $('rp-abrir-bandeja'); if (ab) ab.onclick = () => { S.bandejaAbierta = true; pintar(); };
+    const pb = $('rp-plegar-bandeja'); if (pb) pb.onclick = () => { S.bandejaAbierta = false; pintar(); };
+    root.querySelectorAll('[data-dia-sin]').forEach(el => el.onclick = e => { e.stopPropagation(); S.dia = el.dataset.diaSin; S.kpi = 'sin'; S.seleccion.clear(); S.sel = null; pintar(); });
     const est = $('rp-abrir-est'); if (est) est.onclick = () => window.cargarEstadisticasRutas();
     const rein = $('rp-reintentar'); if (rein) rein.onclick = () => cargar();
     root.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { fijarPeriodo(b.dataset.modo); S.seleccion.clear(); cargar(); });
@@ -737,39 +781,250 @@
     });
   }
 
+  // ── Ficha lateral de la parada: Información | Material | Preparación | Notas e incidencias ──
+  // Material: mismo endpoint y mismas reglas que el botón de material de rutas.html
+  // (/api/rutas/material: la parte de la parada si es un proyecto con varias fechas,
+  // si no todo el proyecto; familias de Rentman tal cual, ordenadas por nombre).
+  const F = { clave: null, pestana: 'info', material: null, matError: null, matCargando: false, buscar: '', cerradas: new Set(), guardando: false };
+  let eventosPedidos = false;
+  async function cargarEventos() {
+    if (eventosPedidos) return;
+    eventosPedidos = true;
+    try {
+      const j = await pedir('/api/proyectos');
+      S.eventos = {};
+      (j.data || []).forEach(pr => { S.eventos[String(pr.id)] = pr.nombre || ''; });
+      if (F.clave) pintarFicha();
+    } catch (e) { eventosPedidos = false; }
+  }
   function abrirDetalle(clave) {
     const p = S.d.paradas.find(x => x.clave === clave);
     if (!p) return;
-    const e = S.d.estPar[p.clave] || {}, pg = S.d.pago[String(p.proyecto_id)] || {};
+    Object.assign(F, { clave, pestana: 'info', material: null, matError: null, matCargando: false, buscar: '', guardando: false });
+    F.cerradas = new Set();
+    const vehs = vehsDe(p);
+    if (vehs.length) { S.sel = { veh: vehs[0], vu: vueltaDe(p) }; pintar(); }
+    cargarEventos();
+    pintarFicha();
+  }
+  function cerrarFicha() {
+    F.clave = null;
+    const f = $('rp-ficha');
+    if (f) { f.classList.remove('abierta'); setTimeout(() => { if (!F.clave) f.remove(); }, 220); }
+    document.removeEventListener('keydown', escFicha);
+  }
+  function escFicha(e) { if (e.key === 'Escape' && !document.querySelector('.rp-modal-velo')) cerrarFicha(); }
+  async function cargarMaterial(p) {
+    if (!p.proyecto_id || F.material || F.matCargando || F.matError) return;
+    F.matCargando = true;
+    try {
+      const j = await pedir('/api/rutas/material?proyecto_id=' + encodeURIComponent(p.proyecto_id) + '&clave=' + encodeURIComponent(p.clave || '') + '&t=' + Date.now());
+      if (F.clave === p.clave) F.material = j.material || [];
+    } catch (e) { if (F.clave === p.clave) F.matError = e.message; }
+    F.matCargando = false;
+    if (F.clave === p.clave) pintarFicha();
+  }
+  function pintarFicha() {
+    const p = F.clave && S.d && S.d.paradas.find(x => x.clave === F.clave);
+    if (!p) { if (F.clave) cerrarFicha(); return; }
+    let f = $('rp-ficha');
+    if (!f) {
+      f = document.createElement('div'); f.id = 'rp-ficha'; f.className = 'rp-ficha-velo';
+      f.innerHTML = '<aside class="rp-ficha g-vidrio" role="dialog" aria-label="Ficha de la parada"></aside>';
+      f.addEventListener('click', e => { if (e.target === f) cerrarFicha(); });
+      document.body.appendChild(f);
+      document.addEventListener('keydown', escFicha);
+      requestAnimationFrame(() => f.classList.add('abierta'));
+    }
+    const pg = S.d.pago[String(p.proyecto_id)] || {};
     const vehs = vehsDe(p), vu = vueltaDe(p);
-    const cond = vehs.map(v => { const c = conductoresDe(fechaDe(p), v, vu); return v + ': ' + (c.length ? c.join(', ') : 'sin conductor'); });
-    const fila = (n, v) => v ? `<div class="rp-det-fila"><span>${n}</span><b>${v}</b></div>` : '';
-    const si = b => b ? 'Sí' : 'No';
-    modal(`<header><h3>${esc(titulo(p))}</h3><button type="button" class="rp-icono" data-cerrar aria-label="Cerrar">✕</button></header>
-      <div class="rp-det">
-        ${fila('Operación', `<span class="rp-tipo ${tipoClase(p.tipo)}">${tipoCorto(p.tipo)}</span>`)}
-        ${fila('Fecha y hora', esc(fechaLarga(fechaDe(p)) + (p.hora ? ' · ' + p.hora : '')))}
-        ${fila('Dirección', esc(p.localizacion || 'Sin dirección') + (p.zona_codigo ? ' · ' + esc(p.zona_codigo + ' ' + (p.zona_nombre || '')) : ''))}
-        ${fila('Teléfono', pg.telefono ? `<a href="tel:${esc(pg.telefono)}">${esc(pg.telefono)}</a>${pg.telefono_nombre ? ' · ' + esc(pg.telefono_nombre) : ''}` : '')}
-        ${fila('Comercial', esc(pg.comercial || ''))}
-        ${fila('Vehículo', vehs.length ? esc(vehs.join(' + ')) + ' · vuelta ' + vu : 'Sin asignar')}
-        ${fila('Conductor', vehs.length ? esc(cond.join(' · ')) : '')}
-        ${fila('Pago', pg.estado_pago ? `<span class="rp-pago ${pg.estado_pago}"></span> ${esc(tituloPago(pg))}` : '')}
-        ${fila('Servicios extra', (pg.servicios_extra || []).map(s => esc(s.servicio) + (s.cantidad ? ' × ' + esc(s.cantidad) : '')).join('<br>'))}
-        ${fila('Preparado (Almacén)', si(e.preparado))}
-        ${fila('Cargado', si(e.cargado))}
-        ${pg.tiene_lavanderia ? fila('Lavandería', pg.prep_lavanderia ? 'Preparada' : 'Sin terminar') : ''}
-        ${pg.tiene_office ? fila('Office', pg.prep_office ? 'Preparado' : 'Sin terminar') : ''}
-        ${fila('Transpalé', (S.d.transpale[claveTranspale(p)] || {}).transpale ? 'Sí' : '')}
-        ${fila('Incidencia', e.incidencia ? esc(e.incidencia_texto || 'Sí') : '')}
-        ${fila('Notas', esc(p.notas || ''))}
-        ${fila('Estado en Rentman', esc(p.estado || ''))}
+    const cond = vehs.map(v => { const c = conductoresDe(fechaDe(p), v, vu); return c.length ? c.join(', ') : 'sin conductor'; });
+    const evento = S.eventos && p.proyecto_id ? S.eventos[String(p.proyecto_id)] : '';
+    const pest = [['info', 'Información'], ['material', 'Material'], ['prep', 'Preparación'], ['notas', 'Notas e incidencias']];
+    const cuerpo = F.pestana === 'material' ? fichaMaterial(p) : F.pestana === 'prep' ? fichaPreparacion(p) : F.pestana === 'notas' ? fichaNotas(p) : fichaInfo(p, pg);
+    const ficha = f.querySelector('.rp-ficha');
+    const scroll = ficha.querySelector('.rp-ficha-cuerpo');
+    const top = scroll && scroll.dataset.pestana === F.pestana ? scroll.scrollTop : 0;
+    ficha.innerHTML = `<header class="rp-ficha-cab">
+        <div class="rp-ficha-tit"><span class="rp-tipo ${tipoClase(p.tipo)}">${tipoCorto(p.tipo)}${p.es_manual ? ' · manual' : ''}</span>
+          <h3>${p.numero ? '#' + esc(p.numero) + ' · ' : ''}${esc(p.cliente || 'Sin cliente')}</h3>
+          ${evento ? `<p class="rp-evento">${esc(evento)}</p>` : ''}
+          <p>${esc(fechaLarga(fechaDe(p)))}${p.hora ? ' · ' + esc(p.hora) : ''}</p>
+          <p class="rp-ficha-veh">${vehs.length ? `${ICO.camion} ${esc(vehs.join(' + '))} · vuelta ${vu} · ${ICO.persona} ${esc(cond.join(' / '))}` : '<span class="rojo">Sin vehículo asignado</span>'}</p></div>
+        <button type="button" class="rp-icono" data-cerrar-ficha aria-label="Cerrar">✕</button>
+      </header>
+      <nav class="rp-ficha-pest">${pest.map(([id, n]) => `<button type="button" class="${F.pestana === id ? 'activa' : ''}" data-ficha-pest="${id}">${n}</button>`).join('')}</nav>
+      <div class="rp-ficha-cuerpo" data-pestana="${F.pestana}">${cuerpo}</div>`;
+    const nuevo = ficha.querySelector('.rp-ficha-cuerpo'); if (nuevo) nuevo.scrollTop = top;
+    enlazarFicha(ficha, p);
+    if (F.pestana === 'material') cargarMaterial(p);
+  }
+  const filaDet = (n, v) => v ? `<div class="rp-det-fila"><span>${n}</span><b>${v}</b></div>` : '';
+  function fichaInfo(p, pg) {
+    const ed = puedeEditar();
+    return `<div class="rp-det">
+      ${filaDet('Dirección', esc(p.localizacion || 'Sin dirección'))}
+      ${filaDet('Zona', esc(p.zona_codigo ? p.zona_codigo + ' · ' + (p.zona_nombre || '') : ''))}
+      ${filaDet('Teléfono', pg.telefono ? `<a href="tel:${esc(pg.telefono)}">${esc(pg.telefono)}</a>${pg.telefono_nombre ? ' · ' + esc(pg.telefono_nombre) : ''}` : '')}
+      ${filaDet('Comercial', esc(pg.comercial || ''))}
+      ${filaDet('Pago', pg.estado_pago ? `<span class="rp-pago ${pg.estado_pago}"></span> ${esc(tituloPago(pg))}` : '')}
+      ${filaDet('Servicios extra', (pg.servicios_extra || []).map(s => esc(s.servicio) + (s.cantidad ? ' × ' + esc(s.cantidad) : '')).join('<br>'))}
+      ${filaDet('Estado en Rentman', esc(p.estado || ''))}
+      ${filaDet('Subproyectos', esc(p.subproyectos || ''))}
+    </div>
+    <div class="rp-ficha-acciones">
+      ${p.google_maps_url ? `<a class="rp-btn suave" href="${esc(p.google_maps_url)}" target="_blank" rel="noopener">${ICO.pin} Abrir en Google Maps</a>` : ''}
+      ${ed ? `<button type="button" class="rp-btn" data-ficha-mover>${ICO.asignar} ${vehsDe(p).length ? 'Mover' : 'Asignar'}</button>` : ''}
+      ${ed && p.es_manual ? `<button type="button" class="rp-btn suave" data-ficha-editar-manual>Editar parada manual</button><button type="button" class="rp-btn suave peligro" data-ficha-borrar-manual>Eliminar parada</button>` : ''}
+    </div>`;
+  }
+  function fichaMaterial(p) {
+    if (!p.proyecto_id) return '<p class="rp-vacio">Esta parada no está ligada a un proyecto de Rentman, así que no tiene material.</p>';
+    if (F.matError) return `<p class="rp-vacio">No se ha podido cargar el material: ${esc(F.matError)}</p>`;
+    if (!F.material) return '<p class="rp-vacio">Cargando material…</p>';
+    if (!F.material.length) return '<p class="rp-vacio">Sin material registrado.</p>';
+    const q = normal(F.buscar);
+    const familias = {};
+    F.material.forEach(m => { const fam = m.familia || 'Sin familia'; (familias[fam] = familias[fam] || []).push(m); });
+    const nombres = Object.keys(familias).sort();
+    let visibles = 0;
+    const html = nombres.map(fam => {
+      const todos = familias[fam];
+      const lista = q ? todos.filter(m => normal(m.articulo).indexOf(q) !== -1 || normal(fam).indexOf(q) !== -1) : todos;
+      if (!lista.length) return '';
+      visibles += lista.length;
+      const numericos = todos.every(m => m.cantidad !== null && m.cantidad !== '' && !isNaN(parseFloat(m.cantidad)));
+      const total = numericos ? Math.round(todos.reduce((s, m) => s + parseFloat(m.cantidad), 0) * 100) / 100 : null;
+      const cerrada = F.cerradas.has(fam) && !q;
+      return `<div class="rp-fam${cerrada ? ' cerrada' : ''}">
+        <button type="button" class="rp-fam-cab" data-fam="${esc(fam)}"><span class="rp-girar">${ICO.abajo}</span><b>${esc(fam)}</b><span>${total !== null ? total.toLocaleString('es-ES') + ' uds. · ' : ''}${todos.length} ${todos.length === 1 ? 'artículo' : 'artículos'}</span></button>
+        ${cerrada ? '' : `<ul>${lista.map(m => `<li><span>${esc(m.articulo || '')}</span><b>${esc(m.cantidad == null ? 0 : m.cantidad)}</b></li>`).join('')}</ul>`}
+      </div>`;
+    }).join('');
+    return `<div class="rp-mat-barra">
+        <div class="rp-buscar">${ICO.lupa}<input type="search" id="rpf-buscar" placeholder="Buscar artículo…" value="${esc(F.buscar)}"></div>
+        <button type="button" class="rp-btn suave" data-fam-todas="abrir">Expandir todo</button><button type="button" class="rp-btn suave" data-fam-todas="cerrar">Contraer todo</button>
       </div>
-      <footer>${p.google_maps_url ? `<a class="rp-btn suave" href="${esc(p.google_maps_url)}" target="_blank" rel="noopener">Abrir en Google Maps</a>` : ''}
-        <a class="rp-btn suave" href="/rutas.html" target="_blank" rel="noopener" title="Notas, checks e incidencias se editan de momento en la app de Rutas">Editar en la app de Rutas ↗</a>
-        ${puedeEditar() ? `<button type="button" class="rp-btn" id="rpd-asignar">${vehs.length ? 'Mover' : 'Asignar'}</button>` : ''}</footer>`, velo => {
-      const b = velo.querySelector('#rpd-asignar'); if (b) b.onclick = () => { cerrarModal(); abrirAsignar([clave]); };
+      <p class="rp-sutil">${nombres.length} ${nombres.length === 1 ? 'familia' : 'familias'} · ${F.material.length} líneas${q ? ' · ' + visibles + ' coinciden' : ''}. Solo consulta: las cantidades se cambian en Rentman.</p>
+      ${html || '<p class="rp-vacio">Ningún artículo coincide con la búsqueda.</p>'}`;
+  }
+  function fichaPreparacion(p) {
+    const e = S.d.estPar[p.clave] || {}, pg = S.d.pago[String(p.proyecto_id)] || {};
+    const ed = puedeEditar() && !F.guardando;
+    const tr = S.d.transpale[claveTranspale(p)] || {};
+    const chk = (id, txt, val) => `<label class="rp-interruptor"><input type="checkbox" data-estado="${id}"${val ? ' checked' : ''}${ed ? '' : ' disabled'}><span></span>${txt}</label>`;
+    return `<section class="rp-bloque"><h4>Almacén</h4>
+        ${chk('preparado', 'Preparado', e.preparado)}${chk('cargado', 'Cargado', e.cargado)}
+        <label class="rp-interruptor"><input type="checkbox" data-transpale${tr.transpale ? ' checked' : ''}${ed ? '' : ' disabled'}><span></span>Necesita transpalé${tr.auto ? ' <small>(automático)</small>' : ''}</label>
+        ${!puedeEditar() ? '<p class="rp-sutil">Solo Logística y Dirección pueden cambiar estos controles.</p>' : ''}</section>
+      <section class="rp-bloque"><h4>Lavandería</h4><p>${pg.tiene_lavanderia ? (pg.prep_lavanderia ? '<span class="rp-c ok">Preparada ✓</span>' : '<span class="rp-c aviso">Sin terminar</span>') : '<span class="rp-sutil">Este proyecto no lleva material de lavandería.</span>'}</p></section>
+      <section class="rp-bloque"><h4>Office</h4><p>${pg.tiene_office ? (pg.prep_office ? '<span class="rp-c ok">Preparado ✓</span>' : '<span class="rp-c aviso">Sin terminar</span>') : '<span class="rp-sutil">Este proyecto no lleva material de office.</span>'}</p>
+        <p class="rp-sutil">Lavandería y Office se marcan en Preparación (tablets); aquí solo se consultan.</p></section>`;
+  }
+  function fichaNotas(p) {
+    const e = S.d.estPar[p.clave] || {};
+    const ed = puedeEditar() && !F.guardando;
+    const libre = !F.guardando;
+    const incOk = window.usuarioActual && ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'].includes(usuarioActual.rol) && typeof window.cargarIncidencias === 'function';
+    return `<section class="rp-bloque"><h4>Notas de la parada</h4>
+        <textarea id="rpf-notas" rows="4" placeholder="Notas…"${libre ? '' : ' disabled'}>${esc(p.notas || '')}</textarea>
+        <button type="button" class="rp-btn" id="rpf-guardar-notas"${libre ? '' : ' disabled'}>${F.guardando ? 'Guardando…' : 'Guardar notas'}</button></section>
+      <section class="rp-bloque"><h4>Incidencia de la parada</h4>
+        <label class="rp-interruptor"><input type="checkbox" id="rpf-inc"${e.incidencia ? ' checked' : ''}${ed ? '' : ' disabled'}><span></span>Hay una incidencia</label>
+        <textarea id="rpf-inc-txt" rows="3" placeholder="Descripción de la incidencia…"${ed ? '' : ' disabled'}>${esc(e.incidencia_texto || '')}</textarea>
+        ${ed ? '<button type="button" class="rp-btn suave" id="rpf-guardar-inc">Guardar incidencia</button>' : (puedeEditar() ? '' : '<p class="rp-sutil">Solo Logística y Dirección pueden marcar incidencias de la parada.</p>')}
+        ${incOk && p.numero ? '<button type="button" class="rp-btn suave" id="rpf-nueva-inc">⚠ Abrir incidencia en el módulo Incidencias</button>' : ''}</section>`;
+  }
+  function enlazarFicha(ficha, p) {
+    ficha.querySelectorAll('[data-cerrar-ficha]').forEach(b => b.onclick = cerrarFicha);
+    ficha.querySelectorAll('[data-ficha-pest]').forEach(b => b.onclick = () => { F.pestana = b.dataset.fichaPest; pintarFicha(); });
+    const mv = ficha.querySelector('[data-ficha-mover]'); if (mv) mv.onclick = () => abrirAsignar([p.clave]);
+    const em = ficha.querySelector('[data-ficha-editar-manual]'); if (em) em.onclick = () => abrirManual(p);
+    const bm = ficha.querySelector('[data-ficha-borrar-manual]'); if (bm) bm.onclick = () => borrarManual(p);
+    const bus = ficha.querySelector('#rpf-buscar');
+    if (bus) bus.oninput = () => { F.buscar = bus.value; const pos = bus.selectionStart; pintarFicha(); const n = $('rpf-buscar'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } };
+    ficha.querySelectorAll('[data-fam]').forEach(b => b.onclick = () => { const k = b.dataset.fam; F.cerradas.has(k) ? F.cerradas.delete(k) : F.cerradas.add(k); pintarFicha(); });
+    ficha.querySelectorAll('[data-fam-todas]').forEach(b => b.onclick = () => {
+      F.cerradas = b.dataset.famTodas === 'cerrar' ? new Set((F.material || []).map(m => m.familia || 'Sin familia')) : new Set();
+      pintarFicha();
     });
+    ficha.querySelectorAll('[data-estado]').forEach(c => c.onchange = () => guardarEstadoParada(p, { [c.dataset.estado]: c.checked }));
+    const tr = ficha.querySelector('[data-transpale]'); if (tr) tr.onchange = () => guardarTranspale(p, tr.checked);
+    const gn = ficha.querySelector('#rpf-guardar-notas'); if (gn) gn.onclick = () => guardarNotas(p, ficha.querySelector('#rpf-notas').value);
+    const gi = ficha.querySelector('#rpf-guardar-inc'); if (gi) gi.onclick = () => guardarEstadoParada(p, { incidencia: ficha.querySelector('#rpf-inc').checked, incidencia_texto: ficha.querySelector('#rpf-inc-txt').value });
+    const ni = ficha.querySelector('#rpf-nueva-inc'); if (ni) ni.onclick = () => { cerrarFicha(); window.cargarIncidencias({ nueva: true, proyecto: String(p.numero || ''), origen: 'rutas' }); };
+  }
+  // Mismas llamadas que la app antigua: estado completo de la parada en /api/rutas/estados-parada
+  async function guardarEstadoParada(p, cambio) {
+    if (!puedeEditar()) return;
+    const antes = Object.assign({ preparado: false, cargado: false, incidencia: false, incidencia_texto: '' }, S.d.estPar[p.clave] || {});
+    const nuevo = Object.assign({}, antes, cambio);
+    F.guardando = true; pintarFicha();
+    try {
+      await enviar('/api/rutas/estados-parada', { clave: p.clave, preparado: !!nuevo.preparado, cargado: !!nuevo.cargado, incidencia: !!nuevo.incidencia, incidencia_texto: nuevo.incidencia_texto || '', cid: CID });
+      S.d.estPar[p.clave] = nuevo;
+      toast('Guardado');
+    } catch (e) { toast('No se ha podido guardar: ' + e.message, true); }
+    F.guardando = false; pintar(); pintarFicha();
+  }
+  async function guardarTranspale(p, valor) {
+    if (!puedeEditar()) return;
+    F.guardando = true; pintarFicha();
+    try {
+      const j = await enviar('/api/rutas/transpale', { clave: claveTranspale(p), valor, cid: CID });
+      const filas = j.filas && j.filas.length ? j.filas : [{ clave: claveTranspale(p), transpale: valor, auto: false }];
+      filas.forEach(f => { S.d.transpale[f.clave] = { clave: f.clave, transpale: !!f.transpale, auto: !!f.auto }; });
+      const otra = filas.length > 1;
+      toast(valor ? 'Transpalé marcado' + (otra ? ' (también en la recogida)' : '') : 'Transpalé quitado' + (otra ? ' (también de la recogida)' : ''));
+    } catch (e) { toast('No se ha podido guardar: ' + e.message, true); }
+    F.guardando = false; pintar(); pintarFicha();
+  }
+  // Notas: como en la app antigua (también Comercial), por set_asignacion; en las manuales, antes update_manual
+  async function guardarNotas(p, notas) {
+    F.guardando = true; pintarFicha();
+    try {
+      const cuerpo = Object.assign(cuerpoAsignacion(p), { notas });
+      if (p.es_manual) await enviar('/api/rutas/manual', Object.assign({}, cuerpo, { action: 'update_manual', id: p.id_manual }));
+      await enviar('/api/rutas/manual', cuerpo);
+      p.notas = notas;
+      toast('Notas guardadas');
+    } catch (e) { toast('No se han podido guardar las notas: ' + e.message, true); }
+    F.guardando = false; pintar(); pintarFicha();
+  }
+
+  // ── Paradas manuales: crear, editar y borrar (mismas acciones que la app antigua) ──
+  function abrirManual(p) {
+    if (!puedeEditar()) return;
+    const ed = !!p;
+    const tipos = [['ENTREGA', 'Entrega'], ['RECOGIDA', 'Recogida'], ['COMPRA', 'Compra'], ['TALLER', 'Taller'], ['OTRO', 'Otro']];
+    modal(`<header><h3>${ed ? 'Editar parada manual' : 'Añadir parada manual'}</h3><button type="button" class="rp-icono" data-cerrar aria-label="Cerrar">✕</button></header>
+      <label>Tipo<select id="rpm-tipo">${tipos.map(([v, n]) => `<option value="${v}"${(ed ? p.tipo : 'OTRO') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label>Nº proyecto (opcional)<input type="text" id="rpm-numero" value="${esc(ed ? (p.numero || '') : '')}"></label>
+      <label>Descripción<input type="text" id="rpm-desc" value="${esc(ed ? (p.cliente || '') : '')}" placeholder="Ej.: recoger manteles sucios"></label>
+      <label>Dirección<input type="text" id="rpm-dir" value="${esc(ed ? (p.localizacion || '') : '')}"></label>
+      <label>Fecha<input type="date" id="rpm-fecha" value="${ed ? fechaDe(p) : S.dia}"></label>
+      <label>Notas<textarea id="rpm-notas" rows="3">${esc(ed ? (p.notas || '') : '')}</textarea></label>
+      <footer><button type="button" class="rp-btn suave" data-cerrar>Cancelar</button><button type="button" class="rp-btn" id="rpm-ok">Guardar parada</button></footer>`, velo => {
+      velo.querySelector('#rpm-ok').onclick = async () => {
+        const v = id => velo.querySelector(id).value.trim();
+        const cuerpo = { action: ed ? 'update_manual' : 'add_manual', tipo: v('#rpm-tipo'), numero: v('#rpm-numero'), descripcion: v('#rpm-desc'), direccion: v('#rpm-dir'), fecha: v('#rpm-fecha'), notas: v('#rpm-notas'), vehiculo: ed ? vehsDe(p).join(',') : '', conductor: {}, cid: CID };
+        if (!cuerpo.descripcion) { alert('La descripción es obligatoria'); return; }
+        if (!cuerpo.fecha) { alert('La fecha es obligatoria'); return; }
+        if (ed) cuerpo.id = p.id_manual;
+        const b = velo.querySelector('#rpm-ok'); b.disabled = true; b.textContent = 'Guardando…';
+        try {
+          await enviar('/api/rutas/manual', cuerpo);
+          // update_manual no guarda notas, vuelta ni orden: igual que la app antigua, se manda también set_asignacion
+          if (ed) await enviar('/api/rutas/manual', Object.assign(cuerpoAsignacion(p), { fecha: cuerpo.fecha, notas: cuerpo.notas }));
+          cerrarModal(); toast(ed ? 'Parada actualizada' : 'Parada añadida'); await cargar(true);
+        } catch (e) { b.disabled = false; b.textContent = 'Guardar parada'; toast('No se ha podido guardar: ' + e.message, true); }
+      };
+    });
+  }
+  async function borrarManual(p) {
+    if (!puedeEditar() || !confirm('¿Eliminar esta parada manual?')) return;
+    try { await enviar('/api/rutas/manual', { action: 'del_manual', id: p.id_manual, cid: CID }); cerrarFicha(); toast('Parada eliminada'); cargar(true); }
+    catch (e) { toast('No se ha podido eliminar: ' + e.message, true); }
   }
 
   // ── Entrada ──
