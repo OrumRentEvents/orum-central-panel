@@ -54,7 +54,9 @@
   };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = id => document.getElementById(id);
+  const RENOMBRAR = { 'Resumen': 'Inicio' }; // solo módulos del menú lateral
   const quitarFlecha = s => String(s || '').replace(/\s*↗\s*$/, '');
+  const nombreModulo = it => RENOMBRAR[quitarFlecha(it.label)] && !it.submenu ? RENOMBRAR[quitarFlecha(it.label)] : quitarFlecha(it.label);
 
   let prefs = [];
   let activoId = null;       // id del menú de la pantalla abierta (sin 'menu-item-')
@@ -162,7 +164,7 @@
     const areas = AREAS.map(a => ({ nombre: a.nombre, ids: a.ids.concat(a.nombre === 'Operaciones' ? extra : []).filter(id => porId[id]) })).filter(a => a.ids.length);
     const op = id => {
       const it = porId[id];
-      return `<button type="button" class="g-op" data-mod="${id}" aria-label="${esc(quitarFlecha(it.label))}">${iconoMenuHtml(it.icon)}<span class="g-et" style="flex:1">${esc(quitarFlecha(it.label))}</span><span class="g-chip" data-chip="${id}" hidden></span><span class="g-tip">${esc(quitarFlecha(it.label))}</span></button>`;
+      return `<button type="button" class="g-op" data-mod="${id}" aria-label="${esc(quitarFlecha(it.label))}">${iconoMenuHtml(it.icon)}<span class="g-et" style="flex:1">${esc(nombreModulo(it))}</span><span class="g-chip" data-chip="${id}" hidden></span><span class="g-tip">${esc(nombreModulo(it))}</span></button>`;
     };
     menu.innerHTML = `
       <div class="g-marca" data-mod="resumen" title="Inicio">
@@ -240,7 +242,7 @@
   function ponerMigas() {
     if (!activoId || !$('g-modulo')) return;
     const mod = moduloDe(activoId);
-    $('g-modulo').textContent = mod ? quitarFlecha(mod.label) : etiqueta(activoId);
+    $('g-modulo').textContent = mod ? nombreModulo(mod) : etiqueta(activoId);
     $('g-seccion').textContent = mod && mod.submenu ? etiqueta(activoId) : '';
   }
 
@@ -251,7 +253,7 @@
     itemsVisibles().forEach(item => {
       const subs = subsVisibles(item);
       if (subs.length) subs.forEach(s => lista.push({ id: s.id, nombre: quitarFlecha(s.label), modulo: quitarFlecha(item.label), externo: !!s.especial }));
-      else lista.push({ id: item.id, nombre: quitarFlecha(item.label), modulo: '', externo: !!item.especial });
+      else lista.push({ id: item.id, nombre: nombreModulo(item), modulo: '', externo: !!item.especial });
     });
     return lista;
   }
@@ -317,6 +319,7 @@
     activoId = id;
     const mod = moduloDe(id);
     ponerMigas();
+    document.querySelector('.main-content').classList.toggle('g-es-inicio', id === 'resumen');
     colocarSelector();
     pintarPestanas(mod && mod.submenu ? mod : null);
     const foto = FOTO_MODULO[mod ? mod.id : id] || 'mesa';
@@ -344,19 +347,168 @@
     if (campana) { campana.textContent = n; campana.hidden = !n; }
   }
 
+  // ================================================================
+  // INICIO (diseño aprobado): saludo, indicadores, tarjetas de módulos con
+  // foto, agenda de hoy, facturación y alertas. Datos: /api/nueva/inicio.
+  // Solo datos reales; cada tarjeta o cifra lleva a su pantalla.
+  // ================================================================
+  const MODULOS_INICIO = {
+    proyectos: 'Eventos, estados y material',
+    fin: 'Cobros, contabilidad y caja',
+    per: 'Nóminas, horas y extras',
+    comercial: 'Presupuestos y leads',
+    analisis: 'Material, rutas e informes',
+    log: 'Preparación, rutas y servicios',
+    vehiculos: 'Flota, vencimientos y repostajes',
+    mantenimiento: 'Revisión del material',
+    recuperacion: 'Material que vuelve',
+    incidencias: 'Avisos y seguimiento'
+  };
+  const num = n => Math.round(n || 0).toLocaleString('es-ES');
+  const euros = n => num(n) + ' €';
+  const visible = id => itemsVisibles().some(i => i.id === id);
+  const irA = (...ids) => ids.find(id => accesosDisponibles()[id] || visible(id)) || null;
+  function saludo() { const h = Number(new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', hour12: false })); return h < 14 ? 'Buenos días' : h < 21 ? 'Buenas tardes' : 'Buenas noches'; }
+  function contar(el, fin, f) { if (!el) return; const t0 = performance.now(); const paso = t => { const p = Math.min(1, (t - t0) / 1100); el.textContent = f(fin * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(paso); }; requestAnimationFrame(paso); }
+
+  async function pintarInicio() {
+    const body = $('content-body');
+    const nombre = (usuarioActual.nombre || '').trim().split(/\s+/)[0];
+    const f0 = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', weekday: 'short', day: 'numeric', month: 'long' });
+    const fecha = f0.charAt(0).toUpperCase() + f0.slice(1);
+    body.innerHTML = `<div class="g-inicio">
+      <div class="g-saludo"><div><span class="g-sobre">ORUM CENTRAL</span><h2>${saludo()}${nombre ? ', ' + esc(nombre) : ''}</h2><p>Centro de control y gestión de ORUM Rent &amp; Events</p></div>
+        <span class="g-fecha">${iconoMenuHtml('calendario')} ${esc(fecha)}</span></div>
+      <div class="g-kpis" id="g-kpis">${'<div class="g-kpi g-vidrio g-cargando"></div>'.repeat(5)}</div>
+      <div class="g-modulos" id="g-modulos"></div>
+      <div class="g-widgets" id="g-widgets">${'<div class="g-widget g-vidrio g-cargando"></div>'.repeat(3)}</div>
+    </div>`;
+    pintarModulos();
+    let d;
+    try {
+      const r = await fetch('/api/nueva/inicio');
+      d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.error || 'Error ' + r.status);
+    } catch (e) {
+      $('g-kpis').innerHTML = `<div class="g-widget g-vidrio" style="grid-column:1/-1">No se han podido cargar los datos: ${esc(e.message)}</div>`;
+      $('g-widgets').innerHTML = '';
+      return;
+    }
+    if (activoId !== 'resumen') return; // ya se ha cambiado de pantalla
+    pintarKpisInicio(d);
+    pintarWidgets(d);
+  }
+
+  function pintarKpisInicio(d) {
+    const k = d.kpis;
+    const lista = [
+      { id: 'activos', ico: 'folder', valor: k.proyectos_activos, f: num, txt: 'Proyectos activos', ir: irA('proyectos') },
+      { id: 'entregas', ico: 'truck', valor: k.entregas_hoy, f: num, txt: 'Entregas hoy', ir: irA('log-resumen') },
+      { id: 'recogidas', ico: 'box', valor: k.recogidas_hoy, f: num, txt: 'Recogidas hoy', ir: irA('log-resumen') },
+      { id: 'factura', ico: 'euro', valor: k.facturacion_mes, f: euros, txt: 'Facturación del mes', ir: irA('fin-resumen'), delta: k.facturacion_variacion },
+      { id: 'incid', ico: 'alert', valor: k.incidencias_abiertas, f: num, txt: 'Incidencias', ir: irA('incidencias'), alerta: true }
+    ];
+    $('g-kpis').innerHTML = lista.map((x, i) => `<button type="button" class="g-kpi g-vidrio${x.alerta && x.valor ? ' g-kpi-alerta' : ''}" ${x.ir ? `data-ir="${x.ir}"` : 'disabled'} style="animation-delay:${i * 0.05}s">
+      <span class="g-kpi-cab">${iconoMenuHtml(x.ico)}${x.delta == null ? '' : `<span class="g-delta${x.delta < 0 ? ' baja' : ''}" title="Respecto al mismo periodo del año pasado">${x.delta < 0 ? '↘' : '↗'} ${x.delta > 0 ? '+' : ''}${x.delta}%</span>`}</span>
+      <span class="g-kpi-valor" data-k="${x.id}">0</span><span class="g-kpi-txt">${x.txt}</span></button>`).join('');
+    lista.forEach(x => contar(document.querySelector(`[data-k="${x.id}"]`), x.valor || 0, x.f));
+    $('g-kpis').querySelectorAll('[data-ir]').forEach(b => b.onclick = () => abrir(b.dataset.ir));
+  }
+
+  function pintarModulos() {
+    const mods = Object.keys(MODULOS_INICIO).filter(visible).slice(0, 8);
+    $('g-modulos').innerHTML = mods.map((id, i) => {
+      const it = itemsVisibles().find(x => x.id === id);
+      const foto = FOTO_MODULO[id] || FOTOS[i % FOTOS.length];
+      return `<button type="button" class="g-modulo-tarjeta" data-ir="${id}" style="animation-delay:${0.1 + i * 0.04}s">
+        <span class="g-modulo-foto" style="background-image:url(/img/nueva/${foto}.webp)"></span>
+        <span class="g-modulo-ico">${iconoMenuHtml(it.icon)}</span>
+        <span class="g-modulo-texto"><b>${esc(quitarFlecha(it.label))}</b><small>${esc(MODULOS_INICIO[id])}</small></span>
+        <span class="g-modulo-flecha">→</span></button>`;
+    }).join('');
+    $('g-modulos').querySelectorAll('[data-ir]').forEach(b => b.onclick = () => abrir(b.dataset.ir));
+  }
+
+  function graficaFacturacion(meses) {
+    const max = Math.max(1, ...meses.map(m => m.total));
+    const tope = Math.ceil(max / 20000) * 20000 || 20000;
+    const W = 520, H = 190, x0 = 64, x1 = 505, y0 = 12, y1 = 160;
+    const X = i => x0 + i * (x1 - x0) / Math.max(1, meses.length - 1);
+    const Y = v => y1 - v / tope * (y1 - y0);
+    const pts = meses.map((m, i) => [X(i), Y(m.total)]);
+    const linea = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Facturación de los últimos 6 meses">
+      <defs><linearGradient id="g-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3E86C9" stop-opacity=".32"/><stop offset="1" stop-color="#3E86C9" stop-opacity=".02"/></linearGradient></defs>
+      ${[0, .5, 1].map(f => `<line x1="${x0 - 6}" x2="${x1 + 6}" y1="${Y(tope * f)}" y2="${Y(tope * f)}" stroke="currentColor" stroke-opacity=".08"/><text x="${x0 - 12}" y="${Y(tope * f) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".55">${num(tope * f)} €</text>`).join('')}
+      <path class="g-g-area" d="${linea} L${X(meses.length - 1)} ${y1} L${x0} ${y1} Z" fill="url(#g-area)" opacity="0"/>
+      <path class="g-g-linea" d="${linea}" fill="none" stroke="#3E86C9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>
+      ${pts.map((p, i) => `<circle class="g-g-punto" cx="${p[0]}" cy="${p[1]}" r="0" data-r="${i === pts.length - 1 ? 5 : 4}" fill="#fff" stroke="#3E86C9" stroke-width="2.5" style="transition-delay:${0.3 + i * 0.2}s"><title>${esc(meses[i].etiqueta)}: ${euros(meses[i].total)}</title></circle>
+        <text x="${p[0]}" y="${H - 6}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".65">${esc(meses[i].etiqueta.split(' ')[0])}</text>`).join('')}
+    </svg>`;
+  }
+
+  function pintarWidgets(d) {
+    const k = d.kpis;
+    const TIPO = { Entrega: 'g-tipo-entrega', Montaje: 'g-tipo-montaje', Recogida: 'g-tipo-recogida' };
+    const agenda = d.agenda_hoy || [];
+    const vehiculos = (document.querySelector('#menu-item-vehiculos .veh-pastilla') || {}).textContent || '';
+    const alertas = [];
+    if (k.facturas_vencidas) alertas.push({ ico: 'euro', txt: `${k.facturas_vencidas} facturas vencidas · ${euros(k.importe_vencido)}`, ir: irA('fin-vencidas') });
+    if (k.cobros_pendientes) alertas.push({ ico: 'euro', txt: `${euros(k.cobros_pendientes)} pendientes de cobro`, ir: irA('fin-control-pagos') });
+    if (vehiculos) alertas.push({ ico: 'truck', txt: `${vehiculos} vencimientos de vehículos`, ir: irA('veh-vencimientos') });
+    if (k.incidencias_abiertas) alertas.push({ ico: 'alert', txt: `${k.incidencias_abiertas} incidencias abiertas`, ir: irA('incidencias') });
+    if (d.sincronizacion && d.sincronizacion.fallo) alertas.push({ ico: 'refresh', txt: 'Revisar la sincronización con Rentman', url: '/sync-status' });
+    const ult = d.facturacion_meses[d.facturacion_meses.length - 1] || { total: 0 };
+    const delta = k.facturacion_variacion;
+
+    $('g-widgets').innerHTML = `
+      <section class="g-widget g-vidrio">
+        <div class="g-widget-cab">${iconoMenuHtml('calendario')}<h3>Agenda de hoy</h3>${visible('calendario') ? '<button type="button" class="g-enlace" data-ir="calendario">Ver calendario →</button>' : ''}</div>
+        ${agenda.length ? agenda.slice(0, 6).map(a => `<div class="g-fila"><span class="g-hora">${esc(a.hora)}</span><span class="g-fila-txt"><b>${esc(a.nombre || 'Proyecto ' + a.numero)}</b><small>${esc([a.cliente, a.localizacion].filter(Boolean).join(' · '))}</small></span><span class="g-tipo ${TIPO[a.tipo]}">${a.tipo}</span></div>`).join('')
+          + (agenda.length > 6 ? `<div class="g-mas">y ${agenda.length - 6} más</div>` : '')
+          : '<div class="g-vacio">Hoy no hay entregas, montajes ni recogidas.</div>'}
+      </section>
+      <section class="g-widget g-vidrio">
+        <div class="g-widget-cab">${iconoMenuHtml('euro')}<h3>Facturación<small>Últimos 6 meses · sin IVA</small></h3><b class="g-total">${euros(ult.total)}</b>${delta == null ? '' : `<span class="g-delta${delta < 0 ? ' baja' : ''}">${delta < 0 ? '↘' : '↗'} ${delta > 0 ? '+' : ''}${delta}%</span>`}</div>
+        ${graficaFacturacion(d.facturacion_meses)}
+      </section>
+      <section class="g-widget g-vidrio">
+        <div class="g-widget-cab">${ICO.campana}<h3>Alertas</h3><span class="g-suave">${alertas.length} pendientes</span></div>
+        ${alertas.length ? alertas.map(a => `<button type="button" class="g-fila g-fila-boton" ${a.ir ? `data-ir="${a.ir}"` : ''} ${a.url ? `data-url="${a.url}"` : ''}>${iconoMenuHtml(a.ico)}<span class="g-fila-txt">${esc(a.txt)}</span><span class="g-suave">›</span></button>`).join('')
+          : '<div class="g-vacio">Todo en orden.</div>'}
+      </section>`;
+    const w = $('g-widgets');
+    w.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => abrir(b.dataset.ir));
+    w.querySelectorAll('[data-url]').forEach(b => b.onclick = () => window.open(b.dataset.url, '_blank'));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      w.querySelectorAll('.g-g-linea').forEach(p => p.style.strokeDashoffset = 0);
+      w.querySelectorAll('.g-g-area').forEach(p => p.setAttribute('opacity', 1));
+      w.querySelectorAll('.g-g-punto').forEach(c => c.setAttribute('r', c.dataset.r));
+    }));
+  }
+
   // ── Arranque: lo llama mostrarApp() después de montar el panel de siempre ──
-  window.iniciarInterfazGlass = async function () {
+  // pantallaYaAbierta: el panel ya abrió una pantalla concreta (p. ej. Calendario al volver de Google).
+  window.iniciarInterfazGlass = async function (pantallaYaAbierta) {
     if (!usuarioActual || !INTERFAZ_GLASS_USUARIOS.includes(String(usuarioActual.usuario || '').toLowerCase())) return false;
     await leerPrefs();
     if (tienePref('clasica')) return false;
     const original = window.marcarMenuActivo;
     window.marcarMenuActivo = function (id) { original(id); try { alCambiarPantalla(id); } catch (e) { console.error('Interfaz glass:', e); } };
+    // El Resumen general pasa a ser el Inicio nuevo (el de siempre queda en el diseño clásico).
+    const resumenClasico = window.cargarResumenGeneral;
+    window.cargarResumenGeneral = function () {
+      if (!document.documentElement.classList.contains('glass')) return resumenClasico();
+      $('content-title').textContent = 'Inicio';
+      return pintarInicio();
+    };
     montar();
     // Pantalla de la dirección (#/id) si la hay y el usuario la puede abrir; si no, la de inicio que ya cargó el panel.
     const pedida = idDeHash();
     const inicial = document.querySelector('#nav-container .nav-item.active, #nav-container .nav-subitem[style*="f3ead9"]');
-    if (pedida && (accesosDisponibles()[pedida] || moduloDe(pedida))) { desdeHistorial = true; abrir(pedida); desdeHistorial = false; }
-    else alCambiarPantalla(inicial ? inicial.id : 'menu-item-resumen');
+    if (pantallaYaAbierta) alCambiarPantalla(inicial ? inicial.id : 'menu-item-resumen');
+    else if (pedida && (accesosDisponibles()[pedida] || moduloDe(pedida))) { desdeHistorial = true; abrir(pedida); desdeHistorial = false; }
+    else { desdeHistorial = true; abrir('resumen'); desdeHistorial = false; }
     return true;
   };
   // Desde el diseño clásico: volver a la interfaz nueva (opción del menú de siempre)

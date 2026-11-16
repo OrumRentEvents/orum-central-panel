@@ -225,9 +225,9 @@
   }
 </style>
 <!-- Interfaz Liquid Glass (beta): subir ?v= al cambiar glass.css / glass.js para que no tire de caché -->
-<link rel="stylesheet" href="glass.css?v=2">
+<link rel="stylesheet" href="glass.css?v=3">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Marcellus&display=swap" rel="stylesheet">
-<script src="glass.js?v=2"></script>
+<script src="glass.js?v=3"></script>
 </head>
 <body>
 <div id="login-screen">
@@ -384,13 +384,21 @@ function mostrarApp() {
   // Desde el push de una alerta de accesos (/?actividad=alertas) se abre Actividad en vez del inicio
   const pestanaActividad = new URLSearchParams(location.search).get('actividad');
   const paramsInicio = new URLSearchParams(location.search);
+  const pantallaInicial = () => {
+    if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
+    else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
+    else cargarResumenGeneral();
+  };
+  let pantallaEspecial = true;
   if (pestanaActividad && String(usuarioActual.usuario).toLowerCase() === 'sergio') { cargarActividad(pestanaActividad); history.replaceState(null, '', '/'); }
   else if (paramsInicio.get('calendario') === '1') { calendarioVueltaGoogle = paramsInicio.get('google') || ''; history.replaceState(null, '', '/'); cargarCalendario(); }
-  else if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
-  else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
-  else cargarResumenGeneral();
-  // Interfaz Liquid Glass (beta, nov 2026): capa visual sobre este mismo panel — public/glass.js
-  if (window.iniciarInterfazGlass) window.iniciarInterfazGlass().catch(e => console.error('Interfaz glass:', e));
+  else pantallaEspecial = false;
+  // Interfaz Liquid Glass (beta, nov 2026): capa visual sobre este mismo panel — public/glass.js.
+  // Si está activa para este usuario, ella abre la primera pantalla (su Inicio o la de la dirección #/…).
+  if (!window.iniciarInterfazGlass) { if (!pantallaEspecial) pantallaInicial(); return; }
+  window.iniciarInterfazGlass(pantallaEspecial)
+    .then(activa => { if (!activa && !pantallaEspecial) pantallaInicial(); })
+    .catch(e => { console.error('Interfaz glass:', e); if (!pantallaEspecial) pantallaInicial(); });
 }
 function renderProximamente(nombre) {
   document.getElementById('content-title').textContent = nombre;

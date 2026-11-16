@@ -28,7 +28,7 @@ test('calcularInicio: entregas/recogidas/montajes de hoy, activos, estados del m
       { importe_sin_iva: 999, fecha_emision_ts: ts('2026-05-10') }
     ],
     facturasAnioPasado: [{ importe_sin_iva: 880 }],
-    pendientes: [{ pendiente_cobro: 200 }, { pendiente_cobro: 0 }],
+    pendientes: [{ pendiente_cobro: 200, fecha_vencimiento_ts: ts('2026-11-01') }, { pendiente_cobro: 0 }, { pendiente_cobro: 50, fecha_vencimiento_ts: ts('2026-12-01') }],
     incidenciasAbiertas: 3,
     sync: [{ tabla: 'proyectos', exito: true, terminado_en: '2026-11-16T08:50:00Z' }, { tabla: 'facturas', exito: false, terminado_en: '2026-11-16T08:40:00Z' }]
   }, hoy);
@@ -42,8 +42,12 @@ test('calcularInicio: entregas/recogidas/montajes de hoy, activos, estados del m
   assert.equal(r.kpis.facturacion_variacion, 25);
   assert.deepEqual(r.facturacion_meses.map(m => m.mes), ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
   assert.equal(r.facturacion_meses[0].total, 500); // mayo queda fuera
-  assert.equal(r.kpis.cobros_pendientes, 200);
-  assert.equal(r.kpis.cobros_pendientes_facturas, 1);
+  assert.equal(r.kpis.cobros_pendientes, 250);
+  assert.equal(r.kpis.cobros_pendientes_facturas, 2);
+  assert.equal(r.kpis.facturas_vencidas, 1);
+  assert.equal(r.kpis.importe_vencido, 200);
+  // Agenda de hoy ordenada por hora: entrega y montaje del 1 (10:00) y recogida del 2
+  assert.deepEqual(r.agenda_hoy.map(a => [a.tipo, a.numero, a.hora]), [['Entrega', 1, '10:00'], ['Montaje', 1, '10:00'], ['Recogida', 2, '10:00']]);
   assert.deepEqual(r.proximas_salidas.map(p => p.numero), [1, 5]);
   assert.equal(r.sincronizacion.fallo, true);
   assert.equal(r.sincronizacion.ultima, '2026-11-16T08:50:00Z');
