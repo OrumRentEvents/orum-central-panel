@@ -37,11 +37,36 @@
   };
   const MAX_PESTANAS = 7;
 
-  // Foto de fondo por módulo (public/img/nueva). Se irán sustituyendo por las definitivas.
-  const FOTOS = ['mesa', 'sillon', 'silla'];
-  const FOTO_MODULO = { resumen: 'mesa', proyectos: 'sillon', fin: 'silla', per: 'mesa', comercial: 'sillon', analisis: 'silla',
-    log: 'silla', mantenimiento: 'mesa', vehiculos: 'mesa', recuperacion: 'sillon', incidencias: 'silla', config: 'sillon',
-    calendario: 'mesa', chat: 'sillon', ayuda: 'mesa' };
+  // ── Fotografías por módulo (configuración central) ──
+  // Fondo general: public/img/modulos/fondos/<archivo>.webp (cambia solo al cambiar de módulo,
+  // no entre sus apartados). Tarjeta del Resumen: public/img/modulos/botones/<archivo>.webp.
+  const FOTO_MODULO = { resumen: 'resumen', proyectos: 'proyectos', fin: 'financiero', per: 'personal', comercial: 'comercial',
+    analisis: 'analisis', log: 'logistica', vehiculos: 'vehiculos', mantenimiento: 'mantenimiento', recuperacion: 'material_recuperado',
+    incidencias: 'incidencias', config: 'configuracion', calendario: 'resumen', chat: 'resumen', ayuda: 'resumen' };
+  const urlFondo = archivo => `/img/modulos/fondos/${archivo}.webp`;
+  const urlBoton = archivo => `/img/modulos/botones/${archivo}.webp`;
+  const precargadas = new Set();
+  function precargar(url) {
+    if (precargadas.has(url)) return Promise.resolve();
+    return new Promise(ok => { const im = new Image(); im.onload = im.onerror = () => { precargadas.add(url); ok(); }; im.src = url; });
+  }
+  // Fundido entre dos capas: la nueva se pinta encima solo cuando su foto ya está cargada (sin parpadeo).
+  let fondoActual = null, capaVisible = 0, turnoFondo = 0;
+  async function cambiarFondo(archivo) {
+    if (!archivo || archivo === fondoActual) return;
+    fondoActual = archivo;
+    const turno = ++turnoFondo;
+    const url = urlFondo(archivo);
+    await precargar(url);
+    if (turno !== turnoFondo) return; // ya se pidió otro módulo
+    const capas = document.querySelectorAll('.g-foto');
+    if (capas.length < 2) return;
+    const siguiente = capas[1 - capaVisible];
+    siguiente.style.backgroundImage = `url(${url})`;
+    siguiente.classList.add('visible');
+    capas[capaVisible].classList.remove('visible');
+    capaVisible = 1 - capaVisible;
+  }
 
   const SVG = d => `<span class="nav-icon"><svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
   const ICO = {
@@ -118,7 +143,7 @@
     const fondo = document.createElement('div');
     fondo.className = 'g-fondo';
     fondo.setAttribute('aria-hidden', 'true');
-    fondo.innerHTML = FOTOS.map(f => `<div class="g-foto" data-foto="${f}" style="background-image:url(/img/nueva/${f}.webp)"></div>`).join('');
+    fondo.innerHTML = '<div class="g-foto"></div><div class="g-foto"></div>';
     document.body.prepend(fondo);
 
     const layout = document.querySelector('.app-layout');
@@ -145,6 +170,8 @@
 
     pintarMenu();
     pintarCabecera();
+    const precargarResto = () => itemsVisibles().forEach(i => FOTO_MODULO[i.id] && precargar(urlFondo(FOTO_MODULO[i.id])));
+    setTimeout(() => (window.requestIdleCallback || (f => f()))(precargarResto), 2500);
     sincronizarContadores();
     new MutationObserver(sincronizarContadores).observe($('nav-container'), { childList: true, subtree: true, characterData: true });
 
@@ -328,8 +355,7 @@
     document.querySelector('.main-content').classList.toggle('g-es-inicio', id === 'resumen');
     colocarSelector();
     pintarPestanas(mod && mod.submenu ? mod : null);
-    const foto = FOTO_MODULO[mod ? mod.id : id] || 'mesa';
-    document.querySelectorAll('.g-foto').forEach(f => f.classList.toggle('visible', f.dataset.foto === foto));
+    cambiarFondo(FOTO_MODULO[mod ? mod.id : id] || 'resumen');
     const hash = '#/' + id;
     if (location.hash !== hash) {
       if (desdeHistorial || !history.state || !history.state.glass) history.replaceState({ glass: true }, '', hash);
@@ -442,9 +468,8 @@
     const mods = Object.keys(MODULOS_INICIO).filter(visible).slice(0, 8);
     $('g-modulos').innerHTML = mods.map((id, i) => {
       const it = itemsVisibles().find(x => x.id === id);
-      const foto = FOTO_MODULO[id] || FOTOS[i % FOTOS.length];
       return `<button type="button" class="g-modulo-tarjeta" data-ir="${id}" style="animation-delay:${0.1 + i * 0.04}s">
-        <span class="g-modulo-foto" style="background-image:url(/img/nueva/${foto}.webp)"></span>
+        <span class="g-modulo-foto" style="background-image:url(${urlBoton(FOTO_MODULO[id])})"></span><span class="g-modulo-reflejo"></span>
         <span class="g-modulo-ico">${iconoMenuHtml(it.icon)}</span>
         <span class="g-modulo-texto"><b>${esc(quitarFlecha(it.label))}</b><small>${esc(MODULOS_INICIO[id])}</small></span>
         <span class="g-modulo-flecha">→</span></button>`;

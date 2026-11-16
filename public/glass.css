@@ -278,3 +278,107 @@ html.glass .main-header { justify-content: flex-end; margin-bottom: -6px; }
 .g-marca { padding-bottom: 12px; }
 .g-op .g-et { text-overflow: ellipsis; }
 .g-hora small { font-size: 10.5px; line-height: 1.1; display: block; }
+
+/* ================================================================
+   Afinado visual (16 nov 2026): fondos por módulo, cristal más transparente,
+   tarjetas fotográficas y Resumen más compacto. Solo presentación.
+   ================================================================ */
+
+/* Controles globales del cristal */
+html.glass {
+  --g-alfa: .40;            /* opacidad de tarjetas y paneles */
+  --g-alfa-datos: .84;      /* tablas, formularios y pantallas con muchos datos */
+  --g-blur: 22px;
+  --g-borde-cristal: rgba(255,255,255,.55);
+  --g-reflejo: linear-gradient(180deg, rgba(255,255,255,.32) 0%, rgba(255,255,255,0) 38%);
+  --g-sombra: 0 10px 34px rgba(70,55,38,.12), 0 1px 2px rgba(70,55,38,.06);
+  --g-vidrio: rgba(255,253,249,var(--g-alfa));
+  --g-tabla: rgba(255,253,249,var(--g-alfa-datos));
+  --g-th: rgba(250,246,240,.95);
+  --g-velo: rgba(255,251,246,.18);
+  --g-transicion-fondo: .8s;
+}
+html.glass.oscuro {
+  --g-alfa: .46;
+  --g-alfa-datos: .86;
+  --g-borde-cristal: rgba(255,255,255,.12);
+  --g-reflejo: linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 40%);
+  --g-vidrio: rgba(30,28,26,var(--g-alfa));
+  --g-tabla: rgba(30,28,26,var(--g-alfa-datos));
+  --g-velo: rgba(12,11,10,.55);
+}
+.g-vidrio, .g-cabecera .g-pildora {
+  background-color: var(--g-vidrio);
+  background-image: var(--g-reflejo);
+  backdrop-filter: blur(var(--g-blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--g-blur)) saturate(165%);
+  border: 1px solid var(--g-borde-cristal);
+  box-shadow: var(--g-sombra), inset 0 1px 0 rgba(255,255,255,.55);
+}
+html.glass.oscuro .g-vidrio, html.glass.oscuro .g-cabecera .g-pildora { box-shadow: var(--g-sombra), inset 0 1px 0 rgba(255,255,255,.08); }
+/* Desplegables y menús emergentes: algo más opacos para leer bien */
+.g-resultados, .g-desplegable, .g-sub { background-color: var(--g-vidrio-fuerte); }
+
+/* Fondo por módulo: dos capas con fundido, sin desenfoque extra (las fotos ya vienen suavizadas) */
+.g-foto { inset: -12px; filter: none; transition: opacity var(--g-transicion-fondo) ease; animation: g-zoom 40s ease-in-out infinite alternate; }
+@keyframes g-zoom { from { transform: scale(1.02); } to { transform: scale(1.07); } }
+
+/* Tarjetas fotográficas del Resumen */
+.g-modulo-tarjeta { height: 136px; background: #8a7a66; border-color: rgba(255,255,255,.45); transition: transform .25s ease, box-shadow .25s ease; }
+.g-modulo-foto { transition: transform .25s ease; }
+.g-modulo-foto::after { background: linear-gradient(180deg, rgba(25,18,10,0) 30%, rgba(25,18,10,.22) 60%, rgba(25,18,10,.56) 100%); }
+.g-modulo-tarjeta:hover .g-modulo-foto { transform: scale(1.04); }
+.g-modulo-reflejo { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(115deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.28) 48%, rgba(255,255,255,0) 66%); background-size: 260% 100%; background-position: 120% 0; opacity: 0; transition: opacity .25s ease, background-position .6s ease; }
+.g-modulo-tarjeta:hover .g-modulo-reflejo { opacity: 1; background-position: -20% 0; }
+.g-modulo-ico .nav-icon { filter: drop-shadow(0 1px 4px rgba(0,0,0,.35)); }
+.g-modulo-texto b { text-shadow: 0 1px 10px rgba(0,0,0,.35); }
+.g-modulo-texto small { text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+.g-modulo-flecha { z-index: 2; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); background: rgba(255,255,255,.12); transition: transform .25s ease, background .25s ease, border-color .25s ease; }
+.g-modulo-tarjeta:hover .g-modulo-flecha { transform: translateX(3px); background: rgba(255,255,255,.32); border-color: #fff; }
+
+/* Resumen más compacto */
+html.glass .main-content { gap: 10px; }
+.g-cabecera { padding-top: 2px; padding-bottom: 0; }
+.g-titular-ico { width: 48px; height: 48px; flex-basis: 48px; border-radius: 15px; }
+.g-titular-ico .nav-icon { width: 24px; height: 24px; }
+.g-titular .g-modulo { font-size: 26px; }
+.g-titular .g-seccion { font-size: 13.5px; margin-top: 0; }
+.g-inicio { gap: 12px; }
+.g-saludo { padding: 0 6px; align-items: center; }
+.g-saludo h2 { font-size: 26px; margin: 0; }
+.g-saludo p { font-size: 13.5px; }
+.g-fecha { font-size: 13.5px; }
+.g-kpi { min-height: 104px; padding: 13px 16px; gap: 4px; }
+.g-kpi-cab .nav-icon { width: 21px; height: 21px; }
+.g-kpi-valor { font-size: clamp(21px, 2vw, 28px); }
+.g-kpi-txt { font-size: 13.5px; }
+.g-widget { min-height: 180px; padding: 14px 16px; }
+
+/* Respetar «reducir movimiento»: cambio de fondo sin fundido ni zoom */
+@media (prefers-reduced-motion: reduce) {
+  html.glass { --g-transicion-fondo: 0s; }
+  .g-foto, .g-modulo-foto, .g-modulo-tarjeta { animation: none !important; transition: none !important; }
+}
+
+/* Móvil: cabecera en una línea, indicadores de dos en dos y tarjetas más bajas */
+@media (max-width: 600px) {
+  .g-cabecera { gap: 6px; flex-wrap: wrap; }
+  .g-cabecera .g-pildora { height: 38px; }
+  .g-cabecera .g-redondo { width: 38px; }
+  .g-titular { gap: 8px; flex: 1 1 0; }
+  .g-titular-ico { display: none; }
+  .g-titular .g-modulo { font-size: 19px; }
+  #g-perfil-btn { padding: 0 3px; }
+  #g-perfil-btn .g-flecha { display: none; }
+  .g-cabecera .g-buscar { order: 10; width: 100%; flex: 1 1 100%; margin-left: 0; }
+  .g-saludo h2 { font-size: 21px; }
+  .g-saludo p { font-size: 12.5px; }
+  .g-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .g-kpi { min-height: 86px; padding: 11px 13px; }
+  .g-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .g-modulos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .g-modulo-tarjeta { height: 108px; padding: 12px; }
+  .g-modulo-texto b { font-size: 16px; }
+  .g-modulo-texto small { display: none; }
+  .g-modulo-flecha { width: 26px; height: 26px; right: 10px; bottom: 10px; }
+}
