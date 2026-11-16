@@ -78,7 +78,8 @@
     sol: SVG('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
     salir: SVG('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>'),
     clasico: SVG('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>'),
-    abajo: '<span class="g-flecha">▾</span>'
+    abajo: '<span class="g-flecha">▾</span>',
+    destello: SVG('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.5 2.5M15.2 15.2l2.5 2.5M6.3 17.7l2.5-2.5M15.2 8.8l2.5-2.5"/>')
   };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = id => document.getElementById(id);
@@ -174,6 +175,9 @@
     setTimeout(() => (window.requestIdleCallback || (f => f()))(precargarResto), 2500);
     sincronizarContadores();
     new MutationObserver(sincronizarContadores).observe($('nav-container'), { childList: true, subtree: true, characterData: true });
+    setInterval(sincronizarContadores, 15000); // no leídos del chat (los pone el globo de siempre, ahora oculto)
+    [1500, 4000, 8000].forEach(ms => setTimeout(sincronizarContadores, ms)); // el globo del chat se crea un poco después
+    setInterval(() => { if (activoId === 'resumen') actualizarBienvenida(); }, 5 * 60 * 1000); // cambio de día o franja
 
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); const i = $('g-buscar-input'); if (i) i.focus(); }
@@ -231,11 +235,12 @@
     const ini = (inicialesNombre(nombre) || '?').toUpperCase();
     cab.innerHTML = `
       <button type="button" class="g-pildora g-redondo g-hamburguesa" id="g-hamburguesa" aria-label="Abrir menú">${ICO.menu}</button>
-      <div class="g-titular"><span class="g-titular-ico g-vidrio" id="g-titular-ico"></span><div class="g-migas"><span class="g-modulo" id="g-modulo">Inicio</span><span class="g-seccion" id="g-seccion"></span></div></div>
+      <div class="g-titular"><span class="g-modulo" id="g-modulo">Resumen</span><span id="g-seccion" hidden></span><span id="g-titular-ico" hidden></span></div>
+      <button type="button" class="g-pildora g-redondo g-buscar-boton" id="g-buscar-boton" aria-label="Buscar herramienta">${ICO.buscar}</button>
       <label class="g-pildora g-buscar">${ICO.buscar}<input id="g-buscar-input" type="text" placeholder="Buscar herramienta… (p. ej. morosidad)" aria-label="Buscar herramienta" autocomplete="off"><kbd>Ctrl K</kbd>
         <div class="g-resultados g-vidrio" id="g-resultados"></div></label>
       ${visibles.includes('calendario') ? `<button type="button" class="g-pildora g-redondo" data-abrir="calendario" title="Calendario" aria-label="Calendario">${iconoMenuHtml('calendario')}</button>` : ''}
-      ${visibles.includes('chat') ? `<button type="button" class="g-pildora g-redondo" data-abrir="chat" title="Chat" aria-label="Chat">${iconoMenuHtml('chat')}</button>` : ''}
+      ${visibles.includes('chat') ? `<button type="button" class="g-pildora g-redondo" id="g-chat" title="Chat" aria-label="Chat">${iconoMenuHtml('chat')}<span class="g-num" id="g-chat-n" hidden></span></button>` : ''}
       <button type="button" class="g-pildora g-redondo" id="g-campana" title="Incidencias asignadas a ti" aria-label="Incidencias">${ICO.campana}<span class="g-num" id="g-campana-n" hidden></span></button>
       <div class="g-perfil">
         <button type="button" class="g-pildora" id="g-perfil-btn" style="padding-left:5px" aria-haspopup="true"><span class="g-avatar">${esc(ini)}</span><span class="g-nombre">${esc(nombre.split(/\s+/)[0])}</span>${ICO.abajo}</button>
@@ -250,6 +255,8 @@
         </div>
       </div>`;
     cab.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', () => { cerrarDesplegables(); abrir(b.dataset.abrir); }));
+    if ($('g-chat')) $('g-chat').onclick = () => { const globo = document.getElementById('chat-globo'); if (globo) globo.click(); else abrir('chat'); };
+    $('g-buscar-boton').onclick = () => { const c = document.querySelector('.g-cabecera'); c.classList.toggle('buscando'); if (c.classList.contains('buscando')) $('g-buscar-input').focus(); };
     $('g-hamburguesa').onclick = () => { if (window.matchMedia('(max-width: 980px)').matches) abrirMenuMovil(true); else $('g-plegar').click(); };
     $('g-campana').onclick = () => abrir(visibles.includes('incidencias') ? 'incidencias' : 'resumen');
     $('g-perfil-btn').onclick = e => { e.stopPropagation(); const m = $('g-perfil-menu'); const a = !m.classList.contains('abierto'); cerrarDesplegables(); m.classList.toggle('abierto', a); };
@@ -374,6 +381,9 @@
     pon('incidencias', leer('incidencias', 'inc-pastilla'));
     pon('vehiculos', leer('vehiculos', 'veh-pastilla'));
     pon('recuperacion', leer('recuperacion', 'recup-pastilla'));
+    const chatN = ((document.querySelector('#chat-globo .chat-globo-badge') || {}).textContent || '').trim();
+    const chat = $('g-chat-n');
+    if (chat) { chat.textContent = chatN; chat.hidden = !chatN || chatN === '0'; }
     const n = leer('incidencias', 'inc-pastilla');
     const campana = $('g-campana-n');
     if (campana) { campana.textContent = n; campana.hidden = !n; }
@@ -420,14 +430,25 @@
   function saludo() { const h = Number(new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', hour12: false })); return h < 14 ? 'Buenos días' : h < 21 ? 'Buenas tardes' : 'Buenas noches'; }
   function contar(el, fin, f) { if (!el) return; const t0 = performance.now(); const paso = t => { const p = Math.min(1, (t - t0) / 1100); el.textContent = f(fin * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(paso); }; requestAnimationFrame(paso); }
 
+  function fechaLarga() {
+    const f = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return f.charAt(0).toUpperCase() + f.slice(1);
+  }
+  // Al cambiar de día (o de franja horaria) sin recargar: saludo, fecha y frase al día
+  function actualizarBienvenida() {
+    const nombre = (usuarioActual.nombre || '').trim().split(/\s+/)[0];
+    if ($('g-saludo-h')) $('g-saludo-h').textContent = saludo() + (nombre ? ', ' + nombre : '');
+    if ($('g-fecha-larga')) $('g-fecha-larga').textContent = fechaLarga();
+    if ($('g-frase-txt') && window.fraseDelDia) $('g-frase-txt').textContent = window.fraseDelDia();
+  }
   async function pintarInicio() {
     const body = $('content-body');
     const nombre = (usuarioActual.nombre || '').trim().split(/\s+/)[0];
-    const f0 = new Date().toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', weekday: 'short', day: 'numeric', month: 'long' });
-    const fecha = f0.charAt(0).toUpperCase() + f0.slice(1);
     body.innerHTML = `<div class="g-inicio">
-      <div class="g-saludo"><div><span class="g-sobre">ORUM CENTRAL</span><h2>${saludo()}${nombre ? ', ' + esc(nombre) : ''}</h2><p>Centro de control y gestión de ORUM Rent &amp; Events</p></div>
-        <span class="g-fecha">${iconoMenuHtml('calendario')} ${esc(fecha)}</span></div>
+      <div class="g-bienvenida">
+        <div class="g-saludo-txt"><h2 id="g-saludo-h">${saludo()}${nombre ? ', ' + esc(nombre) : ''}</h2><span class="g-fecha-larga" id="g-fecha-larga">${esc(fechaLarga())}</span></div>
+        ${window.fraseDelDia ? `<div class="g-frase"><span class="g-frase-cab">${ICO.destello} Frase del día</span><p id="g-frase-txt">${esc(window.fraseDelDia())}</p></div>` : ''}
+      </div>
       <div class="g-kpis" id="g-kpis">${'<div class="g-kpi g-vidrio g-cargando"></div>'.repeat(5)}</div>
       <div class="g-modulos" id="g-modulos"></div>
       <div class="g-widgets" id="g-widgets">${'<div class="g-widget g-vidrio g-cargando"></div>'.repeat(3)}</div>
@@ -458,7 +479,7 @@
       { id: 'incid', ico: 'alert', valor: k.incidencias_abiertas, f: num, txt: 'Incidencias', ir: irA('incidencias'), alerta: true }
     ];
     $('g-kpis').innerHTML = lista.map((x, i) => `<button type="button" class="g-kpi g-vidrio${x.alerta && x.valor ? ' g-kpi-alerta' : ''}" ${x.ir ? `data-ir="${x.ir}"` : 'disabled'} style="animation-delay:${i * 0.05}s">
-      <span class="g-kpi-cab">${iconoMenuHtml(x.ico)}${x.delta == null ? '' : `<span class="g-delta${x.delta < 0 ? ' baja' : ''}" title="Respecto al mismo periodo del año pasado">${x.delta < 0 ? '↘' : '↗'} ${x.delta > 0 ? '+' : ''}${x.delta}%</span>`}</span>
+      <span class="g-kpi-cab"><span class="g-kpi-ico g-kpi-ico-${x.id}">${iconoMenuHtml(x.ico)}</span>${x.delta == null ? '' : `<span class="g-delta${x.delta < 0 ? ' baja' : ''}" title="Respecto al mismo periodo del año pasado">${x.delta < 0 ? '↘' : '↗'} ${x.delta > 0 ? '+' : ''}${x.delta}%</span>`}</span>
       <span class="g-kpi-valor" data-k="${x.id}">0</span><span class="g-kpi-txt">${x.txt}</span></button>`).join('');
     lista.forEach(x => contar(document.querySelector(`[data-k="${x.id}"]`), x.valor || 0, x.f));
     $('g-kpis').querySelectorAll('[data-ir]').forEach(b => b.onclick = () => abrir(b.dataset.ir));
@@ -485,27 +506,31 @@
     const Y = v => y1 - v / tope * (y1 - y0);
     const pts = meses.map((m, i) => [X(i), Y(m.total)]);
     const linea = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    // El último mes es el actual y aún no ha terminado: su tramo va discontinuo
+    const cerrados = pts.slice(0, -1).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const penult = pts[pts.length - 2], ult = pts[pts.length - 1];
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Facturación de los últimos 6 meses">
-      <defs><linearGradient id="g-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3E86C9" stop-opacity=".32"/><stop offset="1" stop-color="#3E86C9" stop-opacity=".02"/></linearGradient></defs>
-      ${[0, .5, 1].map(f => `<line x1="${x0 - 6}" x2="${x1 + 6}" y1="${Y(tope * f)}" y2="${Y(tope * f)}" stroke="currentColor" stroke-opacity=".08"/><text x="${x0 - 12}" y="${Y(tope * f) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".55">${num(tope * f)} €</text>`).join('')}
+      <defs><linearGradient id="g-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3E86C9" stop-opacity=".18"/><stop offset="1" stop-color="#3E86C9" stop-opacity=".02"/></linearGradient></defs>
+      ${[0, .5, 1].map(f => `<line x1="${x0 - 6}" x2="${x1 + 6}" y1="${Y(tope * f)}" y2="${Y(tope * f)}" stroke="currentColor" stroke-opacity=".07" stroke-dasharray="2 4"/><text x="${x0 - 12}" y="${Y(tope * f) + 4}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity=".55">${num(tope * f)} €</text>`).join('')}
       <path class="g-g-area" d="${linea} L${X(meses.length - 1)} ${y1} L${x0} ${y1} Z" fill="url(#g-area)" opacity="0"/>
-      <path class="g-g-linea" d="${linea}" fill="none" stroke="#3E86C9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>
-      ${pts.map((p, i) => `<circle class="g-g-punto" cx="${p[0]}" cy="${p[1]}" r="0" data-r="${i === pts.length - 1 ? 5 : 4}" fill="#fff" stroke="#3E86C9" stroke-width="2.5" style="transition-delay:${0.3 + i * 0.2}s"><title>${esc(meses[i].etiqueta)}: ${euros(meses[i].total)}</title></circle>
-        <text x="${p[0]}" y="${H - 6}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity=".65">${esc(meses[i].etiqueta.split(' ')[0])}</text>`).join('')}
+      <path class="g-g-linea" d="${cerrados}" fill="none" stroke="#3E86C9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>
+      ${penult ? `<path class="g-g-encurso" d="M${penult[0].toFixed(1)} ${penult[1].toFixed(1)} L${ult[0].toFixed(1)} ${ult[1].toFixed(1)}" fill="none" stroke="#3E86C9" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="5 5" opacity="0"/>` : ''}
+      ${pts.map((p, i) => { const actual = i === pts.length - 1; return `<circle class="g-g-punto" cx="${p[0]}" cy="${p[1]}" r="0" data-r="${actual ? 5 : 4}" fill="${actual ? '#EAF2FA' : '#fff'}" stroke="#3E86C9" stroke-width="2.4" ${actual ? 'stroke-dasharray="3 2"' : ''} style="transition-delay:${0.3 + i * 0.2}s"><title>${esc(meses[i].etiqueta)}${actual ? ' (en curso)' : ''}: ${euros(meses[i].total)}</title></circle>
+        <text x="${p[0]}" y="${H - 6}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="${actual ? '.85' : '.6'}" ${actual ? 'font-weight="600"' : ''}>${esc(meses[i].etiqueta.split(' ')[0])}${actual ? ' · en curso' : ''}</text>`; }).join('')}
     </svg>`;
   }
 
   function pintarWidgets(d) {
     const k = d.kpis;
-    const TIPO = { Entrega: 'g-tipo-entrega', Montaje: 'g-tipo-montaje', Recogida: 'g-tipo-recogida' };
+    const TIPO = { Entrega: 'g-tipo-entrega', Evento: 'g-tipo-montaje', Recogida: 'g-tipo-recogida' };
     const agenda = d.agenda_hoy || [];
     const vehiculos = (document.querySelector('#menu-item-vehiculos .veh-pastilla') || {}).textContent || '';
     const alertas = [];
-    if (k.facturas_vencidas) alertas.push({ ico: 'euro', txt: `${k.facturas_vencidas} facturas vencidas · ${euros(k.importe_vencido)}`, ir: irA('fin-vencidas') });
-    if (k.cobros_pendientes) alertas.push({ ico: 'euro', txt: `${euros(k.cobros_pendientes)} pendientes de cobro`, ir: irA('fin-control-pagos') });
-    if (vehiculos) alertas.push({ ico: 'truck', txt: `${vehiculos} vencimientos de vehículos`, ir: irA('veh-vencimientos') });
-    if (k.incidencias_abiertas) alertas.push({ ico: 'alert', txt: `${k.incidencias_abiertas} incidencias abiertas`, ir: irA('incidencias') });
-    if (d.sincronizacion && d.sincronizacion.fallo) alertas.push({ ico: 'refresh', txt: 'Revisar la sincronización con Rentman', url: '/sync-status' });
+    if (k.facturas_vencidas) alertas.push({ nivel: 'urgente', ico: 'euro', txt: `${k.facturas_vencidas} facturas vencidas · ${euros(k.importe_vencido)}`, ir: irA('fin-vencidas') });
+    if (k.cobros_pendientes) alertas.push({ nivel: 'info', ico: 'euro', txt: `${euros(k.cobros_pendientes)} pendientes de cobro`, ir: irA('fin-control-pagos') });
+    if (vehiculos) alertas.push({ nivel: 'aviso', ico: 'truck', txt: `${vehiculos} vencimientos de vehículos`, ir: irA('veh-vencimientos') });
+    if (k.incidencias_abiertas) alertas.push({ nivel: 'aviso', ico: 'alert', txt: `${k.incidencias_abiertas} incidencias abiertas`, ir: irA('incidencias') });
+    if (d.sincronizacion && d.sincronizacion.fallo) alertas.push({ nivel: 'urgente', ico: 'refresh', txt: 'Revisar la sincronización con Rentman', url: '/sync-status' });
     const ult = d.facturacion_meses[d.facturacion_meses.length - 1] || { total: 0 };
     const delta = k.facturacion_variacion;
 
@@ -514,7 +539,7 @@
         <div class="g-widget-cab">${iconoMenuHtml('calendario')}<h3>Agenda de hoy</h3>${visible('calendario') ? '<button type="button" class="g-enlace" data-ir="calendario">Ver calendario →</button>' : ''}</div>
         ${agenda.length ? agenda.slice(0, 6).map(a => `<div class="g-fila"><span class="g-hora">${a.hora ? esc(a.hora) : '<small>Todo el día</small>'}</span><span class="g-fila-txt"><b>${esc(a.nombre || 'Proyecto ' + a.numero)}</b><small>${esc([a.cliente, a.localizacion].filter(Boolean).join(' · '))}</small></span><span class="g-tipo ${TIPO[a.tipo]}">${a.tipo}</span></div>`).join('')
           + (agenda.length > 6 ? `<div class="g-mas">y ${agenda.length - 6} más</div>` : '')
-          : '<div class="g-vacio">Hoy no hay entregas, montajes ni recogidas.</div>'}
+          : '<div class="g-vacio">Hoy no hay entregas, eventos ni recogidas.</div>'}
       </section>
       <section class="g-widget g-vidrio">
         <div class="g-widget-cab">${iconoMenuHtml('euro')}<h3>Facturación<small>Últimos 6 meses · sin IVA</small></h3><b class="g-total">${euros(ult.total)}</b>${delta == null ? '' : `<span class="g-delta${delta < 0 ? ' baja' : ''}">${delta < 0 ? '↘' : '↗'} ${delta > 0 ? '+' : ''}${delta}%</span>`}</div>
@@ -522,7 +547,7 @@
       </section>
       <section class="g-widget g-vidrio">
         <div class="g-widget-cab">${ICO.campana}<h3>Alertas</h3><span class="g-suave">${alertas.length} pendientes</span></div>
-        ${alertas.length ? alertas.map(a => `<button type="button" class="g-fila g-fila-boton" ${a.ir ? `data-ir="${a.ir}"` : ''} ${a.url ? `data-url="${a.url}"` : ''}>${iconoMenuHtml(a.ico)}<span class="g-fila-txt">${esc(a.txt)}</span><span class="g-suave">›</span></button>`).join('')
+        ${alertas.length ? alertas.map(a => `<button type="button" class="g-fila g-fila-boton g-alerta-${a.nivel}" ${a.ir ? `data-ir="${a.ir}"` : ''} ${a.url ? `data-url="${a.url}"` : ''}><span class="g-alerta-ico">${iconoMenuHtml(a.ico)}</span><span class="g-fila-txt">${esc(a.txt)}</span><span class="g-suave">›</span></button>`).join('')
           : '<div class="g-vacio">Todo en orden.</div>'}
       </section>`;
     const w = $('g-widgets');
@@ -531,6 +556,7 @@
     requestAnimationFrame(() => requestAnimationFrame(() => {
       w.querySelectorAll('.g-g-linea').forEach(p => p.style.strokeDashoffset = 0);
       w.querySelectorAll('.g-g-area').forEach(p => p.setAttribute('opacity', 1));
+      w.querySelectorAll('.g-g-encurso').forEach(p => p.setAttribute('opacity', 1));
       w.querySelectorAll('.g-g-punto').forEach(c => c.setAttribute('r', c.dataset.r));
     }));
   }

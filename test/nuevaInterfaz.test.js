@@ -47,7 +47,7 @@ test('calcularInicio: entregas/recogidas/montajes de hoy, activos, estados del m
   assert.equal(r.kpis.facturas_vencidas, 1);
   assert.equal(r.kpis.importe_vencido, 200);
   // Agenda de hoy ordenada por hora: entrega y montaje del 1 y recogida del 2 (09:00 tal cual)
-  assert.deepEqual(r.agenda_hoy.map(a => [a.tipo, a.numero, a.hora]), [['Entrega', 1, '09:00'], ['Montaje', 1, '09:00'], ['Recogida', 2, '09:00']]);
+  assert.deepEqual(r.agenda_hoy.map(a => [a.tipo, a.numero, a.hora]), [['Entrega', 1, '09:00'], ['Evento', 1, '09:00'], ['Recogida', 2, '09:00']]);
   assert.deepEqual(r.proximas_salidas.map(p => p.numero), [1, 5]);
   assert.equal(r.sincronizacion.fallo, true);
   assert.equal(r.sincronizacion.ultima, '2026-11-16T08:50:00Z');
@@ -58,6 +58,6 @@ test('calcularInicio: horas de Rentman tal cual (hora local guardada como UTC) y
     { numero: 7, estado: 'Confirmed', entrega_ts: '2026-11-16T09:00:00Z', evento_inicio_ts: '2026-11-16T00:00:00Z' },
     { numero: 8, estado: 'Confirmed', entrega_ts: '2026-11-15T23:30:00Z' }
   ] }, '2026-11-16');
-  assert.deepEqual(r.agenda_hoy.map(a => [a.tipo, a.numero, a.hora]), [['Montaje', 7, null], ['Entrega', 7, '09:00']]);
+  assert.deepEqual(r.agenda_hoy.map(a => [a.tipo, a.numero, a.hora]), [['Evento', 7, null], ['Entrega', 7, '09:00']]);
   assert.equal(r.kpis.entregas_hoy, 1); // la de las 23:30 del día 15 no es de hoy
 });

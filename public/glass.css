@@ -382,3 +382,116 @@ html.glass .main-content { gap: 10px; }
   .g-modulo-texto small { display: none; }
   .g-modulo-flecha { width: 26px; height: 26px; right: 10px; bottom: 10px; }
 }
+
+/* ================================================================
+   Ajustes finales (16 nov 2026): cabecera única, bienvenida con frase del día,
+   velo marfil del fondo, cristal por componente, detalles de tarjetas,
+   indicadores, gráfica, alertas y chat. Solo presentación.
+   ================================================================ */
+html.glass {
+  --g-alfa-cab: .65;     /* cabecera */
+  --g-alfa-menu: .70;    /* barra lateral */
+  --g-alfa-kpi: .62;     /* indicadores */
+  --g-alfa-widget: .74;  /* agenda, facturación, alertas */
+  --g-alfa-datos: .88;   /* tablas y formularios */
+  --g-tono: 255,253,249; /* color base del cristal (marfil) */
+  --g-velo: rgba(247,241,232,.28);
+}
+html.glass.oscuro { --g-tono: 30,28,26; --g-alfa-cab: .70; --g-alfa-menu: .74; --g-alfa-kpi: .66; --g-alfa-widget: .78; --g-velo: rgba(12,11,10,.55); }
+
+/* Cristal por componente */
+.g-menu { background-color: rgba(var(--g-tono), var(--g-alfa-menu)); }
+.g-kpi { background-color: rgba(var(--g-tono), var(--g-alfa-kpi)); }
+.g-widget { background-color: rgba(var(--g-tono), var(--g-alfa-widget)); }
+.g-fondo::after { background: var(--g-velo); }
+
+/* Cabecera única y compacta (~66 px) */
+.g-cabecera { min-height: 66px; box-sizing: border-box; padding: 10px 12px; border-radius: 20px; flex-wrap: nowrap;
+  background-color: rgba(var(--g-tono), var(--g-alfa-cab)); background-image: var(--g-reflejo);
+  backdrop-filter: blur(var(--g-blur)) saturate(165%); -webkit-backdrop-filter: blur(var(--g-blur)) saturate(165%);
+  border: 1px solid var(--g-borde-cristal); box-shadow: var(--g-sombra), inset 0 1px 0 rgba(255,255,255,.5); }
+.g-cabecera .g-pildora { height: 42px; background: rgba(255,255,255,.42); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; border: 1px solid rgba(255,255,255,.65); }
+html.glass.oscuro .g-cabecera .g-pildora { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); }
+.g-cabecera .g-redondo { width: 42px; }
+.g-cabecera .g-pildora:hover { background: rgba(255,255,255,.7); }
+.g-titular { margin-left: 2px; }
+.g-titular .g-modulo { font-size: 21px; font-weight: 600; letter-spacing: -.01em; }
+.g-cabecera .g-buscar { width: 360px; }
+.g-buscar-boton { display: none !important; }
+
+/* Bienvenida: saludo a la izquierda, frase del día a la derecha */
+.g-bienvenida { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 4px; min-height: 44px; animation: g-entra .45s ease both; }
+.g-saludo-txt h2 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em; color: var(--g-tinta); line-height: 1.15; }
+.g-fecha-larga { font-size: 13px; color: var(--g-suave); }
+.g-frase { max-width: 460px; padding: 8px 14px; border-radius: 14px; background: rgba(239,224,197,.45); border: 1px solid rgba(255,255,255,.8);
+  backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); box-shadow: 0 4px 18px rgba(120,90,50,.10), inset 0 1px 0 rgba(255,255,255,.6);
+  animation: g-entra .6s .15s ease both; }
+html.glass.oscuro .g-frase { background: rgba(214,185,140,.14); border-color: rgba(255,255,255,.12); }
+.g-frase-cab { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #9A7848; }
+.g-frase-cab .nav-icon { width: 13px; height: 13px; }
+.g-frase p { margin: 2px 0 0; font-size: 14px; font-style: italic; line-height: 1.35; color: var(--g-tinta);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.g-inicio { gap: 12px; }
+
+/* Indicadores: icono sobre fondo de color suave */
+.g-kpi-ico { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; }
+.g-kpi-ico .nav-icon { width: 19px !important; height: 19px !important; }
+.g-kpi-ico-activos { background: rgba(62,134,201,.14); color: #2E6CB0; }
+.g-kpi-ico-entregas { background: rgba(76,150,80,.15); color: #2F7A35; }
+.g-kpi-ico-recogidas { background: rgba(201,150,62,.17); color: #8A6A3E; }
+.g-kpi-ico-factura { background: rgba(184,149,106,.20); color: #8A6A3E; }
+.g-kpi-ico-incid { background: rgba(192,57,43,.12); color: #B03A2E; }
+.g-kpi-alerta .g-kpi-cab .nav-icon { color: inherit; }
+.g-kpi-cab .nav-icon { color: inherit; }
+
+/* Tarjetas: icono sobre cristal, flecha más fina, degradado solo abajo */
+.g-modulo-ico { width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.g-modulo-ico .nav-icon { width: 22px; height: 22px; }
+.g-modulo-foto::after { background: linear-gradient(180deg, rgba(25,18,10,0) 42%, rgba(25,18,10,.18) 62%, rgba(25,18,10,.55) 100%); }
+.g-modulo-flecha { width: 32px; height: 32px; font-size: 15px; border: 1px solid rgba(255,255,255,.55); background: rgba(255,255,255,.14); }
+.g-modulo-tarjeta:hover .g-modulo-flecha { background: rgba(255,255,255,.9); color: #3A2E22; border-color: #fff; }
+
+/* Agenda más compacta */
+.g-widget .g-fila { padding: 7px 6px; }
+.g-tipo { font-size: 11px; padding: 2px 9px; border-radius: 7px; }
+
+/* Gráfica */
+.g-g-encurso { transition: opacity .6s 1.6s; }
+
+/* Alertas por prioridad: rojo suave, ámbar e informativo */
+.g-alerta-ico { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.g-alerta-ico .nav-icon { width: 16px; height: 16px; }
+.g-alerta-urgente .g-alerta-ico { background: rgba(192,57,43,.12); color: #B03A2E; }
+.g-alerta-aviso .g-alerta-ico { background: rgba(214,150,40,.16); color: #9A6516; }
+.g-alerta-info .g-alerta-ico { background: rgba(62,134,201,.12); color: #2E6CB0; }
+
+/* Chat: un solo acceso (cabecera). El globo verde de siempre queda oculto; su ventana se abre bajo la cabecera */
+html.glass #chat-globo { display: none !important; }
+html.glass #chat-flotante { top: 92px; bottom: auto; right: 20px; height: min(600px, calc(100vh - 112px)); border-radius: 18px; }
+
+/* iPad */
+@media (max-width: 1200px) { .g-cabecera .g-buscar { width: 240px; } .g-frase { max-width: 340px; } }
+@media (max-width: 980px) { .g-cabecera .g-buscar { width: 200px; } }
+/* Móvil: lupa en vez de buscador; frase debajo del saludo */
+@media (max-width: 600px) {
+  .g-cabecera { flex-wrap: wrap; min-height: 56px; padding: 8px 10px; }
+  .g-cabecera .g-buscar { display: none; }
+  .g-cabecera.buscando .g-buscar { display: inline-flex; }
+  .g-buscar-boton { display: inline-flex !important; }
+  .g-cabecera .g-pildora, .g-cabecera .g-redondo { height: 36px; }
+  .g-cabecera .g-redondo { width: 36px; }
+  .g-titular .g-modulo { font-size: 17px; }
+  .g-bienvenida { flex-direction: column; align-items: stretch; gap: 8px; }
+  .g-saludo-txt h2 { font-size: 20px; }
+  .g-frase { max-width: none; }
+  html.glass #chat-flotante { top: 74px; height: calc(100vh - 90px); }
+}
+.g-bienvenida { min-height: 0; }
+.g-saludo-txt h2 { font-size: 22px; }
+.g-frase { padding: 6px 13px; }
+.g-frase p { font-size: 13.5px; }
+@media (min-width: 601px) and (max-width: 980px) { .g-cabecera .g-buscar { order: 0; flex: 0 1 200px; } }
+.g-titular { min-width: 0; overflow: hidden; }
+.g-titular .g-modulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) { .g-cabecera { gap: 5px; } .g-titular .g-modulo { font-size: 16px; } }
