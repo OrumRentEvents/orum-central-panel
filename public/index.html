@@ -224,6 +224,10 @@
     th { position: static !important; box-shadow: none !important; }
   }
 </style>
+<!-- Interfaz Liquid Glass (beta): subir ?v= al cambiar glass.css / glass.js para que no tire de caché -->
+<link rel="stylesheet" href="glass.css?v=2">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Marcellus&display=swap" rel="stylesheet">
+<script src="glass.js?v=2"></script>
 </head>
 <body>
 <div id="login-screen">
@@ -385,6 +389,8 @@ function mostrarApp() {
   else if (usuarioActual.rol === 'Comercial') cargarResumenComercial();
   else if (usuarioActual.rol === 'Logistica') cargarResumenLogistica();
   else cargarResumenGeneral();
+  // Interfaz Liquid Glass (beta, nov 2026): capa visual sobre este mismo panel — public/glass.js
+  if (window.iniciarInterfazGlass) window.iniciarInterfazGlass().catch(e => console.error('Interfaz glass:', e));
 }
 function renderProximamente(nombre) {
   document.getElementById('content-title').textContent = nombre;
@@ -1059,7 +1065,7 @@ const MENU = [
   // repartidas por Financiero y Personal, más Usuarios y Estado Sincronización.
   // Ayuda (oct 2026): manual de cada puesto y chat de dudas — public/ayuda.html, carpeta ayuda/
   // Nueva interfaz (beta, nov 2026): se construye página a página, solo Sergio — public/nueva.html
-  { id: 'nueva-interfaz', icon: 'home', group: 'sistema', label: 'Nueva interfaz (beta) ↗', soloUsuario: 'sergio', onClick: () => window.open('/nueva', '_blank') },
+  { id: 'nueva-interfaz', icon: 'home', group: 'sistema', label: 'Nueva interfaz (beta)', soloUsuario: 'sergio', especial: true, onClick: () => window.volverInterfazGlass && window.volverInterfazGlass() },
   { id: 'ayuda', icon: 'ayuda', group: 'sistema', label: 'Ayuda', onClick: () => cargarAyuda() },
   { id: 'config', icon: 'gear', group: 'sistema', label: 'Configuración', submenu: [
       { id: 'fin-fact-config', label: 'Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },

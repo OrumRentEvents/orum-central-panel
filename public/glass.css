@@ -1,0 +1,187 @@
+/* ================================================================
+   ORUM Central · Interfaz Liquid Glass (beta, nov 2026)
+   Solo se aplica con <html class="glass"> (lo pone public/glass.js para los
+   usuarios que la tienen activada). Sin esa clase el panel se ve como siempre.
+   No toca lógica: reviste el mismo index.html (menú, pantallas y tablas).
+   ================================================================ */
+
+html.glass {
+  --g-fondo: #EDE7DE;
+  --g-velo: rgba(255,251,246,.40);
+  --g-vidrio: rgba(255,253,249,.60);
+  --g-vidrio-fuerte: rgba(255,253,249,.82);
+  --g-borde: rgba(255,255,255,.85);
+  --g-sombra: 0 8px 30px rgba(80,65,45,.10);
+  --g-tinta: #22201D;
+  --g-suave: #6A645C;
+  --g-linea: rgba(34,32,29,.08);
+  --g-champ: #B8956A;
+  --g-champ-claro: #F6EBDC;
+  --g-sel: linear-gradient(180deg, #F6EBDC, #EEDDC5);
+  --g-sel-borde: #D8BF9C;
+  --g-hover: rgba(255,255,255,.55);
+  --g-campo: rgba(255,255,255,.72);
+  --g-tabla: rgba(255,255,255,.74);
+  --g-th: rgba(250,246,240,.92);
+  --g-rojo: #C0392B;
+}
+html.glass.oscuro {
+  --g-fondo: #141311;
+  --g-velo: rgba(12,11,10,.62);
+  --g-vidrio: rgba(32,30,28,.62);
+  --g-vidrio-fuerte: rgba(36,34,31,.92);
+  --g-borde: rgba(255,255,255,.10);
+  --g-sombra: 0 12px 40px rgba(0,0,0,.40);
+  --g-tinta: #F1ECE4;
+  --g-suave: #A9A196;
+  --g-linea: rgba(255,255,255,.08);
+  --g-champ: #D6B98C;
+  --g-champ-claro: rgba(214,185,140,.16);
+  --g-sel: linear-gradient(180deg, rgba(214,185,140,.26), rgba(214,185,140,.16));
+  --g-sel-borde: rgba(214,185,140,.35);
+  --g-hover: rgba(255,255,255,.07);
+  --g-campo: rgba(255,255,255,.07);
+  --g-tabla: rgba(30,28,26,.72);
+  --g-th: rgba(40,37,34,.95);
+  /* Variables del panel de siempre: así las pantallas que las usan se adaptan solas */
+  --black: #F1ECE4; --gray-100: rgba(255,255,255,.05); --gray-200: rgba(255,255,255,.08); --gray-300: rgba(255,255,255,.14);
+  --gray-400: #8E877D; --gray-500: #A9A196; --accent-light: rgba(214,185,140,.16); --accent-dark: #E2C79C;
+  --bg-main: transparent; --bg-sidebar: transparent; --border: rgba(255,255,255,.10);
+  --text-primary: #F1ECE4; --text-secondary: #CFC8BD; --text-muted: #A9A196;
+}
+
+html.glass body { font-family: 'Inter', system-ui, sans-serif; background: var(--g-fondo); color: var(--g-tinta); }
+
+/* ── Fondo fotográfico ── */
+.g-fondo { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.g-foto { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(7px); opacity: 0; transition: opacity 1.4s ease; animation: g-zoom 30s ease-in-out infinite alternate; }
+.g-foto.visible { opacity: 1; }
+.g-fondo::after { content: ""; position: absolute; inset: 0; background: var(--g-velo); transition: background .5s; }
+@keyframes g-zoom { from { transform: scale(1.08); } to { transform: scale(1.15); } }
+@keyframes g-entra { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ── Estructura ── */
+html.glass #app-screen { position: relative; z-index: 1; }
+html.glass .app-layout { gap: 16px; padding: 14px; box-sizing: border-box; }
+html.glass .sidebar { display: none !important; }
+html.glass .main-content { background: transparent; padding: 0 4px 24px; display: flex; flex-direction: column; gap: 14px; }
+.g-vidrio { background: var(--g-vidrio); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); border: 1px solid var(--g-borde); box-shadow: var(--g-sombra); }
+
+/* ── Menú lateral ── */
+.g-menu { position: relative; z-index: 6; width: 248px; flex: 0 0 auto; height: 100%; box-sizing: border-box; border-radius: 26px; padding: 16px 12px; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; transition: width .45s cubic-bezier(.34,1.2,.5,1); }
+.g-menu.plegado { width: 80px; overflow: visible; }
+.g-marca { display: flex; flex-direction: column; gap: 5px; padding: 6px 10px 18px; cursor: pointer; }
+.g-marca .g-logo { width: 130px; height: 35px; overflow: hidden; transition: width .45s cubic-bezier(.34,1.2,.5,1); }
+.g-marca .g-logo img { height: 35px; width: auto; max-width: none; display: block; }
+html.glass.oscuro .g-marca img { filter: invert(1); }
+.g-marca .g-central { font-family: 'Marcellus', serif; font-size: 14px; letter-spacing: .5em; padding-left: 3px; color: var(--g-tinta); }
+.g-menu.plegado .g-marca { align-items: center; padding-left: 0; padding-right: 0; }
+.g-menu.plegado .g-marca .g-logo { width: 37px; }
+.g-et { opacity: 1; max-width: 200px; overflow: hidden; white-space: nowrap; transition: opacity .25s .12s, max-width .45s cubic-bezier(.2,.8,.2,1); }
+.g-menu.plegado .g-et { opacity: 0; max-width: 0; transition: opacity .12s, max-width .4s; }
+.g-grupo { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--g-suave); padding: 12px 14px 6px; height: 14px; box-sizing: content-box; }
+.g-menu.plegado .g-grupo { font-size: 0; padding: 8px 0 0; height: 6px; }
+.g-menu.plegado .g-grupo::after { content: ""; display: block; width: 22px; margin: 0 auto; border-top: 1px solid var(--g-linea); }
+.g-lista { position: relative; }
+.g-sel { position: absolute; left: 0; right: 0; top: 0; height: 44px; border-radius: 15px; background: var(--g-sel); border: 1px solid var(--g-sel-borde); box-shadow: 0 4px 14px rgba(150,110,60,.15); transition: top .5s cubic-bezier(.34,1.3,.5,1), opacity .25s; pointer-events: none; }
+.g-op { position: relative; z-index: 1; width: 100%; height: 44px; margin: 0 0 2px; border: 0; background: transparent; color: var(--g-tinta); display: flex; align-items: center; gap: 14px; padding: 0 14px; border-radius: 15px; cursor: pointer; text-align: left; font: inherit; font-size: 14.5px; box-sizing: border-box; transition: background .2s, transform .2s; }
+.g-op:hover { background: var(--g-hover); transform: translateX(3px); }
+.g-op.activo { font-weight: 600; }
+.g-op.activo:hover { background: transparent; transform: none; }
+.g-op .nav-icon { width: 20px; height: 20px; flex: 0 0 20px; transition: transform .35s cubic-bezier(.34,1.6,.5,1); }
+.g-op:hover .nav-icon { transform: scale(1.14); }
+.g-op .g-chip { margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--g-rojo); color: #fff; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.g-op .g-chip[hidden], .g-redondo .g-num[hidden] { display: none; }
+.g-menu.plegado .g-op .g-chip { position: absolute; top: 4px; left: 32px; min-width: 8px; width: 8px; height: 8px; padding: 0; font-size: 0; }
+.g-op .g-tip { display: none; position: absolute; left: calc(100% + 14px); top: 50%; transform: translate(-8px,-50%); padding: 7px 12px; border-radius: 10px; background: #2A2724; color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s, transform .3s cubic-bezier(.34,1.4,.5,1); }
+.g-menu.plegado .g-op .g-tip { display: block; }
+.g-menu.plegado .g-op:hover .g-tip { opacity: 1; transform: translate(0,-50%); }
+.g-pie { margin-top: auto; padding-top: 10px; }
+.g-plegar .nav-icon { transition: transform .45s; }
+.g-menu.plegado .g-plegar .nav-icon { transform: rotate(180deg); }
+
+/* ── Cabecera global ── */
+.g-cabecera { position: sticky; top: 0; z-index: 5; border-radius: 22px; padding: 10px 12px 10px 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 0; }
+.g-hamburguesa { display: none; }
+.g-migas { margin-right: auto; display: flex; flex-direction: column; min-width: 0; }
+.g-migas .g-modulo { font-size: 20px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-migas .g-seccion { font-size: 12.5px; color: var(--g-suave); }
+.g-pildora { display: inline-flex; align-items: center; gap: 9px; height: 42px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--g-borde); background: var(--g-campo); color: var(--g-tinta); cursor: pointer; font: inherit; font-size: 13.5px; white-space: nowrap; box-sizing: border-box; transition: background .2s, transform .2s; }
+.g-pildora:hover { background: var(--g-vidrio-fuerte); }
+.g-pildora .nav-icon { width: 18px; height: 18px; }
+.g-redondo { width: 42px; padding: 0; justify-content: center; position: relative; }
+.g-redondo .g-num { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #D99A3E; color: #fff; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.g-buscar { position: relative; width: 340px; max-width: 100%; cursor: text; }
+.g-buscar input { border: 0; outline: 0; background: transparent; font: inherit; color: var(--g-tinta); flex: 1; min-width: 0; }
+.g-buscar kbd { font: inherit; font-size: 11px; color: var(--g-suave); background: var(--g-linea); padding: 2px 6px; border-radius: 6px; }
+.g-resultados { position: absolute; top: calc(100% + 8px); left: 0; right: 0; max-height: 360px; overflow-y: auto; border-radius: 18px; padding: 6px; display: none; z-index: 30; background: var(--g-vidrio-fuerte); }
+.g-resultados.abierto { display: block; animation: g-entra .2s ease both; }
+.g-resultado { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: transparent; border-radius: 12px; color: var(--g-tinta); font: inherit; text-align: left; cursor: pointer; }
+.g-resultado:hover, .g-resultado.marcado { background: var(--g-hover); }
+.g-resultado small { color: var(--g-suave); margin-left: auto; font-size: 12px; }
+.g-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--g-sel); border: 1px solid var(--g-sel-borde); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+.g-perfil { position: relative; }
+.g-desplegable { position: absolute; right: 0; top: calc(100% + 8px); min-width: 230px; border-radius: 18px; padding: 6px; display: none; z-index: 30; background: var(--g-vidrio-fuerte); }
+.g-desplegable.abierto { display: block; animation: g-entra .2s ease both; }
+.g-desplegable .g-resultado .nav-icon { width: 18px; height: 18px; }
+.g-desplegable hr { border: 0; border-top: 1px solid var(--g-linea); margin: 4px 6px; }
+
+/* ── Pestañas del módulo ── */
+.g-pestanas { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px; border-radius: 18px; align-self: flex-start; max-width: 100%; box-sizing: border-box; }
+.g-pestanas:empty { display: none; }
+.g-pestana { position: relative; height: 38px; padding: 0 16px; border: 0; border-radius: 13px; background: transparent; color: var(--g-tinta); font: inherit; font-size: 13.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; transition: background .2s, color .2s; }
+.g-pestana:hover { background: var(--g-hover); }
+.g-pestana.activa { background: var(--g-sel); box-shadow: inset 0 0 0 1px var(--g-sel-borde); font-weight: 600; }
+.g-pestana .g-flecha { font-size: 10px; opacity: .6; }
+.g-sub { position: absolute; top: calc(100% + 6px); left: 0; min-width: 220px; border-radius: 16px; padding: 6px; display: none; z-index: 25; background: var(--g-vidrio-fuerte); }
+.g-sub.abierto { display: block; animation: g-entra .18s ease both; }
+.g-sub .g-resultado.activo { font-weight: 600; background: var(--g-champ-claro); }
+
+/* ── Contenido de las pantallas de siempre ── */
+html.glass .main-header { margin: 2px 6px 0; animation: g-entra .45s ease both; }
+html.glass .main-header h1 { font-family: 'Inter', system-ui, sans-serif; font-size: 26px; font-weight: 600; letter-spacing: -.01em; color: var(--g-tinta); }
+html.glass #content-body { animation: g-entra .45s .05s ease both; }
+html.glass table { background: var(--g-tabla); border-radius: 14px; overflow: hidden; }
+html.glass th { background: var(--g-th); color: var(--g-suave); box-shadow: 0 1px 0 var(--g-linea); border-bottom-color: var(--g-linea); }
+html.glass td { border-bottom-color: var(--g-linea); }
+html.glass tbody tr { transition: background .15s; }
+html.glass tbody tr:hover { background: var(--g-hover); }
+html.glass input:not([type=checkbox]):not([type=radio]), html.glass select, html.glass textarea { border-radius: 10px; }
+html.glass .badge { border-radius: 999px; }
+html.glass .logout-button { display: none; }
+
+/* Modo oscuro: los recuadros blancos puestos a mano en las pantallas pasan a grafito */
+html.glass.oscuro #content-body [style*="background:#fff"], html.glass.oscuro #content-body [style*="background: #fff"],
+html.glass.oscuro #content-body [style*="background:#ffffff"], html.glass.oscuro #content-body [style*="background: #ffffff"],
+html.glass.oscuro #content-body [style*="background:white"], html.glass.oscuro #content-body [style*="background: white"],
+html.glass.oscuro #mis-accesos .acceso-tarjeta, html.glass.oscuro #mis-accesos .mis-accesos-vacio,
+html.glass.oscuro [id^="modal-"] > div { background: var(--g-tabla) !important; color: var(--g-tinta); }
+html.glass.oscuro input, html.glass.oscuro select, html.glass.oscuro textarea { background: var(--g-campo); color: var(--g-tinta); border-color: var(--g-linea); }
+html.glass.oscuro iframe { filter: brightness(.92); }
+
+/* ── Tablet y móvil ── */
+.g-velo-menu { display: none; }
+@media (max-width: 980px) {
+  html.glass .app-layout { padding: 10px; gap: 0; }
+  .g-menu { position: fixed; top: 10px; bottom: 10px; left: 10px; height: auto; width: 260px !important; transform: translateX(calc(-100% - 20px)); transition: transform .4s cubic-bezier(.34,1.15,.5,1); z-index: 40; }
+  .g-menu.movil-abierto { transform: none; }
+  .g-menu .g-et { opacity: 1 !important; max-width: 200px !important; }
+  .g-menu .g-plegar { display: none; }
+  .g-velo-menu { display: block; position: fixed; inset: 0; background: rgba(20,15,10,.25); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 39; }
+  .g-velo-menu.abierto { opacity: 1; pointer-events: auto; }
+  .g-hamburguesa { display: inline-flex; }
+  .g-buscar { order: 10; width: 100%; }
+  .g-nombre { display: none; }
+}
+@media (max-width: 600px) {
+  .g-cabecera { padding: 8px 10px; }
+  .g-migas .g-modulo { font-size: 17px; }
+  .g-pestanas { flex-wrap: nowrap; overflow-x: auto; align-self: stretch; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.glass *, html.glass *::before, html.glass *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+@media print {
+  .g-menu, .g-cabecera, .g-pestanas, .g-fondo { display: none !important; }
+  html.glass body { background: #fff; }
+}
