@@ -16,12 +16,15 @@
 
   // Áreas del menú lateral (ids del MENU de index.html). Calendario, Chat y Ayuda
   // pasan a la cabecera / perfil; Configuración, al pie.
+  // Orden definitivo de la barra lateral (16 nov 2026). Solo módulos principales;
+  // sus apartados van en la barra horizontal del módulo.
   const AREAS = [
     { nombre: 'Principal', ids: ['resumen', 'proyectos'] },
     { nombre: 'Gestión', ids: ['fin', 'per', 'comercial', 'analisis'] },
-    { nombre: 'Operaciones', ids: ['log', 'mantenimiento', 'vehiculos', 'recuperacion', 'incidencias'] }
+    { nombre: 'Operaciones', ids: ['log', 'vehiculos', 'mantenimiento', 'recuperacion', 'incidencias'] },
+    { nombre: 'Sistema', ids: ['config'] }
   ];
-  const AL_PIE = ['config'];
+  const AL_PIE = [];
   const EN_CABECERA = ['calendario', 'chat', 'ayuda', 'nueva-interfaz'];
 
   // Pestañas agrupadas (nivel 2). Lo que no esté aquí sale como pestaña suelta.
@@ -54,7 +57,7 @@
   };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = id => document.getElementById(id);
-  const RENOMBRAR = { 'Resumen': 'Inicio' }; // solo módulos del menú lateral
+  const RENOMBRAR = {}; // nombres alternativos en el menú lateral (ninguno por ahora)
   const quitarFlecha = s => String(s || '').replace(/\s*↗\s*$/, '');
   const nombreModulo = it => RENOMBRAR[quitarFlecha(it.label)] && !it.submenu ? RENOMBRAR[quitarFlecha(it.label)] : quitarFlecha(it.label);
 
@@ -133,7 +136,7 @@
 
     const main = document.querySelector('.main-content');
     const cab = document.createElement('header');
-    cab.className = 'g-cabecera g-vidrio';
+    cab.className = 'g-cabecera';
     main.prepend(cab);
     const pest = document.createElement('div');
     pest.className = 'g-pestanas g-vidrio';
@@ -172,7 +175,7 @@
         <span class="g-central g-et">CENTRAL</span>
       </div>
       <div class="g-lista" id="g-lista"><span class="g-sel" id="g-sel" style="opacity:0"></span>
-        ${areas.map(a => `<div class="g-grupo">${esc(a.nombre)}</div>${a.ids.map(op).join('')}`).join('')}
+        ${areas.map(a => `${a.nombre ? `<div class="g-grupo">${esc(a.nombre)}</div>` : ''}${a.ids.map(op).join('')}`).join('')}
       </div>
       <div class="g-pie">
         ${AL_PIE.filter(id => porId[id]).map(op).join('')}
@@ -199,14 +202,13 @@
     const visibles = itemsVisibles().map(i => i.id);
     const nombre = (usuarioActual.nombre || usuarioActual.usuario || '').trim();
     const ini = (inicialesNombre(nombre) || '?').toUpperCase();
-    const boton = (id, icono, titulo) => visibles.includes(id) ? `<button type="button" class="g-pildora g-redondo" data-abrir="${id}" title="${titulo}" aria-label="${titulo}">${iconoMenuHtml(icono)}</button>` : '';
     cab.innerHTML = `
       <button type="button" class="g-pildora g-redondo g-hamburguesa" id="g-hamburguesa" aria-label="Abrir menú">${ICO.menu}</button>
-      <div class="g-migas"><span class="g-modulo" id="g-modulo">Inicio</span><span class="g-seccion" id="g-seccion"></span></div>
+      <div class="g-titular"><span class="g-titular-ico g-vidrio" id="g-titular-ico"></span><div class="g-migas"><span class="g-modulo" id="g-modulo">Inicio</span><span class="g-seccion" id="g-seccion"></span></div></div>
       <label class="g-pildora g-buscar">${ICO.buscar}<input id="g-buscar-input" type="text" placeholder="Buscar herramienta… (p. ej. morosidad)" aria-label="Buscar herramienta" autocomplete="off"><kbd>Ctrl K</kbd>
         <div class="g-resultados g-vidrio" id="g-resultados"></div></label>
-      ${boton('calendario', 'calendario', 'Calendario')}
-      ${boton('chat', 'chat', 'Chat')}
+      ${visibles.includes('calendario') ? `<button type="button" class="g-pildora g-redondo" data-abrir="calendario" title="Calendario" aria-label="Calendario">${iconoMenuHtml('calendario')}</button>` : ''}
+      ${visibles.includes('chat') ? `<button type="button" class="g-pildora g-redondo" data-abrir="chat" title="Chat" aria-label="Chat">${iconoMenuHtml('chat')}</button>` : ''}
       <button type="button" class="g-pildora g-redondo" id="g-campana" title="Incidencias asignadas a ti" aria-label="Incidencias">${ICO.campana}<span class="g-num" id="g-campana-n" hidden></span></button>
       <div class="g-perfil">
         <button type="button" class="g-pildora" id="g-perfil-btn" style="padding-left:5px" aria-haspopup="true"><span class="g-avatar">${esc(ini)}</span><span class="g-nombre">${esc(nombre.split(/\s+/)[0])}</span>${ICO.abajo}</button>
@@ -221,7 +223,7 @@
         </div>
       </div>`;
     cab.querySelectorAll('[data-abrir]').forEach(b => b.addEventListener('click', () => { cerrarDesplegables(); abrir(b.dataset.abrir); }));
-    $('g-hamburguesa').onclick = () => abrirMenuMovil(true);
+    $('g-hamburguesa').onclick = () => { if (window.matchMedia('(max-width: 980px)').matches) abrirMenuMovil(true); else $('g-plegar').click(); };
     $('g-campana').onclick = () => abrir(visibles.includes('incidencias') ? 'incidencias' : 'resumen');
     $('g-perfil-btn').onclick = e => { e.stopPropagation(); const m = $('g-perfil-menu'); const a = !m.classList.contains('abierto'); cerrarDesplegables(); m.classList.toggle('abierto', a); };
     $('g-tema').onclick = () => { const o = !tienePref('oscuro'); ponerPref('oscuro', o); document.documentElement.classList.toggle('oscuro', o); pintarCabecera(); };
@@ -242,8 +244,12 @@
   function ponerMigas() {
     if (!activoId || !$('g-modulo')) return;
     const mod = moduloDe(activoId);
+    const idMod = mod ? mod.id : activoId;
     $('g-modulo').textContent = mod ? nombreModulo(mod) : etiqueta(activoId);
-    $('g-seccion').textContent = mod && mod.submenu ? etiqueta(activoId) : '';
+    $('g-seccion').textContent = DESCRIPCION[idMod] || (mod && mod.submenu ? etiqueta(activoId) : '');
+    const it = MENU.find(i => i.id === idMod);
+    $('g-titular-ico').innerHTML = it ? iconoMenuHtml(it.icon) : '';
+    
   }
 
   // ── Buscador de herramientas (nivel global) ──
@@ -352,6 +358,23 @@
   // foto, agenda de hoy, facturación y alertas. Datos: /api/nueva/inicio.
   // Solo datos reales; cada tarjeta o cifra lleva a su pantalla.
   // ================================================================
+  const DESCRIPCION = {
+    resumen: 'Lo importante de hoy de un vistazo',
+    proyectos: 'Eventos, estados y material de cada proyecto',
+    fin: 'Cobros, contabilidad, tesorería e informes',
+    per: 'Nóminas, horas, extras y análisis del personal',
+    comercial: 'Presupuestos, leads y seguimiento comercial',
+    analisis: 'Material, rutas, conductores e informe mensual',
+    log: 'Preparación, rutas, servicios y salidas de almacén',
+    mantenimiento: 'Revisión y cuidado del material',
+    vehiculos: 'Flota, vencimientos, uso y repostajes',
+    recuperacion: 'Material perdido que vuelve al almacén',
+    incidencias: 'Avisos, responsables y seguimiento',
+    config: 'Usuarios, permisos y ajustes del panel',
+    calendario: 'Reuniones, vacaciones, turnos y taller',
+    chat: 'Mensajes por departamento',
+    ayuda: 'Manual de tu puesto y dudas'
+  };
   const MODULOS_INICIO = {
     proyectos: 'Eventos, estados y material',
     fin: 'Cobros, contabilidad y caja',
@@ -503,6 +526,8 @@
       return pintarInicio();
     };
     montar();
+    // Algunas pantallas viven en scripts aparte (vehiculos.js, bolsa.js…): esperar a que estén cargados.
+    if (document.readyState !== 'complete') await new Promise(r => window.addEventListener('load', r, { once: true }));
     // Pantalla de la dirección (#/id) si la hay y el usuario la puede abrir; si no, la de inicio que ya cargó el panel.
     const pedida = idDeHash();
     const inicial = document.querySelector('#nav-container .nav-item.active, #nav-container .nav-subitem[style*="f3ead9"]');

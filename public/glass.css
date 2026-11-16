@@ -68,7 +68,7 @@ html.glass .main-content { background: transparent; padding: 0 4px 24px; display
 .g-vidrio { background: var(--g-vidrio); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); border: 1px solid var(--g-borde); box-shadow: var(--g-sombra); }
 
 /* ── Menú lateral ── */
-.g-menu { position: relative; z-index: 6; width: 248px; flex: 0 0 auto; height: 100%; box-sizing: border-box; border-radius: 26px; padding: 16px 12px; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; transition: width .45s cubic-bezier(.34,1.2,.5,1); }
+.g-menu { position: relative; z-index: 6; width: 264px; flex: 0 0 auto; height: 100%; box-sizing: border-box; border-radius: 26px; padding: 16px 12px; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; transition: width .45s cubic-bezier(.34,1.2,.5,1); }
 .g-menu.plegado { width: 80px; overflow: visible; }
 .g-marca { display: flex; flex-direction: column; gap: 5px; padding: 6px 10px 18px; cursor: pointer; }
 .g-marca .g-logo { width: 130px; height: 35px; overflow: hidden; transition: width .45s cubic-bezier(.34,1.2,.5,1); }
@@ -161,6 +161,7 @@ html.glass.oscuro iframe { filter: brightness(.92); }
 
 /* ── Inicio ── */
 html.glass .g-es-inicio .main-header { display: none; }
+.g-es-inicio .g-sobre { display: none; }
 html.glass .g-es-inicio #content-body { order: 3; }
 html.glass .g-es-inicio #mis-accesos { order: 4; margin: 4px 6px 0; }
 .g-inicio { display: flex; flex-direction: column; gap: 16px; }
@@ -250,3 +251,20 @@ html.glass .g-es-inicio #mis-accesos { order: 4; margin: 4px 6px 0; }
   .g-menu, .g-cabecera, .g-pestanas, .g-fondo { display: none !important; }
   html.glass body { background: #fff; }
 }
+
+/* ── Cabecera como el diseño aprobado: sin barra, título grande con icono ── */
+.g-cabecera { background: transparent; border: 0; box-shadow: none; padding: 6px 4px 2px 6px; }
+.g-titular { display: flex; align-items: center; gap: 14px; margin-right: auto; min-width: 0; animation: g-entra .45s ease both; }
+.g-titular-ico { width: 58px; height: 58px; flex: 0 0 58px; border-radius: 18px; display: flex; align-items: center; justify-content: center; color: var(--g-tinta); }
+.g-titular-ico .nav-icon { width: 28px; height: 28px; }
+.g-titular .g-modulo { font-size: 32px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.g-titular .g-seccion { font-size: 15px; color: var(--g-suave); margin-top: 2px; }
+.g-cabecera .g-buscar { margin-left: auto; }
+.g-cabecera .g-pildora { background: var(--g-vidrio); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); box-shadow: var(--g-sombra); height: 46px; }
+.g-cabecera .g-redondo { width: 46px; }
+.g-cabecera .g-buscar { width: 380px; }
+html.glass .main-header h1 { display: none; }
+html.glass .main-header { justify-content: flex-end; margin-bottom: -6px; }
+@media (max-width: 980px) { .g-titular .g-modulo { font-size: 24px; } .g-titular-ico { width: 46px; height: 46px; flex-basis: 46px; } .g-titular .g-seccion { display: none; } }
+.g-cabecera .g-hamburguesa { display: inline-flex; flex: 0 0 auto; }
+.g-titular { margin-left: 4px; }
