@@ -1058,6 +1058,8 @@ const MENU = [
   // Configuración (26 oct 2026): juntas aquí las "Config." que estaban
   // repartidas por Financiero y Personal, más Usuarios y Estado Sincronización.
   // Ayuda (oct 2026): manual de cada puesto y chat de dudas — public/ayuda.html, carpeta ayuda/
+  // Nueva interfaz (beta, nov 2026): se construye página a página, solo Sergio — public/nueva.html
+  { id: 'nueva-interfaz', icon: 'home', group: 'sistema', label: 'Nueva interfaz (beta) ↗', soloUsuario: 'sergio', onClick: () => window.open('/nueva', '_blank') },
   { id: 'ayuda', icon: 'ayuda', group: 'sistema', label: 'Ayuda', onClick: () => cargarAyuda() },
   { id: 'config', icon: 'gear', group: 'sistema', label: 'Configuración', submenu: [
       { id: 'fin-fact-config', label: 'Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },

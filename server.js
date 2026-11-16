@@ -5115,6 +5115,8 @@ rentmanSync.registrar(app, requiereLogin, {
 // Recuperación de material perdido: lo que Logística marca como recuperado en
 // Rentman, confirmado aquí y avisado a Administración — ver lib/recuperacionRutas.js
 require('./lib/recuperacionRutas').registrar(app, { supabase, requiereLogin, rentman: rentmanSync.rentman });
+// Nueva interfaz (beta, nov 2026): /nueva, solo Sergio — ver lib/nuevaInterfaz.js
+require('./lib/nuevaInterfaz').registrar(app, { supabase, requiereLogin });
 app.get('/recuperacion', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'recuperacion.html'));
 });
