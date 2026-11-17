@@ -202,9 +202,10 @@
     let root = $('rp-root');
     if (!root) { body.innerHTML = '<div class="rp" id="rp-root"></div>'; root = $('rp-root'); }
     const scrolls = [...root.querySelectorAll('[data-scroll]')].map(el => [el.dataset.scroll, el.scrollTop]);
-    root.innerHTML = htmlPestanas() + (S.pestana === 'plan' ? htmlPlanificacion() : htmlOtraPestana());
+    root.innerHTML = htmlPestanas() + (S.pestana === 'plan' ? htmlPlanificacion() : S.pestana === 'mapa' ? htmlPestanaMapa() : htmlOtraPestana());
     scrolls.forEach(([k, t]) => { const el = root.querySelector('[data-scroll="' + k + '"]'); if (el) el.scrollTop = t; });
     enlazar(root);
+    montarMapa();
   }
 
   const ICO = {
@@ -507,13 +508,14 @@
       const vueltas = Object.keys(g[sel.veh]).map(Number).sort((a, b) => a - b);
       cuerpo = `<div class="rp-rec-cab"><b>${esc(sel.veh)} — Vuelta ${sel.vu}</b>
           ${vueltas.length > 1 ? `<span class="rp-rec-vueltas">${vueltas.map(n => `<button type="button" class="${n === sel.vu ? 'activo' : ''}" data-ver-ruta="${esc(sel.veh)}" data-vu-ruta="${n}">V${n}</button>`).join('')}</span>` : ''}</div>
-        <ol class="rp-rec-lista">${lista.map((p, i) => `<li><span class="rp-num ${tipoClase(p.tipo)}">${i + 1}</span><span data-detalle="${esc(p.clave)}"><b>${esc(p.hora || '—')} · ${esc(titulo(p))}</b><small>${esc(p.localizacion || 'Sin dirección')}</small></span>${p.google_maps_url ? `<a href="${esc(p.google_maps_url)}" target="_blank" rel="noopener" title="Abrir en Google Maps">${ICO.pin}</a>` : ''}</li>`).join('')}</ol>
+        <ol class="rp-rec-lista">${lista.map((p, i) => `<li><span class="rp-num ${tipoClase(p.tipo)}">${i + 1}</span><span data-detalle="${esc(p.clave)}"><b>${esc(p.hora || '—')} · ${esc(titulo(p))}</b><small>${esc(p.localizacion || 'Sin dirección')}${(() => { const d = direccionDe(p); const g = d && MAPA.geo[d]; return !d ? ' · <em class="rojo">sin dirección</em>' : !g ? '' : g.lat == null ? ' · <em class="rojo">sin ubicar</em>' : g.precision === 'aproximada' ? ' · <em>aprox.</em>' : ''; })()}</small></span>${p.google_maps_url ? `<a href="${esc(p.google_maps_url)}" target="_blank" rel="noopener" title="Abrir en Google Maps">${ICO.pin}</a>` : ''}</li>`).join('')}</ol>
         ${urlRuta ? `<a class="rp-btn ancho" href="${esc(urlRuta)}" target="_blank" rel="noopener">${ICO.mapa} Ver recorrido en Google Maps</a>` : ''}
         <p class="rp-nota">Recorrido previsto según el orden de las paradas. Distancias y tiempos los calcula Google Maps; no es la posición real del vehículo.</p>`;
     }
     return `<section class="rp-panel rp-recorrido g-vidrio">
-      <header><div><h3>${ICO.mapa} Recorrido <span class="rp-c no">Vista provisional</span></h3><p>Lista de la vuelta seleccionada. El mapa real llegará tras comprobar coordenadas y motor de rutas.</p></div>
+      <header><div><h3>${ICO.mapa} Recorrido</h3><p>Vuelta seleccionada · pulsa una parada para ver su ficha</p></div>
         <button type="button" class="rp-icono" id="rp-ampliar" title="${S.mapaGrande ? 'Reducir' : 'Ampliar'}">${ICO.ampliar}</button></header>
+      ${sel ? htmlHuecoMapa(false) + '<div class="rp-mapa-info" data-mapa-info></div>' : ''}
       <div class="rp-lista" data-scroll="recorrido">${cuerpo}</div>
     </section>`;
   }
@@ -875,6 +877,7 @@
       ${filaDet('Estado en Rentman', esc(p.estado || ''))}
       ${filaDet('Subproyectos', esc(p.subproyectos || ''))}
     </div>
+    ${htmlUbicacionFicha(p)}
     <div class="rp-ficha-acciones">
       ${p.google_maps_url ? `<a class="rp-btn suave" href="${esc(p.google_maps_url)}" target="_blank" rel="noopener">${ICO.pin} Abrir en Google Maps</a>` : ''}
       ${ed ? `<button type="button" class="rp-btn" data-ficha-mover>${ICO.asignar} ${vehsDe(p).length ? 'Mover' : 'Asignar'}</button>` : ''}
@@ -944,6 +947,7 @@
     const mv = ficha.querySelector('[data-ficha-mover]'); if (mv) mv.onclick = () => abrirAsignar([p.clave]);
     const em = ficha.querySelector('[data-ficha-editar-manual]'); if (em) em.onclick = () => abrirManual(p);
     const bm = ficha.querySelector('[data-ficha-borrar-manual]'); if (bm) bm.onclick = () => borrarManual(p);
+    const gc = ficha.querySelector('#rpf-guardar-coord'); if (gc) gc.onclick = () => guardarCoordenadas(p, ficha.querySelector('#rpf-coord').value);
     const bus = ficha.querySelector('#rpf-buscar');
     if (bus) bus.oninput = () => { F.buscar = bus.value; const pos = bus.selectionStart; pintarFicha(); const n = $('rpf-buscar'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } };
     ficha.querySelectorAll('[data-fam]').forEach(b => b.onclick = () => { const k = b.dataset.fam; F.cerradas.has(k) ? F.cerradas.delete(k) : F.cerradas.add(k); pintarFicha(); });
@@ -1030,6 +1034,226 @@
     catch (e) { toast('No se ha podido eliminar: ' + e.message, true); }
   }
 
+  // ── Mapa (fase 3): Google Maps con las coordenadas de lib/rutasMapa.js ──
+  // Un solo mapa de Google para toda la pantalla: se mueve entre el panel Recorrido
+  // y la pestaña Mapa (así no se vuelve a cargar ni a cobrar en cada repintado).
+  const COLORES_VEH = ['#2F6FDB', '#D9822B', '#2E9D5B', '#8E44AD', '#C0392B', '#16A3A3', '#B7950B', '#6D4C41', '#E84393', '#34495E'];
+  const MAPA = { config: null, cargaGoogle: null, el: null, mapa: null, capas: [], geo: {}, pidiendo: new Set(), aviso: null, rutas: {}, rutaEnCurso: null, firma: '' };
+  const colorVeh = v => { const i = S.d ? listaVehiculos(gruposDia(S.dia)).indexOf(v) : 0; return COLORES_VEH[(i < 0 ? 0 : i) % COLORES_VEH.length]; };
+  // Misma regla que el servidor (lib/rutasMapa.js · direccionDeParada)
+  function direccionDe(p) {
+    let q = '';
+    try { if (p.google_maps_url) q = new URL(p.google_maps_url).searchParams.get('query') || ''; } catch (e) { q = ''; }
+    q = q.replace(/\s+/g, ' ').trim();
+    return q || String(p.localizacion || '').replace(/\s+/g, ' ').trim();
+  }
+  const geoDe = p => { const d = direccionDe(p); return d ? MAPA.geo[d] : null; };
+  const ubicada = p => { const g = geoDe(p); return !!(g && g.lat != null && g.lng != null); };
+
+  async function configMapa() {
+    if (MAPA.config) return MAPA.config;
+    try { MAPA.config = await pedir('/api/rutas/mapa/config'); } catch (e) { MAPA.config = { disponible: false, error: e.message }; }
+    return MAPA.config;
+  }
+  function cargarGoogle(clave) {
+    if (window.google && google.maps && google.maps.Map) return Promise.resolve();
+    if (MAPA.cargaGoogle) return MAPA.cargaGoogle;
+    MAPA.cargaGoogle = new Promise((ok, mal) => {
+      window.__rpMapaListo = () => ok();
+      const s = document.createElement('script');
+      s.src = 'https://maps.googleapis.com/maps/api/js?' + new URLSearchParams({ key: clave, libraries: 'geometry', language: 'es', region: 'ES', loading: 'async', callback: '__rpMapaListo' });
+      s.async = true; s.onerror = () => { MAPA.cargaGoogle = null; mal(new Error('No se ha podido cargar Google Maps')); };
+      document.head.appendChild(s);
+    });
+    return MAPA.cargaGoogle;
+  }
+  // Coordenadas de las direcciones del día (y de las naves) que aún no se tienen
+  async function geocodificarDia() {
+    const dirs = new Set(paradasDia(S.dia).map(direccionDe).filter(Boolean));
+    ((MAPA.config && MAPA.config.naves) || []).forEach(n => dirs.add(n.direccion));
+    const faltan = [...dirs].filter(d => !(d in MAPA.geo) && !MAPA.pidiendo.has(d));
+    if (!faltan.length) return false;
+    faltan.forEach(d => MAPA.pidiendo.add(d));
+    try {
+      for (let i = 0; i < faltan.length; i += 60) {
+        const j = await enviar('/api/rutas/mapa/geocodificar', { direcciones: faltan.slice(i, i + 60) });
+        Object.assign(MAPA.geo, j.resultados || {});
+        MAPA.aviso = j.aviso || null;
+        if (j.aviso) break;
+      }
+    } catch (e) { MAPA.aviso = e.message; }
+    faltan.forEach(d => MAPA.pidiendo.delete(d));
+    return true;
+  }
+
+  function htmlHuecoMapa(grande) {
+    const c = MAPA.config;
+    if (c && !c.disponible) return `<div class="rp-mapa-aviso">${ICO.mapa}<b>Mapa pendiente de configurar</b><span>Falta añadir las claves de Google Maps en Railway (GOOGLE_MAPS_API_KEY y GOOGLE_MAPS_BROWSER_KEY).</span></div>`;
+    return `<div class="rp-mapa-hueco${grande ? ' grande' : ''}" data-mapa-hueco></div>`;
+  }
+  // Tras cada pintado: coloca el mapa en su hueco y dibuja la vuelta seleccionada
+  async function montarMapa() {
+    const hueco = document.querySelector('#rp-root [data-mapa-hueco]');
+    if (!hueco) return;
+    const c = await configMapa();
+    if (!c.disponible) { if (!document.querySelector('.rp-mapa-aviso')) pintar(); return; }
+    if (!MAPA.el) { MAPA.el = document.createElement('div'); MAPA.el.className = 'rp-mapa'; }
+    if (MAPA.el.parentNode !== hueco) hueco.appendChild(MAPA.el);
+    try { await cargarGoogle(c.clave_navegador); } catch (e) { MAPA.aviso = e.message; pintarInfoMapa(); return; }
+    if (!MAPA.mapa) {
+      MAPA.mapa = new google.maps.Map(MAPA.el, {
+        center: { lat: 36.51, lng: -4.88 }, zoom: 10, mapTypeControl: false, streetViewControl: false, fullscreenControl: true,
+        clickableIcons: false, gestureHandling: 'greedy',
+        styles: [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }, { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+          { elementType: 'geometry', stylers: [{ saturation: -35 }, { lightness: 8 }] }, { featureType: 'water', stylers: [{ color: '#cfe0ea' }] }]
+      });
+    }
+    const nuevas = await geocodificarDia();
+    dibujarMapa(nuevas);
+  }
+  function limpiarCapas() { MAPA.capas.forEach(c => c.setMap(null)); MAPA.capas = []; }
+  function icono(n, color, apagado) {
+    const r = apagado ? 7 : 13;
+    const svg = apagado
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="${r - 1}" fill="${color}" fill-opacity=".45" stroke="#fff" stroke-width="2"/></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"><circle cx="15" cy="15" r="${r}" fill="${color}" stroke="#fff" stroke-width="2.5"/><text x="15" y="19.5" text-anchor="middle" font-family="Inter,Arial" font-size="12" font-weight="700" fill="#fff">${n}</text></svg>`;
+    const t = apagado ? 16 : 30;
+    return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(t, t), anchor: new google.maps.Point(t / 2, t / 2) };
+  }
+  function seleccionMapa() {
+    const g = gruposDia(S.dia);
+    if (S.sel && g[S.sel.veh] && g[S.sel.veh][S.sel.vu]) return S.sel;
+    const v = Object.keys(g)[0];
+    return v ? { veh: v, vu: Math.min(...Object.keys(g[v]).map(Number)) } : null;
+  }
+  function dibujarMapa(ajustar) {
+    if (!MAPA.mapa || !S.d) return;
+    const grande = !!document.querySelector('#rp-root [data-mapa-hueco].grande');
+    const g = gruposDia(S.dia);
+    const sel = seleccionMapa();
+    const firma = S.dia + '|' + (sel ? sel.veh + '_' + sel.vu : '') + '|' + grande;
+    limpiarCapas();
+    const limites = new google.maps.LatLngBounds();
+    let hayLimites = false;
+    // Otras vueltas: puntos pequeños atenuados (solo en la pestaña Mapa)
+    if (grande) Object.keys(g).forEach(v => Object.keys(g[v]).forEach(vu => {
+      if (sel && v === sel.veh && Number(vu) === sel.vu) return;
+      g[v][vu].forEach(p => {
+        const geo = geoDe(p); if (!geo || geo.lat == null) return;
+        const m = new google.maps.Marker({ map: MAPA.mapa, position: { lat: geo.lat, lng: geo.lng }, icon: icono('', colorVeh(v), true), title: v + ' · V' + vu + ' · ' + titulo(p), zIndex: 1 });
+        m.addListener('click', () => { S.sel = { veh: v, vu: Number(vu) }; pintar(); });
+        MAPA.capas.push(m);
+      });
+    }));
+    // Vuelta seleccionada: numerada, entrega azul / recogida naranja
+    const lista = sel ? g[sel.veh][sel.vu] : [];
+    const puntos = [];
+    lista.forEach((p, i) => {
+      const geo = geoDe(p); if (!geo || geo.lat == null) return;
+      const color = p.tipo === 'RECOGIDA' ? '#E68C32' : p.tipo === 'ENTREGA' ? '#2F6FDB' : '#7A7268';
+      const m = new google.maps.Marker({ map: MAPA.mapa, position: { lat: geo.lat, lng: geo.lng }, icon: icono(i + 1, color, false), title: (i + 1) + '. ' + (p.hora || '') + ' ' + titulo(p) + (geo.precision === 'aproximada' ? ' (ubicación aproximada)' : ''), zIndex: 100 + i });
+      m.addListener('click', () => abrirDetalle(p.clave));
+      MAPA.capas.push(m);
+      puntos.push({ lat: geo.lat, lng: geo.lng });
+      limites.extend({ lat: geo.lat, lng: geo.lng }); hayLimites = true;
+    });
+    // Naves
+    ((MAPA.config && MAPA.config.naves) || []).forEach(n => {
+      const geo = MAPA.geo[n.direccion]; if (!geo || geo.lat == null) return;
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><rect x="2" y="2" width="24" height="24" rx="7" fill="#2E2A25" stroke="#fff" stroke-width="2"/><path d="M8 20v-7l6-4 6 4v7z" fill="#F6EBDC"/></svg>';
+      MAPA.capas.push(new google.maps.Marker({ map: MAPA.mapa, position: { lat: geo.lat, lng: geo.lng }, title: n.nombre, zIndex: 50,
+        icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 14) } }));
+    });
+    // Recorrido por carretera de la vuelta (Google Routes); si no hay, nada de líneas inventadas
+    const claveRuta = puntos.map(p => p.lat.toFixed(5) + ',' + p.lng.toFixed(5)).join(';');
+    const ruta = MAPA.rutas[claveRuta];
+    if (ruta && ruta.polilinea && google.maps.geometry) {
+      const linea = new google.maps.Polyline({ map: MAPA.mapa, path: google.maps.geometry.encoding.decodePath(ruta.polilinea), strokeColor: sel ? colorVeh(sel.veh) : '#2F6FDB', strokeOpacity: .85, strokeWeight: 5, zIndex: 10 });
+      MAPA.capas.push(linea);
+    } else if (puntos.length >= 2 && !ruta && MAPA.rutaEnCurso !== claveRuta) pedirRuta(claveRuta, puntos);
+    if (hayLimites && (ajustar || firma !== MAPA.firma)) {
+      if (puntos.length === 1) { MAPA.mapa.setCenter(puntos[0]); MAPA.mapa.setZoom(14); } else MAPA.mapa.fitBounds(limites, 48);
+    }
+    MAPA.firma = firma;
+    pintarInfoMapa();
+  }
+  async function pedirRuta(clave, puntos) {
+    MAPA.rutaEnCurso = clave;
+    try { MAPA.rutas[clave] = await enviar('/api/rutas/mapa/recorrido', { puntos }); }
+    catch (e) { MAPA.rutas[clave] = { ok: false, aviso: e.message }; }
+    MAPA.rutaEnCurso = null;
+    dibujarMapa(false);
+  }
+  const textoKm = m => (m / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' km';
+  const textoMin = s => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
+  // Resumen bajo el mapa: estimación de Google y paradas sin ubicar (nunca se inventan)
+  function pintarInfoMapa() {
+    const caja = document.querySelector('#rp-root [data-mapa-info]');
+    if (!caja || !S.d) return;
+    const sel = seleccionMapa();
+    const lista = sel ? gruposDia(S.dia)[sel.veh][sel.vu] : [];
+    const puntos = lista.filter(ubicada);
+    const claveRuta = puntos.map(p => { const g = geoDe(p); return g.lat.toFixed(5) + ',' + g.lng.toFixed(5); }).join(';');
+    const ruta = MAPA.rutas[claveRuta];
+    const pendientes = lista.filter(p => { const d = direccionDe(p); return d && !(d in MAPA.geo); }).length;
+    const sinUbicar = lista.filter(p => { const d = direccionDe(p); return !d || (d in MAPA.geo && !ubicada(p)); });
+    const aprox = lista.filter(p => { const g = geoDe(p); return g && g.precision === 'aproximada'; });
+    const partes = [];
+    if (MAPA.aviso) partes.push(`<p class="rp-c error">${esc(MAPA.aviso)}</p>`);
+    if (pendientes) partes.push('<p class="rp-sutil">Ubicando direcciones…</p>');
+    if (ruta && ruta.ok) partes.push(`<p class="rp-mapa-dist">${ICO.camion} ≈ ${textoKm(ruta.metros)} · ${textoMin(ruta.segundos)}</p><p class="rp-nota">Estimación de Google en el orden guardado, sin tráfico, entre la primera y la última parada ubicada (no incluye la salida desde la nave). No es la posición real del vehículo.</p>`);
+    else if (ruta && ruta.aviso) partes.push(`<p class="rp-sutil">Sin recorrido por carretera: ${esc(ruta.aviso)}</p>`);
+    if (aprox.length) partes.push(`<p class="rp-c aviso">${aprox.length} con ubicación aproximada</p>`);
+    if (sinUbicar.length) partes.push(`<p class="rp-sutil"><b>Sin ubicar (${sinUbicar.length}):</b> ${sinUbicar.map(p => `<a href="#" data-detalle="${esc(p.clave)}">${esc(titulo(p))}</a>`).join(', ')}</p>`);
+    caja.innerHTML = partes.join('');
+    caja.querySelectorAll('[data-detalle]').forEach(a => a.onclick = e => { e.preventDefault(); abrirDetalle(a.dataset.detalle); });
+  }
+
+  // Pestaña Mapa: vehículos y vueltas del día a la izquierda, mapa grande a la derecha
+  function htmlPestanaMapa() {
+    if (!S.d && S.cargando) return '<div class="rp-cargando g-vidrio">Cargando rutas…</div>';
+    if (!S.d) return '';
+    const g = gruposDia(S.dia);
+    const sel = seleccionMapa();
+    const filas = listaVehiculos(g).filter(v => g[v]).map(v => Object.keys(g[v]).map(Number).sort((a, b) => a - b).map(vu => {
+      const l = g[v][vu]; const ub = l.filter(ubicada).length;
+      const cond = conductoresDe(S.dia, v, vu);
+      const activo = sel && sel.veh === v && sel.vu === vu;
+      return `<button type="button" class="rp-mapa-veh${activo ? ' activo' : ''}" data-ver-ruta="${esc(v)}" data-vu-ruta="${vu}">
+        <span class="rp-mapa-color" style="background:${colorVeh(v)}"></span>
+        <span><b>${esc(v)} · V${vu}</b><small>${l.length} paradas${Object.keys(MAPA.geo).length ? ' · ' + ub + ' ubicadas' : ''}${cond.length ? ' · ' + esc(cond.join(', ')) : ''}</small></span></button>`;
+    }).join('')).join('');
+    const sinVeh = paradasDia(S.dia).filter(p => !vehsDe(p).length).length;
+    return htmlPeriodo() + htmlDias() + `<div class="rp-mapa-rejilla">
+      <section class="rp-panel g-vidrio"><header><div><h3>${ICO.camion} Vueltas del día</h3><p>${fechaLarga(S.dia)}</p></div></header>
+        <div class="rp-lista" data-scroll="mapa-vehs">${filas || '<p class="rp-vacio">Sin vehículos con paradas este día.</p>'}</div>
+        ${sinVeh ? `<p class="rp-sutil">${sinVeh} parada(s) sin vehículo no salen en el mapa: asígnalas en Planificación.</p>` : ''}</section>
+      <section class="rp-panel g-vidrio rp-mapa-panel"><header><div><h3>${ICO.mapa} ${sel ? esc(sel.veh) + ' — Vuelta ' + sel.vu : 'Mapa'}</h3><p>Pulsa una parada para ver su ficha · las demás vueltas aparecen atenuadas</p></div></header>
+        ${htmlHuecoMapa(true)}<div class="rp-mapa-info" data-mapa-info></div></section></div>`;
+  }
+
+  // Corrección manual de una ubicación desde la ficha (pegar coordenadas de Google Maps)
+  function htmlUbicacionFicha(p) {
+    const d = direccionDe(p);
+    if (!d || !MAPA.config || !MAPA.config.disponible) return '';
+    const geo = MAPA.geo[d];
+    const estado = !geo ? 'Sin consultar todavía' : geo.lat == null ? 'No encontrada por Google' : geo.fuente === 'manual' ? 'Corregida a mano' : geo.precision === 'aproximada' ? 'Aproximada' : 'Exacta';
+    return `<section class="rp-bloque"><h4>Ubicación en el mapa</h4>
+      <p>${esc(estado)}${geo && geo.direccion_google ? ' · <span class="rp-sutil">' + esc(geo.direccion_google) + '</span>' : ''}</p>
+      ${puedeEditar() ? `<p class="rp-sutil">Si no es correcta: en Google Maps, clic derecho sobre el sitio exacto, copia las coordenadas y pégalas aquí.</p>
+      <div class="rp-fila-ub"><input type="text" id="rpf-coord" placeholder="36.5101, -4.8824"><button type="button" class="rp-btn suave" id="rpf-guardar-coord">Guardar ubicación</button></div>` : ''}</section>`;
+  }
+  async function guardarCoordenadas(p, texto) {
+    const m = String(texto || '').match(/(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/);
+    if (!m) { toast('Escribe las coordenadas como «36.5101, -4.8824»', true); return; }
+    try {
+      const j = await enviar('/api/rutas/mapa/ubicacion', { direccion: direccionDe(p), lat: Number(m[1]), lng: Number(m[2]) });
+      MAPA.geo[direccionDe(p)] = j.ubicacion;
+      MAPA.rutas = {};
+      toast('Ubicación guardada'); pintarFicha(); pintar();
+    } catch (e) { toast('No se ha podido guardar: ' + e.message, true); }
+  }
+
   // ── Entrada ──
   window.cargarRutasPlan = function () {
     const t = $('content-title'); if (t) t.textContent = 'Rutas';
@@ -1037,6 +1261,7 @@
     if (!S.desde) fijarPeriodo('hoy');
     S.seleccion.clear();
     conectarEventos();
+    configMapa().then(() => pintar());
     cargar();
   };
 })();
