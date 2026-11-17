@@ -34,7 +34,9 @@
   const diaSemana = iso => fechaUTC(iso).getUTCDay();
   const numDia = iso => Number(iso.slice(8, 10));
   const fechaLarga = iso => { const d = fechaUTC(iso); const t = DIAS_LARGOS[d.getUTCDay()]; return t[0].toUpperCase() + t.slice(1) + ', ' + d.getUTCDate() + ' de ' + MESES[d.getUTCMonth()] + ' de ' + d.getUTCFullYear(); };
-  const puedeEditar = () => !!(window.usuarioActual && ROLES_EDICION.includes(usuarioActual.rol));
+  // usuarioActual es un 'let' global de index.html: no cuelga de window, se lee por nombre
+  const usuario = () => { try { return usuarioActual || window.usuarioActual || null; } catch (e) { return window.usuarioActual || null; } };
+  const puedeEditar = () => { const u = usuario(); return !!(u && ROLES_EDICION.includes(u.rol)); };
   const normal = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   // Mismo criterio que rutas.html (getVehsParada / vehsAString / claveTranspale)
@@ -372,7 +374,7 @@
     const det = S.vistaBandeja === 'detallada';
     const g = S.guardando.has(p.clave);
     return `<article class="rp-tarjeta${det ? ' detallada' : ''}${g ? ' guardando' : ''}${S.seleccion.has(p.clave) ? ' seleccionada' : ''}" ${ed && !g ? 'draggable="true"' : ''} data-clave="${esc(p.clave)}">
-      ${ed ? `<span class="rp-asa" aria-hidden="true">${ICO.asa}</span><input type="checkbox" class="rp-check" data-sel="${esc(p.clave)}"${S.seleccion.has(p.clave) ? ' checked' : ''} aria-label="Seleccionar">` : ''}
+      <span class="rp-asa" aria-hidden="true">${ed ? ICO.asa : ''}</span>${ed ? `<input type="checkbox" class="rp-check" data-sel="${esc(p.clave)}"${S.seleccion.has(p.clave) ? ' checked' : ''} aria-label="Seleccionar">` : '<span></span>'}
       <div class="rp-hora"><b>${esc(p.hora || '—')}</b><span class="rp-tipo ${tipoClase(p.tipo)}">${tipoCorto(p.tipo)}</span></div>
       <div class="rp-cuerpo" data-detalle="${esc(p.clave)}">
         <b>${esc(titulo(p))}</b>
@@ -381,7 +383,7 @@
         ${det && p.notas ? `<span class="rp-notas">${esc(p.notas)}</span>` : ''}
         ${g ? '<span class="rp-guardando">Guardando…</span>' : ''}
       </div>
-      ${ed ? `<button type="button" class="rp-btn-asignar" data-asignar="${esc(p.clave)}" title="Asignar a un vehículo">${ICO.asignar}<span>Asignar</span></button>` : ''}
+      ${ed ? `<button type="button" class="rp-btn-asignar" data-asignar="${esc(p.clave)}" title="Asignar a un vehículo">${ICO.asignar}<span>Asignar</span></button>` : '<span></span>'}
     </article>`;
   }
 
@@ -477,11 +479,12 @@
     const compartida = vehsDe(p).length > 1;
     const loc = localidad(p);
     return `<li class="rp-parada${g ? ' guardando' : ''}" ${ed && !g ? 'draggable="true"' : ''} data-clave="${esc(p.clave)}" data-origen="${esc(v)}">
-      ${ed ? `<span class="rp-asa" aria-hidden="true">${ICO.asa}</span>` : ''}<span class="rp-num ${tipoClase(p.tipo)}">${i + 1}</span>
-      <div class="rp-parada-txt" data-detalle="${esc(p.clave)}">
-        <div class="rp-l1"><b class="rp-h">${esc(p.hora || '—')}</b><span class="rp-tipo ${tipoClase(p.tipo)}">${tipoCorto(p.tipo)}</span><span class="rp-nom">${p.numero ? '<b>#' + esc(p.numero) + '</b> ' : ''}${esc(p.cliente || 'Sin cliente')}</span></div>
-        <div class="rp-l2">${loc ? `<span class="rp-loc">${ICO.pin}${esc(loc)}</span>` : ''}<span class="rp-inds">${indicadores(p)}</span>${compartida ? `<span class="rp-c info" title="${esc(vehsDe(p).join(', '))}">Compartida</span>` : ''}${aviso ? `<span class="rp-c aviso" title="${esc(aviso)}">⏱ Horario</span>` : ''}${g ? '<span class="rp-guardando">Guardando…</span>' : ''}</div>
-      </div>
+      <span class="rp-asa" aria-hidden="true">${ed ? ICO.asa : ''}</span><span class="rp-num ${tipoClase(p.tipo)}">${i + 1}</span>
+      <b class="rp-h" data-detalle="${esc(p.clave)}">${esc(p.hora || '—')}</b>
+      <span class="rp-tipo ${tipoClase(p.tipo)}" data-detalle="${esc(p.clave)}">${tipoCorto(p.tipo)}</span>
+      <span class="rp-nom" data-detalle="${esc(p.clave)}" title="${esc(titulo(p))}">${p.numero ? '<b>#' + esc(p.numero) + '</b> · ' : ''}${esc(p.cliente || 'Sin cliente')}${g ? ' <span class="rp-guardando">Guardando…</span>' : ''}</span>
+      <span class="rp-loc" data-detalle="${esc(p.clave)}" title="${esc(p.localizacion || '')}">${loc ? ICO.pin + esc(loc) : ''}</span>
+      <span class="rp-est" data-detalle="${esc(p.clave)}"><span class="rp-inds">${indicadores(p)}</span>${compartida ? `<span class="rp-c info" title="${esc(vehsDe(p).join(', '))}">Compartida</span>` : ''}${aviso ? `<span class="rp-c aviso" title="${esc(aviso)}">⏱</span>` : ''}</span>
       ${ed && !g ? `<span class="rp-acciones">
         <button type="button" data-subir="${esc(p.clave)}" data-veh="${esc(v)}" data-vu="${n}" ${i === 0 ? 'disabled' : ''} aria-label="Subir" title="Subir">▲</button>
         <button type="button" data-bajar="${esc(p.clave)}" data-veh="${esc(v)}" data-vu="${n}" ${i === total - 1 ? 'disabled' : ''} aria-label="Bajar" title="Bajar">▼</button>
@@ -925,7 +928,7 @@
     const e = S.d.estPar[p.clave] || {};
     const ed = puedeEditar() && !F.guardando;
     const libre = !F.guardando;
-    const incOk = window.usuarioActual && ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'].includes(usuarioActual.rol) && typeof window.cargarIncidencias === 'function';
+    const incOk = !!usuario() && ['Direccion', 'Contabilidad', 'Logistica', 'Comercial'].includes(usuario().rol) && typeof window.cargarIncidencias === 'function';
     return `<section class="rp-bloque"><h4>Notas de la parada</h4>
         <textarea id="rpf-notas" rows="4" placeholder="Notas…"${libre ? '' : ' disabled'}>${esc(p.notas || '')}</textarea>
         <button type="button" class="rp-btn" id="rpf-guardar-notas"${libre ? '' : ' disabled'}>${F.guardando ? 'Guardando…' : 'Guardar notas'}</button></section>
