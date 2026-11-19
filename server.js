@@ -5277,4 +5277,7 @@ app.listen(PORT, () => {
   holdedSync.programarVolcadoDiario();
   holdedCompras.programarVolcadoGastos();
   holdedSync.recuperarVolcadoDeHoy().catch(e => console.error('[Holded] recuperarVolcadoDeHoy:', e.message));
+  // Prueba de modelo para leer facturas (lib/pruebaModelo.js): solo si hay una pedida en pruebas_modelo
+  setTimeout(() => require('./lib/pruebaModelo').crearPruebaModelo({ supabase, facturasArchivos, lecturaFacturas }).ejecutarPendiente()
+    .catch(e => console.error('[Prueba modelo]', e.message)), 30 * 1000).unref();
 });
