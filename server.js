@@ -2606,6 +2606,7 @@ app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, su
     await facturasArchivos.guardar({ fileId, nombreArchivo, mime, base64, proveedor, usuario, origen: 'panel', anio });
     const lineas = lecturaFacturas.lineasSheet(lectura);
     const r = await facturasDatos.guardarLineas({ fileId, proveedor, nombreArchivo, lineas });
+    vehiculosModulo.sincronizarConfirmaciones();
     res.json({
       ok: true, fileId, proveedor, proveedor_nuevo: proveedorNuevo, lineas: r.lineas_guardadas,
       lectura: { emisor: lectura.emisor_nombre, nif: lectura.nif, numero: lectura.numero, fecha: lectura.fecha, total: lectura.total, confianza: lectura.confianza, dudas: lectura.dudas },
@@ -2657,6 +2658,7 @@ app.post('/api/facturas-proveedores/:fileId/completar', requiereLogin, bloquearC
         if (d.error) throw new Error(d.error);
       }
     }
+    vehiculosModulo.sincronizarConfirmaciones(); // aviso «factura por confirmar» en el vehículo
     res.json({ ok: true, lineas: lineas.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4566,6 +4568,7 @@ app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercia
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
     const data = await facturasDatos.actualizarCampo(fila, campo, valor, usuario);
     if (data.error) return res.status(500).json({ error: data.error });
+    if (['matricula', 'gastoVehiculo', 'fecha', 'importeBase'].includes(campo)) vehiculosModulo.sincronizarConfirmaciones();
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -150,7 +150,7 @@ async function actualizarContadorVehiculos() {
       etiqueta.appendChild(pastilla);
     }
     pastilla.textContent = json.contador;
-    pastilla.title = json.contador + ' vencimientos vencidos o próximos';
+    pastilla.title = (json.avisos ?? json.contador) + ' vencimientos vencidos o próximos' + (json.por_confirmar ? ' · ' + json.por_confirmar + ' facturas por confirmar' : '');
   } catch (e) { /* sin contador si falla: no molesta al resto del panel */ }
 }
 
@@ -181,6 +181,7 @@ function pintarFlota(json) {
       <div class="veh-sub">${vehEsc(vehNombre(v))}${v.nombre_rutas ? ' · Rutas: ' + vehEsc(v.nombre_rutas) : ''}${v.propiedad !== 'propio' ? ' · ' + VEH_PROPIEDAD[v.propiedad] : ''}</div>
       <div style="font-size:12.5px; margin-top:10px;">${v.km_actuales !== null ? vehNum(v.km_actuales) + ' km' : '<span style="color:var(--text-muted)">Km sin registrar</span>'}</div>
       <div style="font-size:12.5px; margin-top:4px;">${linea}</div>
+      ${v.por_confirmar ? `<div style="font-size:12px; margin-top:6px; display:inline-block; padding:2px 8px; border-radius:10px; background:#FFF0D4; color:#8A5A12; font-weight:600;">🧾 ${v.por_confirmar} ${v.por_confirmar === 1 ? 'factura' : 'facturas'} por confirmar</div>` : ''}
     </div>`;
   }).join('');
   document.getElementById('content-body').innerHTML = `
@@ -189,6 +190,7 @@ function pintarFlota(json) {
       ${kpiCard('Vencidos', `<span style="color:${k.vencidos ? 'var(--red)' : 'inherit'}">${k.vencidos}</span>`)}
       ${kpiCard('Vencen en 30 días', `<span style="color:${k.en_aviso ? 'var(--orange)' : 'inherit'}">${k.en_aviso}</span>`)}
       ${kpiCard('Mantenimientos del mes', k.mant_mes_n + ' · ' + vehEuros(k.mant_mes_importe))}
+      ${k.por_confirmar ? kpiCard('Facturas por confirmar', `<span style="color:var(--orange)">${k.por_confirmar}</span>`) : ''}
     </div>
     ${sinFicha.length ? `<div class="veh-aviso-rutas">En Rutas hay vehículos sin ficha: <b>${sinFicha.map(vehEsc).join(', ')}</b>. Crea su ficha o asígnalos en el campo "Nombre en Rutas".</div>` : ''}
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
@@ -231,7 +233,7 @@ async function abrirFichaVehiculo(id) {
   body.innerHTML = '<p class="loading-text">Cargando ficha...</p>';
   try {
     vehFichaActual = await vehApi('/api/vehiculos/' + id);
-    vehEditandoMant = null; vehEditandoDoc = null;
+    vehEditandoMant = null; vehEditandoDoc = null; vehConfirmando = null;
     pintarFicha();
   } catch (err) {
     body.innerHTML = vehVolver() + '<p class="loading-text">Error: ' + vehEsc(err.message) + '</p>';
@@ -246,6 +248,7 @@ function pintarFicha() {
   document.getElementById('content-body').innerHTML = vehVolver() + `
     <div class="veh-seccion"><h3><span>Datos ${v.activo === false ? '<span style="color:var(--red); font-weight:500;">· Dado de baja el ' + vehFecha(v.fecha_baja) + '</span>' : ''}</span>
       <span style="font-size:12.5px; font-weight:500;">Km actuales: ${f.km_actuales !== null ? vehNum(f.km_actuales) : '—'}</span></h3>${vehFormDatos(v)}</div>
+    ${(f.por_confirmar || []).length ? `<div class="veh-seccion" id="veh-sec-confirmar" style="border-color:#E2B86B; background:#FFFAF0;">${vehSeccionConfirmar()}</div>` : ''}
     <div class="veh-seccion" id="veh-sec-venc">${vehSeccionVencimientos()}</div>
     <div class="veh-seccion" id="veh-sec-gastos"><h3><span>Gastos</span></h3><p style="font-size:12.5px; color:var(--text-muted); margin:0;">Cargando...</p></div>
     <div class="veh-seccion" id="veh-sec-mant">${vehSeccionMantenimientos()}</div>
@@ -253,6 +256,70 @@ function pintarFicha() {
     <div class="veh-seccion" id="veh-sec-docs">${vehSeccionDocumentos()}</div>`;
   if (ROLES_INCIDENCIAS.includes(usuarioActual.rol)) cargarIncidenciasVehiculo(v.id);
   cargarGastosVehiculo(v.id);
+}
+
+// ── Facturas de taller por confirmar (19 nov 2026) ──
+// Al entrar una factura de ITV, revisión, reparación o neumáticos con la
+// matrícula de este vehículo, sale aquí hasta que alguien confirma cómo fue:
+// «Completar» la tarea (renueva la próxima fecha) o «Registrar visita» si no
+// había tarea. La visita queda enlazada a la factura (no cuenta dos veces).
+const VEH_TIPO_CONFIRMAR = { itv: 'ITV', revision: 'Revisión', reparacion: 'Reparación', neumaticos: 'Neumáticos' };
+let vehConfirmando = null; // aviso que se está confirmando (se manda con la visita)
+// Tarea abierta a la que corresponde la factura: misma clase (ITV/revisión) o, para
+// taller y neumáticos, una tarea con cita pedida. Primero las que tienen cita.
+function vehTareaDeFactura(c) {
+  const v = vehFichaActual.vencimientos;
+  const candidatas = c.tipo === 'itv' || c.tipo === 'revision'
+    ? v.filter(x => x.tipo === c.tipo)
+    : v.filter(x => x.cita_pedida && (x.tipo === 'otro' || x.tipo === 'revision'));
+  return candidatas.sort((a, b) => (b.cita_pedida ? 1 : 0) - (a.cita_pedida ? 1 : 0))[0] || null;
+}
+function vehSeccionConfirmar() {
+  const lista = vehFichaActual.por_confirmar || [];
+  const tarjetas = lista.map(c => {
+    const tarea = vehTareaDeFactura(c);
+    return `<div style="border:1px solid #EBD3A6; border-radius:8px; padding:10px 12px; margin-top:8px; background:#fff; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <div style="flex:1; min-width:220px;">
+        <div style="font-weight:600;">${VEH_TIPO_CONFIRMAR[c.tipo] || c.tipo} · ${vehEsc(c.proveedor || '')} <span style="font-weight:400; color:var(--text-muted);">· ${vehFecha(c.fecha)} · ${vehEuros(c.base)} sin IVA</span></div>
+        ${c.concepto ? `<div style="font-size:12.5px; color:var(--text-muted);">${vehEsc(c.concepto)}</div>` : ''}
+        <div style="font-size:12px; margin-top:4px;">${tarea ? `Corresponde a la tarea <b>${VEH_VENC[tarea.tipo] || tarea.tipo}${tarea.descripcion ? ' · ' + vehEsc(tarea.descripcion) : ''}</b>${tarea.cita_pedida && tarea.cita_fecha ? ' (cita ' + vehFecha(tarea.cita_fecha) + ')' : ''}` : (c.tipo === 'itv' || c.tipo === 'revision') ? '<span style="color:var(--orange);">Este vehículo no tiene tarea de ' + VEH_TIPO_CONFIRMAR[c.tipo] + ': al confirmarla se te pedirá la próxima fecha.</span>' : 'Sin tarea abierta: se apunta como visita.'}</div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="veh-btn mini" onclick="verArchivoFactura('${vehEsc(c.file_id)}')">📄 Factura</button>
+        ${tarea ? `<button class="veh-btn mini prim" onclick="completarVencimiento(${tarea.id}, ${c.id})">✓ Completar tarea</button>` : ''}
+        <button class="veh-btn mini ${tarea ? '' : 'prim'}" onclick="registrarVisitaDeFactura(${c.id})">${tarea ? 'Otra tarea / visita suelta' : '✓ Registrar visita'}</button>
+        <button class="veh-btn mini peligro" onclick="descartarFacturaConfirmar(${c.id})">Descartar</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `<h3><span>🧾 Facturas por confirmar · ${lista.length}</span></h3>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0;">Han entrado facturas de taller de este vehículo. Confirma cómo fue (todo bien o hay que volver) para que quede apuntado y se calcule la próxima.</p>
+    ${tarjetas}`;
+}
+// Rellena el formulario de visita con los datos de la factura
+function vehRellenarDesdeFactura(prefijo, c) {
+  const pon = (campo, valor) => { const el = document.getElementById(prefijo + campo); if (el && valor != null && valor !== '') el.value = valor; };
+  pon('fecha', c.fecha); pon('tipo', c.tipo); pon('taller', c.proveedor); pon('importe', c.base); pon('descripcion', c.concepto);
+}
+const vehAvisoFactura = c => `<div style="font-size:12.5px; margin:0 0 6px; padding:6px 10px; border-radius:6px; background:#FFF4DE;">🧾 Desde la factura de ${vehEsc(c.proveedor || '')} (${vehFecha(c.fecha)}, ${vehEuros(c.base)}): la visita quedará enlazada a ella.</div>`;
+function registrarVisitaDeFactura(cid) {
+  const c = (vehFichaActual.por_confirmar || []).find(x => x.id === cid);
+  if (!c) return;
+  vehConfirmando = c;
+  const cont = document.getElementById('veh-mant-nuevo');
+  cont.innerHTML = vehAvisoFactura(c) + vehFormMantenimiento({});
+  vehRellenarDesdeFactura('vm-nuevo-', c);
+  cont.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+async function descartarFacturaConfirmar(cid) {
+  const nota = prompt('¿Por qué se descarta? (p. ej. «no es de este vehículo», «ya estaba apuntada»)');
+  if (!nota || !nota.trim()) return;
+  const vid = vehFichaActual.vehiculo.id;
+  try {
+    await vehApi('/api/vehiculos/' + vid + '/confirmar/' + cid + '/descartar', { method: 'POST', body: { nota: nota.trim() } });
+    await abrirFichaVehiculo(vid);
+    actualizarContadorVehiculos();
+  } catch (err) { alert(err.message); }
 }
 
 // ── Gastos del vehículo (19 nov 2026) ──
@@ -459,15 +526,19 @@ async function guardarVencimiento(id) {
 
 // ── Completar una tarea (ITV, revisión, taller…) con su resultado ──
 const VEH_MANT_DE_VENC = { itv: 'itv', revision: 'revision', tacografo: 'revision' };
-function completarVencimiento(id) {
+function completarVencimiento(id, cid) {
   const x = vehFichaActual.vencimientos.find(v => v.id === id);
   if (!x) return;
+  // Desde un aviso de factura: se rellena con sus datos y la visita queda enlazada
+  const fact = cid ? (vehFichaActual.por_confirmar || []).find(c => c.id === cid) : null;
+  vehConfirmando = fact || null;
   const hoy = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
   const repite = x.periodicidad_meses || x.periodicidad_km;
   const c = (campo, etiqueta, tipo, valor, extra) => `<div><label>${etiqueta}</label><input id="vc-${campo}" type="${tipo}" value="${vehEsc(valor == null ? '' : valor)}" ${extra || ''}></div>`;
   const cont = document.getElementById('veh-venc-nuevo');
   cont.innerHTML = `<div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin:8px 0; background:#fafaf7;">
     <div style="font-weight:600; margin-bottom:8px;">✓ Completar: ${VEH_VENC[x.tipo] || x.tipo}${x.descripcion ? ' · ' + vehEsc(x.descripcion) : ''}</div>
+    ${fact ? vehAvisoFactura(fact) : ''}
     <div class="veh-form" style="margin:6px 0;">
       ${c('fecha', 'Fecha en que se hizo', 'date', hoy)}
       <div><label>Tipo</label><select id="vc-tipo">${vehOpts(VEH_MANT, VEH_MANT_DE_VENC[x.tipo] || 'mantenimiento')}</select></div>
@@ -489,8 +560,9 @@ function completarVencimiento(id) {
     </div>
     <div class="veh-error" id="vc-error"></div>
     <div style="display:flex; gap:8px; margin-top:8px;"><button class="veh-btn prim" onclick="guardarCompletar(${x.id})">Guardar</button>
-      <button class="veh-btn" onclick="document.getElementById('veh-venc-nuevo').innerHTML=''">Cancelar</button></div>
+      <button class="veh-btn" onclick="vehConfirmando=null; document.getElementById('veh-venc-nuevo').innerHTML=''">Cancelar</button></div>
   </div>`;
+  if (fact) vehRellenarDesdeFactura('vc-', fact);
   cont.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function vehResultadoCompletar() {
@@ -501,6 +573,7 @@ async function guardarCompletar(id) {
   const val = c => document.getElementById('vc-' + c).value.trim();
   const datos = { resultado: document.querySelector('input[name="vc-resultado"]:checked').value };
   ['fecha', 'tipo', 'taller', 'km', 'importe', 'descripcion', 'motivo', 'nueva_cita_fecha', 'nueva_cita_lugar'].forEach(c => { datos[c] = val(c); });
+  if (vehConfirmando) datos.confirmacion_id = vehConfirmando.id;
   const vid = vehFichaActual.vehiculo.id;
   try {
     await vehApi('/api/vehiculos/' + vid + '/vencimientos/' + id + '/completar', { method: 'POST', body: datos });
@@ -572,7 +645,7 @@ function vehFormMantenimiento(m) {
       <button class="veh-btn" onclick="cancelarMantenimiento()">Cancelar</button></div>`;
 }
 
-function nuevoMantenimiento() { document.getElementById('veh-mant-nuevo').innerHTML = vehFormMantenimiento({}); }
+function nuevoMantenimiento() { vehConfirmando = null; document.getElementById('veh-mant-nuevo').innerHTML = vehFormMantenimiento({}); }
 function editarMantenimiento(id) { vehEditandoMant = id; document.getElementById('veh-sec-mant').innerHTML = vehSeccionMantenimientos(); }
 function cancelarMantenimiento() { vehEditandoMant = null; document.getElementById('veh-sec-mant').innerHTML = vehSeccionMantenimientos(); }
 
@@ -580,12 +653,23 @@ async function guardarMantenimiento(id) {
   const k = id || 'nuevo';
   const datos = {};
   ['fecha', 'tipo', 'descripcion', 'taller', 'km', 'importe', 'vencimiento_id'].forEach(c => { datos[c] = document.getElementById('vm-' + k + '-' + c).value.trim(); });
+  const desdeFactura = !id && vehConfirmando ? vehConfirmando : null;
+  if (desdeFactura) datos.confirmacion_id = desdeFactura.id;
   const vid = vehFichaActual.vehiculo.id;
   try {
     await vehApi('/api/vehiculos/' + vid + '/mantenimientos' + (id ? '/' + id : ''), { method: id ? 'PUT' : 'POST', body: datos });
     vehEditandoMant = null;
     await abrirFichaVehiculo(vid);
     actualizarContadorVehiculos();
+    // ITV o revisión confirmada sin tarea que renovar: se pide la próxima
+    if (desdeFactura && (datos.tipo === 'itv' || datos.tipo === 'revision') && !datos.vencimiento_id) {
+      nuevoVencimiento();
+      const t = document.getElementById('vv-nuevo-tipo'); if (t) t.value = datos.tipo;
+      const d = document.getElementById('vv-nuevo-descripcion'); if (d) d.value = 'Próxima ' + (datos.tipo === 'itv' ? 'ITV' : 'revisión');
+      const caja = document.getElementById('veh-venc-nuevo');
+      caja.insertAdjacentHTML('afterbegin', '<div style="font-size:12.5px; margin:6px 0; padding:6px 10px; border-radius:6px; background:#FFF4DE;">Visita apuntada. ¿Cuándo toca la próxima? Pon la fecha límite (en la ITV viene en el informe o la pegatina) y cada cuánto se repite.</div>');
+      caja.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   } catch (err) { vehError('vm-' + k + '-error', err.message); }
 }
 

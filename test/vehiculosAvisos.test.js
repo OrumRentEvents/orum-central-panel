@@ -171,3 +171,14 @@ test('ejecutar en martes sin cambios: no manda nada', async () => {
   await avisos.ejecutar();
   assert.deepEqual(enviados, []);
 });
+
+test('construirEmailAvisos: facturas de taller por confirmar (solas o con vencimientos)', () => {
+  const fact = { id: 9, tipo: 'itv', proveedor: 'ITV <Mijas>', concepto: 'Inspección', fecha: '2026-11-18', base: 38.39, vehiculo: { matricula: '1663HNF', marca: 'Mercedes' } };
+  const solo = a.construirEmailAvisos([], null, { porConfirmar: [fact] });
+  assert.equal(solo.asunto, 'Vehículos: 1 factura por confirmar');
+  assert.match(solo.html, /Facturas de taller por confirmar/);
+  assert.match(solo.html, /ITV &lt;Mijas&gt;/);
+  assert.match(solo.html, /38,39 €/);
+  const ambos = a.construirEmailAvisos([venc(1, 'vencido', null)], null, { resumen: true, porConfirmar: [fact, { ...fact, id: 10 }] });
+  assert.equal(ambos.asunto, 'Vehículos · resumen semanal: 1 vencido, 2 facturas por confirmar');
+});

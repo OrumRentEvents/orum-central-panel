@@ -206,6 +206,17 @@ Logística ve y edita la ficha de cada vehículo. El responsable de vehículos e
 - **Incidencias del vehículo:** desde la ficha (⚠) se abre una incidencia ligada a ese vehículo.
 - **Gastos:** en la ficha de cada vehículo, todo lo que ha costado: las facturas de proveedores con su matrícula (combustible, AdBlue, neumáticos, reparaciones, revisiones, ITV, renting…) y las visitas de mantenimiento con importe que no tienen factura. Muestra el gasto del mes y del año, el reparto por tipo, el **coste por km** (con los km del localizador) y el **consumo** (litros de los repostajes de la app entre esos km). Importes sin IVA. Si una visita apuntada a mano tiene el mismo importe que su factura, cuenta una sola vez. La matrícula y el tipo de gasto se corrigen en Financiero → Facturas Proveedores.
 
+### Facturas de taller por confirmar
+
+Cuando entra una factura de **ITV, revisión, reparación o neumáticos** con la matrícula de un vehículo, ese vehículo recibe el aviso **«🧾 Factura por confirmar»**. Sale en su tarjeta de la Flota, en el número del menú Vehículos y arriba de su ficha. La factura dice que se ha pagado, pero no cómo fue: eso lo confirma quien lo sabe (Jesús, como responsable de vehículos).
+
+1. Abre la ficha del vehículo. En «Facturas por confirmar» verás la factura (📄 para abrirla) y la tarea a la que corresponde, si la hay (por ejemplo, la ITV con cita).
+2. Pulsa **«✓ Completar tarea»**. El formulario sale relleno con la fecha, el taller, el importe y el concepto de la factura. Pon los km y el resultado (todo bien, o hay que volver con el motivo y la nueva cita). Con «todo bien» la próxima fecha se calcula sola.
+3. Si no había tarea, pulsa **«✓ Registrar visita»**. Si era una ITV o una revisión, al guardarla se abre «Añadir vencimiento» para que pongas **cuándo toca la próxima** (en la ITV viene en el informe o en la pegatina).
+4. Si la factura no es de ese vehículo o ya estaba apuntada, pulsa **«Descartar»** y escribe el motivo.
+
+La visita queda enlazada a la factura y su importe cuenta una sola vez en Gastos. Si ya habías apuntado la visita a mano con el mismo importe, se enlaza sola y no sale el aviso. Los lunes a las 8:00 el email de vehículos lista todas las facturas por confirmar; entre semana salen las que llevan 7 días o más sin confirmar. Solo cuentan las facturas desde el 1 de noviembre de 2026.
+
 ### Completar una tarea (ITV, revisión, taller…)
 
 Cuando el vehículo vuelve de la ITV, la revisión o el taller:
