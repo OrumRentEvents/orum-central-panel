@@ -19,7 +19,7 @@
     kpi: 'total', vistaBandeja: 'compacta', buscar: '', fTipo: '', fPrep: '', fZona: '',
     seleccion: new Set(), guardando: new Set(), plegados: new Set(), abiertos: new Set(),
     sel: null, // { veh, vu } seleccionado para el panel de recorrido
-    mapaGrande: false, foco: false, mapaFiltro: 'todos', mapaVarias: new Set(), mapaVariasDia: null,
+    mapaGrande: false, foco: false, mapaMini: false, mapaFiltro: 'todos', mapaVarias: new Set(), mapaVariasDia: null,
     d: null, // datos cargados
     cargando: false, ocupado: 0, recargaPendiente: false, fuente: null, temporizador: null
   };
@@ -547,7 +547,7 @@
     return `<section class="rp-panel rp-recorrido g-vidrio">
       <header><div><h3>${ICO.mapa} Recorrido</h3><p>Vuelta seleccionada · pulsa una parada para ver su ficha</p></div>
         <button type="button" class="rp-icono" id="rp-ampliar" title="${S.mapaGrande ? 'Reducir' : 'Ampliar'}">${ICO.ampliar}</button></header>
-      ${sel ? htmlFiltroMapa() + htmlHuecoMapa('mini') + '<div class="rp-mapa-info" data-mapa-info></div>' : ''}
+      ${!sel ? '' : (S.mapaMini || MAPA.mapa || (MAPA.config && !MAPA.config.disponible)) ? htmlFiltroMapa() + htmlHuecoMapa('mini') + '<div class="rp-mapa-info" data-mapa-info></div>' : `<button type="button" class="rp-btn suave ancho" id="rp-ver-mapa" title="El mapa solo se carga cuando se pide (ahorra consumo de Google)">${ICO.mapa} Ver mapa</button>`}
       <div class="rp-lista" data-scroll="recorrido">${cuerpo}</div>
     </section>`;
   }
@@ -606,6 +606,7 @@
     root.querySelectorAll('[data-conductor]').forEach(b => b.onclick = () => abrirConductores(b.dataset.conductor, Number(b.dataset.vuCond)));
     root.querySelectorAll('[data-detalle]').forEach(el => el.onclick = () => abrirDetalle(el.dataset.detalle));
     const amp = $('rp-ampliar'); if (amp) amp.onclick = () => { S.mapaGrande = !S.mapaGrande; pintar(); };
+    const vm = $('rp-ver-mapa'); if (vm) vm.onclick = () => { S.mapaMini = true; pintar(); };
     const ef = $('rp-entrar-foco'); if (ef) ef.onclick = () => { S.foco = true; S.kpi = 'total'; document.addEventListener('keydown', escFoco); pintar(); window.scrollTo(0, 0); };
     const sf = $('rp-salir-foco'); if (sf) sf.onclick = salirFoco;
     root.querySelectorAll('[data-foco-dia]').forEach(b => b.onclick = () => {
@@ -1419,18 +1420,21 @@
     const estado = !geo ? 'Sin consultar todavía' : geo.lat == null ? 'No encontrada por Google' : geo.fuente === 'manual' ? 'Corregida a mano' : geo.precision === 'aproximada' ? 'Aproximada' : 'Exacta';
     return `<section class="rp-bloque"><h4>Ubicación en el mapa</h4>
       <p>${esc(estado)}${geo && geo.direccion_google ? ' · <span class="rp-sutil">' + esc(geo.direccion_google) + '</span>' : ''}</p>
-      ${puedeEditar() ? `<p class="rp-sutil">Si no es correcta: en Google Maps, clic derecho sobre el sitio exacto, copia las coordenadas y pégalas aquí.</p>
-      <div class="rp-fila-ub"><input type="text" id="rpf-coord" placeholder="36.5101, -4.8824"><button type="button" class="rp-btn suave" id="rpf-guardar-coord">Guardar ubicación</button></div>` : ''}</section>`;
+      ${puedeEditar() ? `<p class="rp-sutil">Si no es correcta: en Google Maps busca el sitio exacto, pulsa «Compartir» → «Copiar enlace» y pégalo aquí. También valen las coordenadas (clic derecho sobre el punto).</p>
+      <div class="rp-fila-ub"><input type="text" id="rpf-coord" placeholder="https://maps.app.goo.gl/…  o  36.5101, -4.8824"><button type="button" class="rp-btn suave" id="rpf-guardar-coord">Guardar ubicación</button></div>` : ''}</section>`;
   }
   async function guardarCoordenadas(p, texto) {
-    const m = String(texto || '').match(/(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/);
-    if (!m) { toast('Escribe las coordenadas como «36.5101, -4.8824»', true); return; }
+    const t = String(texto || '').trim();
+    const esEnlace = /^https?:\/\//i.test(t);
+    const m = esEnlace ? null : t.match(/(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/);
+    if (!esEnlace && !m) { toast('Pega el enlace de Google Maps o las coordenadas («36.5101, -4.8824»)', true); return; }
+    const boton = $('rpf-guardar-coord'); if (boton) { boton.disabled = true; boton.textContent = 'Guardando…'; }
     try {
-      const j = await enviar('/api/rutas/mapa/ubicacion', { direccion: direccionDe(p), lat: Number(m[1]), lng: Number(m[2]) });
+      const j = await enviar('/api/rutas/mapa/ubicacion', esEnlace ? { direccion: direccionDe(p), enlace: t } : { direccion: direccionDe(p), lat: Number(m[1]), lng: Number(m[2]) });
       MAPA.geo[direccionDe(p)] = j.ubicacion;
       MAPA.rutas = {};
       toast('Ubicación guardada'); pintarFicha(); pintar();
-    } catch (e) { toast('No se ha podido guardar: ' + e.message, true); }
+    } catch (e) { toast('No se ha podido guardar: ' + e.message, true); if (boton) { boton.disabled = false; boton.textContent = 'Guardar ubicación'; } }
   }
 
   // ── Entrada ──
