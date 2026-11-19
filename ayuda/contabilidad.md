@@ -47,7 +47,7 @@ Para cada factura en «Por aprobar»:
 2. Revisa la **cuenta de gasto** propuesta (la habitual del proveedor). Cámbiala si este gasto va a otra; marca «usar siempre» si a partir de ahora debe ir siempre ahí.
 3. Corrige la **fecha** o el **vencimiento** si la lectura se equivocó.
 4. Indica **«Pagada el»** (el día real del pago) y la **tesorería**: Transferencia, Domiciliación y Tarjeta salen por Banco; en Efectivo u Otro eliges tú Banco, Efectivo Marbella o Efectivo Monda.
-5. Pulsa **«Aceptar»**. La factura entra en Holded aprobada, pagada y con el PDF adjunto. Si sale un aviso (por ejemplo, redondeo del IVA), léelo.
+5. Pulsa **«Aceptar»**. La factura entra en Holded aprobada, pagada y con el PDF adjunto, y en Facturas Proveedores se marca sola la casilla **«Contabilizada»** (queda en su historial con tu nombre). Si sale un aviso (por ejemplo, redondeo del IVA), léelo.
 
 Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devolución de compra.
 

@@ -35,7 +35,7 @@ Toda factura de gasto entra en ORUM Central subiéndola desde el panel o desde e
     - **Forma de pago** (Transferencia, Tarjeta, Domiciliación, Efectivo u Otro). Si la dejas vacía, la factura queda como **pendiente de pago** y no se prepara para Holded hasta que se ponga.
     - **Matrícula**, si el gasto es de un vehículo (taller, neumáticos, ITV…). Si la factura trae la matrícula, sale ya propuesta.
 4. **Revisar las lecturas dudosas.** En el Listado, la tarjeta «A revisar (confianza media/baja)» reúne las lecturas que el sistema no tiene claras. Ábrelas con el icono de factura escaneada, compáralas con el documento y corrige con el lápiz lo que haga falta. «Ver errores» lista los archivos que no se pudieron leer.
-5. **Aprobar en Holded (María).** Cada mañana a las 7:00 las facturas pagadas pasan a Financiero → Holded → «Por aprobar». Para cada una: abre el PDF, comprueba base, IVA y total, revisa la cuenta de gasto propuesta, elige «Pagada el» y la tesorería, y pulsa «Aceptar». La factura entra en Holded aprobada, pagada y con el PDF adjunto.
+5. **Aprobar en Holded (María).** Cada mañana a las 7:00 las facturas pagadas pasan a Financiero → Holded → «Por aprobar». Para cada una: abre el PDF, comprueba base, IVA y total, revisa la cuenta de gasto propuesta, elige «Pagada el» y la tesorería, y pulsa «Aceptar». La factura entra en Holded aprobada, pagada y con el PDF adjunto, y en Facturas Proveedores se marca sola la casilla «Contabilizada».
 
 - **Factura que ya estaba sin archivo:** si subes una factura que ya existe pero no tenía documento, el archivo se le adjunta en lugar de crear una duplicada.
 - **Abonos de proveedor:** siguen el mismo camino que una factura.
