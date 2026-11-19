@@ -2808,6 +2808,22 @@ app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (re
     facturasEnriquecidas.forEach(f => f.desglose_departamentos.forEach(d => { totalesPorDepartamento[d.departamento] = (totalesPorDepartamento[d.departamento] || 0) + d.importe; }));
     const resumenDepartamentos = Object.keys(totalesPorDepartamento).map(dep => ({ departamento: dep, total: Math.round(totalesPorDepartamento[dep] * 100) / 100 })).sort((a, b) => b.total - a.total);
 
+    // 19 nov 2026 (pantalla Proveedores de la interfaz glass): concepto, vencimiento y
+    // dudas de la lectura de la IA, y el tipo de gasto del proveedor (para saber si
+    // es de vehículo aunque aún no tenga matrícula).
+    if (req.query.detalle === '1') {
+      const [lecturas, tipos] = await Promise.all([
+        supabase.from('facturas_proveedores').select('file_id, concepto, vencimiento, dudas, nif, es_rectificativa'),
+        supabase.from('proveedores_tipo_gasto').select('proveedor, tipo')
+      ]);
+      const porFile = {}; (lecturas.data || []).forEach(l => { porFile[String(l.file_id)] = l; });
+      const tipoProv = {}; (tipos.data || []).forEach(t => { tipoProv[String(t.proveedor)] = t.tipo; });
+      facturasEnriquecidas.forEach(f => {
+        const l = porFile[String(f.fileId)] || {};
+        f.concepto = l.concepto || ''; f.vencimiento = l.vencimiento || ''; f.dudas = l.dudas || ''; f.nif = l.nif || ''; f.rectificativa = !!l.es_rectificativa;
+        f.tipoGasto = f.matricula || f.gastoVehiculo ? 'vehiculos' : (tipoProv[String(f.proveedor)] || sugerirTipoGasto(f.proveedor));
+      });
+    }
     res.json({ ok: true, facturas: facturasEnriquecidas, resumen_departamentos: resumenDepartamentos, proveedores_sin_clasificar: [...new Set(facturasEnriquecidas.filter(f => !repartoPorProveedor[String(f.proveedor)]).map(f => f.proveedor))] });
   } catch (err) {
     console.error('Error en /api/facturas-proveedores:', err);
@@ -4538,7 +4554,7 @@ app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, 
 // contabilidad no tenga que tocar la Sheet directamente.
 // 19 nov 2026: «Contabilizada» ya no se edita a mano; la marca el sistema al
 // aceptar la factura en Financiero → Holded (lib/holdedCompras.js).
-const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'importeBase', 'iva', 'importeTotal', 'formaPago', 'digitalizada', 'matricula'];
+const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'importeBase', 'iva', 'importeTotal', 'formaPago', 'digitalizada', 'matricula', 'gastoVehiculo', 'litros'];
 // ACTUALIZADO (15 sep 2026): se direcciona por "fila" (nº de fila real en
 // FACTURAS_LOG) en vez de por fileId - desde que una factura puede ocupar
 // varias filas (una por línea/mes), fileId ya no identifica una fila única.

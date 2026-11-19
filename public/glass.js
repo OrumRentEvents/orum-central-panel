@@ -576,6 +576,15 @@
       $('content-title').textContent = 'Inicio';
       return pintarInicio();
     };
+    // Financiero → Facturas Proveedores nueva (public/proveedores.js, 19 nov 2026):
+    // abre en el mes en curso; el diseño clásico sigue con su tabla.
+    const proveedoresClasico = window.cargarFacturasProveedores;
+    if (typeof window.cargarProveedoresGlass === 'function') {
+      window.cargarFacturasProveedores = function () {
+        if (!document.documentElement.classList.contains('glass')) return proveedoresClasico();
+        return window.cargarProveedoresGlass();
+      };
+    }
     // Logística → Rutas nueva (Planificación, public/rutas-plan.js). La app de siempre
     // (/rutas.html) sigue en su apartado, con los mismos datos.
     const log = MENU.find(i => i.id === 'log');

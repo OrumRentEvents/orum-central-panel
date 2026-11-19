@@ -247,10 +247,80 @@ function pintarFicha() {
     <div class="veh-seccion"><h3><span>Datos ${v.activo === false ? '<span style="color:var(--red); font-weight:500;">· Dado de baja el ' + vehFecha(v.fecha_baja) + '</span>' : ''}</span>
       <span style="font-size:12.5px; font-weight:500;">Km actuales: ${f.km_actuales !== null ? vehNum(f.km_actuales) : '—'}</span></h3>${vehFormDatos(v)}</div>
     <div class="veh-seccion" id="veh-sec-venc">${vehSeccionVencimientos()}</div>
+    <div class="veh-seccion" id="veh-sec-gastos"><h3><span>Gastos</span></h3><p style="font-size:12.5px; color:var(--text-muted); margin:0;">Cargando...</p></div>
     <div class="veh-seccion" id="veh-sec-mant">${vehSeccionMantenimientos()}</div>
     ${ROLES_INCIDENCIAS.includes(usuarioActual.rol) ? '<div class="veh-seccion" id="veh-sec-inc"><h3><span>Incidencias</span></h3><p style="font-size:12.5px; color:var(--text-muted); margin:0;">Cargando...</p></div>' : ''}
     <div class="veh-seccion" id="veh-sec-docs">${vehSeccionDocumentos()}</div>`;
   if (ROLES_INCIDENCIAS.includes(usuarioActual.rol)) cargarIncidenciasVehiculo(v.id);
+  cargarGastosVehiculo(v.id);
+}
+
+// ── Gastos del vehículo (19 nov 2026) ──
+// Facturas de proveedores con su matrícula (Financiero → Facturas Proveedores;
+// el tipo de gasto lo pone la IA al subirlas) + mantenimientos con importe que no
+// están enlazados a una factura. Importes sin IVA. Coste por km con los km del
+// localizador; consumo con los litros de las facturas de combustible.
+const VEH_TIPOS_GASTO = {
+  combustible: ['Combustible', '#C9822B'], adblue: ['AdBlue', '#5B8DEF'], neumaticos: ['Neumáticos', '#4A4540'], reparacion: ['Reparación', '#C0392B'],
+  revision: ['Revisión', '#2E9D5B'], itv: ['ITV', '#8E6CC9'], seguro: ['Seguro', '#3C8C93'], lavado: ['Lavado', '#7FB4D9'],
+  peajes: ['Peajes y parking', '#B8956A'], renting: ['Renting', '#9C7A54'], otro: ['Otro', '#A9A196']
+};
+// Mantenimiento apuntado a mano → tipo de gasto equivalente
+const VEH_MANT_A_GASTO = { revision: 'revision', itv: 'itv', reparacion: 'reparacion', neumaticos: 'neumaticos', averia: 'reparacion', limpieza: 'lavado', otro: 'otro' };
+let vehGastos = null, vehGastosAnio = null;
+async function cargarGastosVehiculo(id) {
+  const sec = document.getElementById('veh-sec-gastos');
+  try {
+    vehGastos = await vehApi('/api/vehiculos/' + id + '/gastos');
+    if (!vehGastosAnio) vehGastosAnio = new Date().getFullYear();
+    pintarGastosVehiculo();
+  } catch (err) {
+    if (sec) sec.innerHTML = '<h3><span>Gastos</span></h3><p class="veh-error">' + vehEsc(err.message) + '</p>';
+  }
+}
+const vehTipoGasto = t => VEH_TIPOS_GASTO[t] || VEH_TIPOS_GASTO.otro;
+function pintarGastosVehiculo() {
+  const sec = document.getElementById('veh-sec-gastos');
+  if (!sec || !vehGastos) return;
+  const g = vehGastos, anio = vehGastosAnio, mesHoy = new Date().toISOString().slice(0, 7);
+  const items = g.facturas.map(f => ({ ...f, origen: 'factura' }))
+    .concat(g.manuales.map(m => ({ fecha: m.fecha, tipo: VEH_MANT_A_GASTO[m.tipo] || 'otro', proveedor: 'Mantenimiento (sin factura)', concepto: m.descripcion, base: m.base, origen: 'manual' })));
+  const anios = [...new Set(items.map(x => Number(String(x.fecha || '').slice(0, 4))).filter(Boolean).concat([new Date().getFullYear()]))].sort((a, b) => b - a);
+  const delAnio = items.filter(x => String(x.fecha || '').startsWith(String(anio)));
+  const total = delAnio.reduce((s, x) => s + x.base, 0);
+  const esteMes = items.filter(x => String(x.fecha || '').startsWith(mesHoy)).reduce((s, x) => s + x.base, 0);
+  // Coste por km: solo meses con km del localizador (si no, el gasto de meses sin km lo inflaría)
+  const mesesKm = new Set(Object.keys(g.km_mes).filter(m => m.startsWith(String(anio)) && g.km_mes[m] > 0));
+  const km = [...mesesKm].reduce((s, m) => s + g.km_mes[m], 0);
+  const gastoConKm = delAnio.filter(x => mesesKm.has(String(x.fecha).slice(0, 7))).reduce((s, x) => s + x.base, 0);
+  // Consumo con los repostajes de la app (/movil → Repostaje): son todos los repostajes;
+  // los litros de las facturas no sirven porque no todos los tickets los traen.
+  const mesesLitros = Object.keys(g.litros_app_mes || {}).filter(m => mesesKm.has(m) && g.litros_app_mes[m] > 0);
+  const litros = mesesLitros.reduce((s, m) => s + g.litros_app_mes[m], 0);
+  const kmComb = mesesLitros.reduce((s, m) => s + g.km_mes[m], 0);
+  const porTipo = {};
+  delAnio.forEach(x => { porTipo[x.tipo || 'otro'] = (porTipo[x.tipo || 'otro'] || 0) + x.base; });
+  const tipos = Object.entries(porTipo).sort((a, b) => b[1] - a[1]);
+  const tarjeta = (t, v, sub) => `<div style="flex:1; min-width:130px; padding:10px 12px; border:1px solid var(--border); border-radius:8px;"><div style="font-size:11.5px; color:var(--text-muted);">${t}</div><div style="font-size:19px; font-weight:600;">${v}</div>${sub ? `<div style="font-size:11px; color:var(--text-muted);">${sub}</div>` : ''}</div>`;
+  const barra = total ? `<div style="display:flex; height:12px; border-radius:6px; overflow:hidden; gap:2px; margin:12px 0 8px;">${tipos.map(([t, v]) => `<div title="${vehTipoGasto(t)[0]}: ${vehEuros(v)}" style="width:${v / total * 100}%; background:${vehTipoGasto(t)[1]};"></div>`).join('')}</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; color:var(--text-muted);">${tipos.map(([t, v]) => `<span><span class="veh-dot" style="background:${vehTipoGasto(t)[1]}"></span>${vehTipoGasto(t)[0]} <b style="color:var(--text-primary);">${vehEuros(v)}</b></span>`).join('')}</div>` : '';
+  const filas = delAnio.sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))).map(x => `<tr>
+      <td>${vehFecha(x.fecha)}</td><td><span class="veh-dot" style="background:${vehTipoGasto(x.tipo)[1]}"></span>${x.tipo ? vehTipoGasto(x.tipo)[0] : 'Sin tipo'}</td>
+      <td>${vehEsc(x.proveedor)}${x.numero ? ' <span style="color:var(--text-muted);">· ' + vehEsc(x.numero) + '</span>' : ''}</td><td>${vehEsc(x.concepto || '')}</td>
+      <td style="text-align:right;">${x.litros ? vehNum(x.litros) + ' L' : ''}</td><td style="text-align:right;">${vehEuros(x.base)}</td>
+      <td>${x.origen === 'factura' ? `<span style="cursor:pointer;" title="Ver la factura" onclick="verArchivoFactura('${vehEsc(x.fileId)}')">📄</span>` : ''}</td></tr>`).join('');
+  sec.innerHTML = `<h3><span>Gastos · ${anio}: ${vehEuros(total)}</span>
+      <select onchange="vehGastosAnio=Number(this.value); pintarGastosVehiculo();" style="font-size:12.5px; width:auto;">${anios.map(a => `<option ${a === anio ? 'selected' : ''}>${a}</option>`).join('')}</select></h3>
+    <div style="display:flex; flex-wrap:wrap; gap:10px;">
+      ${tarjeta('Este mes', vehEuros(esteMes))}
+      ${tarjeta('Año ' + anio, vehEuros(total), delAnio.length + ' gastos')}
+      ${tarjeta('Coste por km', km > 0 && gastoConKm > 0 ? vehEuros(gastoConKm / km) : '—', km > 0 ? vehNum(Math.round(km)) + ' km del localizador' : 'Sin km del localizador')}
+      ${tarjeta('Consumo', litros > 0 && kmComb > 0 ? (litros / kmComb * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' L/100 km' : '—', litros > 0 ? vehNum(Math.round(litros)) + ' L repostados (app)' : 'Sin repostajes apuntados en la app')}
+    </div>
+    ${barra}
+    ${filas ? `<div class="veh-tabla-wrap" style="margin-top:12px;"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Proveedor</th><th>Concepto</th><th style="text-align:right;">Litros</th><th style="text-align:right;">Base</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>`
+      : '<p style="font-size:12.5px; color:var(--text-muted); margin:10px 0 0;">Sin gastos este año. Salen aquí las facturas de proveedores que tengan la matrícula de este vehículo.</p>'}
+    <p style="font-size:11.5px; color:var(--text-muted); margin:10px 0 0;">Importes sin IVA. La matrícula y el tipo de gasto se corrigen en Financiero → Facturas Proveedores. Los mantenimientos con importe que no están enlazados a una factura también cuentan.</p>`;
 }
 
 // ── Incidencias del vehículo (public/incidencias.html, API lib/incidencias.js) ──
