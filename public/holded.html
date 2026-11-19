@@ -250,10 +250,11 @@ async function cargarGastos(){
           (c.dudas?'<div class="av" style="font-size:12px">⚠ '+esc(c.dudas)+'</div>':'')+
           (c.error?'<div class="err" style="font-size:12px">'+esc(c.error)+'</div>':'')+'</td>'+
         '<td class="n">'+eur(c.base)+'</td><td class="n">'+eur(c.iva)+(c.tipos.length?'<div class="sub" style="margin:0;font-size:11px">'+c.tipos.join(' / ')+' %</div>':'')+'</td><td class="n"><b>'+eur(c.total)+'</b>'+(c.retencion?'<div class="sub" style="margin:0;font-size:11px">ret. −'+eur(c.retencion)+'</div>':'')+'</td>'+
+        (c.reparto ? '<td>'+repartoHtml(i, c)+'</td>' :
         '<td><input id="pac'+i+'" list="dl-cuentas" value="'+esc(etiquetaCuenta(c.cuenta_propuesta))+'" placeholder="Buscar cuenta: nº o nombre…" onfocus="this.select()" oninput="marcarCambio('+i+')" onchange="marcarCambio('+i+')" style="width:260px;font-size:12px">'+
           '<label id="pah'+i+'" style="display:none;font-size:11px;margin-top:3px"><input type="checkbox" id="pag'+i+'" style="width:auto"> usar siempre para este proveedor</label>'+
           (!c.cuenta_habitual?'<div class="av" style="font-size:11px">Proveedor sin cuenta habitual</div>':'')+
-          (c.sage.length>1?'<div class="sub" style="margin:3px 0 0;font-size:11px">En Sage usaba: '+c.sage.slice(0,5).map(s=>'<a href="#" onclick="elegirCuenta('+i+','+s.cuenta+');return false" title="'+esc(s.apuntes+' apuntes en 2026')+'">'+s.cuenta+' '+esc(s.nombre)+'</a>').join(' · ')+'</div>':'')+'</td>'+
+          (c.sage.length>1?'<div class="sub" style="margin:3px 0 0;font-size:11px">En Sage usaba: '+c.sage.slice(0,5).map(s=>'<a href="#" onclick="elegirCuenta('+i+','+s.cuenta+');return false" title="'+esc(s.apuntes+' apuntes en 2026')+'">'+s.cuenta+' '+esc(s.nombre)+'</a>').join(' · ')+'</div>':'')+'</td>')+
         '<td style="white-space:nowrap"><button class="prim" onclick="aceptarGasto('+i+')">Aceptar</button>'+
           '<button onclick="reintentarGasto(\''+c.file_id+'\',true)" title="Vuelve a leer el PDF con Claude">Releer</button></td></tr>').join('')+'</table>'
       : '<div class="ok">✔ Ninguna factura por aprobar</div>';
@@ -272,6 +273,7 @@ async function cargarGastos(){
           '<td><select onchange="asignarPago(\''+esc(c.file_id)+'\',this)"><option value="">— asignar pago —</option>'+(d.formas_pago||[]).map(v=>'<option>'+esc(v)+'</option>').join('')+'</select></td></tr>').join('')+'</table>' : '<div class="ok">✔ Ninguna</div>')+
       '<h2 style="margin-top:16px">Bloqueadas ('+d.pendientes.length+')</h2><div class="sub" style="margin-bottom:6px">Corrige la causa (ficha del proveedor en Config. Cuentas de gasto, carpeta de Drive…) y pulsa Reintentar.</div>'+pend+
       '<h2 style="margin-top:16px">Últimas volcadas a Holded ('+d.total_enviadas+' en total)</h2>'+env;
+    pa.forEach((c,i)=>{ if(c.reparto) sumaReparto(i); });
   }catch(e){ box.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
 }
 // "62900004 GASTOS TELEFONICA…" para el campo con buscador; '' si no hay cuenta.
@@ -303,11 +305,45 @@ function marcarCambio(i){
   const n = cuentaElegida(i);
   document.getElementById('pah'+i).style.display = n && n!==String(c.cuenta_habitual||'') ? 'block' : 'none';
 }
+// ---- Reparto en varias cuentas (leasing, 19 nov 2026) ----
+const NOMBRE_REPARTO = {amortizacion:'Amortización', intereses:'Intereses', seguro:'Seguro', otros:'Otros'};
+function repartoHtml(i, c){
+  const r = c.reparto;
+  const filas = r.lineas.map((l,k)=>'<tr><td style="font-size:12px;padding:2px 4px">'+NOMBRE_REPARTO[l.tipo]+'</td>'+
+    '<td style="padding:2px 4px"><input id="prc'+i+'_'+k+'" value="'+(l.cuenta||'')+'" placeholder="nueva: se crea" title="'+(l.cuenta?esc(etiquetaCuenta(l.cuenta)):'Contrato nuevo: al aceptar se crea su cuenta en Holded con el número siguiente al último')+'" style="width:95px;font-size:12px"></td>'+
+    '<td style="padding:2px 4px"><input id="pri'+i+'_'+k+'" value="'+String(l.importe).replace('.',',')+'" oninput="sumaReparto('+i+')" style="width:80px;font-size:12px;text-align:right"></td></tr>').join('');
+  return '<div style="font-size:12px"><b>Leasing</b> '+esc(r.contrato||'')+(r.bien?' · '+esc(r.bien):'')+
+    (r.contrato_existe?'':'<div class="av" style="font-size:11px">Contrato nuevo: al aceptar se crean sus cuentas 524 (amortización) y 625 (seguro)</div>')+'</div>'+
+    '<table style="margin:3px 0 0">'+filas+'</table><div id="prs'+i+'" class="sub" style="margin:2px 0 0;font-size:11px"></div>';
+}
+function lineasReparto(i){
+  const c = gastos.por_aprobar[i];
+  return c.reparto.lineas.map((l,k)=>({ tipo:l.tipo, cuenta:document.getElementById('prc'+i+'_'+k).value.replace(/\D/g,''), importe:numES(document.getElementById('pri'+i+'_'+k).value) }));
+}
+// "808,24", "1.173,57" o "808.24" → número
+function numES(v){
+  const s = String(v||'').trim().replace(/[€\s]/g,'');
+  return Number(s.includes(',') ? s.replace(/\./g,'').replace(',','.') : s) || 0;
+}
+function sumaReparto(i){
+  const c = gastos.por_aprobar[i], box = document.getElementById('prs'+i); if(!box) return;
+  const s = Math.round(lineasReparto(i).reduce((a,l)=>a+l.importe,0)*100)/100;
+  const ok = Math.abs(s - c.base) < 0.005;
+  box.innerHTML = 'Suma '+eur(s)+' · base '+eur(c.base)+(ok?' <span class="ok">✔</span>':' <span class="err">no cuadra</span>');
+}
 async function aceptarGasto(i){
   const c = gastos.por_aprobar[i];
-  const cuenta = cuentaElegida(i);
-  if(!cuenta){ alert(document.getElementById('pac'+i).value.trim() ? 'Esa cuenta no está en el plan: elígela de la lista de sugerencias' : 'Elige la cuenta de gasto'); return; }
-  const nom = (gastos.cuentas.find(x=>String(x.numero)===cuenta)||{}).nombre||'';
+  let cuenta = '', nom = '', reparto = null;
+  if(c.reparto){
+    reparto = lineasReparto(i);
+    const s = Math.round(reparto.reduce((a,l)=>a+l.importe,0)*100)/100;
+    if(Math.abs(s - c.base) >= 0.005){ alert('El reparto suma '+eur(s)+' y la base de la factura es '+eur(c.base)+': corrígelo'); return; }
+    nom = '\n'+reparto.map(l=>'  '+NOMBRE_REPARTO[l.tipo]+': '+(l.cuenta||'cuenta nueva')+' · '+eur(l.importe)).join('\n');
+  } else {
+    cuenta = cuentaElegida(i);
+    if(!cuenta){ alert(document.getElementById('pac'+i).value.trim() ? 'Esa cuenta no está en el plan: elígela de la lista de sugerencias' : 'Elige la cuenta de gasto'); return; }
+    nom = (gastos.cuentas.find(x=>String(x.numero)===cuenta)||{}).nombre||'';
+  }
   const fecha = document.getElementById('paf'+i).value, vencimiento = document.getElementById('pav'+i).value;
   if(!fecha){ alert('Falta la fecha de la factura'); return; }
   if(vencimiento && vencimiento<fecha){ alert('El vencimiento es anterior a la fecha de la factura: corrígelo o déjalo vacío'); return; }
@@ -316,7 +352,8 @@ async function aceptarGasto(i){
   if(!pagoTesoreria){ alert('Elige desde dónde se pagó (banco o caja de Marbella / Monda)'); return; }
   const nomTes = ((gastos.tesorerias_pago||[]).find(t=>t.key===pagoTesoreria)||{}).nombre||pagoTesoreria;
   if(!confirm('Se volcará a Holded APROBAD'+(c.es_abono?'O (contabilizado) y COBRADO el ABONO ':'A (contabilizada) y PAGADA la factura ')+(c.numero||'')+' de '+c.proveedor+' del '+ff(fecha)+' por '+eur(c.total)+'.\nCuenta: '+cuenta+' '+nom+'\nPago: '+ff(pagoFecha)+' desde '+nomTes+'\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
-  const guardarHabitual = document.getElementById('pah'+i).style.display!=='none' && document.getElementById('pag'+i).checked;
+  const pah = document.getElementById('pah'+i);
+  const guardarHabitual = !!pah && pah.style.display!=='none' && document.getElementById('pag'+i).checked;
   // La fila se quita al momento (para que no se pulse dos veces) y solo
   // vuelve si Holded da error. Mientras se envía, sigue oculta aunque se
   // recargue la lista.
@@ -326,7 +363,7 @@ async function aceptarGasto(i){
   const etiqueta = esc(c.proveedor)+' '+esc(c.numero||'');
   res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando a Holded la factura '+etiqueta+'…</div>';
   let r;
-  try{ r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento, pagoFecha, pagoTesoreria}); }
+  try{ r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento, pagoFecha, pagoTesoreria, reparto}); }
   catch(e){ r = { estado:'error', motivo:e.message }; }
   enviandoGastos.delete(c.file_id);
   const ok = r.estado==='aprobada';

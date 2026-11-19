@@ -39,6 +39,7 @@ Toda factura de gasto entra en ORUM Central subiéndola desde el panel o desde e
 
 - **Factura que ya estaba sin archivo:** si subes una factura que ya existe pero no tenía documento, el archivo se le adjunta en lugar de crear una duplicada.
 - **Abonos de proveedor:** siguen el mismo camino que una factura.
+- **Cuotas de leasing:** llegan a «Por aprobar» repartidas en amortización (524 del contrato), intereses (66230000) y seguro (625 del contrato). María solo comprueba los importes y acepta; si el contrato es nuevo, sus cuentas se crean solas en Holded.
 - **Borrar una factura** (botón 🗑️): solo Dirección, y solo si todavía no está en Holded.
 - **Pendientes de pago:** las que no tienen forma de pago esperan en Holded → «Pendiente de asignar pago», donde también se puede elegir.
 - **Contabilizada:** la casilla «C» del listado no se marca a mano; se marca sola cuando María acepta la factura en Holded. Los filtros «Contabilizada» y «Forma de pago» sirven para ver lo que falta.

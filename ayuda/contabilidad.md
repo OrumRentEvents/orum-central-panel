@@ -51,6 +51,24 @@ Para cada factura en «Por aprobar»:
 
 Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devolución de compra.
 
+### Cuotas de leasing (reparto en varias cuentas)
+
+Las cuotas de leasing (por ejemplo, BBVA) no van a una sola cuenta. Al leer el PDF, el sistema saca la **amortización**, los **intereses** y el **seguro**, y la factura llega a «Por aprobar» **ya repartida**:
+
+| Parte | Cuenta |
+| --- | --- |
+| Amortización | 524xxxxx, una por contrato |
+| Intereses | 66230000, la misma para todos los contratos |
+| Seguro | 625xxxxx, una por contrato |
+| IVA | 47200000, sobre el total de las tres partes |
+
+1. En la fila de la factura, en lugar de una cuenta sale el reparto con su cuenta e importe, y debajo «Suma … · base … ✔».
+2. Comprueba los importes con el PDF. Si alguno está mal, corrígelo: la suma tiene que ser igual a la base o no deja aceptar.
+3. **Contrato nuevo:** la cuenta sale vacía («nueva: se crea»). Al aceptar se crean en Holded su 524 y su 625 con el número siguiente al último de cada grupo, y las siguientes cuotas de ese contrato ya llegan con ellas puestas.
+4. Pulsa **«Aceptar»** como en cualquier factura: entra en Holded aprobada, con una línea por cuenta, y pagada.
+
+Si una cuota de leasing llega con una sola cuenta (por ejemplo, porque se leyó antes de que existiera esta función), pulsa **«Releer»** y vuelve repartida. Un **renting** no es un leasing: va entero a su cuenta de gasto, como siempre.
+
 ## Recorrido de un cobro de cliente
 
 ### 1. Se emite la factura (Rentman)
