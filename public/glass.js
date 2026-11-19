@@ -30,7 +30,7 @@
   // Pestañas agrupadas (nivel 2). Lo que no esté aquí sale como pestaña suelta.
   const PESTANAS = {
     fin: [['Resumen', ['fin-resumen']], ['Cobros', ['fin-control-pagos', 'fin-extracto-cliente', 'fin-vencidas']],
-      ['Contabilidad', ['fin-cierre-mensual', 'fin-fact-listado', 'fin-fianzas']], ['Tesorería', ['fin-caja']],
+      ['Proveedores', ['fin-fact-listado']], ['Contabilidad', ['fin-cierre-mensual', 'fin-fianzas']], ['Tesorería', ['fin-caja']],
       ['Informes', ['fin-informe-semanal', 'fin-auditoria']], ['Integraciones', ['fin-holded']]],
     per: [['Gestión', ['per-nominas', 'per-informe']], ['Horas y extras', ['per-bolsa', 'per-extras']],
       ['Aprobaciones', ['per-aprobar-extras']], ['Análisis', ['per-analisis', 'per-historico', 'per-comparador']]]
