@@ -1174,12 +1174,43 @@
   }
   function limpiarCapas() { MAPA.capas.forEach(c => c.setMap(null)); MAPA.capas = []; }
   function icono(n, color, apagado) {
+    // apagado = paradas del día que no son de la vuelta seleccionada: punto en tono pastel
     const r = apagado ? 7 : 13;
     const svg = apagado
-      ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="${r - 1}" fill="${color}" fill-opacity=".45" stroke="#fff" stroke-width="2"/></svg>`
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"><circle cx="9" cy="9" r="${r}" fill="${pastel(color)}" stroke="${color}" stroke-opacity=".55" stroke-width="1.5"/></svg>`
       : `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"><circle cx="15" cy="15" r="${r}" fill="${color}" stroke="#fff" stroke-width="2.5"/><text x="15" y="19.5" text-anchor="middle" font-family="Inter,Arial" font-size="12" font-weight="700" fill="#fff">${n}</text></svg>`;
-    const t = apagado ? 16 : 30;
+    const t = apagado ? 18 : 30;
     return { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(t, t), anchor: new google.maps.Point(t / 2, t / 2) };
+  }
+  // Color mezclado con blanco (tono pastel)
+  function pastel(hex, f = 0.6) {
+    const n = parseInt(String(hex).replace('#', ''), 16);
+    const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(x => Math.round(x + (255 - x) * f));
+    return '#' + c.map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  // Paradas en la misma dirección: los puntos se reparten en un pequeño círculo (unos 20 m)
+  // para que se vean todos. Es solo para dibujar: la ubicación guardada y el recorrido no cambian.
+  function posicionesDia() {
+    const grupos = {};
+    const orden = [];
+    const g = gruposDia(S.dia);
+    Object.keys(g).forEach(v => Object.keys(g[v]).map(Number).sort((a, b) => a - b).forEach(vu => g[v][vu].forEach(p => orden.push(p))));
+    paradasDia(S.dia).filter(p => !vehsDe(p).length).forEach(p => orden.push(p));
+    orden.forEach(p => {
+      const geo = geoDe(p); if (!geo || geo.lat == null) return;
+      const k = geo.lat.toFixed(5) + ',' + geo.lng.toFixed(5);
+      (grupos[k] = grupos[k] || []);
+      if (!grupos[k].includes(p.clave)) grupos[k].push(p.clave);
+    });
+    const pos = {};
+    Object.values(grupos).forEach(claves => claves.forEach((c, i) => { pos[c] = { i, n: claves.length }; }));
+    return (p, geo) => {
+      const x = pos[p.clave];
+      if (!x || x.n < 2) return { lat: geo.lat, lng: geo.lng };
+      const radio = 0.00018 * (x.n > 6 ? 1.6 : 1);
+      const ang = 2 * Math.PI * x.i / x.n - Math.PI / 2;
+      return { lat: geo.lat + radio * Math.sin(ang), lng: geo.lng + radio * Math.cos(ang) / Math.cos(geo.lat * Math.PI / 180) };
+    };
   }
   function seleccionMapa() {
     const g = gruposDia(S.dia);
@@ -1191,6 +1222,7 @@
   // Qué vueltas se dibujan enteras según dónde está el mapa:
   //  mini (panel Recorrido) y foco (vista ampliada): la vuelta seleccionada;
   //  mapa (pestaña Mapa): las que se hayan marcado, varias a la vez.
+  // El resto de paradas del día (asignadas o no) se ven siempre en tono pastel.
   function vueltasVisibles(modo) {
     const g = gruposDia(S.dia);
     if (modo === 'mapa') {
@@ -1210,35 +1242,41 @@
     const varias = visibles.length > 1;
     const esVisible = (v, vu) => visibles.some(s => s.veh === v && s.vu === Number(vu));
     const firma = S.dia + '|' + modo + '|' + visibles.map(s => claveVu(s.veh, s.vu)).join(',');
+    const posDe = posicionesDia();
     limpiarCapas();
     MAPA.porClave = {};
-    const limites = new google.maps.LatLngBounds();
-    let hayLimites = false, soloUno = null, cuantos = 0;
-    const meter = pos => { limites.extend(pos); hayLimites = true; cuantos++; soloUno = pos; };
-    // Resto de vueltas del día: puntos pequeños atenuados (pestaña Mapa y vista ampliada)
-    if (modo !== 'mini') Object.keys(g).forEach(v => Object.keys(g[v]).forEach(vu => {
+    // Dos encuadres: todo el día (al abrir un día) y lo seleccionado (al cambiar de vuelta)
+    const limDia = new google.maps.LatLngBounds(), limSel = new google.maps.LatLngBounds();
+    let nDia = 0, nSel = 0, unoDia = null, unoSel = null;
+    const meterDia = pos => { limDia.extend(pos); nDia++; unoDia = pos; };
+    const meterSel = pos => { limSel.extend(pos); nSel++; unoSel = pos; };
+    // Resto de paradas asignadas del día: tono pastel del color de su vehículo
+    Object.keys(g).forEach(v => Object.keys(g[v]).forEach(vu => {
       if (esVisible(v, vu)) return;
       g[v][vu].forEach(p => {
         const geo = geoDe(p); if (!geo || geo.lat == null) return;
-        const m = new google.maps.Marker({ map: MAPA.mapa, position: { lat: geo.lat, lng: geo.lng }, icon: icono('', colorVeh(v), true), title: v + ' · V' + vu + ' · ' + titulo(p), zIndex: 1 });
+        const pos = posDe(p, geo);
+        const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, icon: icono('', colorVeh(v), true), title: v + ' · V' + vu + ' · ' + (p.hora || '') + ' ' + titulo(p), zIndex: 1 });
         m.addListener('click', () => {
           if (modo === 'mapa') S.mapaVarias.add(claveVu(v, Number(vu))); else S.sel = { veh: v, vu: Number(vu) };
           pintar();
         });
         MAPA.capas.push(m);
         if (!MAPA.porClave[p.clave]) MAPA.porClave[p.clave] = m;
+        meterDia(pos);
       });
     }));
-    // Paradas sin vehículo: marcador rojo con «?» (vista ampliada y pestaña Mapa)
-    if (modo !== 'mini' && S.verPendientes) paradasDia(S.dia).filter(p => !vehsDe(p).length).forEach(p => {
+    // Paradas sin vehículo: «?» rojo pastel
+    if (S.verPendientes) paradasDia(S.dia).filter(p => !vehsDe(p).length).forEach(p => {
       const geo = geoDe(p); if (!geo || geo.lat == null) return;
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26"><circle cx="13" cy="13" r="10.5" fill="#fff" stroke="#C0392B" stroke-width="3"/><text x="13" y="17.5" text-anchor="middle" font-family="Inter,Arial" font-size="12" font-weight="800" fill="#C0392B">?</text></svg>';
-      const m = new google.maps.Marker({ map: MAPA.mapa, position: { lat: geo.lat, lng: geo.lng }, title: 'Sin asignar · ' + (p.hora || '') + ' ' + titulo(p), zIndex: 80,
-        icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(26, 26), anchor: new google.maps.Point(13, 13) } });
+      const pos = posDe(p, geo);
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="9.5" fill="#FBE3E0" stroke="#D9675B" stroke-width="2"/><text x="12" y="16.3" text-anchor="middle" font-family="Inter,Arial" font-size="11.5" font-weight="800" fill="#C0392B">?</text></svg>';
+      const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, title: 'Sin asignar · ' + (p.hora || '') + ' ' + titulo(p), zIndex: 80,
+        icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(24, 24), anchor: new google.maps.Point(12, 12) } });
       m.addListener('click', () => abrirDetalle(p.clave));
       MAPA.capas.push(m);
       MAPA.porClave[p.clave] = m;
-      meter({ lat: geo.lat, lng: geo.lng });
+      meterDia(pos);
     });
     // Vueltas visibles: numeradas en el orden guardado. Una sola: entrega azul / recogida naranja.
     // Varias: el color de cada vehículo, para distinguirlas.
@@ -1246,13 +1284,14 @@
       const lista = g[s.veh][s.vu];
       lista.forEach((p, i) => {
         const geo = geoDe(p); if (!geo || geo.lat == null) return;
+        const pos = posDe(p, geo);
         const color = varias ? colorVeh(s.veh) : p.tipo === 'RECOGIDA' ? '#E68C32' : p.tipo === 'ENTREGA' ? '#2F6FDB' : '#7A7268';
-        const m = new google.maps.Marker({ map: MAPA.mapa, position: { lat: geo.lat, lng: geo.lng }, icon: icono(i + 1, color, false),
+        const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, icon: icono(i + 1, color, false),
           title: (varias ? s.veh + ' V' + s.vu + ' · ' : '') + (i + 1) + '. ' + (p.hora || '') + ' ' + titulo(p) + (geo.precision === 'aproximada' ? ' (ubicación aproximada)' : ''), zIndex: 100 + i });
         m.addListener('click', () => abrirDetalle(p.clave));
         MAPA.capas.push(m);
         MAPA.porClave[p.clave] = m;
-        meter({ lat: geo.lat, lng: geo.lng });
+        meterDia(pos); meterSel(pos);
       });
       // Recorrido por carretera (Google Routes) con salida y regreso a la nave; si no hay, ninguna línea inventada
       const recorrido = puntosRuta(lista);
@@ -1270,10 +1309,12 @@
         icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 14) } }));
     });
     const base = geoBase();
-    if (base && visibles.length) limites.extend(base);
-    if (hayLimites && (ajustar || firma !== MAPA.firma)) {
-      if (cuantos === 1 && !(base && visibles.length)) { MAPA.mapa.setCenter(soloUno); MAPA.mapa.setZoom(14); } else MAPA.mapa.fitBounds(limites, 48);
-    }
+    if (base && nSel) limSel.extend(base);
+    // Día nuevo: encuadra todas las paradas del día. Cambio de vuelta: encuadra la seleccionada.
+    const diaNuevo = MAPA.diaEncuadrado !== S.dia + '|' + modo;
+    const encuadrar = (lim, n, uno) => { if (!n) return false; if (n === 1 && !base) { MAPA.mapa.setCenter(uno); MAPA.mapa.setZoom(14); } else MAPA.mapa.fitBounds(lim, 48); return true; };
+    if (diaNuevo || ajustar) { if (encuadrar(limDia, nDia, unoDia)) MAPA.diaEncuadrado = S.dia + '|' + modo; }
+    else if (firma !== MAPA.firma) encuadrar(limSel, nSel, unoSel);
     MAPA.firma = firma;
     pintarInfoMapa();
   }
@@ -1321,7 +1362,7 @@
     const sinUbicar = todas.filter(p => { const d = direccionDe(p); return !d || (d in MAPA.geo && !ubicada(p)); });
     if (aprox.length) partes.push(`<p class="rp-c aviso">${aprox.length} con ubicación aproximada</p>`);
     if (sinUbicar.length) partes.push(`<p class="rp-sutil"><b>Sin ubicar (${sinUbicar.length}):</b> ${sinUbicar.map(p => `<a href="#" data-detalle="${esc(p.clave)}">${esc(titulo(p))}</a>`).join(', ')}</p>`);
-    if (modo !== 'mini' && S.verPendientes) {
+    if (S.verPendientes) {
       const pend = paradasDia(S.dia).filter(p => !vehsDe(p).length);
       if (pend.length) partes.push(`<p class="rp-sutil"><span class="rp-pend-ico">?</span> ${pend.length} sin asignar en el mapa${pend.some(p => !ubicada(p)) ? ' (' + pend.filter(p => !ubicada(p)).length + ' sin ubicar)' : ''}</p>`);
     }
