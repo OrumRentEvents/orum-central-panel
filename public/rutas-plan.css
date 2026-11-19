@@ -410,3 +410,10 @@ html.rp-foco-activo body { overflow: hidden; }
   .rp-foco-rejilla > .rp-panel { overflow: visible; }
   .rp-foco-barra .rp-todas { margin-left: 0; }
 }
+
+/* Filtro del mapa: Todas / Asignadas / Pendientes */
+.rp-mapa-filtro { display: inline-flex; border: 1px solid var(--g-linea); border-radius: 10px; overflow: hidden; align-self: flex-start; flex: none; background: var(--g-campo); }
+.rp-mapa-filtro button { border: none; background: transparent; padding: 5px 11px; cursor: pointer; font-size: 12px; color: var(--g-suave); }
+.rp-mapa-filtro button + button { border-left: 1px solid var(--g-linea); }
+.rp-mapa-filtro button.activo { background: var(--g-sel); color: var(--g-tinta); font-weight: 600; }
+.rp-foco-filtro { margin-left: auto; }

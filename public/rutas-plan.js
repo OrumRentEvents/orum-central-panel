@@ -19,7 +19,7 @@
     kpi: 'total', vistaBandeja: 'compacta', buscar: '', fTipo: '', fPrep: '', fZona: '',
     seleccion: new Set(), guardando: new Set(), plegados: new Set(), abiertos: new Set(),
     sel: null, // { veh, vu } seleccionado para el panel de recorrido
-    mapaGrande: false, foco: false, verPendientes: true, mapaVarias: new Set(), mapaVariasDia: null,
+    mapaGrande: false, foco: false, mapaFiltro: 'todos', mapaVarias: new Set(), mapaVariasDia: null,
     d: null, // datos cargados
     cargando: false, ocupado: 0, recargaPendiente: false, fuente: null, temporizador: null
   };
@@ -263,7 +263,7 @@
         <button type="button" class="rp-flecha" data-foco-dia="1" aria-label="Día siguiente">${ICO.der}</button>
         <span class="rp-p ${r.sin ? 'error' : 'ok'}">${r.sin} sin asignar</span><span class="rp-p">${r.asignadas} asignadas</span>
         <span class="rp-p ${r.sinConductor ? 'aviso' : 'ok'}">${r.sinConductor} sin conductor</span>
-        <label class="rp-todas"><input type="checkbox" id="rp-ver-pend"${S.verPendientes ? ' checked' : ''}> Sin asignar en el mapa</label>
+        <span class="rp-foco-filtro">${htmlFiltroMapa()}</span>
         <button type="button" class="rp-btn" id="rp-salir-foco">Salir de la vista ampliada</button>
       </div>
       <div class="rp-foco-rejilla${bandejaPlegada() ? ' bandeja-plegada' : ''}">${htmlBandeja()}${htmlVehiculos()}
@@ -547,7 +547,7 @@
     return `<section class="rp-panel rp-recorrido g-vidrio">
       <header><div><h3>${ICO.mapa} Recorrido</h3><p>Vuelta seleccionada · pulsa una parada para ver su ficha</p></div>
         <button type="button" class="rp-icono" id="rp-ampliar" title="${S.mapaGrande ? 'Reducir' : 'Ampliar'}">${ICO.ampliar}</button></header>
-      ${sel ? htmlHuecoMapa('mini') + '<div class="rp-mapa-info" data-mapa-info></div>' : ''}
+      ${sel ? htmlFiltroMapa() + htmlHuecoMapa('mini') + '<div class="rp-mapa-info" data-mapa-info></div>' : ''}
       <div class="rp-lista" data-scroll="recorrido">${cuerpo}</div>
     </section>`;
   }
@@ -612,7 +612,7 @@
       S.dia = sumar(S.dia, Number(b.dataset.focoDia)); S.seleccion.clear(); S.sel = null;
       if (S.dia < S.desde || S.dia > S.hasta) { S.modo = 'fecha'; semanaDe(S.dia); cargar(); } else pintar();
     });
-    const vp = $('rp-ver-pend'); if (vp) vp.onchange = () => { S.verPendientes = vp.checked; pintar(); };
+    root.querySelectorAll('[data-mapa-filtro]').forEach(b => b.onclick = () => { S.mapaFiltro = b.dataset.mapaFiltro; pintar(); });
     root.querySelectorAll('[data-mapa-vuelta]').forEach(c => c.onchange = () => { c.checked ? S.mapaVarias.add(c.dataset.mapaVuelta) : S.mapaVarias.delete(c.dataset.mapaVuelta); pintar(); });
     root.querySelectorAll('[data-mapa-todas]').forEach(b => b.onclick = () => {
       S.mapaVarias = new Set();
@@ -1146,6 +1146,11 @@
     return true;
   }
 
+  function htmlFiltroMapa() {
+    if (MAPA.config && !MAPA.config.disponible) return '';
+    return `<div class="rp-mapa-filtro" role="group" aria-label="Qué paradas ver en el mapa">${[['todos', 'Todas'], ['asignados', 'Asignadas'], ['pendientes', 'Pendientes']]
+      .map(([v, n]) => `<button type="button" class="${S.mapaFiltro === v ? 'activo' : ''}" data-mapa-filtro="${v}">${n}</button>`).join('')}</div>`;
+  }
   // modo: 'mini' (panel Recorrido), 'mapa' (pestaña Mapa) o 'foco' (vista ampliada)
   function htmlHuecoMapa(modo) {
     const c = MAPA.config;
@@ -1194,23 +1199,35 @@
     const grupos = {};
     const orden = [];
     const g = gruposDia(S.dia);
-    Object.keys(g).forEach(v => Object.keys(g[v]).map(Number).sort((a, b) => a - b).forEach(vu => g[v][vu].forEach(p => orden.push(p))));
-    paradasDia(S.dia).filter(p => !vehsDe(p).length).forEach(p => orden.push(p));
+    if (S.mapaFiltro !== 'pendientes') Object.keys(g).forEach(v => Object.keys(g[v]).map(Number).sort((a, b) => a - b).forEach(vu => g[v][vu].forEach(p => orden.push(p))));
+    if (S.mapaFiltro !== 'asignados') paradasDia(S.dia).filter(p => !vehsDe(p).length).forEach(p => orden.push(p));
+    const porClave = {};
     orden.forEach(p => {
+      porClave[p.clave] = p;
       const geo = geoDe(p); if (!geo || geo.lat == null) return;
       const k = geo.lat.toFixed(5) + ',' + geo.lng.toFixed(5);
       (grupos[k] = grupos[k] || []);
       if (!grupos[k].includes(p.clave)) grupos[k].push(p.clave);
     });
     const pos = {};
-    Object.values(grupos).forEach(claves => claves.forEach((c, i) => { pos[c] = { i, n: claves.length }; }));
-    return (p, geo) => {
+    Object.values(grupos).forEach(claves => claves.forEach((c, i) => { pos[c] = { i, n: claves.length, grupo: claves }; }));
+    const posDe = (p, geo) => {
       const x = pos[p.clave];
       if (!x || x.n < 2) return { lat: geo.lat, lng: geo.lng };
       const radio = 0.00018 * (x.n > 6 ? 1.6 : 1);
       const ang = 2 * Math.PI * x.i / x.n - Math.PI / 2;
       return { lat: geo.lat + radio * Math.sin(ang), lng: geo.lng + radio * Math.cos(ang) / Math.cos(geo.lat * Math.PI / 180) };
     };
+    // Al pasar el ratón: si en ese punto hay varias paradas, cuántas y cuáles
+    posDe.texto = p => {
+      const x = pos[p.clave];
+      if (!x || x.n < 2) return '';
+      return '\n\n' + x.n + ' paradas en este punto:\n' + x.grupo.map(c => {
+        const q = porClave[c]; const v = vehsDe(q);
+        return '• ' + (q.hora || '—') + ' ' + titulo(q) + ' — ' + (v.length ? v.join('+') + ' V' + vueltaDe(q) : 'sin asignar');
+      }).join('\n');
+    };
+    return posDe;
   }
   function seleccionMapa() {
     const g = gruposDia(S.dia);
@@ -1251,12 +1268,12 @@
     const meterDia = pos => { limDia.extend(pos); nDia++; unoDia = pos; };
     const meterSel = pos => { limSel.extend(pos); nSel++; unoSel = pos; };
     // Resto de paradas asignadas del día: tono pastel del color de su vehículo
-    Object.keys(g).forEach(v => Object.keys(g[v]).forEach(vu => {
+    if (S.mapaFiltro !== 'pendientes') Object.keys(g).forEach(v => Object.keys(g[v]).forEach(vu => {
       if (esVisible(v, vu)) return;
       g[v][vu].forEach(p => {
         const geo = geoDe(p); if (!geo || geo.lat == null) return;
         const pos = posDe(p, geo);
-        const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, icon: icono('', colorVeh(v), true), title: v + ' · V' + vu + ' · ' + (p.hora || '') + ' ' + titulo(p), zIndex: 1 });
+        const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, icon: icono('', colorVeh(v), true), title: v + ' · V' + vu + ' · ' + (p.hora || '') + ' ' + titulo(p) + posDe.texto(p), zIndex: 1 });
         m.addListener('click', () => {
           if (modo === 'mapa') S.mapaVarias.add(claveVu(v, Number(vu))); else S.sel = { veh: v, vu: Number(vu) };
           pintar();
@@ -1267,11 +1284,11 @@
       });
     }));
     // Paradas sin vehículo: «?» rojo pastel
-    if (S.verPendientes) paradasDia(S.dia).filter(p => !vehsDe(p).length).forEach(p => {
+    if (S.mapaFiltro !== 'asignados') paradasDia(S.dia).filter(p => !vehsDe(p).length).forEach(p => {
       const geo = geoDe(p); if (!geo || geo.lat == null) return;
       const pos = posDe(p, geo);
       const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="9.5" fill="#FBE3E0" stroke="#D9675B" stroke-width="2"/><text x="12" y="16.3" text-anchor="middle" font-family="Inter,Arial" font-size="11.5" font-weight="800" fill="#C0392B">?</text></svg>';
-      const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, title: 'Sin asignar · ' + (p.hora || '') + ' ' + titulo(p), zIndex: 80,
+      const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, title: 'Sin asignar · ' + (p.hora || '') + ' ' + titulo(p) + posDe.texto(p), zIndex: 80,
         icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(24, 24), anchor: new google.maps.Point(12, 12) } });
       m.addListener('click', () => abrirDetalle(p.clave));
       MAPA.capas.push(m);
@@ -1280,14 +1297,14 @@
     });
     // Vueltas visibles: numeradas en el orden guardado. Una sola: entrega azul / recogida naranja.
     // Varias: el color de cada vehículo, para distinguirlas.
-    visibles.forEach(s => {
+    (S.mapaFiltro === 'pendientes' ? [] : visibles).forEach(s => {
       const lista = g[s.veh][s.vu];
       lista.forEach((p, i) => {
         const geo = geoDe(p); if (!geo || geo.lat == null) return;
         const pos = posDe(p, geo);
         const color = varias ? colorVeh(s.veh) : p.tipo === 'RECOGIDA' ? '#E68C32' : p.tipo === 'ENTREGA' ? '#2F6FDB' : '#7A7268';
         const m = new google.maps.Marker({ map: MAPA.mapa, position: pos, icon: icono(i + 1, color, false),
-          title: (varias ? s.veh + ' V' + s.vu + ' · ' : '') + (i + 1) + '. ' + (p.hora || '') + ' ' + titulo(p) + (geo.precision === 'aproximada' ? ' (ubicación aproximada)' : ''), zIndex: 100 + i });
+          title: (varias ? s.veh + ' V' + s.vu + ' · ' : '') + (i + 1) + '. ' + (p.hora || '') + ' ' + titulo(p) + (geo.precision === 'aproximada' ? ' (ubicación aproximada)' : '') + posDe.texto(p), zIndex: 100 + i });
         m.addListener('click', () => abrirDetalle(p.clave));
         MAPA.capas.push(m);
         MAPA.porClave[p.clave] = m;
@@ -1311,9 +1328,9 @@
     const base = geoBase();
     if (base && nSel) limSel.extend(base);
     // Día nuevo: encuadra todas las paradas del día. Cambio de vuelta: encuadra la seleccionada.
-    const diaNuevo = MAPA.diaEncuadrado !== S.dia + '|' + modo;
+    const diaNuevo = MAPA.diaEncuadrado !== S.dia + '|' + modo + '|' + S.mapaFiltro;
     const encuadrar = (lim, n, uno) => { if (!n) return false; if (n === 1 && !base) { MAPA.mapa.setCenter(uno); MAPA.mapa.setZoom(14); } else MAPA.mapa.fitBounds(lim, 48); return true; };
-    if (diaNuevo || ajustar) { if (encuadrar(limDia, nDia, unoDia)) MAPA.diaEncuadrado = S.dia + '|' + modo; }
+    if (diaNuevo || ajustar) { if (encuadrar(limDia, nDia, unoDia)) MAPA.diaEncuadrado = S.dia + '|' + modo + '|' + S.mapaFiltro; }
     else if (firma !== MAPA.firma) encuadrar(limSel, nSel, unoSel);
     MAPA.firma = firma;
     pintarInfoMapa();
@@ -1362,7 +1379,7 @@
     const sinUbicar = todas.filter(p => { const d = direccionDe(p); return !d || (d in MAPA.geo && !ubicada(p)); });
     if (aprox.length) partes.push(`<p class="rp-c aviso">${aprox.length} con ubicación aproximada</p>`);
     if (sinUbicar.length) partes.push(`<p class="rp-sutil"><b>Sin ubicar (${sinUbicar.length}):</b> ${sinUbicar.map(p => `<a href="#" data-detalle="${esc(p.clave)}">${esc(titulo(p))}</a>`).join(', ')}</p>`);
-    if (S.verPendientes) {
+    if (S.mapaFiltro !== 'asignados') {
       const pend = paradasDia(S.dia).filter(p => !vehsDe(p).length);
       if (pend.length) partes.push(`<p class="rp-sutil"><span class="rp-pend-ico">?</span> ${pend.length} sin asignar en el mapa${pend.some(p => !ubicada(p)) ? ' (' + pend.filter(p => !ubicada(p)).length + ' sin ubicar)' : ''}</p>`);
     }
@@ -1385,15 +1402,13 @@
         <span class="rp-mapa-color" style="background:${colorVeh(v)}"></span>
         <span><b>${esc(v)} · V${vu}</b><small>${l.length} paradas${Object.keys(MAPA.geo).length ? ' · ' + ub + ' ubicadas' : ''}${cond.length ? ' · ' + esc(cond.join(', ')) : ''}</small></span></label>`;
     }).join('')).join('');
-    const sinVeh = paradasDia(S.dia).filter(p => !vehsDe(p).length).length;
     const n = S.mapaVarias.size;
     return htmlPeriodo() + htmlDias() + `<div class="rp-mapa-rejilla">
       <section class="rp-panel g-vidrio"><header><div><h3>${ICO.camion} Vueltas del día</h3><p>${fechaLarga(S.dia)} · marca las que quieras ver</p></div></header>
         <div class="rp-mapa-acciones"><button type="button" class="rp-btn suave" data-mapa-todas="1">Ver todas</button><button type="button" class="rp-btn suave" data-mapa-todas="0">Ninguna</button></div>
         <div class="rp-lista" data-scroll="mapa-vehs">${filas || '<p class="rp-vacio">Sin vehículos con paradas este día.</p>'}</div>
-        ${sinVeh ? `<label class="rp-todas"><input type="checkbox" id="rp-ver-pend"${S.verPendientes ? ' checked' : ''}> Ver las ${sinVeh} paradas sin asignar (?)</label>` : ''}</section>
       <section class="rp-panel g-vidrio rp-mapa-panel"><header><div><h3>${ICO.mapa} ${n ? n + (n === 1 ? ' vuelta' : ' vueltas') + ' en el mapa' : 'Mapa'}</h3><p>Pulsa una parada para ver su ficha · las vueltas no marcadas aparecen atenuadas</p></div></header>
-        ${htmlHuecoMapa('mapa')}<div class="rp-mapa-info" data-mapa-info></div></section></div>`;
+        ${htmlFiltroMapa()}${htmlHuecoMapa('mapa')}<div class="rp-mapa-info" data-mapa-info></div></section></div>`;
   }
 
   // Corrección manual de una ubicación desde la ficha (pegar coordenadas de Google Maps)
