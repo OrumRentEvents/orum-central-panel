@@ -42,7 +42,7 @@ html.glass.oscuro .pv-boton.prim { background: var(--g-champ); color: #1A1815 !i
 .pv-pildora.baja { background: rgba(46,157,91,.14); color: #23804A; }
 
 /* Pendientes */
-.pv-pendientes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.pv-pendientes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
 .pv-pend { display: flex; gap: 12px; align-items: center; text-align: left; padding: 14px 16px; border-radius: 18px; cursor: pointer; transition: transform .2s; }
 .pv-pend:hover { transform: translateY(-2px); }
 .pv-pend > span:last-child { display: flex; flex-direction: column; line-height: 1.25; }
@@ -206,8 +206,8 @@ html.glass.oscuro .pv-grafica .pv-b:hover, html.glass.oscuro .pv-grafica .pv-b.s
 .pv-ficha header strong { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pv-ficha-cuerpo { flex: 1; display: grid; grid-template-columns: 1.1fr 1fr; min-height: 0; }
 .pv-visor { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-right: 1px solid var(--g-linea); min-height: 0; }
-.pv-visor iframe { flex: 1; width: 100%; border: 1px solid var(--g-linea); border-radius: 12px; background: #fff; min-height: 300px; }
-.pv-visor .pv-mini { align-self: flex-start; }
+
+
 .pv-datos { overflow-y: auto; padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 8px; }
 .pv-datos h4 { display: flex; align-items: center; gap: 6px; margin: 10px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--g-suave); font-weight: 600; }
 .pv-estado-linea { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -252,3 +252,28 @@ html.glass.oscuro .pv-grafica .pv-b:hover, html.glass.oscuro .pv-grafica .pv-b.s
 
 /* Las gráficas no heredan el trazo de los iconos (.pv svg) */
 .pv svg.pv-grafica, .pv svg.pv-spark, .pv .pv-donut svg text { stroke: none; }
+
+/* 19 nov 2026: logos, marcas, visor ajustable, duplicadas, notas */
+.pv-avatar { position: relative; overflow: hidden; }
+.pv-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 5px; box-sizing: border-box; border-radius: inherit; }
+.pv-marca { display: inline-flex; vertical-align: -2px; margin-left: 4px; color: var(--g-suave); }
+.pv-marca svg { width: 14px !important; height: 14px !important; }
+.pv-marca.dup { color: #B03A2E; }
+.pv-pend.hay.k-duplicadas .pv-pend-ico { background: #FBE3DF; color: #B03A2E; }
+.pv-visor-barra { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.pv-visor-barra .pv-flecha { width: 30px; height: 30px; border: 1px solid var(--g-linea); background: var(--g-campo); }
+.pv-visor-marco { flex: 1; min-height: 300px; display: flex; border-radius: 12px; overflow: hidden; border: 1px solid var(--g-linea); background: #F3F0EB; }
+html.glass.oscuro .pv-visor-marco { background: #2A2724; }
+.pv-visor-marco iframe { flex: 1; width: 100%; border: none; background: #fff; }
+.pv-visor-marco > .pv-vacio { margin: auto; }
+.pv-img-caja { flex: 1; overflow: auto; display: flex; padding: 8px; }
+.pv-lienzo { position: relative; margin: auto; flex: none; }
+.pv-lienzo img { position: absolute; left: 50%; top: 50%; max-width: none; box-shadow: 0 4px 18px rgba(0,0,0,.12); background: #fff; transition: transform .25s; }
+.pv-revisada { margin-left: auto; padding: 7px 12px !important; font-size: 12.5px; }
+.pv-duplicada { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #FBE3DF; color: #7A2A20; font-size: 12.5px; }
+.pv-duplicada > svg { flex: none; margin-top: 2px; }
+.pv-duplicada small { display: block; margin: 4px 0 6px; color: #8A4A40; }
+.pv-duplicada .pv-enlace { color: #7A2A20 !important; text-decoration: underline; padding: 0; }
+.pv-notas { width: 100%; box-sizing: border-box; min-height: 70px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--g-linea); background: var(--g-campo); font: inherit; color: var(--g-tinta); resize: vertical; }
+.pv-notas:focus { outline: 2px solid var(--g-sel-borde); }
+.pv-campo em { font-style: normal; font-size: 11px; }

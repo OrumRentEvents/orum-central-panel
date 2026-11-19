@@ -57,7 +57,11 @@
     ojo: ico('<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>'), ok: ico('<path d="m5 12 4.5 4.5L19 7"/>'),
     camion: ico('<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17" cy="17.5" r="1.6"/>'),
     holded: ico('<path d="M4 4h16v16H4z"/><path d="M8 12l3 3 5-6"/>'), historial: ico('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 8v4l3 2"/>'),
-    papelera: ico('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'), externo: ico('<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>')
+    papelera: ico('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'), externo: ico('<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>'),
+    copia: ico('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
+    nota: ico('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4M8 9h8M8 13h5"/>'),
+    mas: ico('<path d="M12 5v14M5 12h14"/>'), menos: ico('<path d="M5 12h14"/>'), girar: ico('<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>'),
+    ajustar: ico('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'), ancho: ico('<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>')
   };
 
   function toast(txt, error) {
@@ -78,11 +82,42 @@
     return { k: 'holded', n: 'Pendiente Holded' };
   }
   const esVehiculo = f => f.tipoGasto === 'vehiculos' || !!f.matricula || !!f.gastoVehiculo;
+
+  // ── Posibles duplicadas (19 nov 2026) ──
+  // Misma fecha, mismo total, proveedor parecido y número parecido (la IA confunde
+  // I/1 y O/0, o añade el año delante: «2026 01FCO/47104»). Dos peajes del mismo día
+  // con números distintos NO salen. «No es duplicada» las quita de la lista.
+  const normNum = s => String(s || '').toUpperCase().replace(/[IL]/g, '1').replace(/O/g, '0').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+  const normProv = s => normal(s).replace(/[^a-z0-9]/g, '').slice(0, 7);
+  function distancia(a, b) {
+    if (Math.abs(a.length - b.length) > 2) return 99;
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  }
+  const numerosParecidos = (a, b) => { a = normNum(a); b = normNum(b); if (!a || !b) return false; return a === b || (a.length >= 3 && b.includes(a)) || (b.length >= 3 && a.includes(b)) || (a.length >= 6 && distancia(a, b) <= 2); };
+  let duplicadasCache = null;
+  function duplicadas() {
+    if (duplicadasCache) return duplicadasCache;
+    const grupos = {}, mapa = {};
+    lineas().forEach(f => { const k = f.fecha + '|' + num(f.importeTotal).toFixed(2) + '|' + normProv(f.proveedor); (grupos[k] = grupos[k] || []).push(f); });
+    Object.values(grupos).forEach(g => {
+      for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+        const a = g[i], b = g[j];
+        if (String(a.fileId) === String(b.fileId) || a.noDuplicada || b.noDuplicada || !numerosParecidos(a.numeroFactura, b.numeroFactura)) continue;
+        (mapa[a.fileId] = mapa[a.fileId] || []).push(b); (mapa[b.fileId] = mapa[b.fileId] || []).push(a);
+      }
+    });
+    return (duplicadasCache = mapa);
+  }
+  const esDuplicada = f => !!duplicadas()[f.fileId];
   const PENDIENTES = [
     { k: 'revisar', n: 'Por revisar', d: 'La IA no la leyó con seguridad', ico: 'ojo', f: f => estado(f).k === 'revisar' },
     { k: 'sinpago', n: 'Sin forma de pago', d: 'No pasan a Holded hasta pagarlas', ico: 'pago', f: f => !f.formaPago && !f.contabilizada },
     { k: 'holded', n: 'Pendientes de Holded', d: 'Pagadas, falta aprobarlas', ico: 'holded', f: f => !!f.formaPago && !f.contabilizada },
-    { k: 'sinmatricula', n: 'Vehículo sin matrícula', d: 'Gasto de vehículo sin asignar', ico: 'camion', f: f => esVehiculo(f) && !f.matricula }
+    { k: 'sinmatricula', n: 'Vehículo sin matrícula', d: 'Gasto de vehículo sin asignar', ico: 'camion', f: f => esVehiculo(f) && !f.matricula },
+    { k: 'duplicadas', n: 'Posibles duplicadas', d: 'Misma fecha, importe y nº parecido', ico: 'copia', f: f => esDuplicada(f) }
   ];
 
   // ── Carga ──
@@ -92,7 +127,7 @@
       const r = await fetch('/api/facturas-proveedores?detalle=1');
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status);
-      S.d = d;
+      S.d = d; duplicadasCache = null;
       try { facturasProveedoresDataGlobal = d; } catch (e) { /* la usa eliminarFacturaProveedor del panel */ }
     } catch (e) { S.error = e.message; }
     S.cargando = false; pintar();
@@ -190,26 +225,24 @@
     const top = Object.entries(porProv).sort((a, b) => b[1] - a[1]).slice(0, 6);
     const bloqueTop = `<div class="pv-panel g-vidrio"><h3>Proveedores que más cuestan</h3>${top.length ? top.map(([n, v]) => `
       <button class="pv-fila-prov" onclick="pvBuscarProv('${esc(n).replace(/'/g, "\\'")}')">${avatar(n)}<span class="pv-fp-nombre">${esc(n)}</span><span class="pv-fp-pct">${total ? Math.round(v / total * 100) : 0} %</span><b>${eur0(v)}</b></button>`).join('') : '<p class="pv-sutil">—</p>'}</div>`;
-    // Vehículos del periodo
-    const veh = per.filter(esVehiculo);
-    const porTipo = {};
-    veh.forEach(f => { const t = f.gastoVehiculo || 'sin'; porTipo[t] = (porTipo[t] || 0) + baseDe(f); });
-    const totVeh = veh.reduce((s, f) => s + baseDe(f), 0);
-    const bloqueVeh = `<div class="pv-panel g-vidrio"><h3>Vehículos <button class="pv-enlace" onclick="pvIr('vehiculos')">Ver flota →</button></h3>
-      <div class="pv-veh-total"><strong>${eur0(totVeh)}</strong><span class="pv-sutil">${veh.length} gastos</span></div>
-      ${totVeh ? `<div class="pv-apilada">${Object.entries(porTipo).sort((a, b) => b[1] - a[1]).map(([t, v]) => `<i style="background:${(TIPOS_VEH[t] || TIPOS_VEH.otro).c}" data-ancho="${v / totVeh * 100}%" title="${(TIPOS_VEH[t] || TIPOS_VEH.otro).n}: ${eur(v)}"></i>`).join('')}</div>
-      <div class="pv-leyenda">${Object.entries(porTipo).sort((a, b) => b[1] - a[1]).map(([t, v]) => `<span><i style="background:${(TIPOS_VEH[t] || TIPOS_VEH.otro).c}"></i>${(TIPOS_VEH[t] || TIPOS_VEH.otro).n} <b>${eur0(v)}</b></span>`).join('')}</div>` : '<p class="pv-sutil">Sin gastos de vehículos en este periodo.</p>'}</div>`;
+    // (19 nov 2026) El bloque de Vehículos ya no sale en el resumen: está en su pestaña.
     // Últimas facturas
     const ultimas = [...per].sort((a, b) => String(b.procesadoEn || '').localeCompare(String(a.procesadoEn || ''))).slice(0, 7);
     const bloqueUlt = `<div class="pv-panel g-vidrio pv-ultimas"><h3>Últimas facturas ${S.todoAnio ? 'del año' : 'del mes'} <button class="pv-enlace" onclick="pvIr('facturas')">Ver todas →</button></h3>
       ${ultimas.length ? ultimas.map(f => filaCompacta(f)).join('') : '<p class="pv-sutil">Aún no hay facturas en este periodo. Súbelas con «Subir facturas».</p>'}</div>`;
-    return kpis + pend + `<div class="pv-rejilla">${bloqueDep}${bloqueTop}${bloqueVeh}</div>` + bloqueUlt;
+    return kpis + pend + `<div class="pv-rejilla dos">${bloqueDep}${bloqueTop}</div>` + bloqueUlt;
   }
-  const avatar = n => `<span class="pv-avatar" style="--c:${colorDe(n)}">${esc(iniciales(n))}</span>`;
+  // Logo del proveedor: icono de su web (tabla proveedores_web); si no hay o no carga, sus iniciales
+  const webDe = n => (S.d && S.d.webs && S.d.webs[n]) || '';
+  const avatar = n => {
+    const w = webDe(n);
+    return `<span class="pv-avatar" style="--c:${colorDe(n)}">${esc(iniciales(n))}${w ? `<img src="https://icons.duckduckgo.com/ip3/${encodeURIComponent(w)}.ico" alt="" loading="lazy" onerror="this.remove()">` : ''}</span>`;
+  };
+  const marcas = f => (esDuplicada(f) ? `<span class="pv-marca dup" title="Posible duplicada">${I.copia}</span>` : '') + (f.notas ? `<span class="pv-marca" title="${esc(f.notas)}">${I.nota}</span>` : '');
   const pildora = f => { const e = estado(f); return `<span class="pv-estado e-${e.k}">${e.n}</span>`; };
   function filaCompacta(f) {
     return `<button class="pv-fila-c" onclick="pvAbrir('${esc(f.fileId)}')">${avatar(f.proveedor)}
-      <span class="pv-fc-txt"><b>${esc(f.proveedor)}</b><small>${esc(f.concepto || ('Nº ' + (f.numeroFactura || '—')))}</small></span>
+      <span class="pv-fc-txt"><b>${esc(f.proveedor)} ${marcas(f)}</b><small>${esc(f.concepto || ('Nº ' + (f.numeroFactura || '—')))}</small></span>
       <span class="pv-fc-fecha">${esc(f.fecha)}</span>${pildora(f)}<strong>${eur(f.importeTotal)}</strong></button>`;
   }
 
@@ -222,7 +255,7 @@
     if (S.depto) lista = lista.filter(f => (f.desglose_departamentos || []).some(d => d.departamento === S.depto));
     if (S.buscar) {
       const b = normal(S.buscar);
-      lista = lista.filter(f => normal(f.proveedor).includes(b) || normal(f.numeroFactura).includes(b) || normal(f.concepto).includes(b) || normal(f.matricula).includes(b) || String(f.importeTotal).includes(b.replace(',', '.')));
+      lista = lista.filter(f => normal(f.proveedor).includes(b) || normal(f.numeroFactura).includes(b) || normal(f.concepto).includes(b) || normal(f.notas).includes(b) || normal(f.matricula).includes(b) || String(f.importeTotal).includes(b.replace(',', '.')));
     }
     lista = [...lista].sort((a, b) => (b.anio - a.anio) || (b.mes - a.mes) || String(b.fecha).split('/')[0].localeCompare(String(a.fecha).split('/')[0]));
     const total = lista.reduce((s, f) => s + num(f.importeTotal), 0);
@@ -230,7 +263,7 @@
       const deps = (f.desglose_departamentos || []).map(d => `<span class="pv-dep">${esc(d.departamento)}${d.porcentaje < 100 ? ' ' + d.porcentaje + '%' : ''}</span>`).join('');
       const veh = f.matricula ? `<span class="pv-dep veh">${esc(f.matricula)}${f.gastoVehiculo ? ' · ' + esc((TIPOS_VEH[f.gastoVehiculo] || TIPOS_VEH.otro).n) : ''}</span>` : '';
       return `<tr class="${S.abierta === String(f.fileId) ? 'sel' : ''}" onclick="pvAbrir('${esc(f.fileId)}')">
-        <td><div class="pv-celda-prov">${avatar(f.proveedor)}<span><b>${esc(f.proveedor)}</b><small>${esc(f.concepto || '')}</small></span></div></td>
+        <td><div class="pv-celda-prov">${avatar(f.proveedor)}<span><b>${esc(f.proveedor)} ${marcas(f)}</b><small>${esc(f.concepto || '')}</small></span></div></td>
         <td><b class="pv-num">${esc(f.numeroFactura || '—')}</b><small class="pv-sutil">${esc(f.fecha)}</small></td>
         <td>${deps}${veh}</td>
         <td>${pildora(f)}</td>
@@ -270,19 +303,39 @@
     const periodos = ls.map(x => `<div class="pv-periodo-l" data-fila="${esc(x.fila)}">
         ${campo('Fecha', 'fecha', x.fecha)}${campo('Base', 'importeBase', x.importeBase, 'number')}${campo('IVA', 'iva', x.iva, 'number')}${campo('Total', 'importeTotal', x.importeTotal, 'number')}</div>`).join('');
     const deps = (f.desglose_departamentos || []).map(d => `<span class="pv-dep">${esc(d.departamento)} · ${d.porcentaje}% · ${eur(d.importe)}</span>`).join('');
+    // Al volver a pintar la misma factura (tras guardar un dato) se conserva el visor tal cual
+    // (zoom, giro y el PDF ya cargado: su enlace firmado caduca al minuto)
+    const visorPrevio = VIS.fileId === String(f.fileId) ? $('pv-visor') : null;
+    if (visorPrevio) visorPrevio.remove();
     cont.innerHTML = `<aside class="pv-ficha g-vidrio">
       <header>${avatar(f.proveedor)}<div><small>${f.rectificativa ? 'Factura rectificativa' : 'Factura'} ${esc(f.numeroFactura || '')}</small><h2>${esc(f.proveedor)}</h2></div>
         <strong>${eur(total)}</strong><button class="pv-flecha" onclick="pvCerrar()" title="Cerrar">${I.cerrar}</button></header>
       <div class="pv-ficha-cuerpo">
-        <div class="pv-visor"><iframe src="/api/facturas-proveedores/${encodeURIComponent(f.fileId)}/archivo" title="Factura"></iframe>
-          <button class="pv-mini" onclick="verArchivoFactura('${id}')">Abrir en otra pestaña ${I.externo}</button></div>
+        <div class="pv-visor">
+          <div class="pv-visor-barra">
+            <button class="pv-mini" onclick="pvVisor('ajustar')" title="Ver la factura entera">${I.ajustar}Ajustar</button>
+            <button class="pv-mini" onclick="pvVisor('ancho')" title="Ajustar al ancho">${I.ancho}Ancho</button>
+            <button class="pv-flecha" onclick="pvVisor('menos')" title="Alejar">${I.menos}</button>
+            <button class="pv-flecha" onclick="pvVisor('mas')" title="Acercar">${I.mas}</button>
+            <button class="pv-flecha" id="pv-visor-girar" onclick="pvVisor('girar')" title="Girar la foto">${I.girar}</button>
+            <button class="pv-mini" style="margin-left:auto" onclick="verArchivoFactura('${id}')">Abrir en otra pestaña ${I.externo}</button>
+          </div>
+          <div class="pv-visor-marco" id="pv-visor"><div class="pv-vacio">Cargando la factura…</div></div>
+        </div>
         <div class="pv-datos">
-          <div class="pv-estado-linea">${pildora(f)} ${f.confianza ? `<span class="pv-sutil">Lectura de la IA: confianza ${esc(f.confianza)}</span>` : ''}</div>
+          <div class="pv-estado-linea">${pildora(f)} ${f.confianza ? `<span class="pv-sutil">Lectura de la IA: confianza ${esc(f.confianza)}</span>` : ''}
+            ${estado(f).k === 'revisar' ? `<button class="pv-boton prim pv-revisada" onclick="pvRevisada()">${I.ok}Marcar como revisada</button>` : ''}</div>
+          ${esDuplicada(f) ? `<div class="pv-duplicada">${I.copia}<div><b>Posible duplicada</b> de ${duplicadas()[f.fileId].map(o => `<button class="pv-enlace" onclick="pvAbrir('${esc(o.fileId)}')">${esc(o.proveedor)} nº ${esc(o.numeroFactura || '—')} (${esc(o.formaPago || 'sin pago')}${o.contabilizada ? ', contabilizada' : ''})</button>`).join(', ')}.
+            <small>Misma fecha e importe y número casi igual. Si sobra una, elimínala; si no, márcalas como distintas.</small>
+            <button class="pv-mini" onclick="pvNoDuplicada()">No es duplicada</button></div></div>` : ''}
           ${f.dudas ? `<p class="pv-dudas">${I.alerta}<span>${esc(f.dudas)}</span></p>` : ''}
           ${f.concepto ? `<p class="pv-concepto">${esc(f.concepto)}</p>` : ''}
           <h4>Datos de la factura</h4>
           <div class="pv-campos" data-fila="${esc(f.fila)}" data-todas="1">
-            ${campo('Proveedor', 'proveedor', f.proveedor, 'text', 'ancho')}${campo('Nº de factura', 'numeroFactura', f.numeroFactura)}
+            <label class="pv-campo ancho"><span>Proveedor <em class="pv-sutil">(elige de la lista para no duplicarlo)</em></span><input list="pv-lista-prov" value="${esc(f.proveedor)}" onchange="pvGuardarProveedor(this)">
+              <datalist id="pv-lista-prov">${[...new Set(lineas().map(x => x.proveedor).filter(Boolean))].sort().map(p => `<option value="${esc(p)}">`).join('')}</datalist></label>
+            ${campo('Nº de factura', 'numeroFactura', f.numeroFactura)}
+            <label class="pv-campo"><span>Web (para el logo)</span><input placeholder="p. ej. euromaster.es" value="${esc(webDe(f.proveedor))}" onchange="pvGuardarWeb(this)"></label>
             ${f.vencimiento ? `<label class="pv-campo"><span>Vence</span><input disabled value="${esc(f.vencimiento.split('-').reverse().join('/'))}"></label>` : ''}
           </div>
           <h4>${ls.length > 1 ? ls.length + ' periodos' : 'Importes'}</h4>${periodos}
@@ -300,6 +353,10 @@
             <label class="pv-campo"><span>Tipo de gasto</span><select onchange="pvGuardar(this,'gastoVehiculo')"><option value="">—</option>${Object.entries(TIPOS_VEH).filter(([k]) => k !== 'sin').map(([k, t]) => `<option value="${k}" ${k === f.gastoVehiculo ? 'selected' : ''}>${t.n}</option>`).join('')}</select></label>
             ${ls.length === 1 ? `<label class="pv-campo"><span>Litros</span><input type="number" step="0.01" value="${esc(f.litros ?? '')}" onchange="pvGuardar(this,'litros')"></label>` : ''}
           </div>
+          <h4>${I.nota} Notas</h4>
+          <div data-fila="${esc(f.fila)}" data-todas="1">
+            <textarea class="pv-notas" placeholder="Cualquier aclaración sobre esta factura (se guarda al salir del cuadro)" onchange="pvGuardar(this,'notas')">${esc(f.notas || '')}</textarea>
+          </div>
           <div class="pv-ficha-pie">
             <button class="pv-boton g-vidrio" onclick="abrirHistorialFactura('${id}')">${I.historial}Historial</button>
             ${u.rol === 'Direccion' && !f.contabilizada ? `<button class="pv-boton g-vidrio rojo" onclick="eliminarFacturaProveedor('${id}')">${I.papelera}Eliminar</button>` : ''}
@@ -307,7 +364,105 @@
         </div>
       </div></aside>`;
     requestAnimationFrame(() => cont.classList.add('visible'));
+    if (visorPrevio) { $('pv-visor').replaceWith(visorPrevio); const g = $('pv-visor-girar'); if (g) g.style.display = esFoto() ? '' : 'none'; }
+    else cargarVisor(f.fileId);
   }
+
+  // ── Visor de la factura: foto ajustable (zoom, ancho, girar) o PDF ──
+  let VIS = { fileId: null };
+  async function infoArchivo(fileId) {
+    try { const r = await fetch('/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo?info=1'); if (r.ok) return await r.json(); } catch (e) { /* se usa el enlace directo */ }
+    return { url: '/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo', mime: '' };
+  }
+  async function cargarVisor(fileId) {
+    if (VIS.fileId !== String(fileId)) {
+      VIS = { fileId: String(fileId), modo: 'ajustar', zoom: 1, giro: 0, url: '', mime: '' };
+      Object.assign(VIS, await infoArchivo(fileId));
+    }
+    pintarVisor();
+  }
+  const esFoto = () => /^image\//.test(VIS.mime || '');
+  async function pintarVisor(recargarPdf) {
+    const marco = $('pv-visor'); if (!marco) return;
+    const g = $('pv-visor-girar'); if (g) g.style.display = esFoto() ? '' : 'none';
+    if (esFoto()) {
+      if (!marco.querySelector('img')) {
+        marco.innerHTML = `<div class="pv-img-caja"><div class="pv-lienzo"><img alt="Factura" src="${esc(VIS.url)}"></div></div>`;
+        marco.querySelector('img').onload = ajustarFoto;
+      }
+      return ajustarFoto();
+    }
+    // PDF: el visor del navegador entiende #view=Fit / FitH / zoom=N. El enlace firmado
+    // caduca en un minuto, así que al cambiar el zoom se pide uno nuevo.
+    if (recargarPdf) Object.assign(VIS, await infoArchivo(VIS.fileId));
+    const vista = VIS.zoom !== 1 ? 'zoom=' + Math.round(VIS.zoom * 100) : (VIS.modo === 'ancho' ? 'view=FitH' : 'view=Fit');
+    marco.innerHTML = `<iframe title="Factura" src="${esc(VIS.url)}#${vista}"></iframe>`;
+  }
+  function ajustarFoto() {
+    const caja = document.querySelector('#pv-visor .pv-img-caja'), img = caja && caja.querySelector('img');
+    if (!img || !img.naturalWidth) return;
+    const W = caja.clientWidth - 16, H = caja.clientHeight - 16, girada = VIS.giro % 180 !== 0;
+    const w = img.naturalWidth, h = img.naturalHeight, wv = girada ? h : w, hv = girada ? w : h;
+    const s = (VIS.modo === 'ancho' ? W / wv : Math.min(W / wv, H / hv)) * VIS.zoom;
+    const lienzo = caja.querySelector('.pv-lienzo');
+    lienzo.style.width = wv * s + 'px'; lienzo.style.height = hv * s + 'px';
+    img.style.width = w * s + 'px'; img.style.height = h * s + 'px';
+    img.style.transform = `translate(-50%, -50%) rotate(${VIS.giro}deg)`;
+  }
+  window.pvVisor = accion => {
+    if (accion === 'ajustar' || accion === 'ancho') { VIS.modo = accion; VIS.zoom = 1; }
+    else if (accion === 'mas') VIS.zoom = Math.min(5, VIS.zoom * 1.25);
+    else if (accion === 'menos') VIS.zoom = Math.max(0.3, VIS.zoom / 1.25);
+    else if (accion === 'girar') VIS.giro = (VIS.giro + 90) % 360;
+    pintarVisor(true);
+  };
+  window.addEventListener('resize', () => { if (S.abierta && esFoto()) ajustarFoto(); });
+
+  // Guarda en todas las líneas de la factura abierta (o de otra, con fileId)
+  async function guardarEnFactura(campo, valor, fileId) {
+    const filas = lineas().filter(x => String(x.fileId) === String(fileId || S.abierta));
+    for (const x of filas) {
+      const r = await fetch('/api/facturas-proveedores/actualizar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fila: x.fila, campo, valor }) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status);
+      x[campo] = valor;
+    }
+  }
+  // «Marcar como revisada»: la lectura de la IA queda como buena y sale de «Por revisar»
+  window.pvRevisada = async () => {
+    try { await guardarEnFactura('confianza', 'alta'); toast('Marcada como revisada'); pintar(); pintarFicha(); }
+    catch (e) { toast('No se ha guardado: ' + e.message, true); }
+  };
+  // «No es duplicada»: esta factura y las que se le parecían salen de «Posibles duplicadas»
+  window.pvNoDuplicada = async () => {
+    const otras = duplicadas()[S.abierta] || [];
+    try {
+      await guardarEnFactura('noDuplicada', true);
+      for (const o of otras) await guardarEnFactura('noDuplicada', true, o.fileId);
+      duplicadasCache = null; toast('Marcadas como facturas distintas'); pintar(); pintarFicha();
+    } catch (e) { toast('No se ha guardado: ' + e.message, true); }
+  };
+  // Proveedor: se elige de la lista; si se escribe uno nuevo, se pregunta antes (evita duplicados)
+  window.pvGuardarProveedor = el => {
+    const v = el.value.trim();
+    const existe = lineas().some(x => x.proveedor === v);
+    if (!v) { el.value = (lineas().find(x => String(x.fileId) === S.abierta) || {}).proveedor || ''; return; }
+    if (!existe && !confirm(`«${v}» no está en la lista: se creará como proveedor nuevo (sin reparto por departamento).\n\n¿Seguro? Si ya existe con otro nombre, cancela y elígelo de la lista.`)) {
+      el.value = (lineas().find(x => String(x.fileId) === S.abierta) || {}).proveedor || ''; return;
+    }
+    el.value = v; guardar(el, 'proveedor');
+  };
+  window.pvGuardarWeb = async el => {
+    const f = lineas().find(x => String(x.fileId) === S.abierta); if (!f) return;
+    try {
+      const r = await fetch('/api/facturas-proveedores/web', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proveedor: f.proveedor, dominio: el.value }) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status);
+      S.d.webs = S.d.webs || {};
+      if (d.dominio) S.d.webs[f.proveedor] = d.dominio; else delete S.d.webs[f.proveedor];
+      toast(d.dominio ? 'Logo guardado' : 'Web quitada'); pintar(); pintarFicha();
+    } catch (e) { toast('No se ha guardado: ' + e.message, true); }
+  };
 
   // Guarda un campo. Los de [data-todas] van a todas las líneas (periodos) de la factura.
   async function guardar(el, campo) {
@@ -331,6 +486,7 @@
         }
       }
       toast('Guardado');
+      if (['proveedor', 'numeroFactura', 'fecha', 'importeTotal'].includes(campo)) duplicadasCache = null;
       // Cambiar el proveedor cambia el reparto por departamento: se recarga del servidor
       if (campo === 'proveedor') return cargar();
       pintar(); pintarFicha();

@@ -2522,7 +2522,8 @@ function anioFechaFactura(fecha) {
 }
 function claveFacturaProveedor(proveedor, numero, fecha) {
   // Los números largos llegan de la Sheet como número ("2026081709183.0").
-  const n = String(numero ?? '').replace(/\.0+$/, '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+  const n = String(numero ?? '').replace(/\.0+$/, '').toUpperCase().replace(/[IL]/g, '1').replace(/O/g, '0').replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+  // (19 nov 2026) I/L→1 y O→0: la IA a veces lee «4061I7» donde pone «406117» (Q8 duplicada)
   const anio = anioFechaFactura(fecha);
   // Sin dígitos ("No visible") o de un solo carácter (tickets "1") no identifica nada.
   if (!/\d/.test(n) || n.length < 2 || !anio) return null;
@@ -2606,6 +2607,8 @@ app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, su
     await facturasArchivos.guardar({ fileId, nombreArchivo, mime, base64, proveedor, usuario, origen: 'panel', anio });
     const lineas = lecturaFacturas.lineasSheet(lectura);
     const r = await facturasDatos.guardarLineas({ fileId, proveedor, nombreArchivo, lineas });
+    // Web del proveedor (para su logo), si la factura la trae y aún no la tenía
+    if (lectura.emisor_web) supabase.from('proveedores_web').upsert({ proveedor, dominio: lectura.emisor_web }, { onConflict: 'proveedor', ignoreDuplicates: true }).then(() => {}, () => {});
     vehiculosModulo.sincronizarConfirmaciones();
     res.json({
       ok: true, fileId, proveedor, proveedor_nuevo: proveedorNuevo, lineas: r.lineas_guardadas,
@@ -2707,6 +2710,11 @@ app.get('/api/facturas-proveedores/proveedores', requiereLogin, bloquearComercia
 app.get('/api/facturas-proveedores/:fileId/archivo', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const url = await facturasArchivos.urlFirmada(req.params.fileId);
+    // ?info=1 (visor de la ficha): enlace y tipo, para pintar una foto como imagen ajustable
+    if (req.query.info === '1') {
+      const a = url ? await facturasArchivos.info(req.params.fileId) : null;
+      return res.json({ url: url || '/api/facturas-proveedores/' + encodeURIComponent(req.params.fileId) + '/archivo', mime: (a && a.mime) || '' });
+    }
     if (url) return res.redirect(url);
     if (String(req.params.fileId).startsWith('SUP_')) return res.status(404).send('Archivo no encontrado');
     res.redirect('https://drive.google.com/file/d/' + encodeURIComponent(req.params.fileId) + '/view');
@@ -2802,6 +2810,21 @@ async function obtenerFacturasProveedoresEnriquecidas() {
   return { facturasEnriquecidas, repartoPorProveedor };
 }
 
+// Web de un proveedor (19 nov 2026), solo para mostrar su logo en el panel. Vacío = quitarla.
+app.post('/api/facturas-proveedores/web', requiereLogin, bloquearComercial, async (req, res) => {
+  try {
+    const proveedor = String((req.body && req.body.proveedor) || '').trim();
+    const dominio = String((req.body && req.body.dominio) || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[\/\s]/)[0];
+    if (!proveedor) return res.status(400).json({ error: 'Falta el proveedor' });
+    if (dominio && !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(dominio)) return res.status(400).json({ error: 'Escribe solo la web, p. ej. euromaster.es' });
+    const r = dominio
+      ? await supabase.from('proveedores_web').upsert({ proveedor, dominio, actualizado_en: new Date().toISOString() })
+      : await supabase.from('proveedores_web').delete().eq('proveedor', proveedor);
+    if (r.error) throw r.error;
+    res.json({ ok: true, dominio });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (req, res) => {
   try {
     const { facturasEnriquecidas, repartoPorProveedor } = await obtenerFacturasProveedoresEnriquecidas();
@@ -2813,11 +2836,14 @@ app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (re
     // 19 nov 2026 (pantalla Proveedores de la interfaz glass): concepto, vencimiento y
     // dudas de la lectura de la IA, y el tipo de gasto del proveedor (para saber si
     // es de vehículo aunque aún no tenga matrícula).
+    let webs;
     if (req.query.detalle === '1') {
-      const [lecturas, tipos] = await Promise.all([
+      const [lecturas, tipos, w] = await Promise.all([
         supabase.from('facturas_proveedores').select('file_id, concepto, vencimiento, dudas, nif, es_rectificativa'),
-        supabase.from('proveedores_tipo_gasto').select('proveedor, tipo')
+        supabase.from('proveedores_tipo_gasto').select('proveedor, tipo'),
+        supabase.from('proveedores_web').select('proveedor, dominio')
       ]);
+      webs = Object.fromEntries((w.data || []).map(x => [x.proveedor, x.dominio])); // logos de proveedor
       const porFile = {}; (lecturas.data || []).forEach(l => { porFile[String(l.file_id)] = l; });
       const tipoProv = {}; (tipos.data || []).forEach(t => { tipoProv[String(t.proveedor)] = t.tipo; });
       facturasEnriquecidas.forEach(f => {
@@ -2826,7 +2852,7 @@ app.get('/api/facturas-proveedores', requiereLogin, bloquearComercial, async (re
         f.tipoGasto = f.matricula || f.gastoVehiculo ? 'vehiculos' : (tipoProv[String(f.proveedor)] || sugerirTipoGasto(f.proveedor));
       });
     }
-    res.json({ ok: true, facturas: facturasEnriquecidas, resumen_departamentos: resumenDepartamentos, proveedores_sin_clasificar: [...new Set(facturasEnriquecidas.filter(f => !repartoPorProveedor[String(f.proveedor)]).map(f => f.proveedor))] });
+    res.json({ ok: true, webs, facturas: facturasEnriquecidas, resumen_departamentos: resumenDepartamentos, proveedores_sin_clasificar: [...new Set(facturasEnriquecidas.filter(f => !repartoPorProveedor[String(f.proveedor)]).map(f => f.proveedor))] });
   } catch (err) {
     console.error('Error en /api/facturas-proveedores:', err);
     res.status(500).json({ error: 'Error al obtener facturas: ' + err.message });
@@ -4556,7 +4582,7 @@ app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, 
 // contabilidad no tenga que tocar la Sheet directamente.
 // 19 nov 2026: «Contabilizada» ya no se edita a mano; la marca el sistema al
 // aceptar la factura en Financiero → Holded (lib/holdedCompras.js).
-const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'importeBase', 'iva', 'importeTotal', 'formaPago', 'digitalizada', 'matricula', 'gastoVehiculo', 'litros'];
+const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'importeBase', 'iva', 'importeTotal', 'formaPago', 'digitalizada', 'matricula', 'gastoVehiculo', 'litros', 'notas', 'noDuplicada', 'confianza'];
 // ACTUALIZADO (15 sep 2026): se direcciona por "fila" (nº de fila real en
 // FACTURAS_LOG) en vez de por fileId - desde que una factura puede ocupar
 // varias filas (una por línea/mes), fileId ya no identifica una fila única.
@@ -4565,6 +4591,8 @@ app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercia
     const { fila, campo, valor } = req.body;
     if (!fila) return res.status(400).json({ error: 'fila requerida' });
     if (!CAMPOS_FACTURA_EDITABLES.includes(campo)) return res.status(400).json({ error: 'Campo no editable: ' + campo });
+    // «Marcar como revisada» (19 nov 2026): la confianza solo se puede subir a alta
+    if (campo === 'confianza' && valor !== 'alta') return res.status(400).json({ error: 'La confianza solo se puede marcar como revisada (alta)' });
     const usuario = req.session.usuario.nombre || req.session.usuario.usuario;
     const data = await facturasDatos.actualizarCampo(fila, campo, valor, usuario);
     if (data.error) return res.status(500).json({ error: data.error });
