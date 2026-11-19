@@ -373,3 +373,40 @@ html.glass.oscuro .rp-btn:not(.suave) { background: var(--g-champ); border-color
   .rp-mapa-rejilla { grid-template-columns: minmax(0, 1fr); }
   .rp-mapa-hueco.grande { height: 60vh; min-height: 320px; }
 }
+.rp-rec-nave b { color: var(--g-tinta); }
+.rp-num.nave { background: #2E2A25; color: #F6EBDC; border-color: #2E2A25; }
+.rp-num.nave svg { width: 11px; height: 11px; }
+
+/* Mapa: varias vueltas a la vez */
+.rp-mapa-acciones { display: flex; gap: 6px; }
+.rp-mapa-veh input { margin: 0; flex: none; }
+.rp-mapa-vueltas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.rp-mapa-vueltas li { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.rp-mapa-vueltas li span:last-child { margin-left: auto; color: var(--g-suave); white-space: nowrap; }
+.rp-pend-ico { display: inline-flex; width: 15px; height: 15px; border-radius: 50%; border: 2px solid #C0392B; color: #C0392B; font-size: 10px; font-weight: 800; align-items: center; justify-content: center; vertical-align: -3px; }
+.rp-tarjeta .rp-lugar, .rp-parada .rp-loc { cursor: zoom-in; }
+.rp-veh-cab.soltar-encima { box-shadow: inset 0 0 0 2px #5B8DEF; background: rgba(91,141,239,.06); }
+
+/* Vista ampliada (operativa diaria): Sin asignar + Vehículos y vueltas + mapa a pantalla completa */
+html.rp-foco-activo body { overflow: hidden; }
+.rp.rp-foco { position: fixed; inset: 0; z-index: 1200; padding: 12px; gap: 10px; background: var(--g-fondo); overflow: hidden; }
+.rp-foco::before { content: ""; position: absolute; inset: 0; background: var(--g-velo); pointer-events: none; z-index: -1; }
+.rp-foco-barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; border-radius: 16px; flex: none; }
+.rp-foco-fecha { font-size: 15px; padding: 0 4px; }
+.rp-foco-barra .rp-todas { margin-left: auto; }
+.rp-foco-rejilla { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.9fr) minmax(320px, 1.4fr); gap: 10px; }
+.rp-foco-rejilla.bandeja-plegada { grid-template-columns: 170px minmax(460px, 2.2fr) minmax(340px, 1.5fr); }
+.rp-foco-rejilla > .rp-panel { min-height: 0; overflow: hidden; }
+.rp-foco-rejilla .rp-lista { max-height: none; min-height: 0; flex: 1; }
+.rp-foco-mapa .rp-mapa-hueco.modo-foco { flex: 1; height: auto; min-height: 260px; }
+.rp-foco-mapa .rp-mapa-info { max-height: 30%; overflow-y: auto; flex: none; }
+@media (max-width: 1100px) {
+  .rp.rp-foco { overflow-y: auto; }
+  .rp-foco-rejilla, .rp-foco-rejilla.bandeja-plegada { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+  .rp-foco-mapa { grid-column: 1 / -1; min-height: 420px; }
+}
+@media (max-width: 760px) {
+  .rp-foco-rejilla, .rp-foco-rejilla.bandeja-plegada { grid-template-columns: minmax(0, 1fr); }
+  .rp-foco-rejilla > .rp-panel { overflow: visible; }
+  .rp-foco-barra .rp-todas { margin-left: 0; }
+}
