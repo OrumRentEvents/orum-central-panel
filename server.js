@@ -5152,6 +5152,12 @@ app.post('/api/holded/factura/:numero/cobros', requiereLogin, soloHolded, async 
   try { res.json(await holdedSync.enviarCobros(req.params.numero)); }
   catch (err) { console.error('Error en /api/holded/cobros:', err); res.status(500).json({ error: err.message }); }
 });
+// Qué cuentas y tesorerías necesita la integración y si existen en la
+// empresa de Holded de la clave actual (para montar una empresa nueva).
+app.get('/api/holded/empresa', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json({ ok: true, ...(await holdedSync.comprobarEmpresa()) }); }
+  catch (err) { console.error('Error en /api/holded/empresa:', err); res.status(500).json({ error: err.message }); }
+});
 app.get('/api/holded/pendientes', requiereLogin, soloHolded, async (req, res) => {
   try { res.json({ ok: true, ...(await holdedSync.pendientes()) }); }
   catch (err) { console.error('Error en /api/holded/pendientes:', err); res.status(500).json({ error: err.message }); }

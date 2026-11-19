@@ -33,6 +33,13 @@
   <div class="sub">Holded es de prueba hasta el 1 de enero de 2027. Cada día a las 6:00 se vuelca todo lo del día anterior (facturas y cobros clasificados en Caja). Lo ya volcado no se vuelve a enviar.</div>
 
   <div class="card">
+    <h2>Empresa de Holded</h2>
+    <div class="sub" style="margin-bottom:10px">Comprueba que la empresa de Holded conectada tiene creadas las cuentas y tesorerías que usa el volcado (se buscan por número de cuenta).</div>
+    <button class="prim" style="margin-left:0" onclick="comprobarEmpresa()">Comprobar empresa Holded</button>
+    <div id="res-empresa"></div>
+  </div>
+
+  <div class="card">
     <h2>Volcado</h2>
     <div id="volcado" class="sub" style="margin-bottom:10px">Cargando…</div>
     <button class="prim" style="margin-left:0" onclick="volcar()">Volcar ahora</button>
@@ -73,6 +80,22 @@ async function api(method, url, body){
 const fh = iso => { if(!iso) return '—'; const d=new Date(iso); return d.toLocaleString('es-ES',{timeZone:'Europe/Madrid',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); };
 const ff = s => s ? s.split('-').reverse().join('/') : '—';
 const ESTADOS = {sin_procesar:'sin procesar',bloqueada:'bloqueada',error:'error',borrador:'borrador',sin_clasificar:'sin método en Caja',sin_cuenta:'sin cuenta',sin_tesoreria:'sin tesorería',listo:'listo',modificado:'cambiado'};
+
+async function comprobarEmpresa(){
+  const box = document.getElementById('res-empresa');
+  box.innerHTML = '<div class="sub" style="margin-top:10px">Comprobando…</div>';
+  try{
+    const d = await api('GET','/api/holded/empresa');
+    const si = '<span class="ok">✔</span>', no = '<span class="err">✘ falta</span>';
+    let h = '<div style="margin-top:12px">'+(d.todo_listo?'<b class="ok">Todo lo necesario para ventas y cobros está creado.</b>':'<b class="err">Faltan cosas por crear en Holded (abajo).</b>')+'</div>';
+    h += '<div class="sub" style="margin-top:6px">Fecha de corte: '+ff(d.fecha_corte)+' · '+d.total_cuentas_holded+' cuentas en Holded · contactos: '+(d.hay_contactos?'sí':'<span class="err">ninguno (importarlos)</span>')+'</div>';
+    h += '<table style="margin-top:10px"><tr><th>Ingresos</th><th></th></tr>'+d.ingresos.map(c=>'<tr><td>'+c.numero+' — '+esc(c.para)+(c.nombre_holded?' <span class="sub">('+esc(c.nombre_holded)+')</span>':'')+'</td><td>'+(c.existe?si:no)+'</td></tr>').join('')+'</table>';
+    h += '<table style="margin-top:10px"><tr><th>Tesorería (tipo · cuenta)</th><th>Métodos de Caja</th><th></th></tr>'+d.tesorerias.map(t=>'<tr><td>'+esc(t.nombre)+' · '+esc(t.tipo)+' · '+t.cuenta+'</td><td>'+esc(t.metodos.join(', '))+'</td><td>'+(t.tesoreria?si+' '+esc(t.tesoreria.nombre):no)+'</td></tr>').join('')+'</table>';
+    h += '<div style="margin-top:10px">Cuentas de gasto activas en ORUM: '+d.gastos_total+' · '+(d.gastos_faltan.length?'<span class="err">faltan '+d.gastos_faltan.length+' en Holded</span>':si+' todas creadas')+'</div>';
+    if(d.gastos_faltan.length) h += '<details style="margin-top:6px"><summary>Ver cuentas que faltan</summary><div class="sub">'+d.gastos_faltan.map(g=>g.numero+' '+esc(g.nombre||'')).join('<br>')+'</div></details>';
+    box.innerHTML = h;
+  }catch(e){ box.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
+}
 
 async function cargarPendientes(){
   const box = document.getElementById('pend');
