@@ -41,6 +41,8 @@ Toda factura de gasto entra en ORUM Central subiéndola desde el panel o desde e
 - **Abonos de proveedor:** siguen el mismo camino que una factura.
 - **Borrar una factura** (botón 🗑️): solo Dirección, y solo si todavía no está en Holded.
 - **Pendientes de pago:** las que no tienen forma de pago esperan en Holded → «Pendiente de asignar pago», donde también se puede elegir.
+- **Contabilizada:** la casilla «C» del listado no se marca a mano; se marca sola cuando María acepta la factura en Holded. Los filtros «Contabilizada» y «Forma de pago» sirven para ver lo que falta.
+- **Tarjeta:** «Tarjeta» es la tarjeta de empresa. En Holded esos pagos van a la cuenta 55500001 Tarjeta empresa, y a fin de mes, cuando el banco carga la tarjeta, María pasa ese importe al banco.
 
 ### Configuración de facturas
 
@@ -49,7 +51,7 @@ Toda factura de gasto entra en ORUM Central subiéndola desde el panel o desde e
 | Configuración → Facturas Proveedores | Reparto del gasto de cada proveedor por departamento (y matrícula en vehículos). Solo sirve para el Cierre Mensual, no para la contabilidad | Gerencia |
 | Configuración → Cuentas de gasto | Plan de cuentas del grupo 6 y, por proveedor, su cuenta habitual, IVA 0 % y retención | Gerencia y Administración |
 
-Si un proveedor no tiene cuenta habitual, se elige en cada factura; marcando «usar siempre» queda guardada para las siguientes. Una cuenta nueva tiene que existir también en Holded con el mismo número, o «Aceptar» dará error.
+Si un proveedor no tiene cuenta habitual, se elige en cada factura; marcando «usar siempre» queda guardada para las siguientes. **Cuenta de gasto nueva:** se añade en Config. Cuentas de gasto (número de 8 cifras del grupo 6 y nombre) y se guarda. ORUM Central la crea sola en Holded con el mismo número; si en ese momento no pudiera, la crea al aceptar la primera factura que la use. No hace falta crearla a mano en Holded.
 
 ## Pagos anuales
 

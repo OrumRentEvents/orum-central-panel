@@ -44,9 +44,9 @@ Ve de arriba abajo. Cada lista con un número mayor que cero pide algo:
 Para cada factura en «Por aprobar»:
 
 1. Abre el PDF y comprueba proveedor, número, fecha, base, IVA, retención y total.
-2. Revisa la **cuenta de gasto** propuesta (la habitual del proveedor). Cámbiala si este gasto va a otra; marca «usar siempre» si a partir de ahora debe ir siempre ahí.
+2. Revisa la **cuenta de gasto** propuesta (la habitual del proveedor). Cámbiala si este gasto va a otra; marca «usar siempre» si a partir de ahora debe ir siempre ahí. Si el gasto necesita una **cuenta nueva** del grupo 6, añádela antes en Config. Cuentas de gasto: ORUM Central la crea sola en Holded con el mismo número (no se crea a mano en Holded).
 3. Corrige la **fecha** o el **vencimiento** si la lectura se equivocó.
-4. Indica **«Pagada el»** (el día real del pago) y la **tesorería**: Transferencia, Domiciliación y Tarjeta salen por Banco; en Efectivo u Otro eliges tú Banco, Efectivo Marbella o Efectivo Monda.
+4. Indica **«Pagada el»** (el día real del pago) y la **tesorería**: Transferencia y Domiciliación salen por Banco; **Tarjeta** (tarjeta de empresa) sale por **Tarjeta empresa** (55500001); en Efectivo u Otro eliges tú Banco, Tarjeta empresa, Efectivo Marbella o Efectivo Monda.
 5. Pulsa **«Aceptar»**. La factura entra en Holded aprobada, pagada y con el PDF adjunto, y en Facturas Proveedores se marca sola la casilla **«Contabilizada»** (queda en su historial con tu nombre). Si sale un aviso (por ejemplo, redondeo del IVA), léelo.
 
 Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devolución de compra.
@@ -64,7 +64,7 @@ Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devol
 | --- | --- | --- |
 | 430xxxxx Cliente | Total con IVA | |
 | 70500000 Prestaciones de servicios | | Base |
-| 477 IVA repercutido | | IVA |
+| 47700000 IVA repercutido | | IVA |
 
 ### 2. El cliente paga y se apunta en Rentman
 
@@ -104,7 +104,7 @@ La factura queda **cobrada** en Holded y el saldo de la 430 del cliente baja.
 | Cuenta | Debe | Haber |
 | --- | --- | --- |
 | 70500000 Prestaciones de servicios | Base | |
-| 477 IVA repercutido | IVA | |
+| 47700000 IVA repercutido | IVA | |
 | 430xxxxx Cliente | | Total |
 
 - **Si se devuelve dinero de verdad:** en Caja se apunta con su método real (por ejemplo, Transferencia) y el importe en negativo. En Holded queda como devolución de la nota de crédito: 430 Cliente D / 57200001 H.
@@ -122,7 +122,7 @@ Las dos quedan saldadas, la 430 del cliente a cero y **la tesorería Compensacio
 
 ## Recorrido de un pago a proveedor
 
-1. **Se paga y se sube la factura.** Quien recibe la factura (Administración, Sergio o el comercial que pagó) la sube en Financiero → Facturas Proveedores o desde el móvil → «Subir factura», con su **forma de pago**. Si es de un vehículo, también la matrícula.
+1. **Se paga y se sube la factura.** Quien recibe la factura (Administración, Sergio o el comercial que pagó) la sube en Financiero → Facturas Proveedores o desde el móvil → «Subir factura», con su **forma de pago** («Tarjeta» = tarjeta de empresa). Si es de un vehículo, también la matrícula.
 2. **Lectura automática.** El sistema lee proveedor, NIF, número, fecha, base, IVA, retención y total.
 3. **7:00: preparación.** Las facturas con forma de pago pasan a «Por aprobar»; las que no la tienen, a «Pendiente de asignar pago».
 4. **María aprueba** (ver «Aprobar una factura de gasto»).
@@ -133,20 +133,22 @@ Las dos quedan saldadas, la 430 del cliente a cero y **la tesorería Compensacio
     | Cuenta | Debe | Haber |
     | --- | --- | --- |
     | 6xxxxxxx Cuenta de gasto elegida | Base | |
-    | 472 IVA soportado | IVA | |
-    | 4751 Retenciones (si la hay) | | Retención |
+    | 47200000 IVA soportado | IVA | |
+    | 47510000 Retenciones (si la hay) | | Retención |
     | 400/410 Proveedor | | Total a pagar |
 
     - Se registra el pago:
 
     | Pagado por | Asiento |
     | --- | --- |
-    | Transferencia, domiciliación o tarjeta | 400/410 Proveedor D / 57200001 Banco H |
+    | Transferencia o domiciliación | 400/410 Proveedor D / 57200001 Banco H |
+    | Tarjeta de empresa | 400/410 Proveedor D / 55500001 Tarjeta empresa H |
     | Efectivo Marbella | 400/410 Proveedor D / 57000100 H |
     | Efectivo Monda | 400/410 Proveedor D / 57000200 H |
 
-6. **Abono de proveedor:** lo contrario. 400/410 D / 6xx H / 472 H, y la devolución del dinero 57200001 (o caja) D / 400/410 H.
+6. **Abono de proveedor:** lo contrario. 400/410 D / 6xx H / 47200000 H, y la devolución del dinero 57200001 (o caja) D / 400/410 H.
 
+- La casilla **«Contabilizada»** de Facturas Proveedores no se marca a mano: se marca sola cuando la factura queda aprobada en Holded. Para ver qué falta, filtra «Contabilizada: No» (y, si quieres, por forma de pago).
 - Solo se contabilizan facturas **ya pagadas**. Una factura sin pagar se queda en ORUM Central hasta que tenga forma de pago.
 - Los **pagos anuales** (seguros, IBI, IAE…) se llevan en Configuración → Pagos Anuales y no se suben como factura.
 
@@ -160,15 +162,17 @@ Hay movimientos que ORUM Central todavía **no** envía. Hasta que se automatice
 | Fianzas cobradas, retenidas o devueltas | Pendiente de decidir con la gestoría (cuenta 560) | — |
 | El banco abona la liquidación del TPV | 57200001 D / 44100010 o 44100020 H, y la comisión a 62600001 | Pendiente de decidir con la gestoría |
 | Se ingresa en el banco el efectivo de una caja | 57200001 D / 57000100 o 57000200 H | Pendiente de decidir con la gestoría |
+| El banco carga el gasto de la tarjeta de empresa (fin de mes) | 55500001 Tarjeta empresa D / 57200001 Banco H, por el importe del cargo | Cada mes, al ver el cargo en el banco |
 | Cobros sin factura (PNC, abrebotellas) | No van a Holded | — |
 
 ## Comprobaciones de fin de mes
 
 1. **Compensaciones (55500010)** a 0.
-2. **Clientes (430):** el saldo de cada cliente coincide con lo pendiente en Control de pagos.
-3. **Caja Diaria:** ningún cobro del mes «sin asignar».
-4. **Gastos:** nada en «Por aprobar» ni «Pendiente de asignar pago» que ya esté pagado.
-5. **Rentman:** el total facturado del mes en Rentman coincide con el de Holded (ventas menos notas de crédito).
+2. **Tarjeta empresa (55500001)** a 0 después de pasar al banco el cargo mensual de la tarjeta. Si no queda a 0, hay un gasto con tarjeta sin factura aprobada o una factura que no se pagó con tarjeta.
+3. **Clientes (430):** el saldo de cada cliente coincide con lo pendiente en Control de pagos.
+4. **Caja Diaria:** ningún cobro del mes «sin asignar».
+5. **Gastos:** nada en «Por aprobar» ni «Pendiente de asignar pago» que ya esté pagado.
+6. **Rentman:** el total facturado del mes en Rentman coincide con el de Holded (ventas menos notas de crédito).
 
 ## Reglas que no cambian
 

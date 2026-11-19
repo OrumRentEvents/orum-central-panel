@@ -4536,7 +4536,9 @@ app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, 
 // NUEVO (28 ago 2026): gestión de las 4 columnas manuales (Forma de Pago,
 // Contabilizada, Digitalizada, Matrícula) desde el propio panel, para que
 // contabilidad no tenga que tocar la Sheet directamente.
-const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'importeBase', 'iva', 'importeTotal', 'formaPago', 'contabilizada', 'digitalizada', 'matricula'];
+// 19 nov 2026: «Contabilizada» ya no se edita a mano; la marca el sistema al
+// aceptar la factura en Financiero → Holded (lib/holdedCompras.js).
+const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'importeBase', 'iva', 'importeTotal', 'formaPago', 'digitalizada', 'matricula'];
 // ACTUALIZADO (15 sep 2026): se direcciona por "fila" (nº de fila real en
 // FACTURAS_LOG) en vez de por fileId - desde que una factura puede ocupar
 // varias filas (una por línea/mes), fileId ya no identifica una fila única.

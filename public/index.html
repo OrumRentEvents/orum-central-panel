@@ -2085,7 +2085,7 @@ function pintarCuentasGasto() {
       <td style="font-variant-numeric:tabular-nums;">${c.numero}</td>
       <td><input type="text" id="cg-nom-${i}" value="${escHtml(c.nombre)}" onblur="guardarCuentaGasto(${i})" style="width:100%; border:1px solid transparent; padding:4px 6px; border-radius:4px; font-size:13px;" onfocus="this.style.border='1px solid #e2e2de'"></td>
       <td style="text-align:center;"><input type="checkbox" id="cg-act-${i}" ${c.activa ? 'checked' : ''} onchange="guardarCuentaGasto(${i})" title="Si se desactiva deja de salir en los desplegables"></td>
-      <td style="text-align:center; font-size:12px;">${c.en_holded === null ? '<span style="color:#9a988f;">?</span>' : (c.en_holded ? '<span style="color:#15803d;">✔</span>' : '<span style="color:#A32D2D;" title="Hay que crearla en Holded con el mismo número para poder volcar facturas a ella">falta</span>')}</td>
+      <td style="text-align:center; font-size:12px;">${c.en_holded === null ? '<span style="color:#9a988f;">?</span>' : (c.en_holded ? '<span style="color:#15803d;">✔</span>' : '<span style="color:#A32D2D;" title="Se crea sola en Holded al guardar la lista o al aceptar la primera factura con esta cuenta">falta</span>')}</td>
     </tr>`).join('');
   const filasProv = d.proveedores.map((p, i) => `
     <tr>
@@ -2120,7 +2120,7 @@ function pintarCuentasGasto() {
     </div>
     <div style="background:#fff; border:1px solid #e2e2de; border-radius:8px; overflow:auto;">
       <table>
-        <thead><tr><th style="width:110px;">Cuenta</th><th>Nombre</th><th style="text-align:center; width:70px;">Activa</th><th style="text-align:center; width:80px;" title="La cuenta tiene que existir en Holded con el mismo número">En Holded</th></tr></thead>
+        <thead><tr><th style="width:110px;">Cuenta</th><th>Nombre</th><th style="text-align:center; width:70px;">Activa</th><th style="text-align:center; width:80px;" title="Si falta, ORUM Central la crea en Holded con el mismo número al guardar">En Holded</th></tr></thead>
         <tbody>${filasCuentas || '<tr><td colspan="4" style="padding:1.5rem 4px; color:#9a988f;">El plan está vacío: pega arriba las cuentas del grupo 6 de Sage.</td></tr>'}</tbody>
       </table>
     </div>
@@ -2144,7 +2144,7 @@ async function importarCuentasGasto() {
     await cargarCuentasGasto();
     const e2 = document.getElementById('cg-estado');
     e2.style.color = malas.length ? '#854F0B' : '#15803d';
-    e2.textContent = `✔ ${r.guardadas} cuentas guardadas` + (malas.length ? ` · ${malas.length} líneas no reconocidas: ${malas.slice(0, 3).join(' | ')}${malas.length > 3 ? '…' : ''}` : '');
+    e2.textContent = `✔ ${r.guardadas} cuentas guardadas` + ((r.creadas_holded || []).length ? ` · ${r.creadas_holded.length} creadas en Holded (${r.creadas_holded.join(', ')})` : '') + ((r.errores_holded || []).length ? ` · ✘ no se pudieron crear en Holded: ${r.errores_holded.slice(0, 3).join(' | ')}` : '') + (malas.length ? ` · ${malas.length} líneas no reconocidas: ${malas.slice(0, 3).join(' | ')}${malas.length > 3 ? '…' : ''}` : '');
   } catch (err) { estado.style.color = '#A32D2D'; estado.textContent = 'Error: ' + err.message; }
 }
 async function guardarCuentaGasto(i) {
@@ -7632,6 +7632,11 @@ function pintarFacturasProveedores() {
         <option value="media">Media</option>
         <option value="baja">Baja</option>
       </select>
+      <select id="filtro-fact-formapago" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
+        <option value="">Forma de pago: Todas</option>
+        ${FORMAS_PAGO_FACTURA.filter(v => v).map(v => `<option value="${v}">${v}</option>`).join('')}
+        <option value="__sin">Sin forma de pago</option>
+      </select>
       <select id="filtro-fact-contabilizada" onchange="aplicarFiltrosFacturasProveedores()" style="width:auto; font-size:13px;">
         <option value="">Contabilizada: Todas</option>
         <option value="si">Sí</option>
@@ -7674,6 +7679,7 @@ function aplicarFiltrosFacturasProveedores() {
   const anio = document.getElementById('filtro-fact-anio').value;
   const confianza = document.getElementById('filtro-fact-confianza').value;
   const contabilizada = document.getElementById('filtro-fact-contabilizada').value;
+  const formaPago = (document.getElementById('filtro-fact-formapago') || {}).value || '';
   const busqueda = document.getElementById('buscador-fact-proveedores').value.toLowerCase();
   let filtradas = data.facturas;
   if (facturasFiltroDepartamentoActivo) {
@@ -7684,6 +7690,7 @@ function aplicarFiltrosFacturasProveedores() {
   if (anio) filtradas = filtradas.filter(f => String(f.anio) === anio);
   if (confianza) filtradas = filtradas.filter(f => f.confianza === confianza);
   if (contabilizada) filtradas = filtradas.filter(f => contabilizada === 'si' ? !!f.contabilizada : !f.contabilizada);
+  if (formaPago) filtradas = filtradas.filter(f => formaPago === '__sin' ? !String(f.formaPago || '').trim() : String(f.formaPago || '').trim() === formaPago);
   if (busqueda) {
     // NUEVO (6 oct 2026): también busca por importe (total o base), para
     // cuadrar contra el libro de la gestoría. Acepta "1256,71", "1.256,71",
@@ -7808,7 +7815,7 @@ function renderTablaFacturasProveedores(lista) {
         <td>${departamentosHtml}</td>
         <td>${badgeConfianza}</td>
         <td><select style="font-size:12px;" onchange="actualizarCampoFacturaUI(this,'${filaAttr}','formaPago')">${formaPagoOpts}</select></td>
-        <td style="text-align:center; width:28px;" title="Contabilizada"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} title="Contabilizada" onchange="actualizarCampoFacturaUI(this,'${filaAttr}','contabilizada')"></td>
+        <td style="text-align:center; width:28px;" title="Contabilizada: se marca sola al aceptarla en Financiero → Holded"><input type="checkbox" ${f.contabilizada ? 'checked' : ''} disabled title="Contabilizada: se marca sola al aceptarla en Financiero → Holded"></td>
         <td style="text-align:center; width:28px;" title="Digitalizada"><input type="checkbox" ${f.digitalizada ? 'checked' : ''} title="Digitalizada" onchange="actualizarCampoFacturaUI(this,'${filaAttr}','digitalizada')"></td>
         <td>
           <select style="font-size:11px; width:100px;" onchange="onMatriculaSelectChange(this,'${filaAttr}')">${matriculaOpts}</select>
