@@ -87,7 +87,8 @@ async function comprobarEmpresa(){
   try{
     const d = await api('GET','/api/holded/empresa');
     const si = '<span class="ok">✔</span>', no = '<span class="err">✘ falta</span>';
-    let h = '<div style="margin-top:12px">'+(d.todo_listo?'<b class="ok">Todo lo necesario para ventas y cobros está creado.</b>':'<b class="err">Faltan cosas por crear en Holded (abajo).</b>')+'</div>';
+    let h = '<div style="margin-top:12px;font-size:16px">Empresa conectada: <b>'+esc(d.empresa||'(Holded no devuelve el nombre)')+'</b></div>';
+    h += '<div style="margin-top:8px">'+(d.todo_listo?'<b class="ok">Todo lo necesario para ventas y cobros está creado.</b>':'<b class="err">Faltan cosas por crear en Holded (abajo).</b>')+'</div>';
     h += '<div class="sub" style="margin-top:6px">Fecha de corte: '+ff(d.fecha_corte)+' · '+d.total_cuentas_holded+' cuentas en Holded · contactos: '+(d.hay_contactos?'sí':'<span class="err">ninguno (importarlos)</span>')+'</div>';
     h += '<table style="margin-top:10px"><tr><th>Ingresos</th><th></th></tr>'+d.ingresos.map(c=>'<tr><td>'+c.numero+' — '+esc(c.para)+(c.nombre_holded?' <span class="sub">('+esc(c.nombre_holded)+')</span>':'')+'</td><td>'+(c.existe?si:no)+'</td></tr>').join('')+'</table>';
     h += '<table style="margin-top:10px"><tr><th>Tesorería (tipo · cuenta)</th><th>Métodos de Caja</th><th></th></tr>'+d.tesorerias.map(t=>'<tr><td>'+esc(t.nombre)+' · '+esc(t.tipo)+' · '+t.cuenta+'</td><td>'+esc(t.metodos.join(', '))+'</td><td>'+(t.tesoreria?si+' '+esc(t.tesoreria.nombre):no)+'</td></tr>').join('')+'</table>';
@@ -102,6 +103,7 @@ async function cargarPendientes(){
   try{
     const d = await api('GET','/api/holded/pendientes');
     const ej = d.ejecuciones||[];
+    if(d.volcando) seguirVolcado(); // al abrir la página con un volcado en marcha, se ve su barra
     document.getElementById('volcado').innerHTML = (d.volcando?'<b class="av">Volcado en marcha…</b><br>':'') + (ej.length ?
       'Últimos volcados:<br>'+ej.map(e=>{const r=e.resumen||{};return fh(e.inicio)+' · '+(/^auto/.test(e.origen)?'automático':'manual'+(e.usuario?' ('+esc(e.usuario)+')':''))+(/gastos/.test(e.origen)?' · gastos':'')+' · hasta '+ff(e.hasta_fecha)+' · '+
         (e.fin? (e.ok?'<span class="ok">✔</span>':'<span class="err">con errores</span>')+' · '+(/gastos/.test(e.origen) ? (r.compras_por_aprobar!=null ? r.compras_por_aprobar+' por aprobar' : (r.compras_enviadas||0)+' compras')+(r.compras_bloqueadas?', '+r.compras_bloqueadas+' bloqueadas':'') : (r.facturas_enviadas||0)+' facturas, '+(r.cobros_enviados||0)+' cobros'+(r.facturas_bloqueadas?', '+r.facturas_bloqueadas+' bloqueadas':'')) : 'en curso');}).join('<br>')
@@ -131,15 +133,46 @@ async function volcar(){
   const incluirHoy = document.getElementById('incluirHoy').checked;
   if(!confirm('Se volcarán a Holded (aprobadas) todas las facturas y cobros '+(incluirHoy?'hasta hoy':'hasta ayer')+' que falten. ¿Seguir?')) return;
   const res = document.getElementById('res-volcado');
-  res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando… puede tardar unos minutos.</div>';
   try{
     const r = await api('POST','/api/holded/volcar',{incluirHoy});
-    const s = r.resumen||{};
-    res.innerHTML = '<div style="margin-top:10px" class="'+(r.ok?'ok':'err')+'">'+(r.motivo?esc(r.motivo)+'<br>':'')+
-      (s.facturas_enviadas||0)+' facturas enviadas · '+(s.facturas_aprobadas||0)+' aprobadas · '+(s.facturas_bloqueadas||0)+' bloqueadas · '+(s.cobros_enviados||0)+' cobros enviados'+
-      ((s.errores||[]).length?'<br>'+s.errores.map(esc).join('<br>'):'')+'</div>';
-  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
-  cargarPendientes();
+    if(!r.ok && r.motivo) res.innerHTML = '<div class="av" style="margin-top:10px">'+esc(r.motivo)+'</div>';
+  }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; return; }
+  seguirVolcado();
+}
+
+// Barra de progreso: pregunta cada 2 s cómo va el volcado del servidor.
+let siguiendo = null;
+function resumenTexto(s){
+  return (s.facturas_enviadas||0)+' facturas enviadas · '+(s.facturas_aprobadas||0)+' aprobadas · '+(s.facturas_bloqueadas||0)+' bloqueadas'+(s.facturas_error?' · '+s.facturas_error+' con error':'')+' · '+(s.cobros_enviados||0)+' cobros enviados'+(s.cobros_error?' · '+s.cobros_error+' cobros con error':'');
+}
+async function seguirVolcado(){
+  if(siguiendo) return;
+  const res = document.getElementById('res-volcado');
+  const paso = async () => {
+    let d;
+    try{ d = await api('GET','/api/holded/volcado/estado'); }catch(e){ return true; } // un fallo suelto (redeploy, red): se reintenta
+    const p = d.progreso;
+    if(d.volcando && p){
+      const pct = p.total ? Math.round(100*p.hecho/p.total) : 0;
+      const nombre = {preparando:'Preparando…', facturas:'Facturas', 'preparando cobros':'Preparando cobros…', cobros:'Cobros (facturas con cobros)'}[p.fase]||p.fase;
+      res.innerHTML = '<div style="margin-top:12px"><b>'+esc(nombre)+'</b>'+(p.total?' · <b>'+p.hecho+' / '+p.total+'</b> ('+pct+' %)':'')+(p.actual?' <span class="sub">· nº '+esc(p.actual)+'</span>':'')+'</div>'+
+        '<div style="height:12px;background:#e5e7eb;border-radius:6px;margin-top:6px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:#2563eb;transition:width .4s"></div></div>'+
+        '<div class="sub" style="margin-top:6px">'+resumenTexto(p.resumen||{})+'</div>'+
+        '<div class="sub" style="margin-top:4px">Puedes cerrar esta página: el volcado sigue en el servidor.</div>';
+      return true;
+    }
+    if(siguiendo){ clearInterval(siguiendo); siguiendo = null; }
+    if(p && p.fin){
+      const s = p.resumen||{};
+      res.innerHTML = '<div style="margin-top:10px" class="'+(p.ok?'ok':'err')+'"><b>Volcado terminado.</b> '+(p.motivo?esc(p.motivo)+'<br>':'')+resumenTexto(s)+
+        ((s.errores||[]).length?'<details style="margin-top:6px"><summary>Ver '+s.errores.length+' errores</summary><div class="sub">'+s.errores.map(esc).join('<br>')+'</div></details>':'')+'</div>';
+    }
+    cargarPendientes();
+    return false;
+  };
+  siguiendo = -1; // marca "en marcha" mientras se hace la primera consulta
+  const sigue = await paso();
+  siguiendo = sigue ? setInterval(paso, 2000) : null;
 }
 
 function ver(n){ document.getElementById('num').value=n; cargar(); document.getElementById('num').scrollIntoView({behavior:'smooth'}); }

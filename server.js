@@ -5163,10 +5163,17 @@ app.get('/api/holded/pendientes', requiereLogin, soloHolded, async (req, res) =>
   catch (err) { console.error('Error en /api/holded/pendientes:', err); res.status(500).json({ error: err.message }); }
 });
 // Volcado manual ("forzar"): lo mismo que el de las 6:00; con incluirHoy
-// también vuelca lo de hoy.
+// también vuelca lo de hoy. Contesta al momento y el volcado sigue en el
+// servidor (una petición larga la corta Railway con 502); la pantalla sigue
+// el progreso con /api/holded/volcado/estado.
 app.post('/api/holded/volcar', requiereLogin, soloHolded, async (req, res) => {
-  try { res.json(await holdedSync.volcarTodo({ origen: 'manual', usuario: req.session.usuario.nombre, incluirHoy: !!(req.body && req.body.incluirHoy) })); }
-  catch (err) { console.error('Error en /api/holded/volcar:', err); res.status(500).json({ error: err.message }); }
+  if (holdedSync.estadoVolcado().volcando) return res.json({ ok: false, motivo: 'Ya hay un volcado en marcha' });
+  holdedSync.volcarTodo({ origen: 'manual', usuario: req.session.usuario.nombre, incluirHoy: !!(req.body && req.body.incluirHoy) })
+    .catch(err => console.error('Error en el volcado manual de Holded:', err));
+  res.json({ ok: true, iniciado: true });
+});
+app.get('/api/holded/volcado/estado', requiereLogin, soloHolded, (req, res) => {
+  res.json({ ok: true, ...holdedSync.estadoVolcado() });
 });
 
 // Facturas de gastos (PDF de proveedores) → Holded (5 oct 2026). Desde el
