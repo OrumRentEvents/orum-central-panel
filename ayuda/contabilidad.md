@@ -51,6 +51,10 @@ Para cada factura en «Por aprobar»:
 
 Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devolución de compra.
 
+### Cuenta de gasto que no existe
+
+En el buscador de la cuenta, la **primera opción es siempre «➕ Crear cuenta nueva»**; debajo siguen las sugerencias de siempre. Al elegirla se abre un cuadro: escribe el **número** (grupo 6, 8 cifras) y el **nombre**, y pulsa **«Crear y elegir»**. La cuenta se guarda en Config. Cuentas de gasto, se crea también en Holded y queda elegida en esa factura. Si el número ya existía, simplemente se elige.
+
 ### Cuotas de leasing (reparto en varias cuentas)
 
 Las cuotas de leasing (por ejemplo, BBVA) no van a una sola cuenta. Al leer el PDF, el sistema saca la **amortización**, los **intereses** y el **seguro**, y la factura llega a «Por aprobar» **ya repartida**:

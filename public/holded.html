@@ -238,7 +238,8 @@ async function cargarGastos(){
     const d = gastos = await api('GET','/api/holded/gastos');
     // Cuenta con buscador: campo de texto + lista de sugerencias (datalist)
     // común; se escribe parte del número o del nombre y se elige.
-    const dl = '<datalist id="dl-cuentas">'+d.cuentas.map(c=>'<option value="'+esc(etiquetaCuenta(c.numero))+'"></option>').join('')+'</datalist>';
+    // (20 nov 2026) Primera opción siempre: «➕ Crear cuenta nueva» (ver crearCuentaDesdeCampo).
+    const dl = '<datalist id="dl-cuentas"><option id="dl-crear" value="'+CREAR_CUENTA+'"></option>'+d.cuentas.map(c=>'<option value="'+esc(etiquetaCuenta(c.numero))+'"></option>').join('')+'</datalist>';
     d.por_aprobar = d.por_aprobar.filter(x=>!enviandoGastos.has(x.file_id)); // las que se están volcando no se pintan
     const pa = d.por_aprobar;
     const tPA = pa.length ? '<table><tr><th>Proveedor · factura</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Total</th><th>Cuenta de gasto</th><th></th></tr>'+
@@ -275,6 +276,69 @@ async function cargarGastos(){
       '<h2 style="margin-top:16px">Últimas volcadas a Holded ('+d.total_enviadas+' en total)</h2>'+env;
     pa.forEach((c,i)=>{ if(c.reparto) sumaReparto(i); });
   }catch(e){ box.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
+}
+// ---- Crear cuenta de gasto nueva desde el buscador (20 nov 2026) ----
+// La primera opción del desplegable es siempre «➕ Crear cuenta nueva». Lleva
+// delante lo que se va escribiendo para que el navegador no la filtre y salga
+// la primera. Al elegirla se piden número y nombre, se guarda en el plan
+// (Config. Cuentas de gasto) y en Holded, y queda elegida en el campo.
+const CREAR_CUENTA = '➕ Crear cuenta nueva';
+let campoCrear = null, valorAntesCrear = '';
+document.addEventListener('focusin', e => {
+  if (e.target.matches && e.target.matches('input[list="dl-cuentas"]')) valorAntesCrear = e.target.value;
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (!el.matches || !el.matches('input[list="dl-cuentas"]')) return;
+  const op = document.getElementById('dl-crear');
+  if (el.value.includes(CREAR_CUENTA)) {
+    const escrito = el.value.split(CREAR_CUENTA)[0].replace(/·\s*$/, '').trim();
+    el.value = valorAntesCrear;
+    if (op) op.value = CREAR_CUENTA;
+    abrirCrearCuenta(el, escrito);
+    return;
+  }
+  const t = el.value.trim();
+  if (op) op.value = t ? t + '  ·  ' + CREAR_CUENTA : CREAR_CUENTA;
+});
+function abrirCrearCuenta(el, escrito){
+  campoCrear = el;
+  const num = (escrito.match(/\d+/) || [''])[0];
+  const nom = escrito.replace(/\d+/g, '').trim().toUpperCase();
+  document.getElementById('cc-num').value = num.length === 8 ? num : (num || '6');
+  document.getElementById('cc-nom').value = nom;
+  document.getElementById('cc-res').textContent = '';
+  document.getElementById('dlg-cuenta').showModal();
+  (num.length === 8 ? document.getElementById('cc-nom') : document.getElementById('cc-num')).focus();
+}
+async function confirmarCrearCuenta(){
+  const res = document.getElementById('cc-res'), btn = document.getElementById('cc-ok');
+  const numero = document.getElementById('cc-num').value.replace(/\D/g, '');
+  const nombre = document.getElementById('cc-nom').value.trim().toUpperCase();
+  if (!/^6\d{7}$/.test(numero)) { res.className = 'err'; res.textContent = 'El número tiene que ser del grupo 6 y de 8 cifras (p. ej. 62900015)'; return; }
+  if (!nombre) { res.className = 'err'; res.textContent = 'Escribe el nombre de la cuenta'; return; }
+  const ya = gastos.cuentas.find(c => String(c.numero) === numero);
+  if (ya) { elegirCuentaCreada(Number(numero)); res.className = 'av'; res.textContent = ''; document.getElementById('dlg-cuenta').close(); alert('La cuenta ' + numero + ' ya existía (' + ya.nombre + '): queda elegida.'); return; }
+  btn.disabled = true; res.className = 'sub'; res.textContent = 'Creando en ORUM y en Holded…';
+  try {
+    const r = await api('POST', '/api/cuentas-gasto', { lineas: [{ numero, nombre }] });
+    gastos.cuentas.push({ numero: Number(numero), nombre, activa: true });
+    gastos.cuentas.sort((a, b) => a.numero - b.numero);
+    const dl = document.getElementById('dl-cuentas');
+    if (dl) { const o = document.createElement('option'); o.value = numero + ' ' + nombre; dl.appendChild(o); }
+    elegirCuentaCreada(Number(numero));
+    document.getElementById('dlg-cuenta').close();
+    if ((r.errores_holded || []).length) alert('Cuenta guardada en ORUM, pero Holded dio un error: ' + r.errores_holded.join(' · ') + '\nSe volverá a intentar crear al aceptar la factura.');
+  } catch (e) { res.className = 'err'; res.textContent = e.message; }
+  finally { btn.disabled = false; }
+}
+function elegirCuentaCreada(numero){
+  if (!campoCrear) return;
+  campoCrear.value = etiquetaCuenta(numero);
+  const m = /^pac(\d+)$/.exec(campoCrear.id);
+  if (m) marcarCambio(Number(m[1]));
+  const r = /^prc(\d+)_/.exec(campoCrear.id);
+  if (r) sumaReparto(Number(r[1]));
 }
 // "62900004 GASTOS TELEFONICA…" para el campo con buscador; '' si no hay cuenta.
 function etiquetaCuenta(n){
@@ -396,5 +460,14 @@ cargarPendientes();
 cargarGastos();
 </script>
 <script src="/actividad-registro.js" data-pantalla="Holded"></script>
+<dialog id="dlg-cuenta" style="overflow:hidden;border:1px solid #ddd;border-radius:10px;padding:16px 18px;min-width:320px">
+  <h3 style="margin:0 0 10px;font-size:15px">Crear cuenta de gasto nueva</h3>
+  <label style="display:block;font-size:12px;margin-bottom:8px">Número (grupo 6, 8 cifras)<br><input id="cc-num" inputmode="numeric" maxlength="8" placeholder="62900015" style="width:140px" onkeydown="if(event.key==='Enter')confirmarCrearCuenta()"></label>
+  <label style="display:block;font-size:12px;margin-bottom:8px">Nombre<br><input id="cc-nom" placeholder="SUSCRIPCIONES SOFTWARE" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')confirmarCrearCuenta()"></label>
+  <div class="sub" style="font-size:11px;margin:0 0 8px">Se guarda en Config. Cuentas de gasto y se crea también en Holded.</div>
+  <div id="cc-res" style="font-size:12px;margin-bottom:8px"></div>
+  <button class="prim" id="cc-ok" onclick="confirmarCrearCuenta()">Crear y elegir</button>
+  <button onclick="document.getElementById('dlg-cuenta').close()">Cancelar</button>
+</dialog>
 </body>
 </html>
