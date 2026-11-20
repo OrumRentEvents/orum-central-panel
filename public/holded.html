@@ -235,7 +235,7 @@ let gastos = null;
 // (20 nov 2026) Al aceptar una factura se recarga la lista: lo que se estaba
 // rellenando en las demás (cuenta, fechas, pago, reparto) se guarda antes y se
 // vuelve a poner después, por factura (file_id), aunque cambie su posición.
-const CAMPO_GASTO = /^(pac|pah|pag|paf|pav|pap|pat|prc|pri)(\d+)(_\d+)?$/;
+const CAMPO_GASTO = /^(pac|pah|pag|paf|pav|pap|pat|pasp|prc|pri)(\d+)(_\d+)?$/;
 function guardarEdicionGastos(){
   const g = {};
   if(!gastos || !gastos.por_aprobar) return g;
@@ -265,7 +265,7 @@ function restaurarEdicionGastos(g){
     const id = idDe(k), el = id && document.getElementById(id); if(!el) return;
     if(el.type==='checkbox') el.checked = g[k]; else el.value = g[k];
   });
-  gastos.por_aprobar.forEach((c,i)=>{ if(c.reparto) sumaReparto(i); else if(document.getElementById('pac'+i)) marcarCambio(i); });
+  gastos.por_aprobar.forEach((c,i)=>{ if(c.reparto) sumaReparto(i); else if(document.getElementById('pac'+i)) marcarCambio(i); alternarSinPagar(i); });
   Object.entries(g.__pago||{}).forEach(([k,v])=>{ const [a,fid] = k.split('|'); const el = [...document.querySelectorAll('#gastos [data-'+a+']')].find(x=>x.dataset[a]===fid); if(el) el.value = v; });
   if(g.__crear){ const id = idDe(g.__crear); if(id && document.getElementById(id)) campoCrear = document.getElementById(id); }
   if(g.__foco){ const id = idDe(g.__foco), el = id && document.getElementById(id); if(el && !document.getElementById('dlg-cuenta').open) el.focus({preventScroll:true}); }
@@ -285,7 +285,8 @@ async function cargarGastos(){
       pa.map((c,i)=>'<tr id="pa'+i+'"><td>'+(c.es_abono?'<span class="pill" style="background:#fef3c7;color:#92400e">ABONO</span> ':'')+esc(c.proveedor)+' · <b>'+esc(c.numero||'—')+'</b>'+
           '<div style="font-size:12px;margin:3px 0;white-space:nowrap" title="Si la lectura del PDF se equivocó, corrige aquí la fecha o el vencimiento">Fecha <input type="date" id="paf'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> Vence <input type="date" id="pav'+i+'" value="'+esc(c.vencimiento||'')+'" style="width:auto;font-size:12px;padding:2px 4px"></div>'+
           (c.sin_pagar ? '<div style="font-size:12px;margin:3px 0"><span class="pill" style="background:#fde68a;color:#78350f">SIN PAGAR</span> entra en Holded pendiente de pago'+(c.vencimiento?' · vence '+ff(c.vencimiento):'')+'</div>' :
-          '<div style="font-size:12px;margin:3px 0;white-space:nowrap">'+(c.es_abono?'Devuelto el':'Pagada el')+' <input type="date" id="pap'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> · '+esc(c.forma_pago||'')+' desde '+
+          '<label style="display:block;font-size:12px;margin:3px 0"><input type="checkbox" id="pasp'+i+'" onchange="alternarSinPagar('+i+')" style="width:auto"> Aún no está '+(c.es_abono?'cobrado':'pagada')+' (entra en Holded pendiente de pago)</label>'+
+          '<div id="ppg'+i+'" style="font-size:12px;margin:3px 0;white-space:nowrap">'+(c.es_abono?'Devuelto el':'Pagada el')+' <input type="date" id="pap'+i+'" value="'+esc(c.fecha||'')+'" style="width:auto;font-size:12px;padding:2px 4px"> · '+esc(c.forma_pago||'')+' desde '+
             '<select id="pat'+i+'" style="font-size:12px;padding:2px 4px">'+((d.tesoreria_por_forma||{})[c.forma_pago]?'':'<option value="">— elegir —</option>')+(d.tesorerias_pago||[]).map(t=>'<option value="'+t.key+'"'+((d.tesoreria_por_forma||{})[c.forma_pago]===t.key?' selected':'')+'>'+esc(t.nombre)+'</option>').join('')+'</select></div>')+
           '<div style="font-size:12px"><a href="'+esc(c.pdf_url)+'" target="_blank">Ver PDF</a>'+(c.concepto?' · <span class="sub">'+esc(c.concepto)+'</span>':'')+'</div>'+
           (c.dudas?'<div class="av" style="font-size:12px">⚠ '+esc(c.dudas)+'</div>':'')+
@@ -476,7 +477,9 @@ async function aceptarGasto(i){
   if(!fecha){ alert('Falta la fecha de la factura'); return; }
   if(vencimiento && vencimiento<fecha){ alert('El vencimiento es anterior a la fecha de la factura: corrígelo o déjalo vacío'); return; }
   let pagoFecha = '', pagoTesoreria = '';
-  if(c.sin_pagar){
+  const casilla = document.getElementById('pasp'+i);
+  const sinPagar = !!c.sin_pagar || !!(casilla && casilla.checked);
+  if(sinPagar){
     if(!confirm('Se volcará a Holded APROBAD'+(c.es_abono?'O el ABONO ':'A la factura ')+(c.numero||'')+' de '+c.proveedor+' del '+ff(fecha)+' por '+eur(c.total)+', SIN PAGAR (queda pendiente de pago'+(vencimiento?', vence '+ff(vencimiento):'')+').\nCuenta: '+cuenta+' '+nom+'\nEl pago se registra después en «En Holded, pendientes de pago».\nUna compra aprobada en Holded no se puede borrar, solo rectificar. ¿Aceptar?')) return;
   } else {
     pagoFecha = document.getElementById('pap'+i).value; pagoTesoreria = document.getElementById('pat'+i).value;
@@ -496,7 +499,7 @@ async function aceptarGasto(i){
   const etiqueta = esc(c.proveedor)+' '+esc(c.numero||'');
   res.innerHTML = '<div class="sub" style="margin-top:10px">Volcando a Holded la factura '+etiqueta+'…</div>';
   let r;
-  try{ r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento, pagoFecha, pagoTesoreria, reparto}); }
+  try{ r = await api('POST','/api/holded/gastos/'+encodeURIComponent(c.file_id)+'/aceptar',{cuenta, guardarHabitual, fecha, vencimiento, pagoFecha, pagoTesoreria, reparto, sinPagar}); }
   catch(e){ r = { estado:'error', motivo:e.message }; }
   enviandoGastos.delete(c.file_id);
   const ok = r.estado==='aprobada';
@@ -514,6 +517,10 @@ async function volcarSinPagar(fileId){
   }catch(e){ res.innerHTML = '<div class="err" style="margin-top:10px">'+esc(e.message)+'</div>'; }
   cargarGastos();
 }
+function alternarSinPagar(i){
+  const cb = document.getElementById('pasp'+i), pp = document.getElementById('ppg'+i);
+  if(cb && pp) pp.style.display = cb.checked ? 'none' : '';
+}
 function htmlPagarEnHolded(d){
   const lista = d.pagar_en_holded||[], hoy = new Date().toISOString().slice(0,10);
   const tes = (d.tesorerias_pago||[]).map(t=>'<option value="'+t.key+'">'+esc(t.nombre)+'</option>').join('');
@@ -522,9 +529,9 @@ function htmlPagarEnHolded(d){
       const k = esc(c.file_id), vencida = c.vencimiento && c.vencimiento < hoy;
       return '<tr><td>'+(c.es_abono?'<span class="pill" style="background:#fef3c7;color:#92400e">ABONO</span> ':'')+esc(c.proveedor)+' · <b>'+esc(c.numero||'—')+'</b><div style="font-size:12px"><a href="'+esc(c.pdf_url)+'" target="_blank">Ver PDF</a></div></td>'+
         '<td>'+ff(c.fecha)+'</td><td class="'+(vencida?'err':'')+'">'+(c.vencimiento?ff(c.vencimiento)+(vencida?' · vencida':''):'—')+'</td><td class="n"><b>'+eur(c.total)+'</b></td>'+
-        '<td style="white-space:nowrap;font-size:12px"><select data-pf="'+k+'" onchange="tesoreriaSegunForma(this)" style="font-size:12px;padding:2px 4px"><option value="">— forma —</option>'+(d.formas_pago||[]).map(v=>'<option>'+esc(v)+'</option>').join('')+'</select> '+
+        '<td style="white-space:nowrap;font-size:12px"><select data-pf="'+k+'" onchange="tesoreriaSegunForma(this)" style="font-size:12px;padding:2px 4px"><option value="">— forma —</option>'+(d.formas_pago||[]).map(v=>'<option'+(v===c.forma_pago?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select> '+
           '<input type="date" data-pd="'+k+'" value="'+hoy+'" style="width:auto;font-size:12px;padding:2px 4px"> '+
-          '<select data-pt="'+k+'" style="font-size:12px;padding:2px 4px"><option value="">— desde —</option>'+tes+'</select></td>'+
+          '<select data-pt="'+k+'" style="font-size:12px;padding:2px 4px"><option value="">— desde —</option>'+tes.replace('value="'+((d.tesoreria_por_forma||{})[c.forma_pago]||'#')+'"', '$& selected')+'</select></td>'+
         '<td><button class="prim" onclick="registrarPagoGasto(\''+k+'\',this)">Registrar pago</button></td></tr>';
     }).join('')+'</table>' : '<div class="ok">✔ Ninguna</div>');
 }

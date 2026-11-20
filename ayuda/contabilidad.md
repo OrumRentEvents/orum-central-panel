@@ -53,9 +53,9 @@ Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devol
 
 ### Facturas sin pagar (entran en Holded pendientes de pago)
 
-Por defecto solo se vuelcan facturas ya pagadas. Si una factura aún no está pagada pero tiene que entrar en la contabilidad:
+Por defecto se vuelcan como pagadas. Si una factura aún no está pagada pero tiene que entrar en la contabilidad:
 
-1. En **«Pendiente de asignar pago»**, pulsa **«Volcar sin pagar»**. Pasa a «Por aprobar» con la marca **SIN PAGAR** y sin campos de pago.
+1. **Si está en «Por aprobar»** (ya tiene forma de pago, por ejemplo una domiciliación que aún no se ha cargado), marca la casilla **«Aún no está pagada»**: desaparecen los campos de pago. **Si está en «Pendiente de asignar pago»**, pulsa **«Volcar sin pagar»**: pasa a «Por aprobar» con la marca **SIN PAGAR**.
 2. Revisa la cuenta, la fecha y el **vencimiento**, y pulsa **«Aceptar»**: entra en Holded aprobada y **pendiente de pago**.
 3. Queda en el apartado **«En Holded, pendientes de pago»**, ordenada por vencimiento (las vencidas, en rojo).
 4. Cuando se pague, elige ahí la **forma de pago**, la **fecha** y **desde dónde** (banco, tarjeta o caja) y pulsa **«Registrar pago»**. El pago se apunta en Holded sobre esa misma compra y la forma de pago pasa a Facturas Proveedores. No hace falta entrar en Holded.
