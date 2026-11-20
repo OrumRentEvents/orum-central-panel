@@ -5336,6 +5336,11 @@ app.post('/api/holded/gastos/:fileId/forma-pago', requiereLogin, soloHolded, asy
   try { res.json(await holdedCompras.asignarFormaPago(req.params.fileId, (req.body || {}).formaPago, req.session.usuario.nombre || req.session.usuario.usuario)); }
   catch (err) { console.error('Error en /api/holded/gastos/forma-pago:', err); res.status(500).json({ error: err.message }); }
 });
+// (20 nov 2026) Corregir una factura de compra bloqueada desde Holded glass.
+app.post('/api/holded/gastos/:fileId/corregir', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.corregir(req.params.fileId, req.body || {}, req.session.usuario.nombre || req.session.usuario.usuario)); }
+  catch (err) { console.error('Error en /api/holded/gastos/corregir:', err); res.status(500).json({ error: err.message }); }
+});
 // (20 nov 2026) Volcar a Holded una factura sin pagar (queda pendiente de pago)
 // y, cuando se pague, registrar el pago sobre esa compra.
 app.post('/api/holded/gastos/:fileId/sin-pagar', requiereLogin, soloHolded, async (req, res) => {

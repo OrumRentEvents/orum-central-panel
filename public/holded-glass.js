@@ -46,7 +46,7 @@
     reloj: ico('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), subir: ico('<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>'),
     girar: ico('<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>'), venta: ico('<path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"/>'),
     enlace: ico('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
-    mas: ico('<path d="M12 5v14M5 12h14"/>'), leasing: ico('<path d="M3 17h18M5 17V9l7-4 7 4v8"/><path d="M9 17v-5h6v5"/>')
+    mas: ico('<path d="M12 5v14M5 12h14"/>'), holdedIco: ico('<path d="M4 4h16v16H4z"/><path d="M8 12l3 3 5-6"/>'), leasing: ico('<path d="M3 17h18M5 17V9l7-4 7 4v8"/><path d="M9 17v-5h6v5"/>')
   };
   async function api(method, url, body) {
     const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -177,46 +177,47 @@
       ${kpi('revisar', 'Avisos', avisos, false, avisos ? [(g.pendientes || []).length && `${(g.pendientes || []).length} gastos bloqueados`, (p.modificadas || []).length && `${p.modificadas.length} cambiadas en Rentman`, (p.descuadres || []).length && `${p.descuadres.length} descuadres`, (p.compensaciones || []).length && `${p.compensaciones.length} compensaciones`].filter(Boolean).join(' · ') : 'Sin avisos', (g.pendientes || []).length ? "hdIr('gastos','bloqueada')" : "hdIr('ventas','incidencias')", I.alerta)}
     </div>`;
     // Volcado de ventas
-    const ej = (p.ejecuciones || []).slice(0, 5);
+    const ejecs = p.ejecuciones || [];
     const pr = S.progreso;
     const barra = pr && pr.total ? `<div class="hd-progreso"><div><b>${esc({ preparando: 'Preparando…', facturas: 'Facturas', 'preparando cobros': 'Preparando cobros…', cobros: 'Cobros' }[pr.fase] || pr.fase || '')}</b> · ${pr.hecho} / ${pr.total}${pr.actual ? ` <span class="pv-sutil">nº ${esc(pr.actual)}</span>` : ''}</div><div class="pv-bh-pista ancha"><i style="background:var(--g-champ)" data-ancho="${Math.round(100 * pr.hecho / pr.total)}%"></i></div></div>` : '';
-    const volcado = `<div class="pv-panel g-vidrio">
-      <h3>Volcado Rentman → Holded ${p.volcando ? '<span class="pv-estado e-sinpago">En marcha</span>' : ''}</h3>
-      <p class="pv-sutil" style="margin:-6px 0 10px">Cada día a las 6:00 se vuelcan las facturas y cobros del día anterior. Lo ya volcado no se vuelve a enviar.</p>
+    const listaEj = (lista, gastos) => `<div class="hd-lista-ej">${lista.length ? lista.slice(0, 4).map(e => {
+        const r = e.resumen || {};
+        const txt = gastos ? `${r.compras_por_aprobar != null ? r.compras_por_aprobar + ' por aprobar' : (r.compras_enviadas || 0) + ' compras'}${r.compras_bloqueadas ? ' · ' + r.compras_bloqueadas + ' bloqueadas' : ''}` : `${r.facturas_enviadas || 0} facturas · ${r.cobros_enviados || 0} cobros${r.facturas_bloqueadas ? ' · ' + r.facturas_bloqueadas + ' bloqueadas' : ''}`;
+        return `<div class="hd-ej"><span class="hd-punto ${!e.fin ? 'curso' : e.ok ? 'ok' : 'mal'}"></span><span>${fh(e.inicio)}</span><span class="pv-sutil">${/^auto/.test(e.origen) ? 'automático' : (e.usuario ? esc(e.usuario) : 'manual')}</span><span>${e.fin ? txt : 'en curso'}</span></div>`;
+      }).join('') : '<p class="pv-sutil">Sin importaciones todavía.</p>'}</div>`;
+    const cifras = l => `<div class="hd-mini-cifras">${l.map(([n, v, rojo]) => `<div><small>${n}</small><strong class="${rojo && v ? 'rojo' : ''}">${v}</strong></div>`).join('')}</div>`;
+    const sinForma = (p.cobros || []).filter(c => c.estado === 'sin_clasificar').length;
+    const volcado = `<div class="pv-panel g-vidrio hd-tarjeta-imp">
+      <h3>Facturas de Venta ${p.volcando ? '<span class="pv-estado e-sinpago">Importando</span>' : ''}</h3>
+      ${cifras([['Facturas pendientes', (p.facturas || []).length], ['Cobros pendientes', (p.cobros || []).length], ['Sin forma de pago', sinForma, true], ['Incidencias', (p.modificadas || []).length + (p.descuadres || []).length + (p.compensaciones || []).length, true]])}
+      ${listaEj(ejecs.filter(e => !/gastos/.test(e.origen)), false)}
       ${barra}
-      <div class="hd-acciones-linea">
-        <button class="pv-boton prim" onclick="hdVolcar()" ${p.volcando ? 'disabled' : ''}>${I.subir}Volcar ahora</button>
-        <label class="hd-check"><input type="checkbox" id="hd-incluir-hoy"> incluir también lo de hoy</label>
+      <div class="hd-acciones-linea hd-pie-imp">
+        <button class="pv-boton prim" onclick="hdVolcar()" ${p.volcando ? 'disabled' : ''}>${I.subir}Importar</button>
+        <label class="hd-check"><input type="checkbox" id="hd-incluir-hoy"> incluir lo de hoy</label>
       </div>
-      <div class="hd-lista-ej">${ej.length ? ej.map(e => {
-        const r = e.resumen || {}, gastos = /gastos/.test(e.origen);
-        const txt = gastos ? `${r.compras_por_aprobar != null ? r.compras_por_aprobar + ' por aprobar' : (r.compras_enviadas || 0) + ' compras'}${r.compras_bloqueadas ? ', ' + r.compras_bloqueadas + ' bloqueadas' : ''}` : `${r.facturas_enviadas || 0} facturas · ${r.cobros_enviados || 0} cobros${r.facturas_bloqueadas ? ' · ' + r.facturas_bloqueadas + ' bloqueadas' : ''}`;
-        return `<div class="hd-ej"><span class="hd-punto ${!e.fin ? 'curso' : e.ok ? 'ok' : 'mal'}"></span><span>${fh(e.inicio)}</span><span class="pv-sutil">${/^auto/.test(e.origen) ? 'automático' : 'manual' + (e.usuario ? ' · ' + esc(e.usuario) : '')}${gastos ? ' · gastos' : ''}</span><span>${e.fin ? txt : 'en curso'}</span></div>`;
-      }).join('') : '<p class="pv-sutil">Todavía no ha habido ningún volcado.</p>'}</div>
     </div>`;
     // Próximos vencimientos
     const prox = [...pagar].sort((a, b) => String(a.vencimiento || '9999').localeCompare(String(b.vencimiento || '9999'))).slice(0, 6);
     const venc = `<div class="pv-panel g-vidrio"><h3>Próximos pagos <button class="pv-enlace" onclick="hdIr('pagos')">Ver todos →</button></h3>
       ${prox.length ? prox.map(x => `<button class="pv-fila-c hd-fila-venc" onclick="hdIr('pagos')">${avatar(x.proveedor)}<span class="pv-fc-txt"><b>${esc(x.proveedor)}</b><small>Nº ${esc(x.numero || '—')}</small></span>
-        <span class="pv-fc-fecha ${x.vencimiento && x.vencimiento < hoy() ? 'rojo' : ''}">${x.vencimiento ? 'vence ' + ff(x.vencimiento) : 'sin vencimiento'}</span><strong>${eur(x.total)}</strong></button>`).join('') : '<p class="pv-sutil">No hay facturas pendientes de pago en Holded. Las que se aceptan como «Aún no está pagada» aparecen aquí.</p>'}</div>`;
+        <span class="pv-fc-fecha ${x.vencimiento && x.vencimiento < hoy() ? 'rojo' : ''}">${x.vencimiento ? 'vence ' + ff(x.vencimiento) : 'sin vencimiento'}</span><strong>${eur(x.total)}</strong></button>`).join('') : '<p class="pv-sutil">Nada pendiente de pago.</p>'}</div>`;
     // Gastos: preparar y conexión
-    const gastosP = `<div class="pv-panel g-vidrio"><h3>Facturas de gastos</h3>
-      <p class="pv-sutil" style="margin:-6px 0 10px">A las 7:00 se preparan las facturas de proveedores nuevas: quedan por aprobar y no llegan a Holded hasta que se aceptan aquí.</p>
-      <div class="hd-acciones-linea"><button class="pv-boton g-vidrio" onclick="hdPreparar(this)">${I.girar}Preparar facturas nuevas ahora</button>
-      ${g.volcando ? '<span class="pv-estado e-sinpago">Preparación en marcha</span>' : ''}</div>
-      <div class="hd-mini-cifras">
-        <div><small>Por aprobar</small><strong>${pa.length}</strong></div>
-        <div><small>Sin forma de pago</small><strong>${(g.pendientes_pago || []).length}</strong></div>
-        <div><small>Bloqueadas</small><strong>${(g.pendientes || []).length}</strong></div>
-        <div><small>Volcadas</small><strong>${g.total_enviadas || 0}</strong></div>
-      </div></div>`;
+    const gastosP = `<div class="pv-panel g-vidrio hd-tarjeta-imp">
+      <h3>Facturas de Compra ${g.volcando ? '<span class="pv-estado e-sinpago">Importando</span>' : ''}</h3>
+      ${cifras([['Por aprobar', pa.length], ['Sin forma de pago', (g.pendientes_pago || []).length], ['Bloqueadas', (g.pendientes || []).length, true], ['En Holded', g.total_enviadas || 0]])}
+      ${listaEj(ejecs.filter(e => /gastos/.test(e.origen)), true)}
+      <div class="hd-acciones-linea hd-pie-imp">
+        <button class="pv-boton prim" onclick="hdPreparar(this)" ${g.volcando ? 'disabled' : ''}>${I.subir}Importar</button>
+      </div>
+    </div>`;
     const conexion = `<div class="pv-panel g-vidrio"><h3>Conexión con Holded</h3>
       ${S.empresa ? (S.empresa.error ? `<p class="rojo">${esc(S.empresa.error)}</p>` : `<p style="margin:0 0 6px">Empresa: <b>${esc(S.empresa.empresa || '—')}</b></p>
         <p class="${S.empresa.todo_listo ? '' : 'rojo'}" style="margin:0 0 6px">${S.empresa.todo_listo ? '✔ Cuentas y tesorerías de ventas y cobros creadas' : 'Faltan cuentas o tesorerías en Holded'}</p>
         <p class="pv-sutil" style="margin:0">Corte: ${ff(S.empresa.fecha_corte)} · ${S.empresa.total_cuentas_holded} cuentas · cuentas de gasto ${S.empresa.gastos_faltan && S.empresa.gastos_faltan.length ? `<b class="rojo">faltan ${S.empresa.gastos_faltan.length}</b>` : 'todas creadas'}</p>`)
-        : '<p class="pv-sutil" style="margin:0 0 10px">Comprueba que la empresa conectada tiene todo lo que usa el volcado.</p>'}
+        : ''}
       <button class="pv-mini" style="margin-top:10px" onclick="hdEmpresa(this)">${I.enlace}Comprobar conexión</button></div>`;
-    return kpis + `<div class="pv-rejilla dos">${volcado}${venc}</div><div class="pv-rejilla dos">${gastosP}${conexion}</div>`;
+    return kpis + `<div class="pv-rejilla dos">${volcado}${gastosP}</div><div class="pv-rejilla dos">${venc}${conexion}</div>`;
   }
 
   // ── Gastos por aprobar ──
@@ -255,20 +256,12 @@
   }
 
   // ── Ficha de una factura de gastos ──
-  function pintarFicha() {
-    let cont = $('hd-ficha');
-    const x = gastos().find(y => y.file_id === S.abierta);
-    if (!S.abierta || !x) { if (cont) cont.remove(); S.abierta = null; return; }
-    const nueva = !cont;
-    if (nueva) {
-      cont = document.createElement('div'); cont.id = 'hd-ficha'; cont.className = 'pv-ficha-fondo';
-      cont.onclick = e => { if (e.target === cont) hdCerrar(); };
-      document.body.appendChild(cont);
-    }
-    const lista = filtrados(), pos = lista.findIndex(y => y.file_id === x.file_id);
+  // Lo propio de Holded de una factura de compra: cuenta, fechas, pago, reparto
+  // y Aceptar (por aprobar), asignar pago (sin forma de pago) o corregir (bloqueada).
+  // enPv: va dentro de la ficha de Facturas Proveedores (no repite concepto ni importes).
+  function datosGasto(x, enPv) {
     const id = x.file_id, cid = cssId(id), b = B(id), g = S.g || {};
     const val = (k, def) => b[k] !== undefined ? b[k] : def;
-    const visorPrevio = cont.querySelector('.hd-visor-marco[data-id="' + cid + '"]');
     let datos;
     if (x._e === 'por_aprobar') {
       const ctaDef = etiquetaCuenta(x.cuenta_propuesta);
@@ -293,11 +286,11 @@
             <label class="pv-campo"><span>Desde</span><select onchange="hdCampo('${esc(id)}','pagoTesoreria',this)">${tesDef ? '' : '<option value="">— elegir —</option>'}${tes.map(t => `<option value="${t.key}" ${val('pagoTesoreria', tesDef) === t.key ? 'selected' : ''}>${esc(t.nombre)}</option>`).join('')}</select></label>
           </div>`;
       datos = `
-        ${x.concepto ? `<p class="pv-concepto">${esc(x.concepto)}</p>` : ''}
-        ${x.dudas ? `<div class="pv-dudas">${I.alerta}<span>${esc(x.dudas)}</span></div>` : ''}
+        ${!enPv && x.concepto ? `<p class="pv-concepto">${esc(x.concepto)}</p>` : ''}
+        ${!enPv && x.dudas ? `<div class="pv-dudas">${I.alerta}<span>${esc(x.dudas)}</span></div>` : ''}
         ${x.error ? `<div class="pv-dudas rojo">${I.alerta}<span>${esc(x.error)}</span></div>` : ''}
-        <div class="hd-importes"><div><small>Base</small><b>${eur(x.base)}</b></div><div><small>IVA ${x.tipos && x.tipos.length ? x.tipos.join(' / ') + ' %' : ''}</small><b>${eur(x.iva)}</b></div>${x.retencion ? `<div><small>Retención</small><b>−${eur(x.retencion)}</b></div>` : ''}<div><small>Total</small><b>${eur(x.total)}</b></div></div>
-        <h4>Fechas</h4>
+        ${enPv ? '' : `<div class="hd-importes"><div><small>Base</small><b>${eur(x.base)}</b></div><div><small>IVA ${x.tipos && x.tipos.length ? x.tipos.join(' / ') + ' %' : ''}</small><b>${eur(x.iva)}</b></div>${x.retencion ? `<div><small>Retención</small><b>−${eur(x.retencion)}</b></div>` : ''}<div><small>Total</small><b>${eur(x.total)}</b></div></div>`}
+        <h4>Fechas en Holded</h4>
         <div class="pv-campos">
           <label class="pv-campo"><span>Fecha factura</span><input type="date" value="${esc(val('fecha', x.fecha || ''))}" onchange="hdCampo('${esc(id)}','fecha',this)"></label>
           <label class="pv-campo"><span>Vencimiento</span><input type="date" value="${esc(val('vencimiento', x.vencimiento || ''))}" onchange="hdCampo('${esc(id)}','vencimiento',this)"></label>
@@ -317,11 +310,56 @@
         <h4>Aún no está pagada</h4>
         <div class="hd-acciones-linea"><button class="pv-boton g-vidrio" onclick="hdSinPagar('${esc(id)}')">Volcar sin pagar</button><span class="pv-sutil">Pasa a Por aprobar y entra en Holded pendiente de pago.</span></div>`;
     } else {
-      datos = `<div class="pv-dudas rojo">${I.alerta}<span><b>Bloqueada:</b> ${esc(x.error || x.estado)}</span></div>
-        <div class="hd-importes"><div><small>Fecha</small><b>${ff(x.fecha)}</b></div><div><small>Total</small><b>${x.total != null ? eur(x.total) : '—'}</b></div></div>
-        <p class="pv-sutil">Corrige la causa (ficha del proveedor en Config. Cuentas de gasto, fecha, IVA…) y pulsa Reintentar; si el PDF se leyó mal, Releer.</p>
-        <div class="pv-ficha-pie"><button class="pv-boton prim" onclick="hdReintentar('${esc(id)}',false)">${I.girar}Reintentar</button><button class="pv-boton g-vidrio" onclick="hdReintentar('${esc(id)}',true)">Releer el PDF</button></div>`;
+      datos = bloqueadaHtml(x);
     }
+    return datos;
+  }
+  // (20 nov 2026, pedido por el usuario) La ficha es la de Facturas Proveedores
+  // (visor con zoom, proveedor, nº, importes, pago, vehículo, notas) con un
+  // bloque «Holded» arriba y las flechas para ir a la siguiente.
+  const fichaPv = () => typeof window.pvAbrirDesdeFuera === 'function';
+  window.pvFichaExtra = fileId => {
+    if (!vivo() || S.abierta !== fileId) return '';
+    const x = gastos().find(y => y.file_id === fileId); if (!x) return '';
+    const est = ESTADOS[x._e];
+    return `<section class="hd-bloque-holded"><h3>${I.holdedIco}Holded <span class="pv-estado ${est.c}">${est.n}</span> ${etiquetasDe(x)}</h3>${datosGasto(x, true)}</section>`;
+  };
+  window.pvFichaNav = fileId => {
+    if (!vivo() || S.abierta !== fileId) return '';
+    const lista = filtrados(), pos = lista.findIndex(y => y.file_id === fileId);
+    return `<span class="hd-nav"><button class="pv-flecha" ${pos > 0 ? '' : 'disabled'} onclick="hdMover(-1)" title="Anterior (←)">${I.izq}</button><span class="pv-sutil">${pos + 1} / ${lista.length}</span><button class="pv-flecha" ${pos >= 0 && pos < lista.length - 1 ? '' : 'disabled'} onclick="hdMover(1)" title="Siguiente (→)">${I.der}</button></span>`;
+  };
+  window.pvFichaDespues = fileId => {
+    if (!vivo() || S.abierta !== fileId) return;
+    const x = gastos().find(y => y.file_id === fileId); if (!x || x._e !== 'por_aprobar') return;
+    if (x.reparto) sumaReparto(fileId); else marcarHabitual(fileId);
+  };
+  window.pvFichaAlCerrar = () => { if (vivo() && S.abierta) { S.abierta = null; pintar(); } };
+  function pintarFicha() {
+    if (fichaPv()) {
+      const pvF = $('pv-ficha');
+      if (!S.abierta || !gastos().some(y => y.file_id === S.abierta)) { S.abierta = null; if (pvF) window.pvCerrar(); return; }
+      window.pvAbrirDesdeFuera(S.abierta, S.pvRecargar).then(ok => {
+        if (!ok && S.abierta) { // no está en Facturas Proveedores: ficha propia
+          const fichaVieja = window.pvAbrirDesdeFuera; window.pvAbrirDesdeFuera = null; pintarFicha(); window.pvAbrirDesdeFuera = fichaVieja;
+        }
+      });
+      S.pvRecargar = false;
+      return;
+    }
+    let cont = $('hd-ficha');
+    const x = gastos().find(y => y.file_id === S.abierta);
+    if (!S.abierta || !x) { if (cont) cont.remove(); S.abierta = null; return; }
+    const nueva = !cont;
+    if (nueva) {
+      cont = document.createElement('div'); cont.id = 'hd-ficha'; cont.className = 'pv-ficha-fondo';
+      cont.onclick = e => { if (e.target === cont) hdCerrar(); };
+      document.body.appendChild(cont);
+    }
+    const lista = filtrados(), pos = lista.findIndex(y => y.file_id === x.file_id);
+    const id = x.file_id, cid = cssId(id);
+    const visorPrevio = cont.querySelector('.hd-visor-marco[data-id="' + cid + '"]');
+    const datos = datosGasto(x, false);
     const est = ESTADOS[x._e];
     const cabecera = `<header>${avatar(x.proveedor)}<div><small>${x.es_abono ? 'Abono' : 'Factura'} ${esc(x.numero || '')} · ${ff(x.fecha)} · <span class="pv-estado ${est.c}">${est.n}</span> ${etiquetasDe(x)}</small><h2>${esc(x.proveedor)}</h2></div>
         <strong>${x.total != null ? eur(x.total) : ''}</strong>
@@ -476,7 +514,7 @@
     // Se pasa a la siguiente al momento; la fila vuelve si Holded da error.
     const lista = filtrados(), pos = lista.findIndex(y => y.file_id === id);
     const sig = lista[pos + 1] || lista[pos - 1] || null;
-    S.enviando.add(id); S.abierta = sig ? sig.file_id : null; pintar(); pintarFicha();
+    S.enviando.add(id); S.abierta = sig ? sig.file_id : null; S.pvRecargar = true; pintar(); pintarFicha();
     toast('Volcando a Holded ' + x.proveedor + ' ' + (x.numero || '') + '…');
     let r;
     try { r = await api('POST', '/api/holded/gastos/' + encodeURIComponent(id) + '/aceptar', { cuenta, guardarHabitual: !!b.habitual, fecha, vencimiento, pagoFecha, pagoTesoreria, reparto, sinPagar }); }
@@ -504,7 +542,7 @@
     await cargar();
   };
   window.hdPreparar = async btn => {
-    btn.disabled = true; toast('Preparando facturas nuevas… puede tardar unos minutos');
+    btn.disabled = true; toast('Importando facturas de compra… puede tardar unos minutos');
     try { const r = await api('POST', '/api/holded/gastos/volcar'); const s = r.resumen || {}; toast(r.motivo || `${s.compras_por_aprobar || 0} por aprobar · ${s.compras_pendientes_pago || 0} sin forma de pago · ${s.compras_bloqueadas || 0} bloqueadas`, !r.ok); }
     catch (e) { toast(e.message, true); }
     await cargar();
@@ -600,11 +638,11 @@
           ? `<div class="hd-pago-linea"><select class="hd-select" onchange="hdMetodoCobro('${k}',this.value)"><option value="">— forma de pago —</option>${opciones}</select>
              ${elegido && elegido !== c.metodo ? `<button class="pv-boton prim" onclick="hdAsignarCaja(${Number(c.pago_id)},'${k}',this)">${I.ok}Guardar en Caja</button>` : ''}</div>`
           : `<b>${esc(nombreMetodo(c.metodo))}</b>${p.puede_asignar_caja ? '<small class="pv-sutil">Pago partido o ya en Holded: se cambia en Caja</small>' : ''}`;
-        return `<tr class="${c.estado === 'sin_clasificar' ? 'hd-fila-aviso' : ''}">
+        return `<tr class="hd-clic ${c.estado === 'sin_clasificar' ? 'hd-fila-aviso' : ''} ${S.va && S.va.numero === String(c.numero_factura) ? 'sel' : ''}" onclick="hdVentaAbrir('${esc(c.numero_factura)}')">
           <td><div class="pv-celda-prov">${avatar(c.cliente || '?')}<span><b>${esc(c.cliente || '—')}</b><small>Factura ${esc(c.numero_factura)} · cobro ${esc(c.pago_id)}${(c.split_idx || 1) > 1 ? '/' + c.split_idx : ''} · <button class="pv-enlace" onclick="hdVer('/api/holded/venta/${esc(c.numero_factura)}/archivo','Factura ${esc(c.numero_factura)} · ${esc(String(c.cliente || '').replace(/'/g, ''))}')">ver factura</button></small></span></div></td>
           <td>${ff(c.fecha)}</td><td class="n"><b>${eur(c.importe)}</b></td>
           <td><span class="pv-estado ${est.c}">${est.n}</span>${c.motivo && c.estado !== 'sin_clasificar' ? `<small class="pv-sutil">${esc(c.motivo)}</small>` : ''}</td>
-          <td>${selector}</td></tr>`;
+          <td onclick="event.stopPropagation()">${selector}</td></tr>`;
       }).join('');
       const nota = p.puede_asignar_caja
         ? 'La forma de pago se guarda en Caja (igual que desde la app de Caja). El cobro llega a Holded en el próximo volcado (6:00) o con «Volcar ahora» en el Resumen.'
@@ -616,7 +654,7 @@
         <tbody>${filas || '<tr><td colspan="5" class="pv-vacio">✔ Ningún cobro pendiente.</td></tr>'}</tbody></table></div></div>`;
     } else if (S.ventas === 'facturas') {
       const lista = facturas.filter(x => coincide(x.cliente, x.numero, x.total));
-      const filas = lista.map(x => `<tr class="hd-clic" onclick="hdRevisar('${esc(x.numero)}')" title="Revisar esta factura"><td><div class="pv-celda-prov">${avatar(x.cliente || '?')}<span><b>${esc(x.cliente || '—')}</b><small>Factura ${esc(x.numero)} · revisar</small></span></div></td><td>${ff(x.fecha)}</td><td class="n"><b>${eur(x.total)}</b></td>
+      const filas = lista.map(x => `<tr class="hd-clic ${S.va && S.va.numero === String(x.numero) ? 'sel' : ''}" onclick="hdVentaAbrir('${esc(x.numero)}')"><td><div class="pv-celda-prov">${avatar(x.cliente || '?')}<span><b>${esc(x.cliente || '—')}</b><small>Factura ${esc(x.numero)}</small></span></div></td><td>${ff(x.fecha)}</td><td class="n"><b>${eur(x.total)}</b></td>
           <td><span class="pv-estado ${x.estado === 'sin_procesar' ? 'e-holded' : 'e-revisar'}">${esc(ESTADO_FACTURA[x.estado] || x.estado)}</span></td><td class="${x.estado === 'sin_procesar' ? 'pv-sutil' : 'rojo'}" style="font-size:12px">${esc(x.motivo || '')}</td></tr>`).join('');
       cuerpo = `<div class="pv-panel g-vidrio pv-tabla-panel">
         <div class="pv-tabla-cab"><span>${lista.length} facturas</span><b>${eur(lista.reduce((s, x) => s + num(x.total), 0))}</b></div>
@@ -627,13 +665,13 @@
       const bloques = [];
       if ((p.modificadas || []).length) bloques.push(panel('Cambiadas en Rentman después de volcarlas', 'Holded no se entera: corrígelo con una rectificativa en Rentman o a mano en Holded.',
         '<th>Factura</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th>',
-        p.modificadas.map(m => `<tr><td>${esc(m.numero)}</td><td>${esc(m.cliente)}</td><td class="n">${eur(m.total_enviado)}</td><td class="n">${eur(m.total_rentman)}</td></tr>`).join('')));
+        p.modificadas.map(m => `<tr class="hd-clic" onclick="hdVentaAbrir('${esc(m.numero)}')"><td>${esc(m.numero)}</td><td>${esc(m.cliente)}</td><td class="n">${eur(m.total_enviado)}</td><td class="n">${eur(m.total_rentman)}</td></tr>`).join('')));
       if ((p.descuadres || []).length) bloques.push(panel('Descuadre de céntimos con Rentman', 'Holded redondeó el IVA de otra forma: aunque se cobre entera, quedará esa diferencia pendiente.',
         '<th>Factura</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th><th class="n">Diferencia</th>',
-        p.descuadres.map(m => `<tr><td>${esc(m.numero)}</td><td>${esc(m.cliente)}</td><td class="n">${eur(m.total_holded)}</td><td class="n">${eur(m.total_rentman)}</td><td class="n rojo">${eur(m.diferencia)}</td></tr>`).join('')));
+        p.descuadres.map(m => `<tr class="hd-clic" onclick="hdVentaAbrir('${esc(m.numero)}')"><td>${esc(m.numero)}</td><td>${esc(m.cliente)}</td><td class="n">${eur(m.total_holded)}</td><td class="n">${eur(m.total_rentman)}</td><td class="n rojo">${eur(m.diferencia)}</td></tr>`).join('')));
       if ((p.compensaciones || []).length) bloques.push(panel('Compensaciones descuadradas', 'Los cobros «Factura 0 €» y «Rectificativa» de cada cliente tienen que sumar 0: falta la otra mitad o está mal clasificada en Caja.',
         '<th>Cliente</th><th>Facturas (cobro · importe)</th><th class="n">Descuadre</th>',
-        p.compensaciones.map(k => `<tr><td>${esc(k.cliente)}</td><td style="font-size:12px">${k.lineas.map(l => `${esc(l.numero_factura)} (${esc(l.pago_id)} · ${eur(l.importe)})`).join(', ')}</td><td class="n rojo">${eur(k.neto)}</td></tr>`).join('')));
+        p.compensaciones.map(k => `<tr><td>${esc(k.cliente)}</td><td style="font-size:12px">${k.lineas.map(l => `<button class="pv-enlace" onclick="hdVentaAbrir('${esc(l.numero_factura)}')">${esc(l.numero_factura)}</button> (${esc(l.pago_id)} · ${eur(l.importe)})`).join(', ')}</td><td class="n rojo">${eur(k.neto)}</td></tr>`).join('')));
       cuerpo = bloques.join('') || '<div class="pv-panel g-vidrio pv-vacio">✔ Sin incidencias de ventas.</div>';
     }
     const buscador = !['incidencias', 'revisar'].includes(S.ventas) ? `<label class="pv-buscar g-vidrio">${I.lupa}<input id="hd-buscar" placeholder="Cliente, nº de factura o importe" value="${esc(S.buscar)}" oninput="hdBuscar(this.value)"></label>` : '';
@@ -692,7 +730,7 @@
       extraFiltro = ap && !ap.fin ? `<span class="pv-sutil">Adjuntando PDFs a Holded: ${ap.hecho} / ${ap.total}…</span>`
         : sinPdf ? `<button class="pv-boton g-vidrio" onclick="hdAdjuntarPdfs(${sinPdf})" title="Adjunta en Holded el PDF de Rentman de las facturas ya volcadas que no lo tienen">${I.subir}Adjuntar PDF a ${sinPdf} sin PDF</button>` : '';
       cab = '<th>Cliente</th><th>Factura · fecha</th><th>Estado</th><th>PDF en Holded</th><th>Enviada</th><th class="n">Total</th>';
-      filas = lista.map(x => `<tr class="hd-clic" onclick="hdRevisar('${esc(x.numero)}')" title="Revisar esta factura">
+      filas = lista.map(x => `<tr class="hd-clic ${S.va && S.va.numero === String(x.numero) ? 'sel' : ''}" onclick="hdVentaAbrir('${esc(x.numero)}')">
         <td><div class="pv-celda-prov">${avatar(x.cliente || '?')}<span><b>${esc(x.cliente || '—')}</b><small>${x.tipo === 'C' ? 'Rectificativa' : 'Factura'}</small></span></div></td>
         <td><b class="pv-num">${esc(x.numero)}</b><small class="pv-sutil">${ff(x.fecha)}</small></td>
         <td><span class="pv-estado ${x.estado === 'aprobada' ? 'e-ok' : 'e-sinpago'}">${x.estado === 'aprobada' ? 'Aprobada' : 'Borrador'}</span>${x.total_holded != null && Math.abs(x.total_holded - Math.abs(x.total)) >= 0.01 ? '<small class="rojo">Descuadre de céntimos</small>' : ''}</td>
@@ -703,7 +741,7 @@
       extraFiltro = `<select class="hd-select g-vidrio" onchange="hdHF('metodo',this.value)"><option value="">Todas las formas de pago</option>${mets.map(m => `<option value="${m}" ${F.metodo === m ? 'selected' : ''}>${esc(NOMBRE_METODO[m] || m)}</option>`).join('')}</select>`;
       lista = H.cobros.filter(x => enRango(x.fecha) && coincide(x.cliente, x.numero_factura, x.importe) && (!F.metodo || x.metodo === F.metodo));
       cab = '<th>Cliente</th><th>Factura · cobro</th><th>Fecha</th><th>Forma de pago</th><th>Enviado</th><th class="n">Importe</th>';
-      filas = lista.map(x => `<tr class="hd-clic" onclick="hdRevisar('${esc(x.numero_factura)}')" title="Revisar su factura">
+      filas = lista.map(x => `<tr class="hd-clic ${S.va && S.va.numero === String(x.numero_factura) ? 'sel' : ''}" onclick="hdVentaAbrir('${esc(x.numero_factura)}')">
         <td><div class="pv-celda-prov">${avatar(x.cliente || '?')}<span><b>${esc(x.cliente || '—')}</b></span></div></td>
         <td><b class="pv-num">${esc(x.numero_factura)}</b><small class="pv-sutil">cobro ${esc(x.pago_id)}${x.split_idx > 1 ? '/' + x.split_idx : ''}</small></td>
         <td>${ff(x.fecha)}</td><td>${esc(NOMBRE_METODO[x.metodo] || x.metodo || '—')}</td><td class="pv-sutil">${fh(x.enviado_en)}</td><td class="n"><b>${eur(x.importe)}</b></td></tr>`).join('');
@@ -847,6 +885,219 @@
     try { S.p = await api('GET', '/api/holded/pendientes'); } catch (e) { /* no pasa nada */ }
   };
 
+  // ── Panel lateral de una factura de venta (20 nov 2026, pedido por el usuario) ──
+  // Al pulsar un cobro, una factura pendiente, una incidencia o una venta del
+  // historial se abre a la derecha (el listado sigue a la izquierda): el PDF de
+  // Rentman, sus cobros con la forma de pago de Caja editable, comprobaciones y
+  // acciones. Vive fuera de #hd-root para que repintar el listado no recargue
+  // el PDF. Flechas ← → (o los botones) para ir a la siguiente del listado.
+  function listaPanel() {
+    const p = S.p || {}, h = S.h || {}, uniq = a => [...new Set(a.map(String))];
+    if (S.pestana === 'historial') return uniq(S.hf.tipo === 'cobros' ? (h.cobros || []).map(x => x.numero_factura) : (h.facturas || []).map(x => x.numero));
+    if (S.ventas === 'facturas') return uniq((p.facturas || []).map(x => x.numero));
+    if (S.ventas === 'incidencias') return uniq([...(p.modificadas || []).map(x => x.numero), ...(p.descuadres || []).map(x => x.numero), ...(p.compensaciones || []).flatMap(k => k.lineas.map(l => l.numero_factura))]);
+    const orden = c => c.estado === 'sin_clasificar' ? 0 : 1;
+    return uniq([...(p.cobros || [])].sort((a, x) => orden(a) - orden(x) || String(a.fecha).localeCompare(String(x.fecha))).map(c => c.numero_factura));
+  }
+  window.hdVentaAbrir = async numero => {
+    numero = String(numero);
+    const cambia = !S.va || S.va.numero !== numero;
+    S.va = { numero, cargando: true, d: cambia ? null : S.va.d, res: null, metodo: {} };
+    montarPanel(cambia);
+    await cargarVenta();
+  };
+  async function cargarVenta() {
+    const n = S.va && S.va.numero; if (!n) return;
+    try { const d = await api('GET', '/api/holded/factura/' + encodeURIComponent(n)); if (S.va && S.va.numero === n) { S.va.d = d; S.va.error = null; } }
+    catch (e) { if (S.va && S.va.numero === n) S.va.error = e.message; }
+    if (S.va && S.va.numero === n) { S.va.cargando = false; pintarPanel(); }
+  }
+  function montarPanel(cambiaPdf) {
+    const body = $('content-body'); if (!body || !$('hd-root')) return;
+    body.classList.add('hd-split');
+    let pn = $('hd-va');
+    if (!pn) { pn = document.createElement('aside'); pn.id = 'hd-va'; pn.className = 'hd-va g-vidrio'; body.appendChild(pn); }
+    if (cambiaPdf || !pn.querySelector('iframe')) {
+      pn.innerHTML = `<div id="hd-va-cab"></div>
+        <div class="hd-va-pdf"><iframe title="Factura" src="/api/holded/venta/${encodeURIComponent(S.va.numero)}/archivo#view=FitH"></iframe></div>
+        <div id="hd-va-datos" class="hd-va-datos"></div>`;
+    }
+    pintar(); pintarPanel();
+  }
+  window.hdVentaCerrar = () => { S.va = null; const pn = $('hd-va'); if (pn) pn.remove(); const b = $('content-body'); if (b) b.classList.remove('hd-split'); pintar(); };
+  window.hdVentaMover = d => { const l = listaPanel(), i = l.indexOf(S.va && S.va.numero), n = l[i + d]; if (n) hdVentaAbrir(n); };
+  function pintarPanel() {
+    const va = S.va, cab = $('hd-va-cab'), cont = $('hd-va-datos'); if (!va || !cab || !cont) return;
+    const l = listaPanel(), i = l.indexOf(va.numero), p = S.p || {};
+    const v = va.d && va.d.vista, s = v && v.sync;
+    cab.innerHTML = `<header class="hd-va-cab">${avatar(v ? v.cliente.nombre : '?')}<div><small>${v && v.rentman.tipo === 'C' ? 'Rectificativa' : 'Factura'} ${esc(va.numero)}${v ? ' · ' + esc(v.rentman.fecha) : ''}</small><h2>${esc(v ? v.cliente.nombre : 'Cargando…')}</h2></div>
+      ${v ? `<strong>${eur(v.rentman.total)}</strong>` : ''}
+      <span class="hd-nav"><button class="pv-flecha" ${i > 0 ? '' : 'disabled'} onclick="hdVentaMover(-1)" title="Anterior (←)">${I.izq}</button><span class="pv-sutil">${i >= 0 ? (i + 1) + ' / ' + l.length : ''}</span><button class="pv-flecha" ${i >= 0 && i < l.length - 1 ? '' : 'disabled'} onclick="hdVentaMover(1)" title="Siguiente (→)">${I.der}</button></span>
+      <button class="pv-flecha" onclick="window.open('/api/holded/venta/${encodeURIComponent(va.numero)}/archivo','_blank')" title="Abrir el PDF en otra pestaña">${I.externo}</button>
+      <button class="pv-flecha" onclick="hdVentaCerrar()" title="Cerrar (Esc)">${I.cerrar}</button></header>`;
+    if (va.error) { cont.innerHTML = `<div class="pv-dudas rojo">${I.alerta}<span>${esc(va.error)}</span></div>`; return; }
+    if (!v) { cont.innerHTML = '<div class="pv-vacio">Cargando la factura…</div>'; return; }
+    const cobros = va.d.cobros || [], metodos = p.metodos_caja || [], puede = !!p.puede_asignar_caja;
+    const estado = s ? `<span class="pv-estado ${s.estado === 'aprobada' ? 'e-ok' : s.estado === 'borrador' ? 'e-sinpago' : 'e-revisar'}">${s.estado === 'aprobada' ? 'En Holded' : esc(s.estado)}</span>${s.pdf_adjunto ? ` <span class="hd-ok-linea">${I.ok} PDF en Holded</span>` : ''}` : '<span class="pv-estado e-holded">Aún no está en Holded</span>';
+    const filasCobro = cobros.map(c => {
+      const k = c.pago_id + '_' + (c.split_idx || 1), est = ESTADO_COBRO[c.estado] || { n: c.estado === 'enviado' ? 'En Holded' : c.estado, c: c.estado === 'enviado' ? 'e-ok' : '' };
+      const partido = cobros.some(o => o.pago_id === c.pago_id && (o.split_idx || 1) > 1);
+      const editable = puede && !['enviado', 'modificado'].includes(c.estado) && !partido;
+      const elegido = va.metodo[k] !== undefined ? va.metodo[k] : (c.metodo || '');
+      const forma = editable
+        ? `<select class="hd-select" onchange="hdVaMetodo('${k}',this.value)"><option value="">— forma de pago —</option>${metodos.map(m => `<option value="${m.id}" ${m.id === elegido ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('')}</select>
+           ${elegido && elegido !== c.metodo ? `<button class="pv-boton prim" onclick="hdVaGuardarCaja(${Number(c.pago_id)},'${k}',this)">${I.ok}Guardar en Caja</button>` : ''}`
+        : `<b>${esc(NOMBRE_METODO[c.metodo] || c.metodo || '—')}</b>`;
+      return `<div class="hd-va-cobro ${c.estado === 'sin_clasificar' ? 'aviso' : ''}"><div><b>${eur(c.importe)}</b><small class="pv-sutil">cobro ${esc(c.pago_id)}${(c.split_idx || 1) > 1 ? '/' + c.split_idx : ''} · ${ff(c.fecha)}</small></div>
+        <span class="pv-estado ${est.c}">${est.n}</span><div class="hd-pago-linea">${forma}</div>${c.motivo && c.estado !== 'sin_clasificar' ? `<small class="pv-sutil hd-va-motivo">${esc(c.motivo)}</small>` : ''}</div>`;
+    }).join('');
+    const errores = v.avisos.filter(a => a.nivel === 'error'), avisos = v.avisos.filter(a => a.nivel !== 'error');
+    const puedeAprobar = s && s.estado === 'borrador', puedeCobros = s && s.estado === 'aprobada' && cobros.some(c => c.estado === 'listo');
+    cont.innerHTML = `
+      <div class="hd-va-linea">${estado}</div>
+      <div class="hd-importes"><div><small>Base</small><b>${eur(v.rentman.base)}</b></div><div><small>IVA</small><b>${eur(v.rentman.iva)}</b></div><div><small>Total</small><b>${eur(v.rentman.total)}</b></div></div>
+      <h4>Cobros · forma de pago en Caja</h4>
+      ${filasCobro || '<p class="pv-sutil">Sin cobros en Rentman.</p>'}
+      ${!puede && cobros.some(c => c.estado === 'sin_clasificar') ? '<p class="pv-sutil">Solo María y Sergio pueden asignar la forma de pago en Caja.</p>' : ''}
+      <h4>Comprobaciones</h4>
+      ${errores.concat(avisos).map(a => `<div class="pv-dudas ${a.nivel === 'error' ? 'rojo' : ''}">${I.alerta}<span>${esc(a.texto)}</span></div>`).join('') || `<div class="hd-ok-linea">${I.ok} Todo correcto</div>`}
+      <div class="hd-kv"><span>Cliente</span><b>${esc(v.cliente.nombre)} · ${esc(v.cliente.nif || 'sin NIF')}</b><span>En Holded</span><b>${v.cliente.holded_id ? esc(v.cliente.holded_nombre) + ' · ' + esc(v.cliente.cuenta) : '<span class="rojo">contacto no encontrado</span>'}</b></div>
+      <h4>Acciones</h4>
+      <div class="hd-acciones-linea">
+        ${v.se_puede_enviar ? `<button class="pv-boton prim" onclick="hdVaAccion('enviar',true)">Crear y aprobar en Holded</button><button class="pv-boton g-vidrio" onclick="hdVaAccion('enviar',false)">Crear en borrador</button>` : ''}
+        ${puedeAprobar ? `<button class="pv-boton prim" onclick="hdVaAccion('aprobar')">Aprobar borrador</button>` : ''}
+        ${puedeCobros ? `<button class="pv-boton prim" onclick="hdVaAccion('cobros')">Enviar cobros a Holded</button>` : ''}
+        ${s && s.holded_invoice_id ? `<button class="pv-boton g-vidrio" onclick="hdVaAccion('pdf')">${I.subir}${s.pdf_adjunto ? 'Volver a adjuntar el PDF' : 'Adjuntar el PDF en Holded'}</button>` : ''}
+        <button class="pv-boton g-vidrio" onclick="hdRevisar('${esc(va.numero)}')" title="Ver líneas y datos técnicos">Ver detalle completo</button>
+      </div>
+      ${va.res ? `<div class="pv-dudas ${va.res.ok ? '' : 'rojo'}"><span>${esc(va.res.texto)}</span></div>` : ''}`;
+  }
+  window.hdVaMetodo = (k, v) => { S.va.metodo[k] = v; pintarPanel(); };
+  window.hdVaGuardarCaja = async (pagoId, k, btn) => {
+    const metodo = S.va.metodo[k]; if (!metodo) return;
+    const nombre = (((S.p || {}).metodos_caja || []).find(m => m.id === metodo) || {}).nombre || metodo;
+    btn.disabled = true;
+    try {
+      await api('POST', '/api/holded/cobros/' + encodeURIComponent(pagoId) + '/metodo-caja', { metodo });
+      delete S.va.metodo[k];
+      toast(`✔ Guardado en Caja: ${nombre}`);
+      await cargarVenta();
+      try { S.p = await api('GET', '/api/holded/pendientes'); } catch (e) { /* se ve al recargar */ }
+      if (vivo()) { pintar(); pintarPanel(); }
+      // Si esta factura ya no tiene cobros sin forma de pago, pasa a la siguiente que sí tenga.
+      const queda = S.va && S.va.d && (S.va.d.cobros || []).some(c => c.estado === 'sin_clasificar');
+      if (!queda && S.pestana === 'ventas' && S.ventas === 'cobros') {
+        const sig = ((S.p || {}).cobros || []).find(c => c.estado === 'sin_clasificar' && String(c.numero_factura) !== S.va.numero);
+        if (sig) hdVentaAbrir(sig.numero_factura);
+      }
+    } catch (e) { toast(e.message, true); btn.disabled = false; }
+  };
+  window.hdVaAccion = async (que, aprobar) => {
+    const v = S.va && S.va.d && S.va.d.vista; if (!v) return;
+    if ((que === 'enviar' && aprobar) || que === 'aprobar') { if (!confirm('Una factura aprobada en Holded no se puede borrar, solo anular. ¿' + (que === 'aprobar' ? 'Aprobar' : 'Crear y aprobar') + '?')) return; }
+    const num = encodeURIComponent(v.rentman.numero);
+    const url = que === 'enviar' ? `/api/holded/factura/${num}/enviar` : que === 'aprobar' ? `/api/holded/factura/${v.rentman.id}/aprobar` : que === 'pdf' ? `/api/holded/factura/${num}/adjuntar-pdf` : `/api/holded/factura/${num}/cobros`;
+    toast('Enviando a Holded…');
+    let r;
+    try { r = await api('POST', url, que === 'enviar' ? { aprobar: !!aprobar } : undefined); } catch (e) { r = { ok: false, motivo: e.message }; }
+    const enviados = Array.isArray(r.resultados) ? r.resultados.filter(x => x.estado === 'enviado').length : null;
+    const texto = r.ok === false ? '✖ ' + (r.motivo || 'No se ha podido') + (Array.isArray(r.resultados) ? ' · ' + r.resultados.filter(x => x.estado === 'error').map(x => x.error || x.motivo).join(' · ') : '')
+      : '✔ ' + (que === 'pdf' ? 'PDF adjuntado en Holded' : 'Hecho' + (r.estado ? ': ' + r.estado : '') + (enviados != null ? ' · ' + enviados + ' cobros enviados' : ''));
+    await cargarVenta();
+    if (S.va) { S.va.res = { ok: r.ok !== false, texto }; pintarPanel(); }
+    try { S.p = await api('GET', '/api/holded/pendientes'); } catch (e) { /* no pasa nada */ }
+    if (vivo()) pintar();
+  };
+
+  // ── Corregir una factura de compra bloqueada (20 nov 2026) ──
+  // Lo que la IA leyó (nº, fecha, NIF, cuadro de IVA, total) y la ficha del
+  // proveedor (IVA 0 %, retención, NIF), editables; «Guardar y reintentar».
+  function bloqueadaHtml(x) {
+    const id = x.file_id, b = B(id), g = S.g || {}, l = x.lectura, fi = x.ficha || {};
+    const val = (k, def) => b[k] !== undefined ? b[k] : (def == null ? '' : def);
+    const motivo = String(x.error || x.estado || '');
+    const campo = (etq, k, def, tipo, extra) => `<label class="pv-campo"><span>${etq}</span><input ${tipo ? `type="${tipo}"` : ''} value="${esc(val(k, def))}" oninput="hdCampo('${esc(id)}','${k}',this)" ${extra || ''}></label>`;
+    if (!l) return `<div class="pv-dudas rojo">${I.alerta}<span><b>Bloqueada:</b> ${esc(motivo)}</span></div>
+      <p class="pv-sutil">Esta factura aún no tiene lectura: pulsa «Releer el PDF».</p>
+      <div class="pv-ficha-pie"><button class="pv-boton prim" onclick="hdReintentar('${esc(id)}',true)">${I.girar}Releer el PDF</button></div>`;
+    const lineas = b.c_lineas || (l.lineas_iva || []).map(x => ({ tipo: x.tipo, base: x.base, cuota: x.cuota }));
+    if (!b.c_lineas) b.c_lineas = lineas.map(x => ({ ...x }));
+    const sumaB = lineas.reduce((s, x) => s + num(x.base), 0), sumaC = lineas.reduce((s, x) => s + num(x.cuota), 0);
+    const tot = num(val('c_total', l.total)), ret = num(val('c_ret', l.retencion_importe));
+    const cuadra = Math.abs(sumaB + sumaC - ret - tot) <= 0.03;
+    return `<div class="pv-dudas rojo">${I.alerta}<span><b>Bloqueada:</b> ${esc(motivo)}</span></div>
+      <h4>Datos de la factura</h4>
+      <div class="pv-campos">
+        ${campo('Nº de factura', 'c_numero', l.numero)}
+        ${campo('Fecha', 'c_fecha', l.fecha, 'date')}
+        ${campo('Vencimiento', 'c_venc', l.vencimiento, 'date')}
+        ${campo('NIF del emisor', 'c_nif', l.nif)}
+      </div>
+      <h4>Cuadro de IVA</h4>
+      <div class="hd-iva">${lineas.map((x, k) => `
+        <label class="pv-campo"><span>IVA %</span><input class="n" value="${esc(x.tipo)}" oninput="hdIvaLinea('${esc(id)}',${k},'tipo',this.value)"></label>
+        <label class="pv-campo"><span>Base</span><input class="n" value="${esc(x.base)}" oninput="hdIvaLinea('${esc(id)}',${k},'base',this.value)"></label>
+        <label class="pv-campo"><span>Cuota</span><input class="n" value="${esc(x.cuota)}" oninput="hdIvaLinea('${esc(id)}',${k},'cuota',this.value)"></label>
+        <button class="pv-flecha" title="Quitar línea" onclick="hdIvaQuitar('${esc(id)}',${k})">${I.cerrar}</button>`).join('')}</div>
+      <button class="pv-mini" style="align-self:flex-start" onclick="hdIvaAnadir('${esc(id)}')">${I.mas}Añadir línea de IVA</button>
+      <div class="pv-campos">
+        ${campo('Retención (importe)', 'c_ret', l.retencion_importe)}
+        ${campo('Total de la factura', 'c_total', l.total)}
+      </div>
+      <div id="hd-cuadre-${cssId(id)}" class="${cuadra ? 'hd-ok-linea' : 'rojo'}" style="font-size:12.5px">${cuadra ? I.ok + ' Cuadra' : 'No cuadra'}: base ${eur(sumaB)} + IVA ${eur(sumaC)} − retención ${eur(ret)} = ${eur(sumaB + sumaC - ret)} · total ${eur(tot)}</div>
+      <h4>Ficha del proveedor</h4>
+      <div class="pv-campos">
+        <label class="pv-campo"><span>IVA al 0 % es…</span><select onchange="hdCampo('${esc(id)}','f_iva0',this)"><option value="">— sin indicar —</option>${(g.opciones_iva_cero || []).map(o => `<option value="${o.key}" ${val('f_iva0', fi.iva_cero) === o.key ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}</select></label>
+        <label class="pv-campo"><span>Retención</span><select onchange="hdCampo('${esc(id)}','f_ret',this)"><option value="">— la que diga la factura —</option>${(g.opciones_retencion || []).map(o => `<option value="${o.key}" ${val('f_ret', fi.retencion) === o.key ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}</select></label>
+        ${campo('NIF en la ficha', 'f_nif', fi.nif)}
+      </div>
+      <div class="pv-ficha-pie">
+        <button class="pv-boton prim" onclick="hdCorregir('${esc(id)}',this)">${I.ok}Guardar y reintentar</button>
+        <button class="pv-boton g-vidrio" onclick="hdReintentar('${esc(id)}',true)" title="Vuelve a leer el PDF con Claude">${I.girar}Releer el PDF</button>
+      </div>`;
+  }
+  function cuadreBloqueada(id) {
+    const x = gastos().find(y => y.file_id === id), el = $('hd-cuadre-' + cssId(id)); if (!x || !el || !x.lectura) return;
+    const b = B(id), ls = b.c_lineas || [];
+    const sB = ls.reduce((s, l) => s + numES(l.base), 0), sC = ls.reduce((s, l) => s + numES(l.cuota), 0);
+    const tot = numES(b.c_total !== undefined ? b.c_total : x.lectura.total), ret = numES(b.c_ret !== undefined ? b.c_ret : x.lectura.retencion_importe);
+    const ok = Math.abs(sB + sC - ret - tot) <= 0.03;
+    el.className = ok ? 'hd-ok-linea' : 'rojo';
+    el.innerHTML = `${ok ? I.ok + ' Cuadra' : 'No cuadra'}: base ${eur(sB)} + IVA ${eur(sC)} − retención ${eur(ret)} = ${eur(sB + sC - ret)} · total ${eur(tot)}`;
+  }
+  window.hdIvaLinea = (id, k, campo, v) => {
+    const ls = B(id).c_lineas; ls[k][campo] = v;
+    if (campo !== 'cuota') { const t = numES(ls[k].tipo), base = numES(ls[k].base); ls[k].cuota = String(Math.round(base * t) / 100).replace('.', ','); const ins = document.querySelectorAll('#hd-ficha .hd-iva input'); if (ins[k * 3 + 2]) ins[k * 3 + 2].value = ls[k].cuota; }
+    cuadreBloqueada(id);
+  };
+  window.hdIvaAnadir = id => { B(id).c_lineas.push({ tipo: 21, base: '', cuota: '' }); pintarFicha(); };
+  window.hdIvaQuitar = (id, k) => { B(id).c_lineas.splice(k, 1); pintarFicha(); };
+  window.hdCorregir = async (id, btn) => {
+    const x = gastos().find(y => y.file_id === id); if (!x || !x.lectura) return;
+    const b = B(id), l = x.lectura, cambio = (k, def) => b[k] !== undefined && String(b[k]) !== String(def == null ? '' : def);
+    const cuerpo = {};
+    if (cambio('c_numero', l.numero)) cuerpo.numero = b.c_numero;
+    if (cambio('c_fecha', l.fecha)) cuerpo.fecha = b.c_fecha;
+    if (cambio('c_venc', l.vencimiento)) cuerpo.vencimiento = b.c_venc;
+    if (cambio('c_nif', l.nif)) cuerpo.nif = b.c_nif;
+    if (cambio('c_total', l.total)) cuerpo.total = numES(b.c_total);
+    if (cambio('c_ret', l.retencion_importe)) cuerpo.retencion_importe = numES(b.c_ret);
+    const ls = (b.c_lineas || []).map(y => ({ tipo: numES(y.tipo), base: numES(y.base), cuota: numES(y.cuota) }));
+    if (JSON.stringify(ls) !== JSON.stringify((l.lineas_iva || []).map(y => ({ tipo: num(y.tipo), base: num(y.base), cuota: num(y.cuota) })))) cuerpo.lineas_iva = ls;
+    const fi = x.ficha || {};
+    if (cambio('f_iva0', fi.iva_cero)) cuerpo.ivaCero = b.f_iva0;
+    if (cambio('f_ret', fi.retencion)) cuerpo.retencion = b.f_ret;
+    if (cambio('f_nif', fi.nif)) cuerpo.nifFicha = b.f_nif;
+    btn.disabled = true; toast('Guardando y comprobando…');
+    try {
+      const r = await api('POST', '/api/holded/gastos/' + encodeURIComponent(id) + '/corregir', cuerpo);
+      if (r.estado === 'por_aprobar') { delete S.borrador[id]; toast('✔ Corregida: pasa a Por aprobar'); }
+      else toast('Sigue ' + (r.estado || 'bloqueada') + (r.motivo ? ': ' + r.motivo : ''), true);
+    } catch (e) { toast(e.message, true); }
+    btn.disabled = false;
+    await cargar();
+  };
+
   // ── Volcado de ventas ──
   window.hdVolcar = async () => {
     const incluirHoy = !!($('hd-incluir-hoy') || {}).checked;
@@ -874,7 +1125,7 @@
   };
 
   // ── Navegación ──
-  window.hdIr = (k, filtro) => { S.pestana = k; if (k === 'historial') cargarHistorial(); if (filtro && k === 'ventas') S.ventas = filtro; else if (filtro) { S.filtro = filtro; S.tipo = ''; S.mes = ''; } S.buscar = ''; pintar(); };
+  window.hdIr = (k, filtro) => { if (S.va && !['ventas', 'historial'].includes(k)) hdVentaCerrar(); S.pestana = k; if (k === 'historial') cargarHistorial(); if (filtro && k === 'ventas') S.ventas = filtro; else if (filtro) { S.filtro = filtro; S.tipo = ''; S.mes = ''; } S.buscar = ''; pintar(); };
   window.hdVentas = k => { S.ventas = k; S.buscar = ''; pintar(); };
   window.hdFiltro = k => { S.filtro = k; pintar(); };
   window.hdTipo = k => { S.tipo = S.tipo === k ? '' : k; pintar(); };
@@ -884,11 +1135,14 @@
   window.hdBuscar = v => { S.buscar = v; clearTimeout(tBuscar); tBuscar = setTimeout(pintar, 200); };
   window.hdRecargar = () => { toast('Actualizando…'); cargar(); if (S.pestana === 'historial') cargarHistorial(true); };
   window.hdAbrir = id => { S.abierta = id; pintar(); pintarFicha(); };
-  window.hdCerrar = () => { const c = $('hd-ficha'); S.abierta = null; if (c) { c.classList.remove('visible'); setTimeout(() => c.remove(), 250); } pintar(); };
+  window.hdCerrar = () => { const c = $('hd-ficha'); S.abierta = null; if ($('pv-ficha') && fichaPv()) window.pvCerrar(); if (c) { c.classList.remove('visible'); setTimeout(() => c.remove(), 250); } pintar(); };
   window.hdMover = d => { const l = filtrados(), i = l.findIndex(y => y.file_id === S.abierta), n = l[i + d]; if (n) { S.abierta = n.file_id; pintar(); pintarFicha(); } };
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && $('hd-visor-modal')) { hdCerrarVer(); return; }
-    if (!$('hd-ficha') || /INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) return;
+    if ($('hd-va') && !$('hd-ficha') && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) {
+      if (e.key === 'Escape') { hdVentaCerrar(); return; } if (e.key === 'ArrowRight') { hdVentaMover(1); return; } if (e.key === 'ArrowLeft') { hdVentaMover(-1); return; }
+    }
+    if (!($('hd-ficha') || ($('pv-ficha') && S.abierta && vivo())) || /INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) return;
     if (e.key === 'Escape') hdCerrar(); else if (e.key === 'ArrowRight') hdMover(1); else if (e.key === 'ArrowLeft') hdMover(-1);
   });
 
@@ -896,7 +1150,7 @@
     const t = $('content-title'); if (t) t.textContent = 'Holded';
     $('content-body').innerHTML = '<div class="pv hd" id="hd-root"></div>';
     const c = $('hd-ficha'); if (c) c.remove();
-    S.abierta = null;
+    S.abierta = null; S.va = null; $('content-body').classList.remove('hd-split');
     pintar();
     cargar();
   };

@@ -309,7 +309,7 @@
     if (visorPrevio) visorPrevio.remove();
     cont.innerHTML = `<aside class="pv-ficha g-vidrio">
       <header>${avatar(f.proveedor)}<div><small>${f.rectificativa ? 'Factura rectificativa' : 'Factura'} ${esc(f.numeroFactura || '')}</small><h2>${esc(f.proveedor)}</h2></div>
-        <strong>${eur(total)}</strong><button class="pv-flecha" onclick="pvCerrar()" title="Cerrar">${I.cerrar}</button></header>
+        <strong>${eur(total)}</strong>${window.pvFichaNav ? window.pvFichaNav(String(f.fileId)) : ''}<button class="pv-flecha" onclick="pvCerrar()" title="Cerrar">${I.cerrar}</button></header>
       <div class="pv-ficha-cuerpo">
         <div class="pv-visor">
           <div class="pv-visor-barra">
@@ -323,6 +323,7 @@
           <div class="pv-visor-marco" id="pv-visor"><div class="pv-vacio">Cargando la factura…</div></div>
         </div>
         <div class="pv-datos">
+          ${window.pvFichaExtra ? window.pvFichaExtra(String(f.fileId)) : ''}
           <div class="pv-estado-linea">${pildora(f)} ${f.confianza ? `<span class="pv-sutil">Lectura de la IA: confianza ${esc(f.confianza)}</span>` : ''}
             ${estado(f).k === 'revisar' ? `<button class="pv-boton prim pv-revisada" onclick="pvRevisada()">${I.ok}Marcar como revisada</button>` : ''}</div>
           ${esDuplicada(f) ? `<div class="pv-duplicada">${I.copia}<div><b>Posible duplicada</b> de ${duplicadas()[f.fileId].map(o => `<button class="pv-enlace" onclick="pvAbrir('${esc(o.fileId)}')">${esc(o.proveedor)} nº ${esc(o.numeroFactura || '—')} (${esc(o.formaPago || 'sin pago')}${o.contabilizada ? ', contabilizada' : ''})</button>`).join(', ')}.
@@ -366,6 +367,7 @@
     requestAnimationFrame(() => cont.classList.add('visible'));
     if (visorPrevio) { $('pv-visor').replaceWith(visorPrevio); const g = $('pv-visor-girar'); if (g) g.style.display = esFoto() ? '' : 'none'; }
     else cargarVisor(f.fileId);
+    if (window.pvFichaDespues) window.pvFichaDespues(String(f.fileId));
   }
 
   // ── Visor de la factura: foto ajustable (zoom, ancho, girar) o PDF ──
@@ -626,7 +628,15 @@
   let tBuscar = null;
   window.pvBuscar = v => { S.buscar = v; clearTimeout(tBuscar); tBuscar = setTimeout(() => { pintar(); const i = $('pv-buscar'); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } }, 200); };
   window.pvAbrir = id => { S.abierta = String(id); cargarVehiculos().then(pintarFicha); pintarFicha(); pintar(); };
-  window.pvCerrar = () => { const c = $('pv-ficha'); S.abierta = null; if (c) { c.classList.remove('visible'); setTimeout(() => c.remove(), 250); } pintar(); };
+  window.pvCerrar = () => { const c = $('pv-ficha'); S.abierta = null; if (c) { c.classList.remove('visible'); setTimeout(() => c.remove(), 250); } pintar(); if (window.pvFichaAlCerrar) window.pvFichaAlCerrar(); };
+  // (20 nov 2026) Holded glass abre esta misma ficha para sus facturas de compra
+  // (con su bloque «Holded» arriba: ver pvFichaExtra en holded-glass.js).
+  window.pvAbrirDesdeFuera = async (fileId, recargar) => {
+    S.abierta = String(fileId);
+    if (!S.d || recargar) await cargar(); else pintarFicha();
+    cargarVehiculos().then(() => { if (S.abierta === String(fileId)) pintarFicha(); });
+    return !!$('pv-ficha');
+  };
   window.pvGuardar = (el, campo) => guardar(el, campo);
   window.pvFichaVehiculo = id => { if (typeof abrirFichaVehiculo === 'function') abrirFichaVehiculo(id).then(() => { const s = $('veh-sec-gastos'); if (s) s.scrollIntoView({ behavior: 'smooth' }); }); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.abierta) window.pvCerrar(); });
