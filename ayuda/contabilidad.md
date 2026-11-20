@@ -28,8 +28,9 @@ Con la interfaz nueva, **Financiero → Holded** se abre dentro del panel (en el
 - **Resumen:** tarjetas con los gastos por aprobar, lo pendiente de pago en Holded (y lo vencido), las ventas por volcar y los avisos; el volcado de Rentman con «Volcar ahora», «Preparar facturas nuevas ahora» y «Comprobar conexión». Pulsa una tarjeta para ir a su lista.
 - **Gastos por aprobar:** todas las facturas de gastos pendientes en una lista, con filtros por estado (por aprobar, sin forma de pago, bloqueadas), por tipo (leasing, abono, sin pagar, con dudas, sin cuenta habitual), por mes y un buscador. Al pulsar una se abre su ficha con la factura al lado; al aceptarla pasa sola a la siguiente (también con las flechas ← →). Lo escrito en cada factura no se pierde.
 - **Pagos pendientes:** lo que entró en Holded sin pagar, por vencimiento, con «Registrar pago».
+- **Ventas:** cobros pendientes, facturas pendientes e incidencias (cambiadas en Rentman, descuadres, compensaciones). En **Cobros pendientes**, los que no tienen forma de pago en Caja salen primero: elige la forma de pago en su fila y pulsa **«Guardar en Caja»**. Se guarda en Caja igual que desde la app de Caja (queda en su historial) y el cobro llega a Holded en el próximo volcado o con «Volcar ahora». Solo María y Sergio; un pago partido en varias formas, o un cobro ya enviado a Holded, se cambia en Caja.
 
-Ventas, cobros, «Revisar una factura» y el historial siguen de momento en la pantalla clásica (botón «Ventas e historial»).
+«Revisar una factura» y el historial siguen de momento en la pantalla clásica (botón «Revisar e historial»).
 
 ### Revisión de la mañana (Financiero → Holded)
 

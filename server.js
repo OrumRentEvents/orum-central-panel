@@ -5249,8 +5249,16 @@ app.get('/api/holded/empresa', requiereLogin, soloHolded, async (req, res) => {
   try { res.json({ ok: true, ...(await holdedSync.comprobarEmpresa()) }); }
   catch (err) { console.error('Error en /api/holded/empresa:', err); res.status(500).json({ error: err.message }); }
 });
+// (20 nov 2026) Asignar en Caja la forma de pago de un cobro pendiente desde
+// Financiero → Holded → Ventas (lib/cajaMetodo.js). Solo María y Sergio.
+const cajaMetodo = require('./lib/cajaMetodo');
+const cajaMetodoSrv = cajaMetodo.crear(supabase);
+app.post('/api/holded/cobros/:pagoId/metodo-caja', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await cajaMetodoSrv.asignar({ pagoId: req.params.pagoId, metodo: (req.body || {}).metodo }, req.session.usuario)); }
+  catch (err) { if (!(err instanceof cajaMetodo.ErrorCaja)) console.error('Error en metodo-caja:', err); res.status(err.status || 500).json({ error: err.message }); }
+});
 app.get('/api/holded/pendientes', requiereLogin, soloHolded, async (req, res) => {
-  try { res.json({ ok: true, ...(await holdedSync.pendientes()) }); }
+  try { res.json({ ok: true, ...(await holdedSync.pendientes()), metodos_caja: cajaMetodo.METODOS_CAJA, puede_asignar_caja: cajaMetodo.puedeAsignar(req.session.usuario) }); }
   catch (err) { console.error('Error en /api/holded/pendientes:', err); res.status(500).json({ error: err.message }); }
 });
 // Volcado manual ("forzar"): lo mismo que el de las 6:00; con incluirHoy

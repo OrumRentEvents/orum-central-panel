@@ -78,3 +78,9 @@ select.hd-select.g-vidrio { border-color: var(--g-borde); }
   .hd-ej > span:nth-child(4) { text-align: right; }
   .hd-ej > span:nth-child(3) { display: none; }
 }
+
+/* Ventas (20 nov 2026) */
+.hd-nota { padding: 9px 18px; font-size: 12px; color: var(--g-suave); border-bottom: 1px solid var(--g-linea); }
+.pv-tabla tbody tr.hd-fila-aviso td:first-child { box-shadow: inset 3px 0 0 #E0A458; }
+.pv-tabla td small.pv-sutil { display: block; margin-top: 2px; }
+.pv-boton:disabled { opacity: .4; cursor: default; transform: none; }

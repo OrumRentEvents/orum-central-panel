@@ -4,7 +4,8 @@
    apartado «Holded ↗» por esta pantalla); el diseño clásico sigue abriendo
    /holded.html. NO tiene lógica propia: usa las mismas llamadas que holded.html
    (/api/holded/gastos, /api/holded/pendientes, aceptar, sin-pagar, pago…).
-   Fase 1: Resumen · Gastos por aprobar · Pagos pendientes. Ventas e Historial
+   Resumen · Gastos por aprobar · Pagos pendientes · Ventas (cobros con su forma
+   de pago de Caja, facturas e incidencias). El historial y «Revisar una factura»
    siguen de momento en la pantalla clásica (botón arriba a la derecha).
    Estilos: reutiliza los de Facturas Proveedores (.pv-*, proveedores.css)
    más public/holded-glass.css (.hd-*).
@@ -12,7 +13,7 @@
 (function () {
   const S = {
     pestana: 'resumen', g: null, p: null, error: null, cargando: false,
-    filtro: 'todas', tipo: '', mes: '', buscar: '', plazo: 'todas',
+    filtro: 'todas', tipo: '', mes: '', buscar: '', plazo: 'todas', ventas: 'cobros', metodoCobro: {},
     abierta: null,          // file_id de la ficha abierta
     borrador: {},           // lo que se va escribiendo en cada factura: { file_id: {campo: valor} }
     enviando: new Set(),    // facturas que se están volcando (no se pintan)
@@ -127,19 +128,20 @@
     const root = $('hd-root'); if (!root) return;
     const g = S.g || {}, p = S.p || {};
     const nPA = (g.por_aprobar || []).length, nPagar = (g.pagar_en_holded || []).length;
-    const pest = [['resumen', 'Resumen', 0], ['gastos', 'Gastos por aprobar', nPA], ['pagos', 'Pagos pendientes', nPagar]];
+    const nCobros = (p.cobros || []).filter(c => c.estado === 'sin_clasificar').length;
+    const pest = [['resumen', 'Resumen', 0], ['gastos', 'Gastos por aprobar', nPA], ['pagos', 'Pagos pendientes', nPagar], ['ventas', 'Ventas', nCobros]];
     const cab = `
       <div class="pv-barra">
         <div class="pv-pestanas g-vidrio">${pest.map(([k, n, c]) => `<button class="pv-pestana ${S.pestana === k ? 'activa' : ''}" onclick="hdIr('${k}')">${n}${c ? ` <span class="hd-cuenta">${c}</span>` : ''}</button>`).join('')}</div>
         <div class="pv-acciones">
           <button class="pv-boton g-vidrio" onclick="hdRecargar()" title="Volver a cargar">${I.girar}</button>
-          <button class="pv-boton g-vidrio" onclick="window.open('/holded.html','_blank')" title="Ventas, cobros, revisar una factura e historial (pantalla clásica, mientras se pasan a esta)">Ventas e historial ${I.externo}</button>
+          <button class="pv-boton g-vidrio" onclick="window.open('/holded.html','_blank')" title="Revisar una factura e historial (pantalla clásica, mientras se pasan a esta)">Revisar e historial ${I.externo}</button>
         </div>
       </div>`;
     let cuerpo;
     if (!S.g && S.cargando) cuerpo = '<div class="pv-panel g-vidrio pv-vacio">Cargando Holded…</div>';
     else if (!S.g && S.error) cuerpo = `<div class="pv-panel g-vidrio pv-vacio rojo">No se ha podido cargar: ${esc(S.error)}</div>`;
-    else cuerpo = ({ resumen: vistaResumen, gastos: vistaGastos, pagos: vistaPagos })[S.pestana]();
+    else cuerpo = ({ resumen: vistaResumen, gastos: vistaGastos, pagos: vistaPagos, ventas: vistaVentas })[S.pestana]();
     // El foco y el cursor del buscador se conservan al repintar
     const foco = document.activeElement && document.activeElement.id === 'hd-buscar' ? document.activeElement.selectionStart : null;
     // La animación de entrada solo al cambiar de pestaña (no en cada filtro o tecla)
@@ -171,8 +173,8 @@
     const kpis = `<div class="pv-pendientes hd-kpis">
       ${kpi('holded', 'Gastos por aprobar', pa.length, false, pa.length ? eur(totalPA) + ' en total' : 'Todo aprobado', "hdIr('gastos','por_aprobar')", I.doc)}
       ${kpi('sinpago', 'Pendiente de pago en Holded', totalPagar, true, pagar.length ? `${pagar.length} facturas${vencidas.length ? ` · <b class="rojo">${vencidas.length} vencidas</b>` : ''}` : 'Nada pendiente', "hdIr('pagos')", I.pago)}
-      ${kpi('venta', 'Ventas por volcar', (p.facturas || []).length + (p.cobros || []).length, false, S.p ? `${(p.facturas || []).length} facturas · ${(p.cobros || []).length} cobros` : 'Cargando…', "window.open('/holded.html','_blank')", I.venta)}
-      ${kpi('revisar', 'Avisos', avisos, false, avisos ? [(g.pendientes || []).length && `${(g.pendientes || []).length} gastos bloqueados`, (p.modificadas || []).length && `${p.modificadas.length} cambiadas en Rentman`, (p.descuadres || []).length && `${p.descuadres.length} descuadres`, (p.compensaciones || []).length && `${p.compensaciones.length} compensaciones`].filter(Boolean).join(' · ') : 'Sin avisos', (g.pendientes || []).length ? "hdIr('gastos','bloqueada')" : "window.open('/holded.html','_blank')", I.alerta)}
+      ${kpi('venta', 'Ventas por volcar', (p.facturas || []).length + (p.cobros || []).length, false, S.p ? `${(p.facturas || []).length} facturas · ${(p.cobros || []).length} cobros${(p.cobros || []).some(c => c.estado === 'sin_clasificar') ? ` · <b class="rojo">${p.cobros.filter(c => c.estado === 'sin_clasificar').length} sin forma de pago</b>` : ''}` : 'Cargando…', "hdIr('ventas','cobros')", I.venta)}
+      ${kpi('revisar', 'Avisos', avisos, false, avisos ? [(g.pendientes || []).length && `${(g.pendientes || []).length} gastos bloqueados`, (p.modificadas || []).length && `${p.modificadas.length} cambiadas en Rentman`, (p.descuadres || []).length && `${p.descuadres.length} descuadres`, (p.compensaciones || []).length && `${p.compensaciones.length} compensaciones`].filter(Boolean).join(' · ') : 'Sin avisos', (g.pendientes || []).length ? "hdIr('gastos','bloqueada')" : "hdIr('ventas','incidencias')", I.alerta)}
     </div>`;
     // Volcado de ventas
     const ej = (p.ejecuciones || []).slice(0, 5);
@@ -568,6 +570,93 @@
     } catch (e) { toast(e.message, true); btn.disabled = false; }
   };
 
+  // ── Ventas: cobros (forma de pago en Caja), facturas e incidencias ──
+  const ESTADO_COBRO = {
+    sin_clasificar: { n: 'Sin forma de pago', c: 'e-sinpago' }, listo: { n: 'Listo para volcar', c: 'e-holded' },
+    sin_cuenta: { n: 'No se vuelca', c: 'e-revisar' }, sin_tesoreria: { n: 'Falta tesorería', c: 'e-revisar' }, modificado: { n: 'Cambiado en Caja', c: 'e-revisar' }
+  };
+  const ESTADO_FACTURA = { sin_procesar: 'Por volcar', bloqueada: 'Bloqueada', borrador: 'En borrador', error: 'Error' };
+  function vistaVentas() {
+    const p = S.p || {};
+    if (!S.p) return '<div class="pv-panel g-vidrio pv-vacio">Cargando ventas…</div>';
+    const cobros = p.cobros || [], facturas = p.facturas || [];
+    const incid = (p.modificadas || []).length + (p.descuadres || []).length + (p.compensaciones || []).length;
+    const sinMetodo = cobros.filter(c => c.estado === 'sin_clasificar').length;
+    const chips = [['cobros', 'Cobros pendientes', cobros.length], ['facturas', 'Facturas pendientes', facturas.length], ['incidencias', 'Incidencias', incid]];
+    const b = normal(S.buscar), coincide = (...v) => !b || v.some(x => normal(x).includes(b) || String(x).includes(b.replace(',', '.')));
+    const metodos = p.metodos_caja || [], nombreMetodo = id => ((metodos.find(m => m.id === id) || {}).nombre) || id || '—';
+    let cuerpo;
+    if (S.ventas === 'cobros') {
+      const orden = c => c.estado === 'sin_clasificar' ? 0 : 1;
+      const lista = cobros.filter(c => coincide(c.cliente, c.numero_factura, c.importe)).sort((a, x) => orden(a) - orden(x) || String(a.fecha).localeCompare(String(x.fecha)));
+      const filas = lista.map(c => {
+        const k = c.pago_id + '_' + (c.split_idx || 1), est = ESTADO_COBRO[c.estado] || { n: c.estado, c: '' };
+        const elegido = S.metodoCobro[k] !== undefined ? S.metodoCobro[k] : (c.metodo || '');
+        const partido = cobros.some(o => o.pago_id === c.pago_id && (o.split_idx || 1) > 1);
+        const editable = p.puede_asignar_caja && c.estado !== 'modificado' && !partido;
+        const opciones = metodos.map(m => `<option value="${m.id}" ${m.id === elegido ? 'selected' : ''}>${esc(m.nombre)}</option>`).join('');
+        const selector = editable
+          ? `<div class="hd-pago-linea"><select class="hd-select" onchange="hdMetodoCobro('${k}',this.value)"><option value="">— forma de pago —</option>${opciones}</select>
+             ${elegido && elegido !== c.metodo ? `<button class="pv-boton prim" onclick="hdAsignarCaja(${Number(c.pago_id)},'${k}',this)">${I.ok}Guardar en Caja</button>` : ''}</div>`
+          : `<b>${esc(nombreMetodo(c.metodo))}</b>${p.puede_asignar_caja ? '<small class="pv-sutil">Pago partido o ya en Holded: se cambia en Caja</small>' : ''}`;
+        return `<tr class="${c.estado === 'sin_clasificar' ? 'hd-fila-aviso' : ''}">
+          <td><div class="pv-celda-prov">${avatar(c.cliente || '?')}<span><b>${esc(c.cliente || '—')}</b><small>Factura ${esc(c.numero_factura)} · cobro ${esc(c.pago_id)}${(c.split_idx || 1) > 1 ? '/' + c.split_idx : ''}</small></span></div></td>
+          <td>${ff(c.fecha)}</td><td class="n"><b>${eur(c.importe)}</b></td>
+          <td><span class="pv-estado ${est.c}">${est.n}</span>${c.motivo && c.estado !== 'sin_clasificar' ? `<small class="pv-sutil">${esc(c.motivo)}</small>` : ''}</td>
+          <td>${selector}</td></tr>`;
+      }).join('');
+      const nota = p.puede_asignar_caja
+        ? 'La forma de pago se guarda en Caja (igual que desde la app de Caja). El cobro llega a Holded en el próximo volcado (6:00) o con «Volcar ahora» en el Resumen.'
+        : 'Solo María y Sergio pueden asignar la forma de pago en Caja.';
+      cuerpo = `<div class="pv-panel g-vidrio pv-tabla-panel">
+        <div class="pv-tabla-cab"><span>${lista.length} cobros${sinMetodo ? ` · <b class="rojo">${sinMetodo} sin forma de pago en Caja</b>` : ''}</span><b>${eur(lista.reduce((s, c) => s + num(c.importe), 0))}</b></div>
+        <div class="hd-nota">${nota}</div>
+        <div class="pv-tabla-wrap"><table class="pv-tabla hd-tabla-pagos"><thead><tr><th>Cliente · factura</th><th>Fecha</th><th class="n">Importe</th><th>Estado</th><th>Forma de pago en Caja</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="5" class="pv-vacio">✔ Ningún cobro pendiente.</td></tr>'}</tbody></table></div></div>`;
+    } else if (S.ventas === 'facturas') {
+      const lista = facturas.filter(x => coincide(x.cliente, x.numero, x.total));
+      const filas = lista.map(x => `<tr><td><div class="pv-celda-prov">${avatar(x.cliente || '?')}<span><b>${esc(x.cliente || '—')}</b><small>Factura ${esc(x.numero)}</small></span></div></td><td>${ff(x.fecha)}</td><td class="n"><b>${eur(x.total)}</b></td>
+          <td><span class="pv-estado ${x.estado === 'sin_procesar' ? 'e-holded' : 'e-revisar'}">${esc(ESTADO_FACTURA[x.estado] || x.estado)}</span></td><td class="${x.estado === 'sin_procesar' ? 'pv-sutil' : 'rojo'}" style="font-size:12px">${esc(x.motivo || '')}</td></tr>`).join('');
+      cuerpo = `<div class="pv-panel g-vidrio pv-tabla-panel">
+        <div class="pv-tabla-cab"><span>${lista.length} facturas</span><b>${eur(lista.reduce((s, x) => s + num(x.total), 0))}</b></div>
+        <div class="pv-tabla-wrap"><table class="pv-tabla hd-tabla-pagos"><thead><tr><th>Cliente · factura</th><th>Fecha</th><th class="n">Total</th><th>Estado</th><th>Motivo</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="5" class="pv-vacio">✔ Ninguna factura pendiente.</td></tr>'}</tbody></table></div></div>`;
+    } else {
+      const panel = (titulo, texto, cab, filas) => `<div class="pv-panel g-vidrio"><h3>${titulo}</h3><p class="pv-sutil" style="margin:-6px 0 10px">${texto}</p><div class="pv-tabla-wrap"><table class="pv-tabla hd-tabla-pagos"><thead><tr>${cab}</tr></thead><tbody>${filas}</tbody></table></div></div>`;
+      const bloques = [];
+      if ((p.modificadas || []).length) bloques.push(panel('Cambiadas en Rentman después de volcarlas', 'Holded no se entera: corrígelo con una rectificativa en Rentman o a mano en Holded.',
+        '<th>Factura</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th>',
+        p.modificadas.map(m => `<tr><td>${esc(m.numero)}</td><td>${esc(m.cliente)}</td><td class="n">${eur(m.total_enviado)}</td><td class="n">${eur(m.total_rentman)}</td></tr>`).join('')));
+      if ((p.descuadres || []).length) bloques.push(panel('Descuadre de céntimos con Rentman', 'Holded redondeó el IVA de otra forma: aunque se cobre entera, quedará esa diferencia pendiente.',
+        '<th>Factura</th><th>Cliente</th><th class="n">En Holded</th><th class="n">En Rentman</th><th class="n">Diferencia</th>',
+        p.descuadres.map(m => `<tr><td>${esc(m.numero)}</td><td>${esc(m.cliente)}</td><td class="n">${eur(m.total_holded)}</td><td class="n">${eur(m.total_rentman)}</td><td class="n rojo">${eur(m.diferencia)}</td></tr>`).join('')));
+      if ((p.compensaciones || []).length) bloques.push(panel('Compensaciones descuadradas', 'Los cobros «Factura 0 €» y «Rectificativa» de cada cliente tienen que sumar 0: falta la otra mitad o está mal clasificada en Caja.',
+        '<th>Cliente</th><th>Facturas (cobro · importe)</th><th class="n">Descuadre</th>',
+        p.compensaciones.map(k => `<tr><td>${esc(k.cliente)}</td><td style="font-size:12px">${k.lineas.map(l => `${esc(l.numero_factura)} (${esc(l.pago_id)} · ${eur(l.importe)})`).join(', ')}</td><td class="n rojo">${eur(k.neto)}</td></tr>`).join('')));
+      cuerpo = bloques.join('') || '<div class="pv-panel g-vidrio pv-vacio">✔ Sin incidencias de ventas.</div>';
+    }
+    const buscador = S.ventas !== 'incidencias' ? `<label class="pv-buscar g-vidrio">${I.lupa}<input id="hd-buscar" placeholder="Cliente, nº de factura o importe" value="${esc(S.buscar)}" oninput="hdBuscar(this.value)"></label>` : '';
+    return `<div class="pv-filtros">
+        <div class="pv-chips">${chips.map(([k, n, c]) => `<button class="pv-chip ${S.ventas === k ? 'activo' : ''}" onclick="hdVentas('${k}')">${n} <em>${c}</em></button>`).join('')}</div>
+        ${buscador}
+      </div>` + cuerpo;
+  }
+  window.hdMetodoCobro = (k, v) => { S.metodoCobro[k] = v; pintar(); };
+  window.hdAsignarCaja = async (pagoId, k, btn) => {
+    const metodo = S.metodoCobro[k]; if (!metodo) return;
+    const c = ((S.p || {}).cobros || []).find(x => String(x.pago_id) === String(pagoId));
+    const nombre = (((S.p || {}).metodos_caja || []).find(m => m.id === metodo) || {}).nombre || metodo;
+    if (c && c.metodo && !confirm(`El cobro de ${c.cliente || ''} (factura ${c.numero_factura}, ${eur(c.importe)}) tenía «${c.metodo}» en Caja. ¿Cambiarlo a «${nombre}»?`)) return;
+    btn.disabled = true;
+    try {
+      await api('POST', '/api/holded/cobros/' + encodeURIComponent(pagoId) + '/metodo-caja', { metodo });
+      delete S.metodoCobro[k];
+      toast(`✔ Guardado en Caja: ${nombre}`);
+      try { S.p = await api('GET', '/api/holded/pendientes'); } catch (e) { /* se ve en la próxima carga */ }
+      if (vivo()) pintar();
+    } catch (e) { toast(e.message, true); btn.disabled = false; }
+  };
+
   // ── Volcado de ventas ──
   window.hdVolcar = async () => {
     const incluirHoy = !!($('hd-incluir-hoy') || {}).checked;
@@ -595,7 +684,8 @@
   };
 
   // ── Navegación ──
-  window.hdIr = (k, filtro) => { S.pestana = k; if (filtro) { S.filtro = filtro; S.tipo = ''; S.mes = ''; } S.buscar = ''; pintar(); };
+  window.hdIr = (k, filtro) => { S.pestana = k; if (filtro && k === 'ventas') S.ventas = filtro; else if (filtro) { S.filtro = filtro; S.tipo = ''; S.mes = ''; } S.buscar = ''; pintar(); };
+  window.hdVentas = k => { S.ventas = k; S.buscar = ''; pintar(); };
   window.hdFiltro = k => { S.filtro = k; pintar(); };
   window.hdTipo = k => { S.tipo = S.tipo === k ? '' : k; pintar(); };
   window.hdMes = m => { S.mes = m; pintar(); };
