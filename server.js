@@ -5251,6 +5251,40 @@ app.get('/api/holded/empresa', requiereLogin, soloHolded, async (req, res) => {
 });
 // (20 nov 2026) Asignar en Caja la forma de pago de un cobro pendiente desde
 // Financiero → Holded → Ventas (lib/cajaMetodo.js). Solo María y Sergio.
+// (20 nov 2026) PDF de una factura de venta: Rentman guarda el documento que
+// genera como fichero (files, file_itemtype Factuur, file_item = id interno de
+// la factura). Se sirve desde aquí (inline) para verlo dentro de Holded glass.
+app.get('/api/holded/venta/:numero/archivo', requiereLogin, soloHolded, async (req, res) => {
+  try {
+    const { data: fac } = await supabase.from('facturas').select('factura_id').eq('numero', parseInt(req.params.numero, 10)).limit(1);
+    const id = fac && fac[0] && fac[0].factura_id;
+    if (!id) return res.status(404).send('Factura no encontrada');
+    const pdf = await holdedSync.pdfVentaRentman(id);
+    if (!pdf) return res.status(404).send('Rentman no tiene el PDF de esta factura (puede que aún no se haya generado)');
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Factura_${req.params.numero}.pdf"`, 'Cache-Control': 'private, max-age=600' });
+    res.send(pdf);
+  } catch (err) { console.error('Error en /api/holded/venta/archivo:', err); res.status(500).send('Error: ' + err.message); }
+});
+// Adjuntar el PDF de Rentman a facturas de venta ya volcadas: una, o todas las
+// que falten (en segundo plano; el avance con GET .../adjuntar-pdf/estado).
+app.post('/api/holded/factura/:numero/adjuntar-pdf', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedSync.adjuntarPdfVentaNumero(req.params.numero)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/ventas/adjuntar-pdf', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedSync.adjuntarPdfVentas()); }
+  catch (err) { console.error('Error adjuntando PDFs de venta:', err); res.status(500).json({ error: err.message }); }
+});
+app.get('/api/holded/ventas/adjuntar-pdf/estado', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json({ ok: true, progreso: holdedSync.estadoPdfVentas(), pendientes: await holdedSync.pdfVentasPendientes() }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Historial de lo volcado (gastos, facturas y cobros) para la pestaña Historial.
+const holdedHistorial = require('./lib/holdedHistorial').crear(supabase);
+app.get('/api/holded/historial', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json({ ok: true, ...(await holdedHistorial.historial()) }); }
+  catch (err) { console.error('Error en /api/holded/historial:', err); res.status(500).json({ error: err.message }); }
+});
 const cajaMetodo = require('./lib/cajaMetodo');
 const cajaMetodoSrv = cajaMetodo.crear(supabase);
 app.post('/api/holded/cobros/:pagoId/metodo-caja', requiereLogin, soloHolded, async (req, res) => {

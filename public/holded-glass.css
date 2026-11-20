@@ -84,3 +84,27 @@ select.hd-select.g-vidrio { border-color: var(--g-borde); }
 .pv-tabla tbody tr.hd-fila-aviso td:first-child { box-shadow: inset 3px 0 0 #E0A458; }
 .pv-tabla td small.pv-sutil { display: block; margin-top: 2px; }
 .pv-boton:disabled { opacity: .4; cursor: default; transform: none; }
+
+/* Historial y Revisar una factura (20 nov 2026) */
+.pv-tabla tbody tr.hd-clic { cursor: pointer; }
+.hd-rango { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 99px; font-size: 12px; color: var(--g-suave); }
+.hd-rango input { border: none !important; background: transparent !important; font: inherit; color: var(--g-tinta); padding: 4px 2px !important; box-shadow: none !important; }
+.hd-ok-linea { display: inline-flex; align-items: center; gap: 5px; color: #23804A; font-weight: 600; font-size: 12.5px; }
+.hd-ok-linea svg { width: 14px; height: 14px; }
+.hd-revisar-buscar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hd-revisar-buscar .pv-buscar { flex: 1; background: var(--g-campo); border: 1px solid var(--g-linea); }
+.hd-rev { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.hd-rev-datos { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.hd-rev-visor { position: sticky; top: 10px; display: flex; flex-direction: column; gap: 8px; height: calc(100vh - 140px); min-height: 420px; }
+.hd-rev-visor .pv-visor-marco { flex: 1; }
+.hd-kv { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; font-size: 13px; }
+.hd-kv > span { color: var(--g-suave); }
+.hd-kv > b { font-weight: 500; }
+.pv-panel h3 .pv-estado { margin-left: auto; }
+.hd-tecnico { margin-top: 12px; font-size: 12px; color: var(--g-suave); }
+.hd-tecnico pre { max-height: 260px; overflow: auto; background: var(--g-campo); padding: 10px; border-radius: 10px; font-size: 11px; }
+.hd-ver { width: min(900px, calc(100vw - 24px)) !important; }
+.hd-ver header .pv-mini { margin-left: auto; }
+.hd-ver-marco { flex: 1; margin: 12px; }
+.pv-mini svg { width: 14px; height: 14px; }
+@media (max-width: 1100px) { .hd-rev { grid-template-columns: 1fr; } .hd-rev-visor { position: static; height: 70vh; } }

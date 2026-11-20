@@ -30,7 +30,12 @@ Con la interfaz nueva, **Financiero → Holded** se abre dentro del panel (en el
 - **Pagos pendientes:** lo que entró en Holded sin pagar, por vencimiento, con «Registrar pago».
 - **Ventas:** cobros pendientes, facturas pendientes e incidencias (cambiadas en Rentman, descuadres, compensaciones). En **Cobros pendientes**, los que no tienen forma de pago en Caja salen primero: elige la forma de pago en su fila y pulsa **«Guardar en Caja»**. Se guarda en Caja igual que desde la app de Caja (queda en su historial) y el cobro llega a Holded en el próximo volcado o con «Volcar ahora». Solo María y Sergio; un pago partido en varias formas, o un cobro ya enviado a Holded, se cambia en Caja.
 
-«Revisar una factura» y el historial siguen de momento en la pantalla clásica (botón «Revisar e historial»).
+- **Ventas → Revisar una factura:** escribe el número (o pulsa una factura pendiente o del historial) y ves qué se manda a Holded, sus comprobaciones, sus cobros y, al lado, **el PDF de la factura de Rentman**. Desde ahí: crear en borrador, crear y aprobar, aprobar el borrador, enviar cobros y **adjuntar el PDF en Holded**.
+- **Historial:** todo lo volcado a Holded (gastos, facturas de venta y cobros) con filtros de fechas (este mes, mes anterior, trimestre, año o a mano), cuenta, pagadas/sin pagar o forma de pago, buscador, total de lo filtrado y botón **CSV** para Excel. Pulsa un gasto para ver su factura; una venta, para revisarla.
+
+**PDF de las facturas de venta en Holded:** desde el 20 nov 2026 cada factura de venta que se vuelca lleva adjunto su PDF de Rentman. Para las volcadas antes, en Historial → Facturas de venta está el botón «Adjuntar PDF a N sin PDF» (tarda un rato, se puede seguir trabajando).
+
+La pantalla de siempre sigue en el botón «Pantalla clásica».
 
 ### Revisión de la mañana (Financiero → Holded)
 
