@@ -53,7 +53,7 @@ Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devol
 
 ### Cuenta de gasto que no existe
 
-En el buscador de la cuenta, la **primera opción es siempre «➕ Crear cuenta nueva»**; debajo siguen las sugerencias de siempre. Al elegirla se abre un cuadro: escribe el **número** (grupo 6, 8 cifras) y el **nombre**, y pulsa **«Crear y elegir»**. La cuenta se guarda en Config. Cuentas de gasto, se crea también en Holded y queda elegida en esa factura. Si el número ya existía, simplemente se elige.
+En el buscador de la cuenta, la **primera opción es siempre «➕ Crear cuenta nueva»**; debajo siguen las sugerencias de siempre. Al elegirla se abre un cuadro: escribe el **principio del número** (p. ej. 629) y te propone el **siguiente número libre** de ese subgrupo (mirando ORUM y Holded); escribe el **nombre**, y pulsa **«Crear y elegir»**. La cuenta se guarda en Config. Cuentas de gasto, se crea también en Holded y queda elegida en esa factura. Si el número ya existía, simplemente se elige.
 
 ### Cuotas de leasing (reparto en varias cuentas)
 

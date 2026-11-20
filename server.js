@@ -5306,6 +5306,10 @@ app.get('/api/cuentas-gasto', requiereLogin, soloHolded, async (req, res) => {
   try { res.json({ ok: true, ...(await holdedCompras.configCuentas()) }); }
   catch (err) { console.error('Error en /api/cuentas-gasto:', err); res.status(500).json({ error: err.message }); }
 });
+app.get('/api/cuentas-gasto/siguiente', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json({ ok: true, ...(await holdedCompras.siguienteCuentaGasto(req.query.prefijo)) }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
 app.post('/api/cuentas-gasto', requiereLogin, soloHolded, async (req, res) => {
   try { res.json(await holdedCompras.guardarCuentas((req.body || {}).lineas, req.session.usuario.nombre)); }
   catch (err) { console.error('Error en POST /api/cuentas-gasto:', err); res.status(400).json({ error: err.message }); }

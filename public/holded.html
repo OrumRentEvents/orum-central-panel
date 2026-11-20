@@ -305,7 +305,9 @@ function abrirCrearCuenta(el, escrito){
   campoCrear = el;
   const num = (escrito.match(/\d+/) || [''])[0];
   const nom = escrito.replace(/\d+/g, '').trim().toUpperCase();
-  document.getElementById('cc-num').value = num.length === 8 ? num : (num || '6');
+  document.getElementById('cc-num').value = num.length === 8 ? num : num;
+  document.getElementById('cc-sig').innerHTML = '';
+  if (num.length >= 3 && num.length <= 7) proponerSiguiente(num, true);
   document.getElementById('cc-nom').value = nom;
   document.getElementById('cc-res').textContent = '';
   document.getElementById('dlg-cuenta').showModal();
@@ -331,6 +333,26 @@ async function confirmarCrearCuenta(){
     if ((r.errores_holded || []).length) alert('Cuenta guardada en ORUM, pero Holded dio un error: ' + r.errores_holded.join(' · ') + '\nSe volverá a intentar crear al aceptar la factura.');
   } catch (e) { res.className = 'err'; res.textContent = e.message; }
   finally { btn.disabled = false; }
+}
+// Siguiente número correlativo libre del subgrupo escrito (ORUM + Holded).
+let temporizadorSig = null;
+function alEscribirNumero(){
+  const v = document.getElementById('cc-num').value.replace(/\D/g, '');
+  clearTimeout(temporizadorSig);
+  if (v.length < 3 || v.length > 7) { document.getElementById('cc-sig').innerHTML = v.length === 8 ? '' : '<span class="sub">Escribe el principio (p. ej. 629) y te propongo el siguiente libre</span>'; return; }
+  temporizadorSig = setTimeout(() => proponerSiguiente(v, false), 300);
+}
+async function proponerSiguiente(prefijo, rellenar){
+  const box = document.getElementById('cc-sig');
+  box.innerHTML = '<span class="sub">Buscando el siguiente libre…</span>';
+  try {
+    const r = await api('GET', '/api/cuentas-gasto/siguiente?prefijo=' + encodeURIComponent(prefijo));
+    if (document.getElementById('cc-num').value.replace(/\D/g, '') !== prefijo && !rellenar) return; // ya ha cambiado
+    const ult = r.ultima ? 'última: ' + r.ultima + ' ' + esc((gastos.cuentas.find(c => c.numero === r.ultima) || {}).nombre || '') : 'no hay ninguna todavía';
+    if (rellenar) { document.getElementById('cc-num').value = r.numero; box.innerHTML = '<span class="sub">Siguiente libre de ' + prefijo + ' (' + ult + ')</span>'; }
+    else box.innerHTML = '<a href="#" onclick="document.getElementById(\'cc-num\').value=\'' + r.numero + '\';this.parentNode.innerHTML=\'<span class=sub>Siguiente libre de ' + prefijo + '</span>\';return false">Usar ' + r.numero + '</a> <span class="sub">(siguiente libre; ' + ult + ')</span>';
+    if (!r.comprobado_holded) box.innerHTML += '<div class="av" style="font-size:11px">No se ha podido consultar Holded: comprobado solo con ORUM</div>';
+  } catch (e) { box.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
 }
 function elegirCuentaCreada(numero){
   if (!campoCrear) return;
@@ -462,7 +484,7 @@ cargarGastos();
 <script src="/actividad-registro.js" data-pantalla="Holded"></script>
 <dialog id="dlg-cuenta" style="overflow:hidden;border:1px solid #ddd;border-radius:10px;padding:16px 18px;min-width:320px">
   <h3 style="margin:0 0 10px;font-size:15px">Crear cuenta de gasto nueva</h3>
-  <label style="display:block;font-size:12px;margin-bottom:8px">Número (grupo 6, 8 cifras)<br><input id="cc-num" inputmode="numeric" maxlength="8" placeholder="62900015" style="width:140px" onkeydown="if(event.key==='Enter')confirmarCrearCuenta()"></label>
+  <label style="display:block;font-size:12px;margin-bottom:8px">Número (grupo 6, 8 cifras)<br><input id="cc-num" inputmode="numeric" maxlength="8" placeholder="629" style="width:140px" oninput="alEscribirNumero()" onkeydown="if(event.key==='Enter')confirmarCrearCuenta()"><div id="cc-sig" style="font-size:12px;margin-top:4px"></div></label>
   <label style="display:block;font-size:12px;margin-bottom:8px">Nombre<br><input id="cc-nom" placeholder="SUSCRIPCIONES SOFTWARE" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')confirmarCrearCuenta()"></label>
   <div class="sub" style="font-size:11px;margin:0 0 8px">Se guarda en Config. Cuentas de gasto y se crea también en Holded.</div>
   <div id="cc-res" style="font-size:12px;margin-bottom:8px"></div>
