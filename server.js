@@ -2529,21 +2529,51 @@ function claveFacturaProveedor(proveedor, numero, fecha) {
   if (!/\d/.test(n) || n.length < 2 || !anio) return null;
   return `${String(proveedor || '').trim().toUpperCase()}|${n}|${anio}`;
 }
+// (20 nov 2026) Segunda clave SIN proveedor: número + fecha + total. Leo subió
+// otra vez la 26/001694 de Cenachero; la IA leyó mal el NIF, el proveedor salió
+// con otro nombre («… S.L.U.») y la clave con proveedor no la reconoció.
+function fechaClave(fecha) {
+  const s = String(fecha || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}${m[2]}${m[3]}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})/);
+  if (m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}${m[2].padStart(2, '0')}${m[1].padStart(2, '0')}`;
+  return null;
+}
+function claveSinProveedor(numero, fecha, total) {
+  const k = claveFacturaProveedor('', numero, fecha);
+  const f = fechaClave(fecha), t = Number(total);
+  if (!k || !f || !isFinite(t) || !t) return null;
+  const n = k.split('|')[1];
+  if (n.length < 4) return null; // tickets «12», «105»: demasiado comunes
+  return `#|${n}|${f}|${Math.round(t * 100)}`;
+}
 // clave → { fileId, nombreArchivo } de lo que ya está en FACTURAS_LOG.
 function indiceFacturasSheet(facturas) {
   const indice = new Map();
+  const porFile = new Map(); // total de cada factura (una línea por periodo)
   (facturas || []).forEach(f => {
     const clave = claveFacturaProveedor(f.proveedor, f.numeroFactura, f.fecha);
     if (clave && !indice.has(clave)) indice.set(clave, { fileId: String(f.fileId), nombreArchivo: f.nombreArchivo });
+    const p = porFile.get(String(f.fileId)) || { f, total: 0 };
+    p.total += Number(f.importeTotal) || 0;
+    porFile.set(String(f.fileId), p);
+  });
+  porFile.forEach(({ f, total }, fileId) => {
+    const k2 = claveSinProveedor(f.numeroFactura, f.fecha, total);
+    if (k2 && !indice.has(k2)) indice.set(k2, { fileId, nombreArchivo: f.nombreArchivo, proveedor: f.proveedor });
   });
   return indice;
 }
 // Devuelve la fila ya cargada desde OTRO PDF de la que esta lectura es copia, o null.
 function duplicadaEnSheet(lectura, indice) {
   if (!lectura || !indice) return null;
-  const clave = claveFacturaProveedor(lectura.proveedor, lectura.numero, lectura.fecha);
-  const existente = clave && indice.get(clave);
-  return existente && existente.fileId !== String(lectura.file_id) ? existente : null;
+  const claves = [claveFacturaProveedor(lectura.proveedor, lectura.numero, lectura.fecha), claveSinProveedor(lectura.numero, lectura.fecha, lectura.total)];
+  for (const clave of claves) {
+    const existente = clave && indice.get(clave);
+    if (existente && existente.fileId !== String(lectura.file_id)) return existente;
+  }
+  return null;
 }
 async function listadoFacturasSheet() {
   return facturasDatos.listado();
@@ -2563,6 +2593,18 @@ async function proveedorPorNif(nif, fileIdExcluir) {
   (data || []).forEach(r => { const p = String(r.proveedor || '').trim(); if (p) cuenta[p] = (cuenta[p] || 0) + 1; });
   const mejor = Object.entries(cuenta).sort((a, b) => b[1] - a[1])[0];
   return mejor ? mejor[0] : null;
+}
+// (20 nov 2026) Si el NIF no coincide (la IA puede leer mal una cifra), se
+// busca un proveedor ya existente con el mismo nombre sin la forma jurídica:
+// «BIOPLASTICOS CENACHERO S.L.U.» → «BIOPLASTICOS CENACHERO».
+const nombreBaseProveedor = n => String(n || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[\s,]+(S\.?\s?L\.?\s?U\.?|S\.?\s?L\.?|S\.?\s?A\.?\s?U\.?|S\.?\s?A\.?|S\.?\s?C\.?|C\.?\s?B\.?|SOCIEDAD LIMITADA|SOCIEDAD ANONIMA)\s*$/, '')
+  .replace(/[^A-Z0-9]+/g, ' ').trim();
+async function proveedorPorNombre(nombre) {
+  const base = nombreBaseProveedor(nombre);
+  if (base.length < 4) return null;
+  const lista = await facturasDatos.proveedores();
+  return lista.find(p => nombreBaseProveedor(p) === base) || null;
 }
 app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, subidaFactura.single('archivo'), async (req, res) => {
   const archivo = req.file;
@@ -2585,7 +2627,7 @@ app.post('/api/facturas-proveedores/subir', requiereLogin, bloquearComercial, su
   try {
     let proveedor = elegido, proveedorNuevo = false;
     if (!proveedor) {
-      proveedor = await proveedorPorNif(lectura.nif, fileId);
+      proveedor = await proveedorPorNif(lectura.nif, fileId) || await proveedorPorNombre(lectura.emisor_nombre);
       if (!proveedor) { proveedor = String(lectura.emisor_nombre || 'SIN PROVEEDOR').trim().toUpperCase(); proveedorNuevo = true; }
       await supabase.from('facturas_proveedores').update({ proveedor }).eq('file_id', fileId);
       lectura = { ...lectura, proveedor };

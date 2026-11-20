@@ -64,8 +64,9 @@ Las cuotas de leasing (por ejemplo, BBVA) no van a una sola cuenta. Al leer el P
 
 1. En la fila de la factura, en lugar de una cuenta sale el reparto con su cuenta e importe, y debajo «Suma … · base … ✔».
 2. Comprueba los importes con el PDF. Si alguno está mal, corrígelo: la suma tiene que ser igual a la base o no deja aceptar.
-3. **Contrato nuevo:** la cuenta sale vacía («nueva: se crea»). Al aceptar se crean en Holded su 524 y su 625 con el número siguiente al último de cada grupo, y las siguientes cuotas de ese contrato ya llegan con ellas puestas.
-4. Pulsa **«Aceptar»** como en cualquier factura: entra en Holded aprobada, con una línea por cuenta, y pagada.
+3. **Buscar la cuenta:** cada cuenta del reparto tiene buscador (nº o nombre, por ejemplo «524» o «LEASING»). Ahí salen también las 524 de leasing que ya existen en Holded, para comprobar si el contrato ya tiene la suya antes de crear otra.
+4. **Contrato nuevo:** la cuenta sale vacía («nueva: se crea»). Al aceptar se crean en Holded su 524 y su 625 con el número siguiente al último de cada grupo, y las siguientes cuotas de ese contrato ya llegan con ellas puestas.
+5. Pulsa **«Aceptar»** como en cualquier factura: entra en Holded aprobada, con una línea por cuenta, y pagada.
 
 Si una cuota de leasing llega con una sola cuenta (por ejemplo, porque se leyó antes de que existiera esta función), pulsa **«Releer»** y vuelve repartida. Un **renting** no es un leasing: va entero a su cuenta de gasto, como siempre.
 

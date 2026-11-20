@@ -232,7 +232,7 @@
 <script src="frases-dia.js?v=1"></script>
 <script src="rutas-plan.js?v=11"></script>
 <script src="proveedores.js?v=2"></script>
-<script src="glass.js?v=10"></script>
+<script src="glass.js?v=11"></script>
 </head>
 <body>
 <div id="login-screen">
@@ -1078,7 +1078,7 @@ const MENU = [
   // repartidas por Financiero y Personal, más Usuarios y Estado Sincronización.
   // Ayuda (oct 2026): manual de cada puesto y chat de dudas — public/ayuda.html, carpeta ayuda/
   // Nueva interfaz (beta, nov 2026): se construye página a página, solo Sergio — public/nueva.html
-  { id: 'nueva-interfaz', icon: 'home', group: 'sistema', label: 'Nueva interfaz (beta)', soloUsuario: 'sergio', especial: true, onClick: () => window.volverInterfazGlass && window.volverInterfazGlass() },
+  { id: 'nueva-interfaz', icon: 'home', group: 'sistema', label: 'Nueva interfaz (beta)', soloUsuario: ['sergio', 'maria', 'leo', 'jesus', 'rafa'], especial: true, onClick: () => window.volverInterfazGlass && window.volverInterfazGlass() },
   { id: 'ayuda', icon: 'ayuda', group: 'sistema', label: 'Ayuda', onClick: () => cargarAyuda() },
   { id: 'config', icon: 'gear', group: 'sistema', label: 'Configuración', submenu: [
       { id: 'fin-fact-config', label: 'Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
@@ -1095,7 +1095,8 @@ const MENU = [
 ];
 // Mismo criterio de permisos para apartados y subapartados
 function itemVisibleUsuario(item) {
-  return (!item.soloUsuario || item.soloUsuario === String(usuarioActual.usuario || '').toLowerCase()) && (!item.rolesPermitidos || item.rolesPermitidos.includes(usuarioActual.rol));
+  const yo = String(usuarioActual.usuario || '').toLowerCase();
+  return (!item.soloUsuario || (Array.isArray(item.soloUsuario) ? item.soloUsuario.includes(yo) : item.soloUsuario === yo)) && (!item.rolesPermitidos || item.rolesPermitidos.includes(usuarioActual.rol));
 }
 const GRUPOS_MENU = [
   { id: 'principal', label: 'Principal' },

@@ -41,6 +41,7 @@ Toda factura de gasto entra en ORUM Central subiéndola desde el panel o desde e
     - **Gastos de vehículo:** al subir la factura el sistema lee también el **tipo de gasto** (combustible, AdBlue, neumáticos, reparación, revisión, ITV, seguro, lavado, peajes y parking, renting u otro) y los litros. Con la matrícula, el gasto sale en la ficha del vehículo (Vehículos → ficha → Gastos). Las gasolineras llegan con un ticket por repostaje.
 5. **Aprobar en Holded (María).** Cada mañana a las 7:00 las facturas pagadas pasan a Financiero → Holded → «Por aprobar». Para cada una: abre el PDF, comprueba base, IVA y total, revisa la cuenta de gasto propuesta, elige «Pagada el» y la tesorería, y pulsa «Aceptar». La factura entra en Holded aprobada, pagada y con el PDF adjunto, y en Facturas Proveedores se marca sola la casilla «Contabilizada».
 
+- **Factura ya subida:** si subes una factura que ya está (mismo número, fecha e importe), avisa «Ya estaba subida» y no la guarda otra vez, aunque la IA haya leído el nombre o el NIF del proveedor algo distinto.
 - **Factura que ya estaba sin archivo:** si subes una factura que ya existe pero no tenía documento, el archivo se le adjunta en lugar de crear una duplicada.
 - **Abonos de proveedor:** siguen el mismo camino que una factura.
 - **Cuotas de leasing:** llegan a «Por aprobar» repartidas en amortización (524 del contrato), intereses (66230000) y seguro (625 del contrato). María solo comprueba los importes y acepta; si el contrato es nuevo, sus cuentas se crean solas en Holded.

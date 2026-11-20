@@ -284,7 +284,7 @@ function etiquetaCuenta(n){
 }
 // Nº de cuenta escrito/elegido en el campo, solo si está en el plan; si no, ''.
 function cuentaElegida(i){
-  const m = String(document.getElementById('pac'+i).value).trim().match(/^(6\d{7})\b/);
+  const m = String(document.getElementById('pac'+i).value).trim().match(/^([56]\d{7})\b/);
   return m && gastos.cuentas.some(x=>String(x.numero)===m[1]) ? m[1] : '';
 }
 async function asignarPago(fileId, sel){
@@ -310,7 +310,7 @@ const NOMBRE_REPARTO = {amortizacion:'Amortización', intereses:'Intereses', seg
 function repartoHtml(i, c){
   const r = c.reparto;
   const filas = r.lineas.map((l,k)=>'<tr><td style="font-size:12px;padding:2px 4px">'+NOMBRE_REPARTO[l.tipo]+'</td>'+
-    '<td style="padding:2px 4px"><input id="prc'+i+'_'+k+'" value="'+(l.cuenta||'')+'" placeholder="nueva: se crea" title="'+(l.cuenta?esc(etiquetaCuenta(l.cuenta)):'Contrato nuevo: al aceptar se crea su cuenta en Holded con el número siguiente al último')+'" style="width:95px;font-size:12px"></td>'+
+    '<td style="padding:2px 4px"><input id="prc'+i+'_'+k+'" list="dl-cuentas" value="'+esc(etiquetaCuenta(l.cuenta))+'" placeholder="nueva: se crea (o busca nº/nombre)" onfocus="this.select()" title="'+(l.cuenta?esc(etiquetaCuenta(l.cuenta)):'Contrato nuevo: al aceptar se crea su cuenta en Holded con el número siguiente al último. Si ya existe, búscala aquí')+'" style="width:230px;font-size:12px"></td>'+
     '<td style="padding:2px 4px"><input id="pri'+i+'_'+k+'" value="'+String(l.importe).replace('.',',')+'" oninput="sumaReparto('+i+')" style="width:80px;font-size:12px;text-align:right"></td></tr>').join('');
   return '<div style="font-size:12px"><b>Leasing</b> '+esc(r.contrato||'')+(r.bien?' · '+esc(r.bien):'')+
     (r.contrato_existe?'':'<div class="av" style="font-size:11px">Contrato nuevo: al aceptar se crean sus cuentas 524 (amortización) y 625 (seguro)</div>')+'</div>'+
@@ -318,7 +318,7 @@ function repartoHtml(i, c){
 }
 function lineasReparto(i){
   const c = gastos.por_aprobar[i];
-  return c.reparto.lineas.map((l,k)=>({ tipo:l.tipo, cuenta:document.getElementById('prc'+i+'_'+k).value.replace(/\D/g,''), importe:numES(document.getElementById('pri'+i+'_'+k).value) }));
+  return c.reparto.lineas.map((l,k)=>({ tipo:l.tipo, cuenta:(String(document.getElementById('prc'+i+'_'+k).value).trim().match(/^\d+/)||[''])[0], importe:numES(document.getElementById('pri'+i+'_'+k).value) }));
 }
 // "808,24", "1.173,57" o "808.24" → número
 function numES(v){

@@ -12,7 +12,8 @@
 // Solo se activa para INTERFAZ_GLASS_USUARIOS mientras está en pruebas.
 // ================================================================
 (function () {
-  const INTERFAZ_GLASS_USUARIOS = ['sergio'];
+  // 20 nov 2026: abierta a María, Leo, Jesús y Rafa para que empiecen a probarla.
+  const INTERFAZ_GLASS_USUARIOS = ['sergio', 'maria', 'leo', 'jesus', 'rafa'];
 
   // Áreas del menú lateral (ids del MENU de index.html). Calendario, Chat y Ayuda
   // pasan a la cabecera / perfil; Configuración, al pie.
@@ -602,7 +603,16 @@
     const inicial = document.querySelector('#nav-container .nav-item.active, #nav-container .nav-subitem[style*="f3ead9"]');
     if (pantallaYaAbierta) alCambiarPantalla(inicial ? inicial.id : 'menu-item-resumen');
     else if (pedida && (accesosDisponibles()[pedida] || moduloDe(pedida))) { desdeHistorial = true; abrir(pedida); desdeHistorial = false; }
-    else { desdeHistorial = true; abrir('resumen'); desdeHistorial = false; }
+    else {
+      desdeHistorial = true;
+      // Logística y Comercial no tienen el Resumen general: su inicio de siempre.
+      if (!abrir('resumen')) {
+        if (usuarioActual.rol === 'Logistica' && window.cargarResumenLogistica) { window.cargarResumenLogistica(); alCambiarPantalla('menu-item-log'); }
+        else if (usuarioActual.rol === 'Comercial' && window.cargarResumenComercial) { window.cargarResumenComercial(); alCambiarPantalla('menu-item-comercial'); }
+        else { const p = itemsVisibles()[0]; if (p) abrir(p.id); }
+      }
+      desdeHistorial = false;
+    }
     return true;
   };
   // Desde el diseño clásico: volver a la interfaz nueva (opción del menú de siempre)
