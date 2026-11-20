@@ -163,7 +163,7 @@
           <button class="pv-boton prim" onclick="abrirSubirFacturas()">${I.subir}Subir facturas</button>
           <button class="pv-boton g-vidrio" onclick="abrirErroresFacturas()" title="Facturas que no se pudieron leer">${I.alerta}</button>
           <button class="pv-boton g-vidrio" onclick="abrirHistoricoImportaciones()" title="Histórico de importaciones">${I.reloj}</button>
-          ${['Direccion', 'Contabilidad'].includes(u.rol) ? `<button class="pv-boton g-vidrio" onclick="window.open('/holded.html','_blank')" title="Abrir Holded (aprobar y volcar)">Holded ${I.externo}</button>` : ''}
+          ${['Direccion', 'Contabilidad'].includes(u.rol) ? `<button class="pv-boton g-vidrio" onclick="pvAbrirHolded()" title="Abrir Holded (aprobar y volcar)">Holded ${I.externo}</button>` : ''}
         </div>
       </div>`;
     let cuerpo;
@@ -632,6 +632,10 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.abierta) window.pvCerrar(); });
 
   // ── Entrada ── (glass.js la pone en lugar de cargarFacturasProveedores)
+  window.pvAbrirHolded = function () {
+    const a = typeof accesosDisponibles === 'function' && accesosDisponibles()['fin-holded'];
+    if (a && typeof window.cargarHoldedGlass === 'function') a.abrir(); else window.open('/holded.html', '_blank');
+  };
   window.cargarProveedoresGlass = function () {
     const t = $('content-title'); if (t) t.textContent = 'Facturas Proveedores';
     $('content-body').innerHTML = '<div class="pv" id="pv-root"></div>';

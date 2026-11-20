@@ -21,6 +21,16 @@ La idea general:
 
 **Importante:** lo que hagas hoy llega a Holded mañana a las 6:00. Si hace falta antes, en Financiero → Holded está el botón «Volcar ahora» (con la casilla «incluir también lo de hoy»).
 
+### Holded en la interfaz nueva (beta)
+
+Con la interfaz nueva, **Financiero → Holded** se abre dentro del panel (en el diseño clásico sigue abriéndose en otra pestaña). Tiene tres apartados:
+
+- **Resumen:** tarjetas con los gastos por aprobar, lo pendiente de pago en Holded (y lo vencido), las ventas por volcar y los avisos; el volcado de Rentman con «Volcar ahora», «Preparar facturas nuevas ahora» y «Comprobar conexión». Pulsa una tarjeta para ir a su lista.
+- **Gastos por aprobar:** todas las facturas de gastos pendientes en una lista, con filtros por estado (por aprobar, sin forma de pago, bloqueadas), por tipo (leasing, abono, sin pagar, con dudas, sin cuenta habitual), por mes y un buscador. Al pulsar una se abre su ficha con la factura al lado; al aceptarla pasa sola a la siguiente (también con las flechas ← →). Lo escrito en cada factura no se pierde.
+- **Pagos pendientes:** lo que entró en Holded sin pagar, por vencimiento, con «Registrar pago».
+
+Ventas, cobros, «Revisar una factura» y el historial siguen de momento en la pantalla clásica (botón «Ventas e historial»).
+
 ### Revisión de la mañana (Financiero → Holded)
 
 Ve de arriba abajo. Cada lista con un número mayor que cero pide algo:

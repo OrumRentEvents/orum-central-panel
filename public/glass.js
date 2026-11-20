@@ -32,7 +32,7 @@
   const PESTANAS = {
     fin: [['Resumen', ['fin-resumen']], ['Cobros', ['fin-control-pagos', 'fin-extracto-cliente', 'fin-vencidas']],
       ['Proveedores', ['fin-fact-listado']], ['Contabilidad', ['fin-cierre-mensual', 'fin-fianzas']], ['Tesorería', ['fin-caja']],
-      ['Informes', ['fin-informe-semanal', 'fin-auditoria']], ['Integraciones', ['fin-holded']]],
+      ['Informes', ['fin-informe-semanal', 'fin-auditoria']], ['Holded', ['fin-holded']]],
     per: [['Gestión', ['per-nominas', 'per-informe']], ['Horas y extras', ['per-bolsa', 'per-extras']],
       ['Aprobaciones', ['per-aprobar-extras']], ['Análisis', ['per-analisis', 'per-historico', 'per-comparador']]]
   };
@@ -585,6 +585,13 @@
         if (!document.documentElement.classList.contains('glass')) return proveedoresClasico();
         return window.cargarProveedoresGlass();
       };
+    }
+    // Financiero → Holded (20 nov 2026, public/holded-glass.js): se abre dentro del
+    // panel en vez de en otra pestaña; el diseño clásico sigue abriendo /holded.html.
+    const fin = MENU.find(i => i.id === 'fin');
+    const subHolded = fin && fin.submenu && fin.submenu.find(s => s.id === 'fin-holded');
+    if (subHolded && typeof window.cargarHoldedGlass === 'function') {
+      subHolded.label = 'Holded'; subHolded.especial = false; subHolded.onClick = () => window.cargarHoldedGlass();
     }
     // Logística → Rutas nueva (Planificación, public/rutas-plan.js). La app de siempre
     // (/rutas.html) sigue en su apartado, con los mismos datos.
