@@ -5294,6 +5294,17 @@ app.post('/api/holded/gastos/:fileId/forma-pago', requiereLogin, soloHolded, asy
   try { res.json(await holdedCompras.asignarFormaPago(req.params.fileId, (req.body || {}).formaPago, req.session.usuario.nombre || req.session.usuario.usuario)); }
   catch (err) { console.error('Error en /api/holded/gastos/forma-pago:', err); res.status(500).json({ error: err.message }); }
 });
+// (20 nov 2026) Volcar a Holded una factura sin pagar (queda pendiente de pago)
+// y, cuando se pague, registrar el pago sobre esa compra.
+app.post('/api/holded/gastos/:fileId/sin-pagar', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.volcarSinPagar(req.params.fileId)); }
+  catch (err) { console.error('Error en /api/holded/gastos/sin-pagar:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/gastos/:fileId/pago', requiereLogin, soloHolded, async (req, res) => {
+  const b = req.body || {};
+  try { res.json(await holdedCompras.registrarPago(req.params.fileId, { formaPago: b.formaPago, pagoFecha: b.pagoFecha, pagoTesoreria: b.pagoTesoreria }, req.session.usuario.nombre || req.session.usuario.usuario)); }
+  catch (err) { console.error('Error en /api/holded/gastos/pago:', err); res.status(500).json({ error: err.message }); }
+});
 // (9 oct 2026) El contable acepta la factura → compra aprobada en Holded.
 app.post('/api/holded/gastos/:fileId/aceptar', requiereLogin, soloHolded, async (req, res) => {
   const b = req.body || {};

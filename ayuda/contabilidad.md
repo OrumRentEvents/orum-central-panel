@@ -51,6 +51,17 @@ Para cada factura en «Por aprobar»:
 
 Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devolución de compra.
 
+### Facturas sin pagar (entran en Holded pendientes de pago)
+
+Por defecto solo se vuelcan facturas ya pagadas. Si una factura aún no está pagada pero tiene que entrar en la contabilidad:
+
+1. En **«Pendiente de asignar pago»**, pulsa **«Volcar sin pagar»**. Pasa a «Por aprobar» con la marca **SIN PAGAR** y sin campos de pago.
+2. Revisa la cuenta, la fecha y el **vencimiento**, y pulsa **«Aceptar»**: entra en Holded aprobada y **pendiente de pago**.
+3. Queda en el apartado **«En Holded, pendientes de pago»**, ordenada por vencimiento (las vencidas, en rojo).
+4. Cuando se pague, elige ahí la **forma de pago**, la **fecha** y **desde dónde** (banco, tarjeta o caja) y pulsa **«Registrar pago»**. El pago se apunta en Holded sobre esa misma compra y la forma de pago pasa a Facturas Proveedores. No hace falta entrar en Holded.
+
+Si antes de aceptarla alguien le pone la forma de pago en Facturas Proveedores, se vuelca como pagada, como siempre.
+
 ### Cuenta de gasto que no existe
 
 En el buscador de la cuenta, la **primera opción es siempre «➕ Crear cuenta nueva»**; debajo siguen las sugerencias de siempre. Al elegirla se abre un cuadro: escribe el **principio del número** (p. ej. 629) y te propone el **siguiente número libre** de ese subgrupo (mirando ORUM y Holded); escribe el **nombre**, y pulsa **«Crear y elegir»**. La cuenta se guarda en Config. Cuentas de gasto, se crea también en Holded y queda elegida en esa factura. Si el número ya existía, simplemente se elige.
