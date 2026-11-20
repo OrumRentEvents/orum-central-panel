@@ -232,8 +232,39 @@ function aprobar(){ accion(()=>api('POST','/api/holded/factura/'+actual.vista.re
 function cobrosEnviar(){ accion(()=>api('POST','/api/holded/factura/'+n()+'/cobros')); }
 // ---- Facturas de gastos ----
 let gastos = null;
+// (20 nov 2026) Al aceptar una factura se recarga la lista: lo que se estaba
+// rellenando en las demás (cuenta, fechas, pago, reparto) se guarda antes y se
+// vuelve a poner después, por factura (file_id), aunque cambie su posición.
+const CAMPO_GASTO = /^(pac|pah|pag|paf|pav|pap|pat|prc|pri)(\d+)(_\d+)?$/;
+function guardarEdicionGastos(){
+  const g = {};
+  if(!gastos || !gastos.por_aprobar) return g;
+  document.querySelectorAll('#gastos input, #gastos select').forEach(el=>{
+    const m = CAMPO_GASTO.exec(el.id); if(!m) return;
+    const c = gastos.por_aprobar[Number(m[2])]; if(!c) return;
+    const cambiado = el.type==='checkbox' ? el.checked!==el.defaultChecked
+      : el.tagName==='SELECT' ? [...el.options].some(o=>o.selected!==o.defaultSelected)
+      : el.value!==el.defaultValue;
+    if(cambiado) g[c.file_id+'|'+m[1]+(m[3]||'')] = el.type==='checkbox' ? el.checked : el.value;
+  });
+  const foco = document.activeElement, mf = foco && CAMPO_GASTO.exec(foco.id||'');
+  if(mf && gastos.por_aprobar[Number(mf[2])]) g.__foco = gastos.por_aprobar[Number(mf[2])].file_id+'|'+mf[1]+(mf[3]||'');
+  if(campoCrear && document.getElementById('dlg-cuenta').open){ const mc = CAMPO_GASTO.exec(campoCrear.id||''); if(mc && gastos.por_aprobar[Number(mc[2])]) g.__crear = gastos.por_aprobar[Number(mc[2])].file_id+'|'+mc[1]+(mc[3]||''); }
+  return g;
+}
+function restaurarEdicionGastos(g){
+  const idDe = clave => { const [fid, campo] = clave.split('|'); const i = gastos.por_aprobar.findIndex(x=>x.file_id===fid); if(i<0) return null; const m = /^([a-z]+)(_\d+)?$/.exec(campo); return m[1]+i+(m[2]||''); };
+  Object.keys(g).filter(k=>!k.startsWith('__')).forEach(k=>{
+    const id = idDe(k), el = id && document.getElementById(id); if(!el) return;
+    if(el.type==='checkbox') el.checked = g[k]; else el.value = g[k];
+  });
+  gastos.por_aprobar.forEach((c,i)=>{ if(c.reparto) sumaReparto(i); else if(document.getElementById('pac'+i)) marcarCambio(i); });
+  if(g.__crear){ const id = idDe(g.__crear); if(id && document.getElementById(id)) campoCrear = document.getElementById(id); }
+  if(g.__foco){ const id = idDe(g.__foco), el = id && document.getElementById(id); if(el && !document.getElementById('dlg-cuenta').open) el.focus({preventScroll:true}); }
+}
 async function cargarGastos(){
   const box = document.getElementById('gastos');
+  const edicion = guardarEdicionGastos();
   try{
     const d = gastos = await api('GET','/api/holded/gastos');
     // Cuenta con buscador: campo de texto + lista de sugerencias (datalist)
@@ -275,6 +306,7 @@ async function cargarGastos(){
       '<h2 style="margin-top:16px">Bloqueadas ('+d.pendientes.length+')</h2><div class="sub" style="margin-bottom:6px">Corrige la causa (ficha del proveedor en Config. Cuentas de gasto, carpeta de Drive…) y pulsa Reintentar.</div>'+pend+
       '<h2 style="margin-top:16px">Últimas volcadas a Holded ('+d.total_enviadas+' en total)</h2>'+env;
     pa.forEach((c,i)=>{ if(c.reparto) sumaReparto(i); });
+    restaurarEdicionGastos(edicion);
   }catch(e){ box.innerHTML = '<div class="err">'+esc(e.message)+'</div>'; }
 }
 // ---- Crear cuenta de gasto nueva desde el buscador (20 nov 2026) ----
