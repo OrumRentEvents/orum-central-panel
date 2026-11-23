@@ -13,7 +13,7 @@
 // ================================================================
 (function () {
   // 20 nov 2026: abierta a María, Leo, Jesús y Rafa para que empiecen a probarla.
-  const INTERFAZ_GLASS_USUARIOS = ['sergio', 'maria', 'leo', 'jesus', 'rafa'];
+  const INTERFAZ_GLASS_USUARIOS = ['sergio', 'maria', 'leo', 'jesus', 'rafa', 'isabel', 'ana'];
 
   // Áreas del menú lateral (ids del MENU de index.html). Calendario, Chat y Ayuda
   // pasan a la cabecera / perfil; Configuración, al pie.

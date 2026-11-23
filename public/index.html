@@ -234,7 +234,7 @@
 <script src="rutas-plan.js?v=11"></script>
 <script src="proveedores.js?v=4"></script>
 <script src="holded-glass.js?v=4"></script>
-<script src="glass.js?v=12"></script>
+<script src="glass.js?v=13"></script>
 </head>
 <body>
 <div id="login-screen">
@@ -1080,7 +1080,7 @@ const MENU = [
   // repartidas por Financiero y Personal, más Usuarios y Estado Sincronización.
   // Ayuda (oct 2026): manual de cada puesto y chat de dudas — public/ayuda.html, carpeta ayuda/
   // Nueva interfaz (beta, nov 2026): se construye página a página, solo Sergio — public/nueva.html
-  { id: 'nueva-interfaz', icon: 'home', group: 'sistema', label: 'Nueva interfaz (beta)', soloUsuario: ['sergio', 'maria', 'leo', 'jesus', 'rafa'], especial: true, onClick: () => window.volverInterfazGlass && window.volverInterfazGlass() },
+  { id: 'nueva-interfaz', icon: 'home', group: 'sistema', label: 'Nueva interfaz (beta)', soloUsuario: ['sergio', 'maria', 'leo', 'jesus', 'rafa', 'isabel', 'ana'], especial: true, onClick: () => window.volverInterfazGlass && window.volverInterfazGlass() },
   { id: 'ayuda', icon: 'ayuda', group: 'sistema', label: 'Ayuda', onClick: () => cargarAyuda() },
   { id: 'config', icon: 'gear', group: 'sistema', label: 'Configuración', submenu: [
       { id: 'fin-fact-config', label: 'Facturas Proveedores', onClick: () => cargarConfiguracionProveedores() },
