@@ -1160,7 +1160,10 @@ function menuVisibleUsuario() {
 }
 function menuSegunRol() {
   return usuarioActual.rol === 'Comercial' ? MENU.filter(item => ['comercial', 'calendario', 'incidencias', 'chat', 'recuperacion', 'ayuda'].includes(item.id))
-    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'mantenimiento', 'vehiculos', 'calendario', 'incidencias', 'chat', 'recuperacion', 'ayuda'].includes(item.id))
+    // Logística (23 nov 2026): también «Nueva interfaz (beta)» para sus probadores, o desde el
+    // diseño clásico no tenían forma de volver a la interfaz nueva (y a la Rutas nueva).
+    : usuarioActual.rol === 'Logistica' ? MENU.filter(item => ['log', 'mantenimiento', 'vehiculos', 'calendario', 'incidencias', 'chat', 'recuperacion', 'ayuda'].includes(item.id)
+        || (item.id === 'nueva-interfaz' && itemVisibleUsuario(item)))
     : MENU.filter(itemVisibleUsuario);
 }
 

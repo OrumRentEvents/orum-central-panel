@@ -105,6 +105,8 @@ El material sale de Rentman: si falta o sobra algo, lo corrige el comercial en R
 
 La app de Rutas es donde se decide qué vehículo hace cada entrega y recogida, en qué vuelta y con qué conductores. Se abre desde Logística → Rutas o desde el botón Rutas de la app móvil, y se entra con tu sesión de ORUM. Lo que cambia una persona lo ven las demás al momento.
 
+La pantalla nueva de Rutas (planificación por días con bandeja de paradas sin asignar y mapa) está en la **interfaz nueva**: Logística → Rutas. Si estás en el diseño clásico, pulsa **«Nueva interfaz (beta)»** en el menú, en el apartado Sistema, para volver a ella. La app de siempre sigue en Logística → App Rutas ↗, con los mismos datos.
+
 ### De dónde salen las paradas
 
 - Cada proyecto confirmado genera una **Entrega** y una **Recogida** con las fechas de Rentman (las de la nave no tienen recogida).
