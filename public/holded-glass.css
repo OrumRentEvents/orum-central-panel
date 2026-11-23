@@ -156,3 +156,14 @@ html.glass.oscuro .hd-va-pdf { background: #2A2724; }
 .hd-bloque-holded h4 { margin: 6px 0 0; }
 .hd-bloque-holded .pv-ficha-pie { margin-top: 6px; }
 .pv-ficha .hd-nav { margin: 0 4px; }
+
+/* 23 nov 2026: asiento que generará la factura en Holded */
+.hd-asiento { display: flex; flex-direction: column; gap: 6px; }
+.hd-asiento-t { font-size: 12px; font-weight: 600; color: var(--g-suave); margin-top: 2px; }
+.hd-asiento table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--g-campo); border: 1px solid var(--g-linea); border-radius: 10px; overflow: hidden; }
+.hd-asiento th { text-align: left; font-weight: 500; color: var(--g-suave); font-size: 11.5px; padding: 6px 8px; border-bottom: 1px solid var(--g-linea); }
+.hd-asiento td { padding: 6px 8px; border-bottom: 1px solid var(--g-linea); vertical-align: top; }
+.hd-asiento tr:last-child td { border-bottom: none; }
+.hd-asiento .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hd-asiento-c { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.hd-asiento small { display: block; color: var(--g-suave); font-size: 11px; }

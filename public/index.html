@@ -227,13 +227,13 @@
 <!-- Interfaz Liquid Glass (beta): subir ?v= al cambiar glass.css / glass.js para que no tire de caché -->
 <link rel="stylesheet" href="glass.css?v=8">
 <link rel="stylesheet" href="rutas-plan.css?v=8">
-<link rel="stylesheet" href="proveedores.css?v=2">
-<link rel="stylesheet" href="holded-glass.css?v=4">
+<link rel="stylesheet" href="proveedores.css?v=3">
+<link rel="stylesheet" href="holded-glass.css?v=5">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Marcellus&display=swap" rel="stylesheet">
 <script src="frases-dia.js?v=1"></script>
 <script src="rutas-plan.js?v=11"></script>
-<script src="proveedores.js?v=4"></script>
-<script src="holded-glass.js?v=4"></script>
+<script src="proveedores.js?v=5"></script>
+<script src="holded-glass.js?v=6"></script>
 <script src="glass.js?v=13"></script>
 </head>
 <body>
@@ -7718,7 +7718,7 @@ function aplicarFiltrosFacturasProveedores() {
 // - se solapaba con "Domiciliación" y confundía; se deja solo Domiciliación.
 // Las pocas facturas antiguas que aún tengan ese valor literal guardado
 // simplemente no coincidirán con ninguna opción hasta que se corrijan a mano.
-const FORMAS_PAGO_FACTURA = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
+const FORMAS_PAGO_FACTURA = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'PayPal', 'Otro'];
 // Flota de ORUM - para facturas de vehículos externos al grupo (VMS,
 // Isabella...) se elige "Otro" y se escribe una nota libre en el campo de al lado.
 // Desde el módulo Vehículos (oct 2026) la lista sale de la tabla `vehiculos`

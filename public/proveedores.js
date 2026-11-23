@@ -19,7 +19,7 @@
     renting: { n: 'Renting', c: '#9C7A54' }, otro: { n: 'Otro', c: '#A9A196' },
     sin: { n: 'Sin tipo', c: '#D9D2C7' } // gasto de vehículo al que aún no se le ha puesto tipo
   };
-  const FORMAS_PAGO = ['Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
+  const FORMAS_PAGO = ['Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'PayPal', 'Otro'];
   const PALETA = ['#B8956A', '#5B8DEF', '#2E9D5B', '#C9822B', '#8E6CC9', '#3C8C93', '#C0392B', '#A9A196'];
 
   const S = {
@@ -365,37 +365,122 @@
         </div>
       </div></aside>`;
     requestAnimationFrame(() => cont.classList.add('visible'));
-    if (visorPrevio) { $('pv-visor').replaceWith(visorPrevio); const g = $('pv-visor-girar'); if (g) g.style.display = esFoto() ? '' : 'none'; }
+    if (visorPrevio) { $('pv-visor').replaceWith(visorPrevio); const g = $('pv-visor-girar'); if (g) g.style.display = puedeGirar() ? '' : 'none'; }
     else cargarVisor(f.fileId);
     if (window.pvFichaDespues) window.pvFichaDespues(String(f.fileId));
   }
 
-  // ── Visor de la factura: foto ajustable (zoom, ancho, girar) o PDF ──
+  // ── Visor de la factura: foto o PDF, con zoom, ancho, girar y arrastre ──
+  // (23 nov 2026) El PDF se pinta en la propia página con pdf.js: se descarga
+  // una sola vez (el enlace firmado caduca al minuto y el visor del navegador
+  // daba «InvalidJWT» al ampliar) y, ampliado, se mueve arrastrando con el
+  // ratón, igual que las fotos. Si pdf.js no carga, queda el visor del navegador.
   let VIS = { fileId: null };
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  let pdfjsCarga = null;
+  function cargarPdfjs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (!pdfjsCarga) pdfjsCarga = new Promise((ok, ko) => {
+      const s = document.createElement('script'); s.src = PDFJS + 'pdf.min.js';
+      s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+      s.onerror = () => { pdfjsCarga = null; ko(new Error('No carga pdf.js')); };
+      document.head.appendChild(s);
+    });
+    return pdfjsCarga;
+  }
   async function infoArchivo(fileId) {
     try { const r = await fetch('/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo?info=1'); if (r.ok) return await r.json(); } catch (e) { /* se usa el enlace directo */ }
     return { url: '/api/facturas-proveedores/' + encodeURIComponent(fileId) + '/archivo', mime: '' };
   }
   async function cargarVisor(fileId) {
     if (VIS.fileId !== String(fileId)) {
-      VIS = { fileId: String(fileId), modo: 'ajustar', zoom: 1, giro: 0, url: '', mime: '' };
-      Object.assign(VIS, await infoArchivo(fileId));
+      const yo = VIS = { fileId: String(fileId), modo: 'ajustar', zoom: 1, giro: 0, url: '', mime: '', pdf: null };
+      Object.assign(yo, await infoArchivo(fileId));
+      if (!esFoto()) {
+        try {
+          const lib = await cargarPdfjs();
+          const r = await fetch(yo.url); if (!r.ok) throw new Error('HTTP ' + r.status);
+          yo.pdf = await lib.getDocument({ data: new Uint8Array(await r.arrayBuffer()) }).promise;
+        } catch (e) { yo.pdf = null; }
+        if (VIS !== yo) return; // mientras tanto se abrió otra factura
+      }
     }
     pintarVisor();
   }
   const esFoto = () => /^image\//.test(VIS.mime || '');
+  const puedeGirar = () => esFoto() || !!VIS.pdf;
+  // Arrastrar con el ratón para moverse por la factura ampliada (en táctil ya
+  // se desplaza con el dedo).
+  function arrastrable(caja) {
+    let ini = null;
+    caja.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      if (caja.scrollWidth <= caja.clientWidth + 1 && caja.scrollHeight <= caja.clientHeight + 1) return;
+      ini = { x: e.clientX, y: e.clientY, l: caja.scrollLeft, t: caja.scrollTop };
+      caja.setPointerCapture(e.pointerId); caja.classList.add('arrastrando'); e.preventDefault();
+    });
+    caja.addEventListener('pointermove', e => { if (!ini) return; caja.scrollLeft = ini.l - (e.clientX - ini.x); caja.scrollTop = ini.t - (e.clientY - ini.y); });
+    const fin = () => { ini = null; caja.classList.remove('arrastrando'); };
+    caja.addEventListener('pointerup', fin); caja.addEventListener('pointercancel', fin);
+  }
+  // Al acercar/alejar se mantiene a la vista la misma zona de la factura.
+  async function conCentro(marco, pintar) {
+    const c0 = marco.querySelector('.pv-img-caja');
+    const rel = c0 && c0.scrollWidth ? { x: (c0.scrollLeft + c0.clientWidth / 2) / c0.scrollWidth, y: (c0.scrollTop + c0.clientHeight / 2) / c0.scrollHeight } : null;
+    await pintar();
+    const c = marco.querySelector('.pv-img-caja');
+    if (c && rel) { c.scrollLeft = rel.x * c.scrollWidth - c.clientWidth / 2; c.scrollTop = rel.y * c.scrollHeight - c.clientHeight / 2; }
+  }
+  let turnoPdf = 0;
+  async function pintarPdf(marco) {
+    const turno = ++turnoPdf, doc = VIS.pdf;
+    let caja = marco.querySelector('.pv-img-caja.pv-pdf');
+    if (!caja) {
+      marco.innerHTML = '<div class="pv-img-caja pv-pdf pv-arrastre"><div class="pv-paginas"></div></div>';
+      caja = marco.querySelector('.pv-img-caja'); arrastrable(caja);
+    }
+    const W = caja.clientWidth - 16, H = caja.clientHeight - 16;
+    const pags = [];
+    for (let n = 1; n <= doc.numPages; n++) pags.push(await doc.getPage(n));
+    if (turno !== turnoPdf) return;
+    // La escala la marca la primera página; las demás van debajo.
+    const v1 = pags[0].getViewport({ scale: 1, rotation: VIS.giro });
+    const s = (VIS.modo === 'ancho' ? W / v1.width : Math.min(W / v1.width, H / v1.height)) * VIS.zoom;
+    const cont = document.createElement('div'); cont.className = 'pv-paginas';
+    // Un lienzo por página ya con su tamaño (el scroll queda bien desde el
+    // principio); se cambia en cuanto está pintada la 1ª y las demás van llegando.
+    const vistas = pags.map(p => p.getViewport({ scale: s, rotation: VIS.giro }));
+    const lienzos = vistas.map(v => {
+      const c = document.createElement('canvas');
+      c.style.width = Math.floor(v.width) + 'px'; c.style.height = Math.floor(v.height) + 'px';
+      cont.appendChild(c); return c;
+    });
+    const pintarPagina = i => {
+      const v = vistas[i], c = lienzos[i];
+      // Nitidez de pantalla, con tope de tamaño del lienzo para no agotar memoria
+      const k = Math.min(window.devicePixelRatio || 1, Math.sqrt(16e6 / (v.width * v.height)));
+      c.width = Math.floor(v.width * k); c.height = Math.floor(v.height * k);
+      return pags[i].render({ canvasContext: c.getContext('2d'), viewport: v, transform: k !== 1 ? [k, 0, 0, k, 0, 0] : null }).promise;
+    };
+    await pintarPagina(0);
+    if (turno !== turnoPdf) return;
+    const viejo = caja.querySelector('.pv-paginas'); if (viejo) viejo.replaceWith(cont);
+    (async () => { for (let i = 1; i < pags.length && turno === turnoPdf; i++) await pintarPagina(i); })().catch(() => {});
+  }
   async function pintarVisor(recargarPdf) {
     const marco = $('pv-visor'); if (!marco) return;
-    const g = $('pv-visor-girar'); if (g) g.style.display = esFoto() ? '' : 'none';
+    const g = $('pv-visor-girar'); if (g) g.style.display = puedeGirar() ? '' : 'none';
     if (esFoto()) {
       if (!marco.querySelector('img')) {
-        marco.innerHTML = `<div class="pv-img-caja"><div class="pv-lienzo"><img alt="Factura" src="${esc(VIS.url)}"></div></div>`;
+        marco.innerHTML = `<div class="pv-img-caja pv-arrastre"><div class="pv-lienzo"><img alt="Factura" draggable="false" src="${esc(VIS.url)}"></div></div>`;
         marco.querySelector('img').onload = ajustarFoto;
+        arrastrable(marco.querySelector('.pv-img-caja'));
       }
-      return ajustarFoto();
+      return conCentro(marco, ajustarFoto);
     }
-    // PDF: el visor del navegador entiende #view=Fit / FitH / zoom=N. El enlace firmado
-    // caduca en un minuto, así que al cambiar el zoom se pide uno nuevo.
+    if (VIS.pdf) return conCentro(marco, () => pintarPdf(marco));
+    // Sin pdf.js: visor del navegador (#view=Fit / FitH / zoom=N). El enlace
+    // firmado caduca en un minuto, así que al cambiar el zoom se pide uno nuevo.
     if (recargarPdf) Object.assign(VIS, await infoArchivo(VIS.fileId));
     const vista = VIS.zoom !== 1 ? 'zoom=' + Math.round(VIS.zoom * 100) : (VIS.modo === 'ancho' ? 'view=FitH' : 'view=Fit');
     marco.innerHTML = `<iframe title="Factura" src="${esc(VIS.url)}#${vista}"></iframe>`;
@@ -418,7 +503,12 @@
     else if (accion === 'girar') VIS.giro = (VIS.giro + 90) % 360;
     pintarVisor(true);
   };
-  window.addEventListener('resize', () => { if (S.abierta && esFoto()) ajustarFoto(); });
+  let esperaResize = null;
+  window.addEventListener('resize', () => {
+    if (!S.abierta) return;
+    if (esFoto()) return ajustarFoto();
+    if (VIS.pdf) { clearTimeout(esperaResize); esperaResize = setTimeout(() => { const m = $('pv-visor'); if (m) pintarPdf(m); }, 200); }
+  });
 
   // Guarda en todas las líneas de la factura abierta (o de otra, con fileId)
   async function guardarEnFactura(campo, valor, fileId) {

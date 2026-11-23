@@ -62,10 +62,20 @@ Para cada factura en «Por aprobar»:
 1. Abre el PDF y comprueba proveedor, número, fecha, base, IVA, retención y total.
 2. Revisa la **cuenta de gasto** propuesta (la habitual del proveedor). Cámbiala si este gasto va a otra; marca «usar siempre» si a partir de ahora debe ir siempre ahí. Si el gasto necesita una **cuenta nueva** del grupo 6, añádela antes en Config. Cuentas de gasto: ORUM Central la crea sola en Holded con el mismo número (no se crea a mano en Holded).
 3. Corrige la **fecha** o el **vencimiento** si la lectura se equivocó.
-4. Indica **«Pagada el»** (el día real del pago) y la **tesorería**: Transferencia y Domiciliación salen por Banco; **Tarjeta** (tarjeta de empresa) sale por **Tarjeta empresa** (55500001); en Efectivo u Otro eliges tú Banco, Tarjeta empresa, Efectivo Marbella o Efectivo Monda.
-5. Pulsa **«Aceptar»**. La factura entra en Holded aprobada, pagada y con el PDF adjunto, y en Facturas Proveedores se marca sola la casilla **«Contabilizada»** (queda en su historial con tu nombre). Si sale un aviso (por ejemplo, redondeo del IVA), léelo.
+4. Indica **«Pagada el»** (el día real del pago) y la **tesorería**: Transferencia y Domiciliación salen por Banco; **Tarjeta** (tarjeta de empresa) sale por **Tarjeta empresa** (55500001); **PayPal** sale por **PayPal (Banca March)** (57200003); en Efectivo u Otro eliges tú Banco, Tarjeta empresa, PayPal (Banca March), Efectivo Marbella o Efectivo Monda.
+5. Mira el cuadro **«Asiento en Holded»**: enseña las cuentas al Debe y al Haber que se van a crear (la factura y, si está pagada, el pago). Se actualiza al cambiar la cuenta o la tesorería.
+6. Pulsa **«Aceptar»**. La factura entra en Holded aprobada, pagada y con el PDF adjunto, y en Facturas Proveedores se marca sola la casilla **«Contabilizada»** (queda en su historial con tu nombre). Si sale un aviso (por ejemplo, redondeo del IVA), léelo.
 
 Los **abonos de proveedor** siguen el mismo camino y entran en Holded como devolución de compra.
+
+### Ficha del proveedor
+
+En cualquier factura de gasto (por aprobar, sin forma de pago o bloqueada) está la **«Ficha del proveedor»**: tipo, cuenta de gasto habitual, IVA al 0 %, retención y NIF. Cambia lo que haga falta y pulsa **«Guardar ficha del proveedor»**; la factura se vuelve a comprobar.
+
+- **Tipo:** **Proveedor (400)** si vende mercancía o material (gasto en 60x) y **Acreedor (410)** si presta un servicio o suministro (62x, 63x…), sea habitual o puntual. Si lo dejas en **Automático**, se elige por la cuenta de gasto: 60x → 400, cualquier otra → 410. Solo cuenta cuando el proveedor se crea en Holded; si ya existe con otra cuenta, el cuadro del asiento avisa y hay que cambiarlo en el contacto de Holded.
+- **IVA al 0 %:** qué es una línea sin IVA. Servicios de empresas de fuera de la UE (p. ej. Supabase, Railway) → **Inversión del sujeto pasivo 21 %** (472 al Debe y 477 al Haber por el mismo importe).
+
+**Facturas en otra moneda (dólares):** quedan bloqueadas. Pon los importes en euros (lo que cargó el banco o la tarjeta), cambia **«Moneda de los importes»** a EUR y pulsa «Guardar y reintentar».
 
 ### Facturas sin pagar (entran en Holded pendientes de pago)
 
@@ -193,6 +203,7 @@ Las dos quedan saldadas, la 430 del cliente a cero y **la tesorería Compensacio
     | --- | --- |
     | Transferencia o domiciliación | 400/410 Proveedor D / 57200001 Banco H |
     | Tarjeta de empresa | 400/410 Proveedor D / 55500001 Tarjeta empresa H |
+    | PayPal (Banca March) | 400/410 Proveedor D / 57200003 H |
     | Efectivo Marbella | 400/410 Proveedor D / 57000100 H |
     | Efectivo Monda | 400/410 Proveedor D / 57000200 H |
 

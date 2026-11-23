@@ -848,7 +848,7 @@ function pintarSubidas() {
 // Tras leer la factura (26 oct 2026, igual que en el panel): forma de pago y,
 // si es de un vehículo, matrícula, guardadas en todas sus líneas
 // (POST /api/facturas-proveedores/:fileId/completar). Vacía = pendiente de pago.
-var FORMAS_PAGO = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
+var FORMAS_PAGO = ['', 'Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'PayPal', 'Otro'];
 var vehiculosFact = [];
 function cargarVehiculosFact() {
   if (vehiculosFact.length) return;

@@ -120,6 +120,7 @@
     if (campo === 'sinPagar') { const pp = $('hd-pago-' + cssId(id)); if (pp) pp.style.display = el.checked ? 'none' : ''; }
     if (campo === 'cuenta') marcarHabitual(id);
     if (campo.startsWith('rep_')) sumaReparto(id);
+    if (campo === 'cuenta' || campo === 'sinPagar' || campo === 'pagoTesoreria' || campo.startsWith('rep_')) cargarAsiento(id);
   };
   const cssId = id => String(id).replace(/[^A-Za-z0-9_-]/g, '_');
 
@@ -297,6 +298,8 @@
         </div>
         ${reparto}
         <h4>Pago</h4>${pago}
+        ${asientoHtml(x)}
+        ${fichaProveedorHtml(x)}
         <div class="pv-ficha-pie">
           <button class="pv-boton prim" onclick="hdAceptar('${esc(id)}')">${I.ok}Aceptar y volcar a Holded</button>
           <button class="pv-boton g-vidrio" onclick="hdReintentar('${esc(id)}',true)" title="Vuelve a leer el PDF con Claude">${I.girar}Releer</button>
@@ -308,7 +311,9 @@
         <div class="hd-acciones-linea"><select class="hd-select" id="hd-fp-${cid}"><option value="">— forma de pago —</option>${(g.formas_pago || []).map(v => `<option>${esc(v)}</option>`).join('')}</select>
           <button class="pv-boton prim" onclick="hdAsignarPago('${esc(id)}')">${I.pago}Asignar y pasar a Por aprobar</button></div>
         <h4>Aún no está pagada</h4>
-        <div class="hd-acciones-linea"><button class="pv-boton g-vidrio" onclick="hdSinPagar('${esc(id)}')">Volcar sin pagar</button><span class="pv-sutil">Pasa a Por aprobar y entra en Holded pendiente de pago.</span></div>`;
+        <div class="hd-acciones-linea"><button class="pv-boton g-vidrio" onclick="hdSinPagar('${esc(id)}')">Volcar sin pagar</button><span class="pv-sutil">Pasa a Por aprobar y entra en Holded pendiente de pago.</span></div>
+        ${asientoHtml(x)}
+        ${fichaProveedorHtml(x)}`;
     } else {
       datos = bloqueadaHtml(x);
     }
@@ -331,7 +336,9 @@
   };
   window.pvFichaDespues = fileId => {
     if (!vivo() || S.abierta !== fileId) return;
-    const x = gastos().find(y => y.file_id === fileId); if (!x || x._e !== 'por_aprobar') return;
+    const x = gastos().find(y => y.file_id === fileId); if (!x) return;
+    if (x._e !== 'bloqueada') cargarAsiento(fileId, true);
+    if (x._e !== 'por_aprobar') return;
     if (x.reparto) sumaReparto(fileId); else marcarHabitual(fileId);
   };
   window.pvFichaAlCerrar = () => { if (vivo() && S.abierta) { S.abierta = null; pintar(); } };
@@ -381,6 +388,7 @@
     }
     if (nueva) requestAnimationFrame(() => cont.classList.add('visible')); else cont.classList.add('visible');
     if (x._e === 'por_aprobar') { if (x.reparto) sumaReparto(id); else marcarHabitual(id); }
+    if (x._e !== 'bloqueada') cargarAsiento(id, true);
   }
   async function cargarVisor(id) {
     const marco = document.querySelector('.hd-visor-marco[data-id="' + cssId(id) + '"]'); if (!marco) return;
@@ -1009,6 +1017,77 @@
     if (vivo()) pintar();
   };
 
+  // ── Ficha del proveedor desde cualquier factura (23 nov 2026, usuario) ──
+  // Proveedor (400) / acreedor (410), cuenta de gasto habitual, IVA al 0 %,
+  // retención y NIF. Se guarda solo lo cambiado y la factura se recomprueba.
+  function fichaProveedorHtml(x) {
+    const id = x.file_id, g = S.g || {}, fi = x.ficha || {}, b = B(id);
+    const val = (k, def) => b[k] !== undefined ? b[k] : (def == null ? '' : def);
+    const sel = (k, def, opts, vacio) => `<select onchange="hdCampo('${esc(id)}','${k}',this)"><option value="">${esc(vacio)}</option>${(opts || []).map(o => `<option value="${esc(o.key)}" ${String(val(k, def)) === o.key ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}</select>`;
+    return `<h4>Ficha del proveedor · ${esc(x.proveedor || '')}</h4>
+      <div class="pv-campos">
+        <label class="pv-campo"><span>Tipo</span>${sel('f_tipo', fi.tipo_contacto, [{ key: 'proveedor', nombre: 'Proveedor (400)' }, { key: 'acreedor', nombre: 'Acreedor (410)' }], 'Automático: 60x → 400, resto → 410')}</label>
+        <label class="pv-campo"><span>Cuenta de gasto habitual</span><input list="hd-dl-cuentas" placeholder="Buscar cuenta…" value="${esc(val('f_cuenta', etiquetaCuenta(fi.cuenta_gasto)))}" onfocus="hdFocoCuenta(this)" oninput="hdCuentaInput(this,'${esc(id)}','f_cuenta')"></label>
+        <label class="pv-campo"><span>IVA al 0 % es…</span>${sel('f_iva0', fi.iva_cero, g.opciones_iva_cero, '— sin indicar —')}</label>
+        <label class="pv-campo"><span>Retención</span>${sel('f_ret', fi.retencion, g.opciones_retencion, '— la que diga la factura —')}</label>
+        <label class="pv-campo"><span>NIF</span><input value="${esc(val('f_nif', fi.nif))}" oninput="hdCampo('${esc(id)}','f_nif',this)"></label>
+      </div>
+      <button class="pv-boton g-vidrio" style="align-self:flex-start" onclick="hdGuardarFicha('${esc(id)}',this)">${I.ok}Guardar ficha del proveedor</button>`;
+  }
+  window.hdGuardarFicha = async (id, btn) => {
+    const x = gastos().find(y => y.file_id === id); if (!x) return;
+    const b = B(id), fi = x.ficha || {}, cuerpo = {};
+    const cambio = (k, def) => b[k] !== undefined && String(b[k]) !== String(def == null ? '' : def);
+    if (cambio('f_tipo', fi.tipo_contacto)) cuerpo.tipo_contacto = b.f_tipo;
+    if (b.f_cuenta !== undefined) {
+      const n = numeroDe(b.f_cuenta);
+      if (String(b.f_cuenta).trim() && !n) { toast('Esa cuenta no está en el plan: elígela de la lista o créala', true); return; }
+      if (String(n || '') !== String(fi.cuenta_gasto || '')) cuerpo.cuenta_gasto = n || '';
+    }
+    if (cambio('f_iva0', fi.iva_cero)) cuerpo.iva_cero = b.f_iva0;
+    if (cambio('f_ret', fi.retencion)) cuerpo.retencion = b.f_ret;
+    if (cambio('f_nif', fi.nif)) cuerpo.nif = b.f_nif;
+    if (!Object.keys(cuerpo).length) { toast('No has cambiado nada de la ficha'); return; }
+    btn.disabled = true; toast('Guardando la ficha…');
+    try {
+      const r = await api('POST', '/api/holded/gastos/' + encodeURIComponent(id) + '/ficha', cuerpo);
+      if (r.estado === 'error') toast(r.motivo || 'No se ha guardado', true);
+      else {
+        ['f_tipo', 'f_cuenta', 'f_iva0', 'f_ret', 'f_nif'].forEach(k => delete b[k]);
+        toast('✔ Ficha guardada' + (r.estado === 'por_aprobar' ? ' · lista para aprobar' : r.estado === 'bloqueada' ? ' · sigue bloqueada: ' + (r.motivo || '') : ''), r.estado === 'bloqueada');
+      }
+    } catch (e) { toast(e.message, true); }
+    btn.disabled = false;
+    await cargar();
+  };
+
+  // ── Asiento que generará en Holded (23 nov 2026, usuario: «ver a qué
+  // asientos contables va todo») ── Se recalcula al cambiar cuenta, reparto o pago.
+  function asientoHtml(x) {
+    return `<h4>Asiento en Holded</h4><div class="hd-asiento" id="hd-asiento-${cssId(x.file_id)}"><span class="pv-sutil">Calculando…</span></div>`;
+  }
+  const esperaAsiento = {};
+  function cargarAsiento(id, ya) {
+    clearTimeout(esperaAsiento[id]);
+    esperaAsiento[id] = setTimeout(async () => {
+      const el = $('hd-asiento-' + cssId(id)), x = gastos().find(y => y.file_id === id); if (!el || !x) return;
+      const b = B(id), cuerpo = {};
+      if (x.reparto) cuerpo.reparto = lineasReparto(id);
+      else if (b.cuenta !== undefined) cuerpo.cuenta = numeroDe(b.cuenta) || '';
+      if (b.sinPagar) cuerpo.sinPagar = true;
+      if (b.pagoTesoreria !== undefined) cuerpo.pagoTesoreria = b.pagoTesoreria;
+      let r;
+      try { r = await api('POST', '/api/holded/gastos/' + encodeURIComponent(id) + '/asiento', cuerpo); } catch (e) { r = { motivo: e.message }; }
+      const el2 = $('hd-asiento-' + cssId(id)); if (!el2) return;
+      if (!r || !r.ok) { el2.innerHTML = `<span class="pv-sutil">No se puede calcular: ${esc((r && r.motivo) || 'error')}</span>`; return; }
+      const imp = v => v ? eur(v) : '';
+      el2.innerHTML = r.asientos.map(a => `<div class="hd-asiento-t">${esc(a.titulo)}</div>
+        <table><thead><tr><th>Cuenta</th><th></th><th class="n">Debe</th><th class="n">Haber</th></tr></thead><tbody>
+        ${a.lineas.map(l => `<tr><td class="hd-asiento-c">${esc(l.cuenta)}</td><td>${esc(l.nombre)}${l.nota ? `<small>${esc(l.nota)}</small>` : ''}</td><td class="n">${imp(l.debe)}</td><td class="n">${imp(l.haber)}</td></tr>`).join('')}
+        </tbody></table>`).join('') + (r.aviso ? `<div class="pv-dudas">${I.alerta}<span>${esc(r.aviso)}</span></div>` : '');
+    }, ya ? 0 : 400);
+  }
+
   // ── Corregir una factura de compra bloqueada (20 nov 2026) ──
   // Lo que la IA leyó (nº, fecha, NIF, cuadro de IVA, total) y la ficha del
   // proveedor (IVA 0 %, retención, NIF), editables; «Guardar y reintentar».
@@ -1043,14 +1122,10 @@
       <div class="pv-campos">
         ${campo('Retención (importe)', 'c_ret', l.retencion_importe)}
         ${campo('Total de la factura', 'c_total', l.total)}
+        ${String(l.moneda || 'EUR').toUpperCase() !== 'EUR' || b.c_moneda !== undefined ? `<label class="pv-campo"><span>Moneda de los importes</span><select onchange="hdCampo('${esc(id)}','c_moneda',this)">${[...new Set(['EUR', String(l.moneda || 'EUR').toUpperCase()])].map(m => `<option ${val('c_moneda', String(l.moneda || 'EUR').toUpperCase()) === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label>` : ''}
       </div>
       <div id="hd-cuadre-${cssId(id)}" class="${cuadra ? 'hd-ok-linea' : 'rojo'}" style="font-size:12.5px">${cuadra ? I.ok + ' Cuadra' : 'No cuadra'}: base ${eur(sumaB)} + IVA ${eur(sumaC)} − retención ${eur(ret)} = ${eur(sumaB + sumaC - ret)} · total ${eur(tot)}</div>
-      <h4>Ficha del proveedor</h4>
-      <div class="pv-campos">
-        <label class="pv-campo"><span>IVA al 0 % es…</span><select onchange="hdCampo('${esc(id)}','f_iva0',this)"><option value="">— sin indicar —</option>${(g.opciones_iva_cero || []).map(o => `<option value="${o.key}" ${val('f_iva0', fi.iva_cero) === o.key ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}</select></label>
-        <label class="pv-campo"><span>Retención</span><select onchange="hdCampo('${esc(id)}','f_ret',this)"><option value="">— la que diga la factura —</option>${(g.opciones_retencion || []).map(o => `<option value="${o.key}" ${val('f_ret', fi.retencion) === o.key ? 'selected' : ''}>${esc(o.nombre)}</option>`).join('')}</select></label>
-        ${campo('NIF en la ficha', 'f_nif', fi.nif)}
-      </div>
+      ${fichaProveedorHtml(x)}
       <div class="pv-ficha-pie">
         <button class="pv-boton prim" onclick="hdCorregir('${esc(id)}',this)">${I.ok}Guardar y reintentar</button>
         <button class="pv-boton g-vidrio" onclick="hdReintentar('${esc(id)}',true)" title="Vuelve a leer el PDF con Claude">${I.girar}Releer el PDF</button>
@@ -1082,6 +1157,7 @@
     if (cambio('c_nif', l.nif)) cuerpo.nif = b.c_nif;
     if (cambio('c_total', l.total)) cuerpo.total = numES(b.c_total);
     if (cambio('c_ret', l.retencion_importe)) cuerpo.retencion_importe = numES(b.c_ret);
+    if (cambio('c_moneda', l.moneda)) cuerpo.moneda = b.c_moneda;
     const ls = (b.c_lineas || []).map(y => ({ tipo: numES(y.tipo), base: numES(y.base), cuota: numES(y.cuota) }));
     if (JSON.stringify(ls) !== JSON.stringify((l.lineas_iva || []).map(y => ({ tipo: num(y.tipo), base: num(y.base), cuota: num(y.cuota) })))) cuerpo.lineas_iva = ls;
     const fi = x.ficha || {};

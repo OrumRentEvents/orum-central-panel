@@ -2685,7 +2685,7 @@ async function datosParaCompletarFactura(proveedor, matriculaLeida) {
     return { es_vehiculo: false, matricula_sugerida: '', matricula_leida: matriculaLeida || '' };
   }
 }
-const FORMAS_PAGO_SUBIDA = ['Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'Otro'];
+const FORMAS_PAGO_SUBIDA = ['Transferencia', 'Tarjeta', 'Domiciliación', 'Efectivo', 'PayPal', 'Otro'];
 // Guarda forma de pago y matrícula en todas las líneas de la factura (una por
 // periodo). Forma de pago vacía = pendiente de pago (no se vuelca a Holded).
 app.post('/api/facturas-proveedores/:fileId/completar', requiereLogin, bloquearComercial, async (req, res) => {
@@ -5325,6 +5325,15 @@ app.post('/api/holded/gastos/volcar', requiereLogin, soloHolded, async (req, res
 app.post('/api/holded/gastos/proveedor', requiereLogin, soloHolded, async (req, res) => {
   try { res.json(await holdedCompras.guardarProveedor(req.body || {}, req.session.usuario.nombre)); }
   catch (err) { console.error('Error en /api/holded/gastos/proveedor:', err); res.status(500).json({ error: err.message }); }
+});
+// (23 nov 2026) Ficha del proveedor desde cualquier factura y vista previa del asiento
+app.post('/api/holded/gastos/:fileId/ficha', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.guardarFicha(req.params.fileId, req.body || {}, req.session.usuario.nombre)); }
+  catch (err) { console.error('Error en /api/holded/gastos/ficha:', err); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/holded/gastos/:fileId/asiento', requiereLogin, soloHolded, async (req, res) => {
+  try { res.json(await holdedCompras.asientoPrevio(req.params.fileId, req.body || {})); }
+  catch (err) { console.error('Error en /api/holded/gastos/asiento:', err); res.status(500).json({ error: err.message }); }
 });
 app.post('/api/holded/gastos/:fileId/reintentar', requiereLogin, soloHolded, async (req, res) => {
   try { res.json(await holdedCompras.reintentar(req.params.fileId, { releer: !!(req.body && req.body.releer) })); }
