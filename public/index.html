@@ -232,7 +232,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Marcellus&display=swap" rel="stylesheet">
 <script src="frases-dia.js?v=1"></script>
 <script src="rutas-plan.js?v=11"></script>
-<script src="proveedores.js?v=5"></script>
+<script src="proveedores.js?v=6"></script>
 <script src="holded-glass.js?v=6"></script>
 <script src="glass.js?v=13"></script>
 </head>
@@ -1055,6 +1055,9 @@ const MENU = [
       // extras (public/bolsa.js). Sustituye a Registrar extras, que solo se abre ya
       // para corregir un registro desde Aprobar y pagar. Dirección/Contabilidad: Personal.
       { id: 'log-bolsa', label: 'Bolsa de horas', rolesPermitidos: ['Logistica'], onClick: () => cargarBolsaHoras('log-bolsa') },
+      // Facturas Proveedores para mirar (24 nov 2026, usuario): Logística no las
+      // cambia (el servidor lo impide: soloLecturaLogistica). El resto las tiene en Financiero.
+      { id: 'log-facturas', label: 'Facturas Proveedores', rolesPermitidos: ['Logistica'], onClick: () => cargarFacturasProveedores() },
   ]},
   { id: 'mantenimiento', icon: 'wrench', group: 'operaciones', label: 'Mantenimiento', onClick: () => cargarMantenimiento() },
   // Módulo Vehículos (public/vehiculos.js): flota, fichas, vencimientos y mantenimientos.
@@ -7593,7 +7596,7 @@ function pintarFacturasProveedores() {
         <!-- Oct 2026: las facturas se suben aquí (PDF o foto) y se leen al
         momento; antes se dejaban en una carpeta de Google Drive que se leía
         a las 6:00 o con "Actualizar facturas". -->
-        <button onclick="abrirSubirFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">⬆️ Subir facturas</button>
+        ${usuarioActual.rol === 'Logistica' ? '' : `<button onclick="abrirSubirFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:none; background:#1a1a18; color:#fff; cursor:pointer;">⬆️ Subir facturas</button>`}
         <button onclick="abrirHistoricoImportaciones()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#1a1a18; cursor:pointer;">📅 Histórico de importaciones</button>
         <button onclick="abrirErroresFacturas()" style="font-size:13px; padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#A32D2D; cursor:pointer;">⚠️ Ver errores</button>
       </div>
@@ -7841,6 +7844,12 @@ function renderTablaFacturasProveedores(lista) {
   });
   html += '</tbody></table>';
   cont.innerHTML = html;
+  // Logística: solo consulta (24 nov 2026). Se ve todo y se abre el PDF y el
+  // historial, pero no se cambia nada (el servidor también lo bloquea).
+  if (usuarioActual.rol === 'Logistica') {
+    cont.querySelectorAll('tbody select, tbody input').forEach(el => { el.disabled = true; });
+    cont.querySelectorAll('tbody span[onclick^="toggleEdicionFactura"]').forEach(el => el.remove());
+  }
 }
 // 📄: abre el PDF escaneado directo desde Google Drive (visor nativo de
 // Google, instantáneo). ANTES pasaba por /api/.../archivo, que reenviaba el

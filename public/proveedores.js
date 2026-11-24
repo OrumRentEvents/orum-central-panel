@@ -34,6 +34,8 @@
   const eur = v => num(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
   const eur0 = v => Math.round(num(v)).toLocaleString('es-ES', { useGrouping: 'always' }) + ' €';
   const hoyMes = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+  // Logística (24 nov 2026, usuario): solo consulta; el servidor bloquea los cambios.
+  const soloLectura = () => (usuario() || {}).rol === 'Logistica';
   const usuario = () => { try { return usuarioActual || window.usuarioActual || null; } catch (e) { return window.usuarioActual || null; } };
   const normal = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const iniciales = s => String(s || '?').replace(/[^A-Za-zÁÉÍÓÚÑ0-9 ]/gi, ' ').trim().split(/\s+/).filter(w => w.length > 1 && !/^(SL|SA|SLU|SAU|DE|LA|EL|Y)$/i.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
@@ -160,7 +162,7 @@
             <button class="pv-mini ${S.todoAnio ? 'activo' : ''}" onclick="pvTodoAnio()">Todo el año</button>
             ${S.mes !== hoyMes() || S.todoAnio ? `<button class="pv-mini" onclick="pvHoy()">Mes actual</button>` : ''}
           </div>
-          <button class="pv-boton prim" onclick="abrirSubirFacturas()">${I.subir}Subir facturas</button>
+          ${soloLectura() ? '' : `<button class="pv-boton prim" onclick="abrirSubirFacturas()">${I.subir}Subir facturas</button>`}
           <button class="pv-boton g-vidrio" onclick="abrirErroresFacturas()" title="Facturas que no se pudieron leer">${I.alerta}</button>
           <button class="pv-boton g-vidrio" onclick="abrirHistoricoImportaciones()" title="Histórico de importaciones">${I.reloj}</button>
           ${['Direccion', 'Contabilidad'].includes(u.rol) ? `<button class="pv-boton g-vidrio" onclick="pvAbrirHolded()" title="Abrir Holded (aprobar y volcar)">Holded ${I.externo}</button>` : ''}
@@ -364,6 +366,10 @@
           </div>
         </div>
       </div></aside>`;
+    if (soloLectura()) {
+      cont.querySelectorAll('.pv-datos input, .pv-datos select, .pv-datos textarea').forEach(el => { el.disabled = true; });
+      cont.querySelectorAll('.pv-revisada, .pv-duplicada .pv-mini').forEach(el => el.remove());
+    }
     requestAnimationFrame(() => cont.classList.add('visible'));
     if (visorPrevio) { $('pv-visor').replaceWith(visorPrevio); const g = $('pv-visor-girar'); if (g) g.style.display = puedeGirar() ? '' : 'none'; }
     else cargarVisor(f.fileId);
@@ -622,7 +628,7 @@
         <button class="pv-mini" onclick="cargarConfiguracionProveedores()">Configurar reparto</button></div>` : ''}
       <div class="pv-tarjetas">${tarjetas || '<div class="pv-panel g-vidrio pv-vacio">Sin proveedores en este año.</div>'}</div>
       <div class="pv-config">
-        <button class="pv-boton g-vidrio" onclick="cargarConfiguracionProveedores()">Reparto por departamento</button>
+        ${soloLectura() ? '' : '<button class="pv-boton g-vidrio" onclick="cargarConfiguracionProveedores()">Reparto por departamento</button>'}
         ${['Direccion', 'Contabilidad'].includes((usuario() || {}).rol) ? '<button class="pv-boton g-vidrio" onclick="cargarCuentasGasto()">Cuentas contables</button>' : ''}
       </div>`;
   }

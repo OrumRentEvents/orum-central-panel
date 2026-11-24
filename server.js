@@ -162,6 +162,13 @@ function bloquearComercial(req, res, next) {
   if (req.session.usuario.rol === 'Comercial') return res.status(403).json({ error: 'No autorizado para este apartado' });
   next();
 }
+// Facturas Proveedores (24 nov 2026, usuario): los responsables de Logística
+// las ven pero no las cambian. Subir y completar (forma de pago y matrícula al
+// subir desde el móvil) siguen permitidos, como hasta ahora.
+function soloLecturaLogistica(req, res, next) {
+  if (req.session.usuario.rol === 'Logistica') return res.status(403).json({ error: 'Logística solo puede consultar las facturas de proveedores' });
+  next();
+}
 
 // Servicios Isabella (VMS Horeca, Isabella Mobiliario, Isabella al Carbón,
 // Isabella Mobil Home): los responsables de Logística dan de alta los
@@ -2853,7 +2860,7 @@ async function obtenerFacturasProveedoresEnriquecidas() {
 }
 
 // Web de un proveedor (19 nov 2026), solo para mostrar su logo en el panel. Vacío = quitarla.
-app.post('/api/facturas-proveedores/web', requiereLogin, bloquearComercial, async (req, res) => {
+app.post('/api/facturas-proveedores/web', requiereLogin, bloquearComercial, soloLecturaLogistica, async (req, res) => {
   try {
     const proveedor = String((req.body && req.body.proveedor) || '').trim();
     const dominio = String((req.body && req.body.dominio) || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[\/\s]/)[0];
@@ -4599,7 +4606,7 @@ app.get('/api/facturas-proveedores/tipos', requiereLogin, bloquearComercial, asy
     res.json({ ok: true, tipos: data || [], opciones: TIPOS_GASTO });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/facturas-proveedores/tipos', requiereLogin, bloquearComercial, async (req, res) => {
+app.post('/api/facturas-proveedores/tipos', requiereLogin, bloquearComercial, soloLecturaLogistica, async (req, res) => {
   try {
     const filas = ((req.body && req.body.tipos) || []).filter(t => t.proveedor && TIPOS_GASTO[t.tipo])
       .map(t => ({ proveedor: String(t.proveedor), tipo: t.tipo, actualizado_por: req.session.usuario.nombre, actualizado_en: new Date().toISOString() }));
@@ -4613,7 +4620,7 @@ app.get('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, a
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, async (req, res) => {
+app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, soloLecturaLogistica, async (req, res) => {
   try {
     res.json(await facturasDatos.guardarReparto(req.body.reparto || []));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -4628,7 +4635,7 @@ const CAMPOS_FACTURA_EDITABLES = ['proveedor', 'numeroFactura', 'fecha', 'import
 // ACTUALIZADO (15 sep 2026): se direcciona por "fila" (nº de fila real en
 // FACTURAS_LOG) en vez de por fileId - desde que una factura puede ocupar
 // varias filas (una por línea/mes), fileId ya no identifica una fila única.
-app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercial, async (req, res) => {
+app.post('/api/facturas-proveedores/actualizar', requiereLogin, bloquearComercial, soloLecturaLogistica, async (req, res) => {
   try {
     const { fila, campo, valor } = req.body;
     if (!fila) return res.status(400).json({ error: 'fila requerida' });
