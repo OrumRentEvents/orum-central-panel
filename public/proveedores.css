@@ -281,3 +281,8 @@ html.glass.oscuro .pv-visor-marco { background: #2A2724; }
 .pv-notas { width: 100%; box-sizing: border-box; min-height: 70px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--g-linea); background: var(--g-campo); font: inherit; color: var(--g-tinta); resize: vertical; }
 .pv-notas:focus { outline: 2px solid var(--g-sel-borde); }
 .pv-campo em { font-style: normal; font-size: 11px; }
+
+/* 24 nov 2026: departamento editable en la lista de Facturas */
+.pv-dep-edit { cursor: pointer; display: inline-flex; flex-wrap: wrap; border-radius: 8px; }
+.pv-dep-edit:hover .pv-dep { border-color: var(--g-suave); }
+.pv-dep-sel { font-size: 12px; padding: 3px 6px; border-radius: 7px; border: 1px solid var(--g-linea); background: var(--g-campo); max-width: 190px; }
