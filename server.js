@@ -4626,6 +4626,20 @@ app.post('/api/facturas-proveedores/reparto', requiereLogin, bloquearComercial, 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Departamento de un proveedor desde la ficha de la factura (24 nov 2026,
+// usuario: «clasificar el departamento desde esa pantalla», sencillo): un
+// departamento al 100 % para todas sus facturas. Los repartos entre varios se
+// siguen haciendo en Config. Facturas Proveedores.
+const DEPARTAMENTOS_GASTO = ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Vehículos', 'Otros Gastos', 'Isabella Premium Group'];
+app.post('/api/facturas-proveedores/reparto/proveedor', requiereLogin, async (req, res) => {
+  if (!['Direccion', 'Contabilidad'].includes(req.session.usuario.rol)) return res.status(403).json({ error: 'Solo Dirección y Contabilidad clasifican el departamento' });
+  try {
+    const { proveedor, departamento } = req.body || {};
+    if (departamento && !DEPARTAMENTOS_GASTO.includes(departamento)) return res.status(400).json({ error: 'Departamento no válido' });
+    res.json(await facturasDatos.guardarRepartoProveedor(proveedor, departamento ? [{ departamento, porcentaje: 100 }] : []));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // NUEVO (28 ago 2026): gestión de las 4 columnas manuales (Forma de Pago,
 // Contabilizada, Digitalizada, Matrícula) desde el propio panel, para que
 // contabilidad no tenga que tocar la Sheet directamente.

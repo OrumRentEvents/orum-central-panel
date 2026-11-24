@@ -304,7 +304,19 @@
     const campo = (etq, c, valor, tipo, ancho) => `<label class="pv-campo ${ancho || ''}"><span>${etq}</span><input type="${tipo || 'text'}" ${tipo === 'number' ? 'step="0.01"' : ''} value="${esc(valor ?? '')}" onchange="pvGuardar(this,'${c}')"></label>`;
     const periodos = ls.map(x => `<div class="pv-periodo-l" data-fila="${esc(x.fila)}">
         ${campo('Fecha', 'fecha', x.fecha)}${campo('Base', 'importeBase', x.importeBase, 'number')}${campo('IVA', 'iva', x.iva, 'number')}${campo('Total', 'importeTotal', x.importeTotal, 'number')}</div>`).join('');
-    const deps = (f.desglose_departamentos || []).map(d => `<span class="pv-dep">${esc(d.departamento)} · ${d.porcentaje}% · ${eur(d.importe)}</span>`).join('');
+    // Departamento (24 nov 2026): uno al 100 % para el proveedor, desde aquí. Si
+    // está repartido entre varios se ve el reparto; elegir uno lo sustituye.
+    const dl = (f.desglose_departamentos || []).filter(d => d.departamento !== 'Sin clasificar');
+    const repartido = dl.length > 1 || (dl.length === 1 && Number(dl[0].porcentaje) !== 100);
+    const actual = dl.length === 1 && !repartido ? dl[0].departamento : '';
+    const puedeDep = ['Direccion', 'Contabilidad'].includes(u.rol);
+    const DEPS = typeof DEPARTAMENTOS_ORUM !== 'undefined' ? DEPARTAMENTOS_ORUM : ['Dirección', 'Administración', 'Comercial', 'Logística', 'Office', 'Lavandería', 'Mantenimiento', 'Vehículos', 'Otros Gastos', 'Isabella Premium Group'];
+    const deps = `<label class="pv-campo ancho"><span>Departamento <em class="pv-sutil">(para todas las facturas de ${esc(f.proveedor)})</em></span>
+        <select ${puedeDep ? '' : 'disabled'} onchange="pvDepartamento(this)">
+          <option value="" ${!dl.length ? 'selected' : ''}>Sin clasificar</option>
+          ${repartido ? `<option value="__rep" selected>Repartido: ${esc(dl.map(d => d.departamento + ' ' + d.porcentaje + '%').join(', '))}</option>` : ''}
+          ${DEPS.map(d => `<option ${d === actual ? 'selected' : ''}>${esc(d)}</option>`).join('')}
+        </select></label>`;
     // Al volver a pintar la misma factura (tras guardar un dato) se conserva el visor tal cual
     // (zoom, giro y el PDF ya cargado: su enlace firmado caduca al minuto)
     const visorPrevio = VIS.fileId === String(f.fileId) ? $('pv-visor') : null;
@@ -347,7 +359,7 @@
             <label class="pv-campo"><span>Forma de pago</span><select onchange="pvGuardar(this,'formaPago')"><option value="">Sin pagar</option>${FORMAS_PAGO.map(v => `<option ${v === f.formaPago ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
             <label class="pv-campo"><span>Holded</span><input disabled value="${f.contabilizada ? 'Contabilizada ✓' : 'Pendiente'}"></label>
           </div>
-          <div class="pv-deps">${deps}</div>
+          <div class="pv-campos">${deps}</div>
           <h4>${I.camion} Vehículo</h4>
           <div class="pv-campos" data-fila="${esc(f.fila)}" data-todas="1">
             <label class="pv-campo"><span>Matrícula</span><select onchange="pvGuardar(this,'matricula')"><option value="">— No es de vehículo</option>
@@ -549,6 +561,20 @@
       el.value = (lineas().find(x => String(x.fileId) === S.abierta) || {}).proveedor || ''; return;
     }
     el.value = v; guardar(el, 'proveedor');
+  };
+  window.pvDepartamento = async el => {
+    const f = lineas().find(x => String(x.fileId) === S.abierta); if (!f) return;
+    if (el.value === '__rep') return;
+    const n = new Set(lineas().filter(x => x.proveedor === f.proveedor).map(x => x.fileId)).size;
+    if (n > 1 && !confirm(`Se pondrá «${el.value || 'Sin clasificar'}» en las ${n} facturas de ${f.proveedor}. ¿Seguir?`)) { pintarFicha(); return; }
+    el.disabled = true;
+    try {
+      const r = await fetch('/api/facturas-proveedores/reparto/proveedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proveedor: f.proveedor, departamento: el.value }) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Error ' + r.status);
+      toast(el.value ? `${f.proveedor} → ${el.value}` : 'Proveedor sin clasificar');
+      await cargar();
+    } catch (e) { toast('No se ha guardado: ' + e.message, true); el.disabled = false; }
   };
   window.pvGuardarWeb = async el => {
     const f = lineas().find(x => String(x.fileId) === S.abierta); if (!f) return;
