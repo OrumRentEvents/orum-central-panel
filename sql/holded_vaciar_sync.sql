@@ -20,6 +20,13 @@ begin
   execute format('create table holded_sync_ejecuciones_bak_%s as table holded_sync_ejecuciones', sufijo);
   execute format('create table holded_sync_compras_bak_%s as table holded_sync_compras', sufijo);
   execute format('create table holded_proveedores_bak_%s as table holded_proveedores', sufijo);
+  -- (24 nov 2026) Las copias nacen sin seguridad por filas: sin esto se podían
+  -- leer y modificar con la clave pública. El servidor entra con la de servicio.
+  execute format('alter table holded_sync_facturas_bak_%s enable row level security', sufijo);
+  execute format('alter table holded_sync_cobros_bak_%s enable row level security', sufijo);
+  execute format('alter table holded_sync_ejecuciones_bak_%s enable row level security', sufijo);
+  execute format('alter table holded_sync_compras_bak_%s enable row level security', sufijo);
+  execute format('alter table holded_proveedores_bak_%s enable row level security', sufijo);
 end $$;
 
 -- Ventas y cobros: desde cero (se vuelven a volcar desde HOLDED_FECHA_CORTE).
